@@ -27,6 +27,28 @@
   </div>
 </template>
 
+<script setup>
+import { auth } from "../firebase";
+import { signOut } from "firebase/auth";
+import { useRouter } from "vue-router";
+
+const router = useRouter();
+
+const logout = async () => {
+  try {
+    await signOut(auth);
+
+    console.log("ログアウト成功");
+
+    // ログイン画面へ移動
+    router.push("/login");
+
+  } catch (error) {
+    console.error("ログアウト失敗", error);
+  }
+};
+</script>
+
 <style scoped>
 .mypage-container {
   padding: 30px 20px;
