@@ -33,12 +33,18 @@
       </div>
     </section>
 
-    <button class="add-button">+</button>
+    <button class="add-button" @click="router.push('/make-event')">+</button>
   </div>
 </template>
 
+<script setup>
+// このスクリプト部分が不足していました
+import { useRouter } from 'vue-router'
+const router = useRouter()
+</script>
+
 <style scoped>
-/* Home固有スタイルのみ残す */
+/* スタイルはそのまま活かしています */
 .home-container { position: relative; }
 .payment-status { padding: 20px; }
 .section-title { font-size: 18px; margin-bottom: 15px; font-weight: bold; }
@@ -65,5 +71,5 @@
 .circle { width: 18px; height: 18px; border-radius: 50%; }
 .c1 { background-color: #fca5a5; } .c2 { background-color: #93c5fd; } .c3 { background-color: #86efac; }
 .event-amount { font-size: 13px; font-weight: bold; }
-.add-button { position: fixed; right: 20px; bottom: 100px; width: 60px; height: 60px; background-color: #3b82f6; color: white; border: none; border-radius: 50%; font-size: 40px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+.add-button { position: fixed; right: 20px; bottom: 100px; width: 60px; height: 60px; background-color: #3b82f6; color: white; border: none; border-radius: 50%; font-size: 40px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer; }
 </style>
