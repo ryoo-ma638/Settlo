@@ -6,6 +6,7 @@ import MyPageView from '../views/MyPageView.vue'
 // お知らせ画面とイベント作成画面をインポート
 import NotificationView from '../views/NotificationView.vue'
 import MakeEventView from '../views/MakeEventView.vue'
+import LoginView from '../views/LoginView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -41,7 +42,13 @@ const router = createRouter({
       path: '/make-event',
       name: 'make-event',
       component: MakeEventView
-    }
+    },
+    // 🌟 復活！ログイン画面のルート
+    { 
+      path: '/login',
+      name: 'login',
+     component: LoginView 
+    }   
   ]
 })
 
