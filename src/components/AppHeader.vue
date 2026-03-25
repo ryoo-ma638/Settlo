@@ -8,7 +8,7 @@
           <ul class="menu-group top-group">
             <li @click="router.push('/mypage'); isSidebarOpen = false">マイページ</li>
             <li @click="router.push('/friend'); isSidebarOpen = false">フレンド</li>
-            <li @click="isSidebarOpen = false">お知らせ</li>
+            <li @click="router.push('/notification'); isSidebarOpen = false">お知らせ</li>
             <li @click="isSidebarOpen = false">履歴</li>
           </ul>
 
@@ -33,7 +33,7 @@
         <h1 class="app-title">アプリ名</h1>
 
         <div class="header-icons">
-          <div class="icon-black"></div>
+          <div class="icon-black" @click="router.push('/notification')" style="cursor: pointer;"></div>
           <div class="icon-black menu-trigger" @click="isSidebarOpen = true"></div>
         </div>
       </header>
@@ -47,14 +47,12 @@ import { useRouter } from 'vue-router';
 const isSidebarOpen = ref(false);
 const router = useRouter(); 
   
-// マイページへ移動する関数
 const goToMyPage = () => {
   router.push('/mypage');
 };
 </script>
   
 <style scoped>
-/* スタイル（見た目）は変更なしです */
 .sidebar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.4); z-index: 1000; }
 .sidebar { position: fixed; top: 0; right: -75%; width: 75%; height: 100%; background: rgba(0, 0, 0, 0.85); z-index: 1001; transition: right 0.3s ease; padding: 60px 30px; box-sizing: border-box; color: white; }
 .sidebar.is-open { right: 0; }
