@@ -1,74 +1,99 @@
 <template>
-    <div>
-      <div class="sidebar-overlay" v-if="isSidebarOpen" @click="isSidebarOpen = false"></div>
+  <div>
+    <AppSidebar :isOpen="isSidebarOpen" @close="isSidebarOpen = false" />
+
+    <header class="header">
       
-      <div class="sidebar" :class="{ 'is-open': isSidebarOpen }">
-        <div class="sidebar-content">
-          
-          <ul class="menu-group top-group">
-            <li @click="router.push('/mypage'); isSidebarOpen = false">マイページ</li>
-            <li @click="router.push('/friend'); isSidebarOpen = false">フレンド</li>
-            <li @click="router.push('/notification'); isSidebarOpen = false">お知らせ</li>
-            <li @click="isSidebarOpen = false">履歴</li>
-          </ul>
-
-          <ul class="menu-group middle-group">
-            <li @click="isSidebarOpen = false">新規イベント作成/参加</li>
-            <li @click="isSidebarOpen = false">進行中のイベント</li>
-            <li @click="router.push('/payment'); isSidebarOpen = false">お金のお支払い</li>
-          </ul>
-
-          <div class="sidebar-footer">
-            <p class="back-home" @click="router.push('/'); isSidebarOpen = false">ホームへ戻る</p>
-          </div>
-        </div>
-      </div>
-  
-      <header class="header">
-        <div class="user-icon-container" @click="goToMyPage" style="cursor: pointer;">
+      <div class="header-left">
+        <div class="user-icon-container" @click="navigate('/mypage')">
           <div class="user-circle"></div>
           <span class="user-name">名前</span>
         </div>
-        
-        <h1 class="app-title">アプリ名</h1>
+      </div>
 
-        <div class="header-icons">
-          <div class="icon-black" @click="router.push('/notification')" style="cursor: pointer;"></div>
-          <div class="icon-black menu-trigger" @click="isSidebarOpen = true"></div>
-        </div>
-      </header>
-    </div>
+      <div class="header-center">
+        <h1 class="app-title">Settlo</h1>
+      </div>
+
+      <div class="header-right">
+        <button class="icon-btn" aria-label="お知らせ">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+          <span class="notification-dot"></span>
+        </button>
+        
+        <button class="icon-btn" @click="isSidebarOpen = true" aria-label="メニューを開く">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+    </header>
+  </div>
 </template>
-  
+
 <script setup>
 import { ref } from 'vue';
-import { useRouter } from 'vue-router'; 
-  
-const isSidebarOpen = ref(false);
-const router = useRouter(); 
-  
-const goToMyPage = () => {
-  router.push('/mypage');
+import { useRouter } from 'vue-router';
+// 🌟 先ほど作った AppSidebar.vue をインポート
+import AppSidebar from './AppSidebar.vue';
+
+const router = useRouter();
+const isSidebarOpen = ref(false); // サイドバーの開閉状態を管理
+
+// マイページ等への移動処理
+const navigate = (path) => {
+  router.push(path);
 };
 </script>
-  
+
 <style scoped>
-.sidebar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.4); z-index: 1000; }
-.sidebar { position: fixed; top: 0; right: -75%; width: 75%; height: 100%; background: rgba(0, 0, 0, 0.85); z-index: 1001; transition: right 0.3s ease; padding: 60px 30px; box-sizing: border-box; color: white; }
-.sidebar.is-open { right: 0; }
-.sidebar-content { display: flex; flex-direction: column; height: 100%; text-align: left; }
-.menu-group { list-style: none; padding: 0; margin: 0; }
-.top-group { margin-bottom: 40px; }
-.middle-group { margin-bottom: auto; }
-.menu-group li { font-size: 20px; font-weight: bold; padding: 15px 0; cursor: pointer; }
-.sidebar-footer { padding-bottom: 40px; text-align: center; }
-.back-home { font-size: 18px; font-weight: bold; cursor: pointer; color: #aaa; }
-.header { display: flex; justify-content: space-between; align-items: center; padding: 0 20px; background-color: #d9d9d9; height: 90px; box-sizing: border-box; }
-.user-icon-container { width: 60px; text-align: center; transition: opacity 0.2s; }
+/* ヘッダー全体（スクロール追従） */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  background-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  height: 75px; 
+  box-sizing: border-box;
+}
+
+.header-left, .header-right {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+.header-left { justify-content: flex-start; }
+.header-right { justify-content: flex-end; gap: 15px; }
+.header-center { flex: 2; text-align: center; }
+
+.user-icon-container { display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: opacity 0.2s; }
 .user-icon-container:active { opacity: 0.5; }
-.user-circle { width: 45px; height: 45px; background-color: #e3a8a8; border-radius: 50%; margin: 0 auto; }
-.user-name { font-size: 12px; display: block; margin-top: 4px; color: #333; }
-.app-title { font-size: 28px; font-weight: bold; flex: 1; text-align: center; margin: 0; }
-.header-icons { display: flex; gap: 8px; width: 60px; justify-content: flex-end; }
-.icon-black { width: 30px; height: 30px; background-color: black; border-radius: 50%; cursor: pointer; }
+.user-circle { width: 40px; height: 40px; background-color: #d9a0a0; border-radius: 50%; }
+.user-name { font-size: 11px; color: #333; margin-top: 4px; font-weight: bold; }
+
+.app-title { font-size: 26px; font-weight: 900; color: #059669; margin: 0; letter-spacing: 1px; }
+
+.icon-btn {
+  background: none; border: none; padding: 5px; cursor: pointer;
+  color: #334155; position: relative; display: flex; align-items: center; justify-content: center;
+  transition: transform 0.2s, color 0.2s;
+}
+.icon-btn:active { transform: scale(0.9); color: #059669; }
+
+.notification-dot {
+  position: absolute; top: 2px; right: 4px;
+  width: 8px; height: 8px; background-color: #ef4444; border-radius: 50%; border: 2px solid white;
+}
 </style>
