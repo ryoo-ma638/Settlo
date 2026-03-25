@@ -1,17 +1,21 @@
 <template>
-  <AppHeader />
+  <AppHeader v-if="$route.path !== '/login'" />
   
   <main class="main-content">
     <RouterView />
   </main>
 
-  <AppFooter />
+  <AppFooter v-if="$route.path !== '/login'" />
 </template>
 
 <script setup>
-// 部品を読み込む
+// 🌟 ページ情報を取得するための機能をインポート
+import { useRoute } from 'vue-router'
 import AppHeader from './components/AppHeader.vue'
 import AppFooter from './components/AppFooter.vue'
+
+// 🌟 現在のルート（パス）を使えるようにする
+const route = useRoute()
 </script>
 
 <style>
@@ -19,11 +23,18 @@ import AppFooter from './components/AppFooter.vue'
 body {
   margin: 0;
   padding: 0;
-  background-color: #f0f4f8; /* 松岡さん指定の背景色 */
+  background-color: #f0f4f8; 
   font-family: sans-serif;
 }
+
+/* 🌟 ログイン画面のときは余白をなくす（三項演算子でスタイルを切り替え） */
 .main-content {
-  /* フッターに文字が隠れないように、下部に余白を空ける */
+  /* ログイン画面以外ならフッター分の余白、ログイン画面なら余白ゼロ */
+  padding-bottom: 0;
+}
+
+/* ログイン画面以外の場合の余白設定（必要なら） */
+body:not(:has(.login-container)) .main-content {
   padding-bottom: 100px;
 }
 </style>

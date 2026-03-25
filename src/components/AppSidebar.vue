@@ -18,24 +18,30 @@
   
         <ul class="menu-list">
           <li @click="navigate('/friend')"><span class="icon">👥</span> フレンド</li>
-          <li @click="navigate('/')">
+          <li @click="navigate('/notification')"> 
             <div class="menu-item-inner">
               <span><span class="icon">🔔</span> お知らせ</span>
               <span class="badge">3</span>
             </div>
           </li>
           <li @click="navigate('/')"><span class="icon">🕒</span> 履歴</li>
-
+        </ul>
+  
+        <hr class="divider" />
   
         <ul class="menu-list">
-          <li @click="navigate('/')"><span class="icon">📅</span> 進行中のイベント</li>
-          <li @click="navigate('/payment')"><span class="icon">💳</span> お金のお支払い</li>
+          <li @click="navigate('/make-event')">
+            <span class="icon">📅</span> 進行中のイベント
+          </li>
+          <li @click="navigate('/payment')">
+            <span class="icon">💳</span> お金のお支払い
+          </li>
         </ul>
-    </ul>
+  
         <hr class="divider" />
   
         <div class="bottom-actions">
-          <button class="btn-primary" @click="navigate('/')">＋ 新規イベント作成/参加</button>
+          <button class="btn-primary" @click="navigate('/make-event')">＋ 新規イベント作成/参加</button>
           <button class="btn-home" @click="navigate('/')">🏠 ホーム</button>
         </div>
   
