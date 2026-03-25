@@ -40,7 +40,7 @@
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-// 🌟 先ほど作った AppSidebar.vue をインポート（読み込み）
+// 🌟 先ほど作った AppSidebar.vue をインポート
 import AppSidebar from './AppSidebar.vue';
 
 const router = useRouter();
@@ -53,28 +53,22 @@ const navigate = (path) => {
 </script>
 
 <style scoped>
-/* ===============================
-   ヘッダーのレスポンシブ＆固定デザイン
-   =============================== */
-
 /* ヘッダー全体（スクロール追従） */
 .header {
-  position: sticky; /* スクロールしても上に張り付く魔法 */
+  position: sticky;
   top: 0;
-  z-index: 1000; /* コンテンツより上に表示 */
+  z-index: 1000;
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 10px 20px;
-  background-color: rgba(255, 255, 255, 0.95); /* ほんの少し透ける白 */
-  backdrop-filter: blur(8px); /* 後ろをぼかす */
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); /* 軽い影で浮き出させる */
+  background-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
   height: 75px; 
   box-sizing: border-box;
 }
 
-/* 左右と中央のバランスを保つFlexbox設定 */
-/* 左右の幅を同じ（flex: 1）にすることで、中央（flex: 2）のタイトルが画面幅に関わらず完璧な真ん中になります */
 .header-left, .header-right {
   flex: 1;
   display: flex;
@@ -84,24 +78,20 @@ const navigate = (path) => {
 .header-right { justify-content: flex-end; gap: 15px; }
 .header-center { flex: 2; text-align: center; }
 
-/* 左：プロフィール部分 */
 .user-icon-container { display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: opacity 0.2s; }
 .user-icon-container:active { opacity: 0.5; }
 .user-circle { width: 40px; height: 40px; background-color: #d9a0a0; border-radius: 50%; }
 .user-name { font-size: 11px; color: #333; margin-top: 4px; font-weight: bold; }
 
-/* 中央：タイトル */
 .app-title { font-size: 26px; font-weight: 900; color: #059669; margin: 0; letter-spacing: 1px; }
 
-/* 右：アイコンボタン */
 .icon-btn {
   background: none; border: none; padding: 5px; cursor: pointer;
   color: #334155; position: relative; display: flex; align-items: center; justify-content: center;
   transition: transform 0.2s, color 0.2s;
 }
-.icon-btn:active { transform: scale(0.9); color: #059669; } /* 押すと少し縮んで緑になる */
+.icon-btn:active { transform: scale(0.9); color: #059669; }
 
-/* お知らせの赤い丸（通知バッジ） */
 .notification-dot {
   position: absolute; top: 2px; right: 4px;
   width: 8px; height: 8px; background-color: #ef4444; border-radius: 50%; border: 2px solid white;
