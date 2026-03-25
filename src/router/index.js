@@ -1,8 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import FriendView from '../views/FriendView.vue'
-// 1. 支払い画面をインポート（追加）
-import PaymentView from '../views/PaymentView.vue'
+import MoneyPage from '../views/MoneyPage.vue'
+
+// =========================================
+// 【1】大崎さんのMyPageViewを読み込む
+// =========================================
+import MyPageView from '../views/MyPageView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -17,11 +21,19 @@ const router = createRouter({
       name: 'friend',
       component: FriendView
     },
-    // 2. 支払い画面への道を追加
     {
       path: '/payment',
       name: 'payment',
-      component: PaymentView
+      component: MoneyPage
+    },
+    
+    // =========================================
+    // 【2】「/mypage」用の道案内ルートを追加
+    // =========================================
+    {
+      path: '/mypage',
+      name: 'mypage',
+      component: MyPageView // 表示する画面
     }
   ]
 })
