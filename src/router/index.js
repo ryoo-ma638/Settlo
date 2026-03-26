@@ -4,7 +4,6 @@ import FriendView from '../views/FriendView.vue'
 import MoneyPage from '../views/MoneyPage.vue'
 import MyPageView from '../views/MyPageView.vue'
 // お知らせ画面とイベント作成画面をインポート
-import NotificationView from '../views/NotificationView.vue'
 import MakeEventView from '../views/MakeEventView.vue'
 import LoginView from '../views/LoginView.vue'
 
@@ -35,7 +34,6 @@ const router = createRouter({
     {
       path: '/notification',
       name: 'notification',
-      component: NotificationView
     },
     // 新規イベント作成画面のルート
     {
