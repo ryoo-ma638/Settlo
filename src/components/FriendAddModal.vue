@@ -34,7 +34,7 @@
           <div v-for="(user, index) in dummyResults" :key="index" class="result-card">
             <div class="user-avatar" :style="{ backgroundColor: user.color }"></div>
             <span class="user-name">{{ user.name }}</span>
-            <button class="add-btn" @click="requestFriend(user.name)">追加</button>
+            <button class="add-btn" @click="sendFriendRequest(user)">追加</button>
           </div>
         </div>
 
@@ -79,7 +79,7 @@ const sendFriendRequest = async (targetUser) => {
     return;
   }
 
-  if (targetUser.uid === auth.currentUser.uid) {
+  if (targetUser.uid === auth.currentUser?.uid) {
     alert("自分自身には申請できません");
     return;
   }
