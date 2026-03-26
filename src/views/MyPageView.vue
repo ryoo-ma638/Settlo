@@ -40,24 +40,24 @@
   
 <script setup>
 import { auth } from "../firebase";
-import { onAuthStateChanged, signOut } from "firebase/auth";
-import { ref, onMounted } from "vue";
+import { signOut } from "firebase/auth";
+import { useRouter } from "vue-router";
 
-// ユーザー情報を入れる箱
-const user = ref(null);
-
-// ログイン状態を監視（めっちゃ重要）
-onMounted(() => {
-  onAuthStateChanged(auth, (currentUser) => {
-    user.value = currentUser;
-    console.log("現在のユーザー:", currentUser);
-  });
-});
+const router = useRouter();
 
 // ログアウト処理
 const logout = async () => {
-  await signOut(auth);
-  alert("ログアウトしました");
+  try {
+    await signOut(auth); // ← Firebaseからログアウト
+
+    console.log("ログアウト成功");
+
+    // ログイン画面へ戻る
+    router.push("/login");
+
+  } catch (error) {
+    console.error("ログアウトエラー", error);
+  }
 };
 </script>
 
