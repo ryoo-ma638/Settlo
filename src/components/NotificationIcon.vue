@@ -61,15 +61,29 @@ defineExpose({ open });
 </script>
 
 <style scoped>
+/* --- NotificationIcon.vue の <style scoped> の中 --- */
+
+/* 🌟 修正：大枠の背景色を白にし、画面の高さにピッタリ固定する */
+.notification-wrapper.static-mode {
+  height: 100vh;
+  background-color: #ffffff; /* 背景色を白にする */
+}
+
 /* PC右サイドバー用の直接表示スタイル */
 .static-notification-panel {
-  padding: 20px;
+  /* 下の余白(padding)を 0 にして、謎の空間を完全に消し去る！ */
+  padding: 20px 20px 0 20px;
   background-color: #ffffff;
-  height: 100vh;
+  height: 100%;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
 }
-.sidebar-title { font-size: 20px; font-weight: bold; margin-bottom: 20px; color: #1a1a1a; text-align: left; }
+.sidebar-title {
+  font-size: 20px; font-weight: bold; margin-bottom: 20px;
+  color: #1a1a1a; text-align: left;
+  flex-shrink: 0; 
+}
 
 /* アイコンボタンの設定 */
 .icon-btn {
@@ -81,34 +95,63 @@ defineExpose({ open });
   width: 8px; height: 8px; background-color: #ef4444; border-radius: 50%; border: 2px solid white;
 }
 
-/* 画面全体の背景（モーダル用） */
+/* 画面全体の背景 */
 .modal-overlay {
-  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-  background-color: rgba(0, 0, 0, 0.7); z-index: 999999;
-  display: flex; justify-content: center; align-items: center;
-  padding: 20px; box-sizing: border-box;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  background-color: rgba(0, 0, 0, 0.7);
+  z-index: 999999;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  box-sizing: border-box;
 }
 
-/* 白い窓本体（モーダル用） */
+/* 白い窓本体 */
 .modal-window {
-  width: 100%; max-width: 350px; max-height: 80vh;
-  background-color: #eef7ff; border-radius: 30px; padding: 25px;
-  display: flex; flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); box-sizing: border-box;
+  width: 100%;
+  max-width: 350px;
+  max-height: 80vh; 
+  background-color: #eef7ff;
+  border-radius: 30px;
+  padding: 25px;
+  display: flex;
+  flex-direction: column; 
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  box-sizing: border-box;
 }
-.modal-title { font-size: 26px; font-weight: bold; margin-bottom: 20px; color: #1a1a1a !important; text-align: center; flex-shrink: 0; }
 
-/* 🌟 お知らせリスト領域（共通） */
+.modal-title {
+  font-size: 26px; font-weight: bold; margin-bottom: 20px;
+  color: #1a1a1a !important; text-align: center;
+  flex-shrink: 0; 
+}
+
+/* 🌟 お知らせリスト領域（スクロールの設定） */
 .notification-list {
-  flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 5px 2px;
-  scrollbar-width: thin; -webkit-overflow-scrolling: touch;
+  flex: 1; 
+  overflow-y: auto; 
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* 🌟 修正：リストの中の最後にだけ余白を持たせる（一番下までスクロールした時だけ見える） */
+  padding: 5px 2px 20px 2px;
+  
+  scrollbar-width: none; /* スクロールバーを隠す */
+  -webkit-overflow-scrolling: touch; 
+}
+.notification-list::-webkit-scrollbar {
+  display: none;
 }
 
-/* 各お知らせのカード（共通） */
+/* 各お知らせのカード */
 .notif-item {
   position: relative; padding: 15px; border-radius: 22px;
   font-size: 14px; font-weight: bold; line-height: 1.4;
-  color: #1a1a1a !important; text-align: left; flex-shrink: 0;
+  color: #1a1a1a !important; text-align: left;
+  flex-shrink: 0; 
 }
 
 .dot {
@@ -128,7 +171,8 @@ defineExpose({ open });
   margin-top: 20px; padding: 12px 40px; background-color: white;
   color: #3b82f6; border: none; border-radius: 25px;
   font-weight: bold; font-size: 16px; cursor: pointer;
-  flex-shrink: 0; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0; 
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }
 .close-modal-btn:active { transform: scale(0.95); }
 </style>

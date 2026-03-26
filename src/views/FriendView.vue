@@ -75,4 +75,14 @@ const navigateToDetail = (friend) => {
 .friend-card { background-color: white; display: flex; align-items: center; padding: 12px 25px; border-radius: 50px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; }
 .friend-avatar { width: 45px; height: 45px; border-radius: 50%; margin-right: 20px; flex-shrink: 0; }
 .friend-name-text { font-size: 24px; font-weight: bold; color: #333; }
+
+/* 🌟 追加：PC版（1024px以上）専用の水色塗りつぶし＆下まで伸ばす設定 */
+@media (min-width: 1024px) {
+  .friend-container {
+    margin: -30px; /* App.vueの白い枠線を打ち消す */
+    padding: 30px; /* 打ち消した分、内側に余白を取り直す */
+    height: 100%; /* スマホの calc 制限を解除し、親に合わせて下まで伸ばす */
+    min-height: 100vh;
+  }
+}
 </style>
