@@ -33,6 +33,7 @@ import { signOut } from "firebase/auth";
 import { useRouter } from "vue-router";
 
 const router = useRouter();
+const user = auth.currentUser;
 
 const logout = async () => {
   try {
@@ -142,4 +143,13 @@ const logout = async () => {
 .btn-orange:active {
   opacity: 0.8;
 }
+
+/*プロフィール画像用のスタイル */
+.user-photo {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
 </style>
