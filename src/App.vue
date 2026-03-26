@@ -111,7 +111,7 @@ body:not(:has(.login-container)) .mobile-layout .main-content {
   flex-shrink: 0;
   background-color: #1e293b;
   
-  /* 🌟🌟 追加：右カラムと同じように、画面にピタッと固定する魔法！ 🌟🌟 */
+
   position: sticky;
   top: 0;
   height: 100vh;
@@ -120,7 +120,7 @@ body:not(:has(.login-container)) .mobile-layout .main-content {
 /* 中央カラム */
 .pc-center-main {
   flex: 1;
-  min-width: 0; /* 🌟 超重要追加：中身の横幅が大きくても、カラム自体を押し広げさせない魔法！ */
+  min-width: 0; 
   display: flex;
   flex-direction: column;
   background-color: #ffffff;
@@ -131,7 +131,7 @@ body:not(:has(.login-container)) .mobile-layout .main-content {
   flex: 1;
   padding: 30px;
   
-  /* 🌟 ここから追加：中身のページを下まで引き伸ばす */
+  
   display: flex;
   flex-direction: column;
 }
@@ -148,7 +148,6 @@ body:not(:has(.login-container)) .mobile-layout .main-content {
   background-color: #ffffff;
   border-left: 1px solid #cbd5e1;
   
-  /* 🌟🌟 超重要追加：右カラム全体を画面に固定して、下にスクロールさせない魔法！ 🌟🌟 */
   position: sticky;
   top: 0;
   height: 100vh; /* 画面全体の高さにする */
@@ -156,8 +155,6 @@ body:not(:has(.login-container)) .mobile-layout .main-content {
 
 .notification-box {
   padding: 0; 
-  /* position: sticky;  ← 🌟削除：親が固定されたので不要 */
-  /* top: 0;            ← 🌟削除：親が固定されたので不要 */
   height: 100vh;
   overflow: hidden; /* 二重スクロールを防ぐ */
 }
