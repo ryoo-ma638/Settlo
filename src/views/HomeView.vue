@@ -18,19 +18,21 @@
     </section>
 
     <section class="ongoing-events">
-      <h2 class="section-title">進行中のイベント</h2>
-      <div class="event-list-container">
-        <div class="event-item" v-for="i in 3" :key="i">
-          <div class="event-tag" :class="{ gray: i > 1 }">イベント{{ i }}</div>
-          <div class="event-info">
-            <h3 class="event-name">イベント名 {{ i }}</h3>
-            <div class="member-icons">
-              <span class="circle c1"></span><span class="circle c2"></span><span class="circle c3"></span>
+      <a @click="router.push('/event')" class="section-title"><h2>進行中のイベント一覧</h2></a>
+      <ul class="event-list">
+        <div class="event-list-container">
+          <div class="event-item" v-for="i in 3" :key="i">
+            <div class="event-tag" :class="{ gray: i > 1 }">イベント{{ i }}</div>
+            <div class="event-info">
+              <h3 class="event-name">イベント名 {{ i }}</h3>
+              <div class="member-icons">
+                <span class="circle c1"></span><span class="circle c2"></span><span class="circle c3"></span>
+              </div>
             </div>
+            <div class="event-amount">合計金額</div>
           </div>
-          <div class="event-amount">合計金額</div>
         </div>
-      </div>
+      </ul>
     </section>
 
     <button class="add-button" @click="router.push('/make-event')">+</button>
