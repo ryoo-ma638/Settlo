@@ -1,5 +1,4 @@
 <template>
-<<<<<<< HEAD
   <div class="mypage-container">
     
     <div class="page-title-pill">
@@ -22,9 +21,7 @@
       <button class="btn-orange" @click="$router.push('/friend')">フレンドリスト</button>
       
       <button class="btn-orange logout" @click="logout">ログアウト</button>
-=======
     <div class="mypage-container">
->>>>>>> main
       
       <section class="profile-section">
         <div class="user-circle-large"></div>
