@@ -31,139 +31,102 @@
         <p class="sub-text">このコードを友人に共有して参加してもらいましょう</p>
         <div class="copy-box shadow-box">
           <span class="code">{{ invitationCode }}</span>
-          <span class="copy-btn" @click="copyToClipboard">■ コピー</span>
+          <span class="copy-btn" @click="copyToClipboard">コピー</span>
         </div>
       </div>
-    </div>
 
-    <div v-else class="join-section">
-      <div class="input-section">
-        <label class="input-label">招待コードを入力してください</label>
-        <p class="sub-text">友人から共有された6桁のコードを入力してください</p>
-        <input 
-          v-model="inputJoinCode" 
-          type="text" 
-          maxlength="6" 
-          placeholder="例：ABC123" 
-          class="input-field shadow-box join-input"
-        />
+      <div class="action-buttons">
+        <button class="main-btn create" @click="createEvent">作成する</button>
+        <button class="sub-btn" @click="isJoinMode = true">既存のイベントに参加する</button>
       </div>
     </div>
 
-    <div class="button-group">
-      <button v-if="!isJoinMode" class="main-btn" @click="createEvent">イベントを作成する　→</button>
-      <button v-else class="main-btn" @click="joinEvent">イベントに参加する　→</button>
-      
-      <button class="sub-btn" @click="isJoinMode = !isJoinMode">
-        {{ isJoinMode ? '← イベント作成に戻る' : '既存のイベントに参加する　👤' }}
-      </button>
+    <div v-else>
+      <div class="input-section">
+        <label class="input-label">招待コードを入力</label>
+        <input v-model="joinCode" type="text" placeholder="例：A1B2C3" class="input-field shadow-box join-input" maxlength="6" />
+      </div>
+      <div class="action-buttons">
+        <button class="main-btn join" @click="joinEvent">参加する</button>
+        <button class="sub-btn" @click="isJoinMode = false">新しくイベントを作る</button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
-
-// モード管理（false:作成, true:参加）
 const isJoinMode = ref(false);
-
-// 作成用データ
 const eventName = ref('');
 const eventMemo = ref('');
-const invitationCode = ref('');
-const selectedIcon = ref('食事代');
+const selectedIcon = ref('食事');
+const joinCode = ref('');
 
-// 参加用データ
-const inputJoinCode = ref('');
+// 招待コードを自動生成（6桁）
+const invitationCode = ref(Math.random().toString(36).substring(2, 8).toUpperCase());
 
 const icons = [
-  { emoji: '🍽️', label: '食事代' },
-  { emoji: '🎮', label: '遊び代' },
-  { emoji: '🚗', label: '交通費' },
-  { emoji: '🛒', label: '？？購入代' },
-  { emoji: '💼', label: '仕事' },
-  { emoji: '✨', label: 'その他' }
+  { label: '食事', emoji: '🍴' },
+  { label: '旅行', emoji: '✈️' },
+  { label: '遊び', emoji: '🎡' },
+  { label: '買い物', emoji: '🛒' },
+  { label: '飲み会', emoji: '🍺' },
+  { label: 'その他', emoji: '✨' }
 ];
 
-// イベント作成処理
+const copyToClipboard = () => {
+  navigator.clipboard.writeText(invitationCode.value);
+  alert('コピーしました！');
+};
+
 const createEvent = () => {
   if (!eventName.value) return alert('詳細を入力してください');
+
   const newEvent = {
     id: Date.now(),
     name: eventName.value,
+    memo: eventMemo.value,
     tag: selectedIcon.value,
+    code: invitationCode.value, // 🌟 ここでしっかり保存
     amount: '¥0',
     status: 'active'
   };
+
   const saved = JSON.parse(localStorage.getItem('settlo_events') || '[]');
   saved.unshift(newEvent);
   localStorage.setItem('settlo_events', JSON.stringify(saved));
+  
   router.push('/');
 };
 
-// イベント参加処理（追加）
 const joinEvent = () => {
-  if (inputJoinCode.value.length !== 6) {
-    alert('6桁のコードを正しく入力してください');
-    return;
-  }
-  // ※本来はここでコードをサーバーに確認しに行きます
+  if (joinCode.value.length < 6) return alert('正しいコードを入力してください');
   alert('イベントに参加しました！');
   router.push('/');
 };
-
-// 招待コード生成
-const generateCode = () => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = '';
-  for (let i = 0; i < 6; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  invitationCode.value = result;
-};
-
-// コピー機能
-const copyToClipboard = () => {
-  const text = invitationCode.value;
-  if (!text) return;
-  navigator.clipboard.writeText(text);
-};
-
-onMounted(() => {
-  generateCode();
-});
 </script>
 
 <style scoped>
-.make-event-container { padding: 20px; background-color: #eef7ff; min-height: 100vh; padding-bottom: 100px; }
-.page-title { color: #2169a3; font-size: 22px; font-weight: bold; margin-bottom: 20px; }
-.input-section { margin-bottom: 20px; }
-.input-label { display: block; font-weight: bold; font-size: 14px; margin-bottom: 8px; }
-.shadow-box { background-color: #dcdcdc; border: none; border-radius: 10px; padding: 12px; width: 100%; box-sizing: border-box; color: #333; }
+.make-event-container { padding: 20px 25px; background-color: #f0f4f8; min-height: 100vh; }
+.page-title { font-size: 22px; font-weight: bold; margin-bottom: 25px; text-align: center; }
+.input-section { margin-bottom: 25px; }
+.input-label { display: block; font-weight: bold; font-size: 14px; margin-bottom: 8px; color: #333; }
+.shadow-box { background-color: #dcdcdc; border: none; border-radius: 12px; padding: 15px; width: 100%; box-sizing: border-box; font-size: 16px; }
 .textarea-field { height: 100px; resize: none; }
-
-/* 参加用入力欄の強調 */
-.join-input {
-  text-align: center;
-  font-size: 24px;
-  letter-spacing: 4px;
-  text-transform: uppercase; /* 小文字で打っても大文字にする */
-  background-color: #fff;
-  border: 2px solid #2169a3;
-}
-
+.join-input { text-align: center; font-size: 24px; letter-spacing: 4px; text-transform: uppercase; background-color: #fff; border: 2px solid #2169a3; }
 .icon-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .icon-item { background-color: #dcdcdc; border-radius: 10px; padding: 15px 5px; text-align: center; font-size: 12px; font-weight: bold; cursor: pointer; }
 .icon-item.active { background-color: #2b78ba; color: white; }
 .sub-text { font-size: 11px; color: #666; margin-bottom: 5px; }
 .copy-box { display: flex; justify-content: space-between; align-items: center; background-color: #fff !important; }
-.code { color: #2169a3; font-weight: bold; font-size: 20px; font-family: 'Courier New', Courier, monospace; letter-spacing: 2px; }
-.copy-btn { color: #2169a3; font-size: 13px; font-weight: bold; cursor: pointer; padding: 5px 10px; border-left: 1px solid #eee; }
-
-.button-group { margin-top: 30px; display: flex; flex-direction: column; gap: 12px; }
-.main-btn { background-color: #2169a3; color: white; border: none; border-radius: 10px; padding: 15px; font-size: 16px; font-weight: bold; cursor: pointer; }
-.sub-btn { background-color: #fff; color: #2169a3; border: 2px solid #2169a3; border-radius: 10px; padding: 12px; font-size: 16px; font-weight: bold; cursor: pointer; }
+.code { color: #2169a3; font-weight: bold; font-size: 20px; font-family: monospace; letter-spacing: 2px; }
+.copy-btn { color: #2169a3; font-size: 12px; font-weight: bold; text-decoration: underline; cursor: pointer; }
+.action-buttons { margin-top: 40px; }
+.main-btn { width: 100%; padding: 15px; border-radius: 12px; border: none; font-size: 18px; font-weight: bold; color: white; margin-bottom: 15px; cursor: pointer; }
+.create { background-color: #2169a3; }
+.join { background-color: #059669; }
+.sub-btn { width: 100%; background: none; border: none; color: #2169a3; font-size: 14px; font-weight: bold; text-decoration: underline; cursor: pointer; }
 </style>
