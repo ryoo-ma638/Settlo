@@ -36,19 +36,21 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AppHeader from './components/AppHeader.vue'
 import AppFooter from './components/AppFooter.vue'
 import AppSidebar from './components/AppSidebar.vue'
-
-// 🌟 NotificationView ではなく NotificationIcon をインポート
 import NotificationIcon from './components/NotificationIcon.vue'
 
+// 🌟 チームメンバーが追加したFirebaseのインポート
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "./firebase";
+
 const route = useRoute()
+const router = useRouter()
 
-// 🌟PCサイズの判定
+// 🌟 大崎さんのPCサイズ判定ロジック
 const isDesktop = ref(window.innerWidth >= 1024)
-
 const updateSize = () => {
   isDesktop.value = window.innerWidth >= 1024
 }
@@ -59,6 +61,16 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('resize', updateSize)
 })
+
+// 🌟 チームメンバーが追加したログイン監視ロジック
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    console.log("ログイン中", user);
+  } else {
+    console.log("未ログイン");
+    router.push("/login");
+  }
+});
 </script>
 
 <style>
@@ -69,7 +81,6 @@ body {
   background-color: #f0f4f8; 
   font-family: sans-serif;
 }
-/* 🌟 ここを追加！：Vue(Vite)が裏で勝手にかけている「最大幅1280px」の制限を強制解除する */
 #app {
   max-width: 100% !important;
   width: 100%;
@@ -84,31 +95,9 @@ body:not(:has(.login-container)) .mobile-layout .main-content {
   padding-bottom: 100px;
 }
 
-.mobile-notification-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100vh;
-  background-color: #ffffff;
-  z-index: 3000;
-  overflow-y: auto;
-  padding-top: 75px;
-}
-
-.close-notification-btn {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  background: none;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-}
-
 /* --- 💻 PC版用のスタイル（3カラム） --- */
 .pc-layout {
-  display: flex; /* 🌟 左・中央・右を横並びにする魔法 */
+  display: flex;
   width: 100%;
   min-height: 100vh;
   background-color: #e2e8f0;
@@ -116,44 +105,38 @@ body:not(:has(.login-container)) .mobile-layout .main-content {
 
 /* 左カラム */
 .pc-left-sidebar {
-  width: 280px; /* 固定幅 */
+  width: 280px;
   flex-shrink: 0;
 }
 
 /* 中央カラム */
 .pc-center-main {
-  flex: 1; /* 🌟 左右のサイドバー以外の「余った空間すべて」を使い切る設定 */
+  flex: 1;
   display: flex;
   flex-direction: column;
   background-color: #ffffff;
   box-shadow: 0 0 15px rgba(0,0,0,0.05);
-  /* ❌ max-widthやmargin: 0 auto; は中央を狭くするので書きません！ */
 }
 .pc-content-area {
   flex: 1;
   padding: 30px;
-  
-  /* 🌟 追加：RouterViewの中身（各ページ）を中央に配置する */
   display: flex;
-  justify-content: center; /* 横方向の中央寄せ */
-  align-items: flex-start; /* 縦方向は上揃え */
+  justify-content: center;
+  align-items: flex-start;
 }
-
-/* 🌟 追加：各ページ（PaymentViewなど）の幅を制限して間延びを防ぐ */
 .pc-content-area > * {
   width: 100%;
-  max-width: 600px; /* ここで中央コンテンツの横幅を決めます（好みに応じて800pxなどに変更可） */
+  max-width: 600px;
 }
 
 /* 右カラム */
 .pc-right-sidebar {
-  width: 300px; /* 固定幅 */
+  width: 300px;
   flex-shrink: 0;
   background-color: #ffffff;
   border-left: 1px solid #cbd5e1;
 }
 
-/* 右カラムの中身 */
 .notification-box {
   padding: 0; 
   position: sticky;
