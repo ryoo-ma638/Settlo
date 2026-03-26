@@ -15,14 +15,6 @@
               </div>
            </div>
             <div class="event-amount">合計金額</div>
-            <!-- <div 
-            class="event-card" 
-            v-for="(color, index) in ['#ff9980', '#ffee10', '#ff0000', '#889900', '#776666']" 
-            :key="index"
-            >
-            <div class="event-avatar" :style="{ backgroundColor: color }"></div>
-            <span class="event-name-text">イベント名</span>
-            </div> -->
         </div>
         </main>
     </div>
@@ -32,7 +24,7 @@
 .event-container {
     display: flex;
     justify-content: center;
-    padding:  20px;
+    padding: 20px;
 }
 .content {
     width: 100%;
@@ -67,7 +59,7 @@
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     padding: 20px;
-    width: 100%;
+    width: 95%;
 }
 .event-tag {
     padding: 5px 10px;
@@ -106,71 +98,4 @@
     font-size: 16px;
     font-weight: bold;
 }
-
-/* .event-container {
-    padding: 30px 20px;
-    text-align: center;
-    background-color: #f0f4f8; 
-    min-height: calc(100vh - 175px);
-    font-family: 'Noto Sans JP', sans-serif;
-}
-.add-event-main-button {
-    background-color: #4CAF50;
-    color: white;
-    padding: 10px 20px;
-    border: none;
-    border-radius: 5px;
-    font-size: 16px;
-    cursor: pointer;
-    margin-bottom: 30px;
-}
-.add-event-main-button:hover {
-    background-color: #45a049;
-}
-.list-title {
-    font-size: 20px;
-    font-weight: bold;
-    margin-bottom: 20px;
-}
-.event-list {    
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 20px;
-}
-.event-card {
-    background-color: white;
-    border-radius: 10px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    width: 150px;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    cursor: pointer;
-    transition: transform 0.2s;
-}
-.event-card:hover {
-    transform: translateY(-5px);
-}
-.event-avatar {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    margin-bottom: 15px;
-}
-.event-name-text {
-    font-size: 16px;
-    font-weight: bold;
-}
-.event-list-container { background-color: #dcdcdc; padding: 15px; border-radius: 10px; }
-.event-item { background-color: white; border-radius: 15px; padding: 12px; margin-bottom: 10px; display: flex; align-items: center; }
-.event-tag { background-color: #3b82f6; color: white; font-size: 10px; padding: 8px 4px; border-radius: 8px; width: 50px; text-align: center; margin-right: 12px; }
-.event-tag.gray { background-color: #999; }
-.event-info { flex: 1; }
-.event-name { font-size: 16px; margin: 0 0 4px 0; }
-.member-icons { display: flex; gap: 4px; }
-.circle { width: 18px; height: 18px; border-radius: 50%; }
-.c1 { background-color: #fca5a5; } .c2 { background-color: #93c5fd; } .c3 { background-color: #86efac; }
-.event-amount { font-size: 13px; font-weight: bold; } */
 </style>
