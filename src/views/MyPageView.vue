@@ -28,7 +28,7 @@
             <span class="arrow">›</span>
           </li>
           
-          <button class="menu-item logout" @click="logout">
+          <button  @click="logout">
             テストログアウト
           </button>
         </ul>
