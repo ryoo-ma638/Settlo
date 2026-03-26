@@ -46,6 +46,8 @@
 
 <script setup>
 import { ref } from 'vue';
+import { db, auth } from '@/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 defineProps({
   isOpen: Boolean
@@ -70,8 +72,33 @@ const close = () => {
   emit('close');
 };
 
-const requestFriend = (name) => {
-  alert(`${name}さんに友達申請を送りました`);
+const sendFriendRequest = async (targetUser) => {
+  //ログインの確認
+  if (!auth.currentUser) {
+    alert("ログインが必要です。");
+    return;
+  }
+
+  if (targetUser.uid === auth.currentUser.uid) {
+    alert("自分自身には申請できません");
+    return;
+  }
+
+  try {
+    await addDoc(collection(db, "friendRequests"), {
+      formId: auth.currentUser.uid,
+      formName: auth.currentUser.displayName,
+      toId: targetUser.uid,
+      toName: targetUser.name,
+      status: "pending",
+      createdAt: serverTimestamp()
+    });
+
+    alert(`${targetUser.name}さんにフレンド申請を送りました。`);
+  }　catch (error){
+    console.error("エラー内容:", error);
+    alert("申請に失敗しました。もう一度試してください。")
+  }
 };
 </script>
 
