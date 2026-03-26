@@ -16,11 +16,7 @@
               </div>
             </div>
             <div class="event-amount">合計金額</div>
-<<<<<<< Updated upstream
-        </div>
-=======
             </div>
->>>>>>> Stashed changes
         </main>
     </div>
 </template>
