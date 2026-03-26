@@ -19,7 +19,7 @@
       <ul class="menu-list">
         <li @click="navigate('/friend')"><span class="icon">👥</span> フレンド</li>
         
-        <li v-if="!isDesktop" @click="navigate('/notification')"> 
+        <li v-if="!isDesktop" @click="$emit('open-notification')"> 
           <div class="menu-item-inner">
             <span><span class="icon">🔔</span> お知らせ</span>
             <span class="badge">3</span>
@@ -44,7 +44,7 @@
 
       <div class="bottom-actions">
         <button class="btn-primary" @click="navigate('/make-event')">＋ 新規イベント作成/参加</button>
-        <button class="btn-home" v-if="!isDesktop" @click="navigate('/')">🏠 ホーム</button>
+        <button class="btn-home" @click="navigate('/')">🏠 ホーム</button>
       </div>
 
     </div>
@@ -59,10 +59,9 @@ const props = defineProps({
   isOpen: Boolean
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'open-notification'])
 const router = useRouter()
 
-// 🌟追加: 画面幅が1024px以上かどうかをリアルタイムで監視する仕組み
 const isDesktop = ref(window.innerWidth >= 1024)
 const updateSize = () => {
   isDesktop.value = window.innerWidth >= 1024
@@ -88,7 +87,6 @@ const navigate = (path) => {
 </script>
 
 <style scoped>
-/* 既存のスマホ用スタイル（そのまま） */
 .sidebar-overlay {
   position: fixed; top: 0; left: 0; width: 100%; height: 100vh;
   background: rgba(0, 0, 0, 0.3); z-index: 2000;
@@ -124,15 +122,17 @@ const navigate = (path) => {
 .btn-primary { background-color: #0d9488; color: white; border: none; border-radius: 12px; padding: 15px; font-size: 16px; font-weight: bold; cursor: pointer; }
 .btn-home { background-color: #334155; color: white; border: none; border-radius: 12px; padding: 15px; font-size: 16px; font-weight: bold; cursor: pointer; }
 
-/* 🌟追加: PC版（1024px以上）の時は、ドロワーをやめて枠にはめ込むデザインにする */
+/* 💻 PC版用のスタイル */
 @media (min-width: 1024px) {
   .sidebar-panel.pc-mode {
-    position: static; /* 浮かせるのをやめる */
+    /* 🌟 修正：static ではなく sticky にして、スクロールしても画面上部に吸着し続けるようにしました */
+    position: sticky;
+    top: 0;
     width: 100%;
     max-width: none;
     height: 100vh;
-    border-radius: 0; /* 丸みを消す */
-    background: #1e293b; /* すりガラスをやめて単色に */
+    border-radius: 0;
+    background: #1e293b;
   }
 }
 </style>
