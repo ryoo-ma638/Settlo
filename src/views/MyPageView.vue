@@ -2,8 +2,14 @@
     <div class="mypage-container">
       
       <section class="profile-section">
-        <div class="user-circle-large"></div>
-        <h1 class="user-name">松岡 暖來</h1>
+        <img 
+          v-if="user"
+          :src="user.photoURL" 
+          class="user-circle-large"
+        />
+        <h1 class="user-name">
+          {{ user ? user.displayName : "未ログイン" }}
+        </h1>
         <p class="account-type">Google アカウント</p>
       </section>
   
@@ -22,7 +28,7 @@
             <span class="arrow">›</span>
           </li>
           
-          <li class="menu-item logout">
+          <li class="menu-item logout" @click="logout">
             <span>🚪 ログアウト</span>
             <span class="arrow">›</span>
           </li>
@@ -32,6 +38,29 @@
     </div>
   </template>
   
+<script setup>
+import { auth } from "../firebase";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { ref, onMounted } from "vue";
+
+// ユーザー情報を入れる箱
+const user = ref(null);
+
+// ログイン状態を監視（めっちゃ重要）
+onMounted(() => {
+  onAuthStateChanged(auth, (currentUser) => {
+    user.value = currentUser;
+    console.log("現在のユーザー:", currentUser);
+  });
+});
+
+// ログアウト処理
+const logout = async () => {
+  await signOut(auth);
+  alert("ログアウトしました");
+};
+</script>
+
   <style scoped>
   /* マイページ固有のスタイル (松岡さんのデザインベース) */
   .mypage-container {
