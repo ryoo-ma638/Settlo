@@ -52,7 +52,6 @@
       </section>
   
     </div>
-<<<<<<< HEAD
 
   </div>
 </template>
@@ -183,7 +182,6 @@ const logout = async () => {
 }
 
 </style>
-=======
   </template>
   
   <style scoped>
@@ -263,4 +261,3 @@ const logout = async () => {
     color: #fca5a5; /* 矢印も少し赤っぽく */
   }
   </style>
->>>>>>> main
