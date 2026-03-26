@@ -37,7 +37,12 @@
         </div>
         <div class="list-right">
           <p class="amount red-text">¥{{ item.amount.toLocaleString() }}</p>
-          <button class="btn btn-red">支払いを完了させる</button>
+          <button 
+      class="btn btn-red" 
+      @click="$router.push('/payment-detail/' + item.id)"
+    >
+      支払いを完了させる
+    </button>
         </div>
       </div>
     </div>
@@ -62,7 +67,9 @@
         </div>
         <div class="list-right">
           <p class="amount red-text">¥{{ item.amount.toLocaleString() }}</p>
-          <button class="btn btn-green">催促する</button>
+          <button class="btn btn-green" @click="$router.push('/payment-detail/waiting-' + item.id)">
+      催促する
+    </button>
         </div>
       </div>
     </div>

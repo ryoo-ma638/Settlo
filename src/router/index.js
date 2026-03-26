@@ -21,7 +21,14 @@ const router = createRouter({
     { path: '/make-event', name: 'make-event', component: MakeEventView },
     { path: '/login', name: 'login', component: LoginView },
     { path: '/event', name: 'event', component: EventViews },
-    { path: '/event-detail', name: 'event-detail', component: EventDetails }
+    
+    // 🌟 チームメンバーが追加したルート
+    { path: '/event-detail', name: 'event-detail', component: EventDetails },
+    
+    // 🌟 大崎さんが追加した決済・精算関連のルート
+    { path: '/payment-detail/:id', name: 'PaymentDetail', component: () => import('../views/PaymentDetailView.vue') },
+    { path: '/combined-settlement/:name', name: 'CombinedSettlement', component: () => import('../views/CombinedSettlementView.vue') },
+    { path: '/combined-action/:name', name: 'CombinedAction', component: () => import('../views/CombinedActionView.vue') }
   ]
 })
 
