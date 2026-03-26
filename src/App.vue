@@ -65,6 +65,7 @@ onUnmounted(() => {
 // 🌟 チームメンバーが追加したログイン監視ロジック
 onAuthStateChanged(auth, (user) => {
   if (user) {
+    currentUser.value = user;
     console.log("ログイン中", user);
 
     if (router.currentRoute.value.path === "/login") {
@@ -72,6 +73,7 @@ onAuthStateChanged(auth, (user) => {
     }
 
   } else {
+    currentUser.value = null;
     console.log("未ログイン");
 
     if (router.currentRoute.value.path !== "/login") {
