@@ -37,7 +37,7 @@
     </section>
 
     <section class="ongoing-events">
-      <a @click="router.push('/event')" class="section-title"><h2>進行中のイベント一覧</h2></a>
+      <h2 class="section-title" @click="$router.push('/event')">進行中のイベント一覧</h2>
       <div class="event-list-container">
         <div v-if="ongoingEvents.length === 0" class="empty-message">
           進行中のイベントはありません
