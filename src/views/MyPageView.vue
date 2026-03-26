@@ -29,8 +29,7 @@
           </li>
           
           <button class="menu-item logout" @click="logout">
-            <span>🚪 ログアウト</span>
-            <span class="arrow">›</span>
+            テストログアウト
           </button>
         </ul>
       </section>
