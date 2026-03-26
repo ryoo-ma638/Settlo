@@ -20,7 +20,7 @@
     <div class="action-buttons">
       <button class="btn-orange" @click="$router.push('/friend')">フレンドリスト</button>
       
-      <button class="btn-orange logout" @click="$router.push('/login')">ログアウト</button>
+      <button class="btn-orange logout" @click="logout">ログアウト</button>
       
     </div>
 
