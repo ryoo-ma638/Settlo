@@ -34,10 +34,11 @@
 </template>
 
 <script setup>
-import { auth } from "../firebase";
+import { auth, db } from "../firebase"; // 💡 db を追加
 import { signOut } from "firebase/auth";
 import { useRouter } from "vue-router";
 import { ref, onMounted } from "vue";
+import { doc, getDoc } from "firebase/firestore"; // 💡 getDoc を追加
 
 const router = useRouter();
 const userName = ref("");
@@ -54,11 +55,30 @@ const logout = async () => {
   }
 };
 
-onMounted(() => {
+onMounted(async() => {
   const user = auth.currentUser;
   if (user) {
-    userName.value = user.displayName;
-    userPhoto.value = user.photoURL;
+    try {
+      // 💡 Firestore から自分のユーザーデータを取得
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      
+      if (userDoc.exists()) {
+        // 💡 Firestore にデータがあれば、その中の 'name' を使う
+        const userData = userDoc.data();
+        userName.value = userData.name || user.displayName;
+        // 💡 写真も Firestore の 'photo' フィールドを使う
+        userPhoto.value = userData.photo || user.photoURL;
+      } else {
+        // Firestore にデータがない場合のバックアップ
+        userName.value = user.displayName;
+        userPhoto.value = user.photoURL;
+      }
+    } catch (error) {
+      console.error("データ取得失敗:", error);
+      // エラー時は Auth の情報を出す
+      userName.value = user.displayName;
+      userPhoto.value = user.photoURL;
+    }
   }
 });
 </script>
