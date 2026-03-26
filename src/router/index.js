@@ -19,7 +19,12 @@ const router = createRouter({
     // 🌟 NotificationView はコンポーネント化したので削除済み
     { path: '/make-event', name: 'make-event', component: MakeEventView },
     { path: '/login', name: 'login', component: LoginView },
-    { path: '/event', name: 'event', component: EventViews }
+    { path: '/event', name: 'event', component: EventViews },
+    // router/index.js に追加
+    {path: '/payment-detail/:id', // イベントIDなどで詳細を特定できるようにする
+    name: 'PaymentDetail', component: () => import('../views/PaymentDetailView.vue')},
+    {path: '/combined-settlement/:name', name: 'CombinedSettlement', component: () => import('../views/CombinedSettlementView.vue')},
+    {path: '/combined-action/:name',name: 'CombinedAction',component: () => import('../views/CombinedActionView.vue')}
   ]
 })
 
