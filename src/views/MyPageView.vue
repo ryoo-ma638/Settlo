@@ -47,6 +47,7 @@ const router = useRouter();
 
 // ログアウト処理
 const logout = async () => {
+  console.log("ログアウト押された！"); // ←追加
   try {
     await signOut(auth); // ← Firebaseからログアウト
 
