@@ -37,7 +37,7 @@
     </section>
 
     <section class="ongoing-events">
-      <h2 class="section-title">進行中のイベント</h2>
+      <a @click="router.push('/event')" class="section-title"><h2>進行中のイベント一覧</h2></a>
       <div class="event-list-container">
         <div v-if="ongoingEvents.length === 0" class="empty-message">
           進行中のイベントはありません
@@ -49,8 +49,10 @@
             <div class="member-icons">
               <span class="circle c1"></span><span class="circle c2"></span><span class="circle c3"></span>
             </div>
+            <div class="event-amount">合計金額</div>
           </div>
           <div class="event-amount">{{ event.amount }}</div>
+
         </div>
       </div>
     </section>
