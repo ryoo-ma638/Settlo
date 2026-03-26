@@ -59,9 +59,9 @@ const searchMode = ref('name');
 const searchQuery = ref('');
 
 const dummyResults = [
-  { name: '名前', color: '#8bb4ff' },
-  { name: '名前', color: '#ff9980' },
-  { name: '名前', color: '#ff0000' },
+  { name: '名前', color: '#8bb4ff', uid: 'formId' },
+  { name: '名前', color: '#ff9980', uid: 'toId' },
+  { name: '名前', color: '#ff0000', uid: 'status' },
   { name: '名前', color: '#88ff88' },
   { name: '名前', color: '#889900' },
   { name: '名前', color: '#cccc00' },
