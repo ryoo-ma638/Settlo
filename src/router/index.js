@@ -58,9 +58,9 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   onAuthStateChanged(auth, (user) => {
     if (!user && to.path !== "/login") {
-      next("/login");
+      return '/login';
     } else {
-      next();
+      return true;
     }
   });
 });
