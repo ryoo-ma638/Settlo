@@ -30,7 +30,7 @@
         <div class="control-panel">
           <select v-model="currentFilter" class="custom-select">
             <option value="all">すべて表示</option>
-            <option value="trading">取引中</option>
+            <option value="friend_only">フレンドのみ</option> <option value="trading">取引中</option>
             <option value="not_friend">取引あり（未フレンド）</option>
           </select>
           <select v-model="currentSort" class="custom-select">
@@ -100,8 +100,15 @@ const handleApproveDone = (approvedUser) => {
 
 const processedList = computed(() => {
   let list = friendData.value;
-  if (currentFilter.value === 'trading') list = list.filter(u => u.isTrading);
-  else if (currentFilter.value === 'not_friend') list = list.filter(u => !u.isFriend);
+  
+  if (currentFilter.value === 'trading') {
+    list = list.filter(u => u.isTrading);
+  } else if (currentFilter.value === 'not_friend') {
+    list = list.filter(u => !u.isFriend);
+  } else if (currentFilter.value === 'friend_only') {
+    // 🌟 追加：フレンド（isFriend が true）のみを残す
+    list = list.filter(u => u.isFriend);
+  }
   
   return [...list].sort((a, b) => {
     if (currentSort.value === 'kana_asc') return a.kana.localeCompare(b.kana, 'ja');
