@@ -16,6 +16,22 @@ import AppFooter from './components/AppFooter.vue'
 
 // 🌟 現在のルート（パス）を使えるようにする
 const route = useRoute()
+
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "./firebase";
+import { useRouter } from "vue-router";
+
+const router = useRouter();
+
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    console.log("ログイン中", user);
+  } else {
+    console.log("未ログイン");
+    router.push("/login");
+  }
+});
+
 </script>
 
 <style>
