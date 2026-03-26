@@ -1,6 +1,6 @@
 <template>
   <div class="event-detail-container">
-    <button class="back-to-list-button" @click="$router.push('/event')">⬅︎イベント一覧に戻る</button>
+    <button class="back-to-list-button" @click="$router.push('/event')">⬅︎イベントに戻る</button>
     <header class="event-info-card">
       <div class="card-header">
         <h1 class="event-title">イベント名</h1>
