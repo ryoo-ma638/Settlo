@@ -16,6 +16,9 @@
 import { auth, provider } from "../firebase";
 import { signInWithPopup } from "firebase/auth";
 import { saveUser } from "../user";
+import { useRouter } from "vue-router";
+
+const router = useRouter();
 
 const loginWithGoogle = async () => {
   try {
@@ -25,6 +28,7 @@ const loginWithGoogle = async () => {
     await saveUser(result.user);
 
     console.log("ログイン成功", result.user);
+    router.push("/mypage");
   } catch (error) {
     console.error("ログイン失敗", error);
   }
