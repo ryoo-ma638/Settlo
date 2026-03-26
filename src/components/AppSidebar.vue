@@ -26,7 +26,7 @@
           </div>
         </li>
         
-        <li @click="navigate('/')"><span class="icon">🕒</span> 履歴</li>
+        <li @click="navigate('/payment-history')"><span class="icon">🕒</span> 履歴</li>
       </ul>
 
       <hr class="divider" />
