@@ -85,4 +85,8 @@ const navigateToDetail = (friend) => {
     min-height: 100vh;
   }
 }
+
+.friend-avatar { width: 45px; height: 45px; border-radius: 50%; margin-right: 20px; }
+.friend-name-text { font-size: 24px; font-weight: bold; }
 </style>
+
