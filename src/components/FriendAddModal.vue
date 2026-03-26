@@ -31,11 +31,14 @@
         </div>
 
         <div class="result-scroll-area">
-          <div v-for="(user, index) in dummyResults" :key="index" class="result-card">
+          <div v-for="(user, index) in searchResults" :key="user.uid" class="result-card">
             <div class="user-avatar" :style="{ backgroundColor: user.color }"></div>
             <span class="user-name">{{ user.name }}</span>
-            <button class="add-btn" @click="requestFriend(user.name)">追加</button>
+            <button class="add-btn" @click="sendFriendRequest(user)">追加</button>
           </div>
+        </div>
+        <div v-if="searchQuery && searchResults.length === 0" style="text-align: center; color: #999; margin-top: 20px;">
+          ユーザーが見つかりません
         </div>
 
         <button class="close-modal-btn" @click="close">閉じる</button>
@@ -45,7 +48,9 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
+import { db, auth } from '@/firebase';
+import { collection, addDoc, serverTimestamp, query, where, getDocs,limit } from 'firebase/firestore';
 
 defineProps({
   isOpen: Boolean
@@ -56,22 +61,82 @@ const emit = defineEmits(['close']);
 const searchMode = ref('name');
 const searchQuery = ref('');
 
-const dummyResults = [
-  { name: '名前', color: '#8bb4ff' },
-  { name: '名前', color: '#ff9980' },
-  { name: '名前', color: '#ff0000' },
-  { name: '名前', color: '#88ff88' },
-  { name: '名前', color: '#889900' },
-  { name: '名前', color: '#cccc00' },
-];
+const searchResults = ref([]);
+
+// 検索を実行する関数
+const performSearch = async () => {
+  const text = searchQuery.value.trim();
+  if (text.length === 0) {
+    searchResults.value = [];
+    return;
+  }
+
+  try {
+    const usersRef = collection(db, "users");
+    let q;
+
+    if (searchMode.value === 'name') {
+      // 名前で完全一致検索（Firestoreの制限上、部分一致は少し複雑なためまずは完全一致から）
+      q = query(usersRef, where("name", "==", text), limit(10));
+    } else {
+      // IDで検索（usersに displayId フィールドがある前提）
+      q = query(usersRef, where("displayId", "==", text), limit(1));
+    }
+
+    const querySnapshot = await getDocs(q);
+    const results = [];
+    querySnapshot.forEach((doc) => {
+      // 自分自身は結果に表示しない
+      if (doc.id !== auth.currentUser?.uid) {
+        results.push({
+          uid: doc.id,
+          ...doc.data()
+        });
+      }
+    });
+    searchResults.value = results;
+  } catch (error) {
+    console.error("検索エラー:", error);
+  }
+};
+
+// 入力されるたびに検索を実行（少し遅延を入れると丁寧ですが、まずはシンプルに）
+watch(searchQuery, () => {
+  performSearch();
+});
 
 const close = () => {
   searchQuery.value = '';
   emit('close');
 };
 
-const requestFriend = (name) => {
-  alert(`${name}さんに友達申請を送りました`);
+const sendFriendRequest = async (targetUser) => {
+  //ログインの確認
+  if (!auth.currentUser) {
+    alert("ログインが必要です。");
+    return;
+  }
+
+  if (targetUser.uid === auth.currentUser?.uid) {
+    alert("自分自身には申請できません");
+    return;
+  }
+
+  try {
+    await addDoc(collection(db, "friendRequests"), {
+      formId: auth.currentUser.uid,
+      formName: auth.currentUser.displayName,
+      toId: targetUser.uid,
+      toName: targetUser.name,
+      status: "pending",
+      createdAt: serverTimestamp()
+    });
+
+    alert(`${targetUser.name}さんにフレンド申請を送りました。`);
+  }　catch (error){
+    console.error("エラー内容:", error);
+    alert("申請に失敗しました。もう一度試してください。")
+  }
 };
 </script>
 
