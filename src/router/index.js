@@ -19,7 +19,7 @@ const router = createRouter({
     { path: '/mypage', name: 'mypage', component: MyPageView },
     { path: '/notification', name: 'notification', component: NotificationView },
     { path: '/make-event', name: 'make-event', component: MakeEventView },
-    { path: '/login', name: 'login', component: LoginView }
+    { path: '/login', name: 'login', component: LoginView },
     { path: '/event', name: 'event',component: EventViews}
   ]
 })
