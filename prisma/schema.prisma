@@ -1,5 +1,3 @@
-// prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,20 +10,27 @@ datasource db {
 // ユーザー情報
 model User {
   id            Int           @id @default(autoincrement())
-  firebaseUid   String        @unique
+  firebaseUid   String        @unique // Firebase AuthのUID
   name          String
   currentEnergy Float         @default(100.0)
+  createdEvents Event[]       @relation("EventCreator") // 作成したイベント
   transactions  Transaction[]
 }
 
 // 精算イベント（飲み会や旅行など）
 model Event {
-  id               Int           @id @default(autoincrement())
-  name             String
-  entropy          Float         @default(0.0)
-  isClosed         Boolean       @default(false)
-  transactions     Transaction[]
-  createdAt        DateTime      @default(now())
+  id           Int           @id @default(autoincrement())
+  name         String
+  totalAmount  Int           @default(0)    // イベントの総額（バリデーション用）
+  entropy      Float         @default(0.0)
+  isClosed     Boolean       @default(false)
+  
+  // 作成者との紐付け（誰がこのイベントを立てたか）
+  creator      User          @relation("EventCreator", fields: [creatorId], references: [firebaseUid])
+  creatorId    String
+
+  transactions Transaction[]
+  createdAt    DateTime      @default(now())
 }
 
 // 支払い履歴
@@ -34,8 +39,11 @@ model Transaction {
   amount           Int
   description      String
   activationEnergy Float    @default(10.0)
-  payer            User     @relation(fields: [payerId], references: [id])
-  payerId          Int
+  
+  // 支払い者（UserのfirebaseUidと紐付け）
+  payer            User     @relation(fields: [payerUid], references: [firebaseUid])
+  payerUid         String
+  
   event            Event    @relation(fields: [eventId], references: [id])
   eventId          Int
   createdAt        DateTime @default(now())
