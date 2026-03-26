@@ -1,57 +1,37 @@
 <template>
-  <div class="mypage-container">
-    
-    <div class="page-title-pill">
+  <div class="mypage-container"> <div class="page-title-pill">
       マイページ
     </div>
 
-    <p class="user-id">ID : xxxxxxxx</p>
-
-    <div class="profile-icon-wrapper">
+    <section class="profile-section">
       <div class="user-circle-large">
-        <span class="camera-icon">📷</span>
+        <img v-if="user?.photoURL" :src="user.photoURL" class="user-photo" />
+        <span v-else class="camera-icon">📷</span>
       </div>
-    </div>
+      <h1 class="user-name">{{ user?.displayName || '名前' }}</h1>
+      <p class="account-type">Google アカウント</p>
+    </section>
 
-    <h1 class="user-name">名前</h1>
-
-    <button class="btn-outline-green">プロファイルを編集</button>
-
-    <div class="action-buttons">
-      <button class="btn-orange" @click="$router.push('/friend')">フレンドリスト</button>
-      
-      <button class="btn-orange logout" @click="logout">ログアウト</button>
-    <div class="mypage-container">
-      
-      <section class="profile-section">
-        <div class="user-circle-large"></div>
-        <h1 class="user-name">松岡 暖來</h1>
-        <p class="account-type">Google アカウント</p>
-      </section>
-  
-      <section class="menu-section">
-        <ul class="menu-list">
-          <li class="menu-item">
-            <span>👥 フレンド管理</span>
-            <span class="arrow">›</span>
-          </li>
-          <li class="menu-item">
-            <span>🔔 お知らせ</span>
-            <span class="arrow">›</span>
-          </li>
-          <li class="menu-item">
-            <span>📜 お支払い履歴</span>
-            <span class="arrow">›</span>
-          </li>
-          
-          <li class="menu-item logout">
-            <span>🚪 ログアウト</span>
-            <span class="arrow">›</span>
-          </li>
-        </ul>
-      </section>
-  
-    </div>
+    <section class="menu-section">
+      <ul class="menu-list">
+        <li class="menu-item" @click="$router.push('/friend')">
+          <span>👥 フレンド管理</span>
+          <span class="arrow">›</span>
+        </li>
+        <li class="menu-item">
+          <span>🔔 お知らせ</span>
+          <span class="arrow">›</span>
+        </li>
+        <li class="menu-item">
+          <span>📜 お支払い履歴</span>
+          <span class="arrow">›</span>
+        </li>
+        <li class="menu-item logout" @click="logout">
+          <span>🚪 ログアウト</span>
+          <span class="arrow">›</span>
+        </li>
+      </ul>
+    </section>
 
   </div>
 </template>
@@ -181,10 +161,6 @@ const logout = async () => {
   object-fit: cover;
 }
 
-</style>
-  </template>
-  
-  <style scoped>
   /* マイページ固有のスタイル (松岡さんのデザインベース) */
   .mypage-container {
     padding: 30px 20px;
@@ -260,4 +236,5 @@ const logout = async () => {
   .menu-item.logout .arrow {
     color: #fca5a5; /* 矢印も少し赤っぽく */
   }
-  </style>
+
+</style>
