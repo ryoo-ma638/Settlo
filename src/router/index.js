@@ -55,14 +55,4 @@ const router = createRouter({
   ]
 })
 
-router.beforeEach((to, from, next) => {
-  onAuthStateChanged(auth, (user) => {
-    if (!user && to.path !== "/login") {
-      return '/login';
-    } else {
-      return true;
-    }
-  });
-});
-
 export default router
