@@ -18,7 +18,7 @@
           <span>👥 フレンド管理</span>
           <span class="arrow">›</span>
         </li>
-        <li class="menu-item hide-on-pc">
+        <li class="menu-item hide-on-pc" @click="$router.push('/payment-history')">
           <span>📜 お支払い履歴</span>
           <span class="arrow">›</span>
         </li>

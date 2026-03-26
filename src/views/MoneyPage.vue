@@ -70,6 +70,11 @@
         </div>
       </div>
     </div>
+    <div class="all-history-action">
+      <button class="all-history-btn" @click="$router.push('/payment-history')">
+        📜 全ての履歴を見る
+      </button>
+    </div>
   </div>
 </template>
 
@@ -140,4 +145,9 @@ const receivableList = ref([
 .btn { padding: 6px 16px; border-radius: 20px; border: none; font-size: 12px; font-weight: bold; color: #fff; cursor: pointer; }
 .btn-red { background-color: #ef4444; }
 .btn-green { background-color: #4ade80; }
+
+/* 🌟 全ての履歴を見るボタン */
+.all-history-action { margin-top: 30px; text-align: center; padding-bottom: 20px; }
+.all-history-btn { background-color: white; border: 1px solid #cbd5e1; color: #1e293b; padding: 14px 30px; border-radius: 25px; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+.all-history-btn:active { background-color: #f8fafc; transform: scale(0.95); }
 </style>
