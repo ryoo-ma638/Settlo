@@ -56,7 +56,6 @@ const logout = async () => {
 };
 
 import { ref, onMounted } from "vue";
-import { auth } from "../firebase";
 
 const userName = ref("");
 const userPhoto = ref("");
