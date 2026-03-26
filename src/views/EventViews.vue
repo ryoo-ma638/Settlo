@@ -2,6 +2,7 @@
     <div class="event-container">
         
         <main class="content">
+            <button class="link-button" @click="$router.push('/event-detail')">イベント詳細画面</button>
             <div class="flex-between">
                 <span class="list-title">進行中のイベント</span>
                 <button class="link-button" @click="$router.push('/payment')">精算を確認する</button>
@@ -13,9 +14,13 @@
               <div class="member-icons">
                 <span class="circle c1"></span><span class="circle c2"></span><span class="circle c3"></span>
               </div>
-           </div>
+            </div>
             <div class="event-amount">合計金額</div>
+<<<<<<< Updated upstream
         </div>
+=======
+            </div>
+>>>>>>> Stashed changes
         </main>
     </div>
 </template>
