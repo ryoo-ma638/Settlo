@@ -132,13 +132,14 @@ body:not(:has(.login-container)) .mobile-layout .main-content {
   display: flex;
   flex-direction: column;
   background-color: #ffffff;
-  box-shadow: 0 0 15px rgba(0,0,0,0.05);
+  /* 🌟 修正：影を消して、左右のカラムと完全にフラットに繋げる */
+  box-shadow: none; 
 }
 
 .pc-content-area {
   flex: 1;
-  padding: 30px;
-  
+  /* 🌟 修正：30pxあった上下左右の余白を 0 にして隙間をなくす */
+  padding: 0; 
   
   display: flex;
   flex-direction: column;

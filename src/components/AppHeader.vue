@@ -15,7 +15,7 @@
     </div>
 
     <div class="header-center">
-      <h1 class="app-title">Settlo</h1>
+      <h1 class="app-title" @click="navigate('/')">Settlo</h1>
     </div>
 
     <div class="header-right">
@@ -74,7 +74,13 @@ box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); height: 75px; box-sizing: border-box
 .user-icon-container:active { opacity: 0.5; }
 .user-circle { width: 40px; height: 40px; background-color: #d9a0a0; border-radius: 50%; }
 .user-name { font-size: 11px; color: #333; margin-top: 4px; font-weight: bold; }
-.app-title { font-size: 26px; font-weight: 900; color: #059669; margin: 0; letter-spacing: 1px; }
+.app-title { 
+  font-size: 26px; font-weight: 900; color: #059669; margin: 0; letter-spacing: 1px; 
+  cursor: pointer; transition: opacity 0.2s; 
+}
+.app-title:active {
+  opacity: 0.5; 
+}
 
 .icon-btn {
 background: none; border: none; padding: 5px; cursor: pointer; color: #334155; position: relative;
