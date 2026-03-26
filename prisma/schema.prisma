@@ -1,0 +1,42 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// ユーザー情報
+model User {
+  id            Int           @id @default(autoincrement())
+  firebaseUid   String        @unique
+  name          String
+  currentEnergy Float         @default(100.0)
+  transactions  Transaction[]
+}
+
+// 精算イベント（飲み会や旅行など）
+model Event {
+  id               Int           @id @default(autoincrement())
+  name             String
+  entropy          Float         @default(0.0)
+  isClosed         Boolean       @default(false)
+  transactions     Transaction[]
+  createdAt        DateTime      @default(now())
+}
+
+// 支払い履歴
+model Transaction {
+  id               Int      @id @default(autoincrement())
+  amount           Int
+  description      String
+  activationEnergy Float    @default(10.0)
+  payer            User     @relation(fields: [payerId], references: [id])
+  payerId          Int
+  event            Event    @relation(fields: [eventId], references: [id])
+  eventId          Int
+  createdAt        DateTime @default(now())
+}

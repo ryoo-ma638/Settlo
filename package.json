@@ -9,6 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.2",
+    "express": "^5.2.1",
+    "node-cron": "^4.2.1",
+    "prisma": "^6.19.2",
     "vue": "^3.5.30",
     "vue-router": "^5.0.3"
   },
