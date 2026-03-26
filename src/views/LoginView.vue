@@ -13,25 +13,23 @@
   </template>
 
 <script setup>
-import { auth } from "../firebase";
-import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { useRouter } from "vue-router";
-
-const router = useRouter();
-
-// 👇 ここで作る
-const provider = new GoogleAuthProvider();
+import { auth, provider } from "../firebase";
+import { signInWithPopup } from "firebase/auth";
+import { saveUser } from "../user";
 
 const loginWithGoogle = async () => {
-  console.log("クリックされた！");
   try {
     const result = await signInWithPopup(auth, provider);
-    console.log("ログイン成功:", result.user);
 
-    router.push("/mypage"); 
+    // ユーザー情報
+    const user = result.user;
+
+    // Firestoreに保存
+    await saveUser(user);
+
+    console.log("ログイン成功", user);
   } catch (error) {
-    console.error("ログインエラー:", error);
-    alert("ログインに失敗しました。");
+    console.error("ログイン失敗", error);
   }
 };
 </script>
