@@ -8,6 +8,9 @@ import NotificationView from '../views/NotificationView.vue'
 import MakeEventView from '../views/MakeEventView.vue'
 import LoginView from '../views/LoginView.vue'
 
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "../firebase";
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -51,5 +54,15 @@ const router = createRouter({
     }   
   ]
 })
+
+router.beforeEach((to, from, next) => {
+  onAuthStateChanged(auth, (user) => {
+    if (!user && to.path !== "/login") {
+      next("/login");
+    } else {
+      next();
+    }
+  });
+});
 
 export default router
