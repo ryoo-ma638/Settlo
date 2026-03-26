@@ -11,6 +11,29 @@
       </div>
     </div>
   </template>
+
+  <script setup>
+// 💡 Firebaseのログイン機能と、画面移動のためのツールをインポート
+import { auth, provider } from "../firebase"; 
+import { signInWithPopup } from "firebase/auth";
+import { useRouter } from "vue-router";
+
+const router = useRouter();
+
+// 💡 ログイン処理の中身
+const loginWithGoogle = async () => {
+  try {
+    const result = await signInWithPopup(auth, provider);
+    console.log("ログイン成功:", result.user);
+    
+    // ログインできたらマイページ（またはホーム）へ飛ばす
+    router.push("/"); 
+  } catch (error) {
+    console.error("ログインエラー:", error);
+    alert("ログインに失敗しました。");
+  }
+};
+</script>
   
   <style scoped>
   .login-container {
