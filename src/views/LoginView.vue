@@ -4,7 +4,7 @@
         <h1 class="app-title">Settlo</h1>
         <p class="subtitle">割り勘をもっとスマートに</p>
   
-        <button class="google-login-btn">
+        <button class="google-login-btn" @click="loginWithGoogle">
           <span class="google-icon">G</span>
           Googleでログイン
         </button>
