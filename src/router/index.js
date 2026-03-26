@@ -55,4 +55,18 @@ const router = createRouter({
   ]
 })
 
+router.beforeEach((to, from) => {
+  // 1. 現在のユーザー情報を取得
+  const user = auth.currentUser;
+
+  // 2. もし未ログイン かつ ログイン画面以外に行こうとしているなら
+  if (!user && to.path !== "/login") {
+    // ログイン画面へ強制送還
+    return "/login";
+  }
+
+  // 3. ログイン済み、またはログイン画面へ行くならそのまま通す
+  return true;
+});
+
 export default router
