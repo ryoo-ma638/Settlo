@@ -2,14 +2,8 @@
     <div class="mypage-container">
       
       <section class="profile-section">
-        <img 
-          v-if="user"
-          :src="user.photoURL" 
-          class="user-circle-large"
-        />
-        <h1 class="user-name">
-          {{ user ? user.displayName : "未ログイン" }}
-        </h1>
+        <img :src="userPhoto" class="user-circle-large" />
+          <h1 class="user-name">{{ userName }}</h1>
         <p class="account-type">Google アカウント</p>
       </section>
   
@@ -60,6 +54,21 @@ const logout = async () => {
     console.error("ログアウトエラー", error);
   }
 };
+
+import { ref, onMounted } from "vue";
+import { auth } from "../firebase";
+
+const userName = ref("");
+const userPhoto = ref("");
+
+onMounted(() => {
+  const user = auth.currentUser;
+
+  if (user) {
+    userName.value = user.displayName;
+    userPhoto.value = user.photoURL;
+  }
+});
 </script>
 
   <style scoped>
