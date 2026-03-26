@@ -3,15 +3,38 @@
       <div class="login-box">
         <h1 class="app-title">Settlo</h1>
         <p class="subtitle">割り勘をもっとスマートに</p>
-  
-        <button class="google-login-btn">
+
+        <button class="google-login-btn" @click="loginWithGoogle">
           <span class="google-icon">G</span>
           Googleでログイン
         </button>
       </div>
     </div>
   </template>
-  
+
+  <script setup>
+import { auth, provider } from "../firebase";
+import { signInWithPopup } from "firebase/auth";
+import { saveUser } from "../user";
+import { useRouter } from "vue-router";
+
+const router = useRouter();
+
+const loginWithGoogle = async () => {
+  try {
+    const result = await signInWithPopup(auth, provider);
+
+    // ⭐ ユーザー情報を保存
+    await saveUser(result.user);
+
+    console.log("ログイン成功", result.user);
+    router.push("/mypage");
+  } catch (error) {
+    console.error("ログイン失敗", error);
+  }
+};
+</script>
+
   <style scoped>
   .login-container {
     display: flex;

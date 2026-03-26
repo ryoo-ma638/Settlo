@@ -8,6 +8,9 @@ import NotificationView from '../views/NotificationView.vue'
 import MakeEventView from '../views/MakeEventView.vue'
 import LoginView from '../views/LoginView.vue'
 
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "../firebase";
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -51,5 +54,19 @@ const router = createRouter({
     }   
   ]
 })
+
+router.beforeEach((to, from) => {
+  // 1. 現在のユーザー情報を取得
+  const user = auth.currentUser;
+
+  // 2. もし未ログイン かつ ログイン画面以外に行こうとしているなら
+  if (!user && to.path !== "/login") {
+    // ログイン画面へ強制送還
+    return "/login";
+  }
+
+  // 3. ログイン済み、またはログイン画面へ行くならそのまま通す
+  return true;
+});
 
 export default router
