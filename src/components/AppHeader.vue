@@ -1,5 +1,4 @@
 <template>
-  <div>
     <AppSidebar :isOpen="isSidebarOpen" @close="isSidebarOpen = false" />
 
     <header class="header">
@@ -34,7 +33,6 @@
       </div>
 
     </header>
-  </div>
 </template>
 
 <script setup>
