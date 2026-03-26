@@ -6,7 +6,8 @@ import MoneyPage from '../views/MoneyPage.vue'
 import MyPageView from '../views/MyPageView.vue'
 import MakeEventView from '../views/MakeEventView.vue'
 import LoginView from '../views/LoginView.vue'
-import EventViews from '@/views/EventViews.vue' // チームが追加
+import EventViews from '../views/EventViews.vue' // チームが追加
+import EventDetails from '../views/EventDetails.vue' 
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -19,7 +20,8 @@ const router = createRouter({
     // 🌟 NotificationView はコンポーネント化したので削除済み
     { path: '/make-event', name: 'make-event', component: MakeEventView },
     { path: '/login', name: 'login', component: LoginView },
-    { path: '/event', name: 'event', component: EventViews }
+    { path: '/event', name: 'event', component: EventViews },
+    { path: '/event-detail', name: 'event-detail', component: EventDetails }
   ]
 })
 
