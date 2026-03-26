@@ -28,9 +28,10 @@
             <span class="arrow">›</span>
           </li>
           
-          <button  @click="logout">
-            テストログアウト
-          </button>
+          <li class="menu-item logout" @click="logout">
+            <span>🚪 ログアウト</span>
+            <span class="arrow">›</span>
+          </li>
         </ul>
       </section>
   

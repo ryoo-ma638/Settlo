@@ -66,6 +66,10 @@ onUnmounted(() => {
 onAuthStateChanged(auth, (user) => {
   if (user) {
     console.log("ログイン中", user);
+
+    if (route.path === "/login") {
+    }
+
   } else {
     console.log("未ログイン");
     if (route.path !== "/login"){
