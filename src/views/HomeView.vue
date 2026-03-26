@@ -54,7 +54,7 @@
           <div class="event-amount">{{ event.amount }}</div>
 
         </div>
-      </ul>
+      </div>
     </section>
 
     <div v-if="selectedEvent" class="modal-overlay" @click.self="selectedEvent = null">
