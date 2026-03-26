@@ -68,7 +68,9 @@ onAuthStateChanged(auth, (user) => {
     console.log("ログイン中", user);
   } else {
     console.log("未ログイン");
-    router.push("/login");
+    if (route.path !== "/login"){
+      router.push("/login");
+    }
   }
 });
 </script>
