@@ -15,13 +15,7 @@
       </div>
 
       <div class="header-right">
-        <button class="icon-btn" @click="navigate('/notification')" aria-label="お知らせ">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-          </svg>
-          <span class="notification-dot"></span>
-        </button>
+        <NotificationIcon />
         
         <button class="icon-btn" @click="isSidebarOpen = true" aria-label="メニューを開く">
           <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -38,20 +32,21 @@
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-// 🌟 先ほど作った AppSidebar.vue をインポート
+// 各コンポーネントをインポート
 import AppSidebar from './AppSidebar.vue';
+import NotificationIcon from './NotificationIcon.vue'; // 🌟 あなたが担当するお知らせボタン
 
 const router = useRouter();
-const isSidebarOpen = ref(false); // サイドバーの開閉状態を管理
+const isSidebarOpen = ref(false);
 
-// マイページ等への移動処理
+// 画面遷移用の共通関数
 const navigate = (path) => {
   router.push(path);
 };
 </script>
 
 <style scoped>
-/* ヘッダー全体（スクロール追従） */
+/* ヘッダー全体（スクロール追従・ぼかし効果） */
 .header {
   position: sticky;
   top: 0;
@@ -67,6 +62,7 @@ const navigate = (path) => {
   box-sizing: border-box;
 }
 
+/* レイアウト調整：左・中・右の比率 */
 .header-left, .header-right {
   flex: 1;
   display: flex;
@@ -76,22 +72,20 @@ const navigate = (path) => {
 .header-right { justify-content: flex-end; gap: 15px; }
 .header-center { flex: 2; text-align: center; }
 
+/* ユーザーアイコンの見た目 */
 .user-icon-container { display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: opacity 0.2s; }
 .user-icon-container:active { opacity: 0.5; }
 .user-circle { width: 40px; height: 40px; background-color: #d9a0a0; border-radius: 50%; }
 .user-name { font-size: 11px; color: #333; margin-top: 4px; font-weight: bold; }
 
+/* タイトルの見た目 */
 .app-title { font-size: 26px; font-weight: 900; color: #059669; margin: 0; letter-spacing: 1px; }
 
+/* 汎用アイコンボタンの基本設定 */
 .icon-btn {
   background: none; border: none; padding: 5px; cursor: pointer;
   color: #334155; position: relative; display: flex; align-items: center; justify-content: center;
   transition: transform 0.2s, color 0.2s;
 }
 .icon-btn:active { transform: scale(0.9); color: #059669; }
-
-.notification-dot {
-  position: absolute; top: 2px; right: 4px;
-  width: 8px; height: 8px; background-color: #ef4444; border-radius: 50%; border: 2px solid white;
-}
 </style>
