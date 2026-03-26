@@ -9,6 +9,7 @@ import LoginView from '../views/LoginView.vue'
 import EventViews from '../views/EventViews.vue' // チームが追加
 import EventDetails from '../views/EventDetails.vue' 
 import EditProfileView from '../views/EditProfileView.vue';
+import PaymentHistoryView from '../views/PaymentHistoryView.vue';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -31,6 +32,8 @@ const router = createRouter({
     { path: '/combined-settlement/:name', name: 'CombinedSettlement', component: () => import('../views/CombinedSettlementView.vue') },
     { path: '/combined-action/:name', name: 'CombinedAction', component: () => import('../views/CombinedActionView.vue') },
     { path: '/edit-profile', name: 'EditProfile', component: EditProfileView },
+
+    { path: '/payment-history', name: 'PaymentHistory', component: PaymentHistoryView },
   ]
 })
 
