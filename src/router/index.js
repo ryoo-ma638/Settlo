@@ -8,6 +8,7 @@ import MakeEventView from '../views/MakeEventView.vue'
 import LoginView from '../views/LoginView.vue'
 import EventViews from '../views/EventViews.vue' // チームが追加
 import EventDetails from '../views/EventDetails.vue' 
+import EditProfileView from '../views/EditProfileView.vue';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -28,7 +29,8 @@ const router = createRouter({
     // 🌟 大崎さんが追加した決済・精算関連のルート
     { path: '/payment-detail/:id', name: 'PaymentDetail', component: () => import('../views/PaymentDetailView.vue') },
     { path: '/combined-settlement/:name', name: 'CombinedSettlement', component: () => import('../views/CombinedSettlementView.vue') },
-    { path: '/combined-action/:name', name: 'CombinedAction', component: () => import('../views/CombinedActionView.vue') }
+    { path: '/combined-action/:name', name: 'CombinedAction', component: () => import('../views/CombinedActionView.vue') },
+    { path: '/edit-profile', name: 'EditProfile', component: EditProfileView },
   ]
 })
 

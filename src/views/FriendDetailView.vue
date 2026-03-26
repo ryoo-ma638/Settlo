@@ -21,7 +21,7 @@ const netBalance = computed(() => waitingTotal.value - unpaidTotal.value);
 
     <main class="scroll-content">
       <section class="total-balance-card" @click="$router.push('/combined-settlement/' + $route.params.name)">
-    <div class="balance-label">トータルの貸し借り（相殺後）</div>
+    <div class="balance-label">トータルの貸し借り</div>
     <div class="balance-main">
       <h2 class="balance-amount" :class="netBalance >= 0 ? 'blue-text' : 'orange-text'">
         {{ netBalance >= 0 ? '受け取る' : '支払う' }} ¥{{ Math.abs(netBalance).toLocaleString() }}
@@ -33,7 +33,7 @@ const netBalance = computed(() => waitingTotal.value - unpaidTotal.value);
       <div class="sub-item"><span class="dot orange-dot"></span> 未払い: ¥{{ unpaidTotal.toLocaleString() }}</div>
     </div>
   </section> 
-      <h2 class="section-title">お支払い状況</h2>
+  <h2 class="section-title">{{ $route.params.name }} さんとのお支払い状況</h2>
 
       <section class="status-section">
         <div class="status-header">
@@ -84,7 +84,7 @@ const netBalance = computed(() => waitingTotal.value - unpaidTotal.value);
       </section>
 
       <section class="history-section">
-        <button class="history-toggle-btn">過去の履歴</button>
+        <button class="history-toggle-btn">{{ $route.params.name }} さんとの過去の履歴</button>
         <div class="history-list">
           <div v-for="n in 5" :key="'h'+n" class="history-card">
             <span class="history-event-name">イベント名{{n}}</span>

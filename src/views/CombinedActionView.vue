@@ -61,21 +61,36 @@
   };
   </script>
   
-  <style scoped>
-  .action-container { background: #f8fafc; min-height: 100vh; width: 100%; box-sizing: border-box; }
-  .content { padding: 20px; }
-  .summary-card { padding: 30px; border-radius: 20px; color: white; text-align: center; margin-bottom: 25px; }
-  .blue-mode { background: linear-gradient(135deg, #3b82f6, #2563eb); }
-  .orange-mode { background: linear-gradient(135deg, #f59e0b, #d97706); }
-  .summary-label { font-size: 14px; margin-bottom: 5px; opacity: 0.9; }
-  .total-amount { font-size: 44px; font-weight: bold; margin: 0 0 10px 0; }
-  .hint-badge { background: rgba(255,255,255,0.2); display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 11px; }
-  
-  .section-sub { font-size: 16px; font-weight: bold; margin: 20px 0 10px; color: #1e293b; }
-  .method-btn { width: 100%; padding: 16px; border-radius: 14px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; }
-  .cash { background-color: #1e293b; color: white; }
-  .paypay { background-color: #ff0033; color: white; }
-  .footer-actions { margin-top: 30px; }
-  .detail-header { display: flex; align-items: center; padding: 10px 15px; background: white; }
-  .back-btn { background: none; border: none; font-size: 32px; color: #64748b; }
-  </style>
+<style scoped>
+/* 🌟 overflow-x: hidden; を追加して横揺れを完全にブロック */
+.action-container { 
+  background: #f8fafc; 
+  min-height: 100vh; 
+  width: 100%; 
+  box-sizing: border-box; 
+  overflow-x: hidden; 
+}
+
+/* 🌟 width: 100% と box-sizing を追加して、パディングを内側に収める */
+.content { 
+  padding: 20px; 
+  width: 100%;
+  box-sizing: border-box; 
+}
+
+/* --- 以下はそのまま --- */
+.summary-card { padding: 30px; border-radius: 20px; color: white; text-align: center; margin-bottom: 25px; }
+.blue-mode { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+.orange-mode { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.summary-label { font-size: 14px; margin-bottom: 5px; opacity: 0.9; }
+.total-amount { font-size: 44px; font-weight: bold; margin: 0 0 10px 0; }
+.hint-badge { background: rgba(255,255,255,0.2); display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 11px; }
+
+.section-sub { font-size: 16px; font-weight: bold; margin: 20px 0 10px; color: #1e293b; }
+.method-btn { width: 100%; padding: 16px; border-radius: 14px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; }
+.cash { background-color: #1e293b; color: white; }
+.paypay { background-color: #ff0033; color: white; }
+.footer-actions { margin-top: 30px; }
+.detail-header { display: flex; align-items: center; padding: 10px 15px; background: white; }
+.back-btn { background: none; border: none; font-size: 32px; color: #64748b; }
+</style>
