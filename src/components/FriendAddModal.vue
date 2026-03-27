@@ -61,6 +61,7 @@
 import { ref, watch } from 'vue';
 import { db, auth } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, limit } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore'; // getDoc と doc を追加
 
 const props = defineProps({ isOpen: Boolean });
 const emit = defineEmits(['close']);
@@ -73,7 +74,7 @@ const searchResults = ref([]);
 const selectedUser = ref(null);
 
 // 検索を実行する関数 (既存のまま)
-const performSearch = async () => {
+/*const performSearch = async () => {
   const text = searchQuery.value.trim();
   if (text.length === 0) { searchResults.value = []; return; }
   try {
@@ -94,6 +95,40 @@ const performSearch = async () => {
     console.error("検索エラー:", error);
   }
 };
+*/
+
+const performSearch = async () => {
+  const text = searchQuery.value.trim();
+  if (text.length === 0) { searchResults.value = []; return; }
+  
+  try {
+    const results = [];
+
+    if (searchMode.value === 'name') {
+      // --- 名前検索 (既存のロジック) ---
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("name", "==", text), limit(10));
+      const querySnapshot = await getDocs(q);
+      querySnapshot.forEach((doc) => {
+        if (doc.id !== auth.currentUser?.uid) {
+          results.push({ uid: doc.id, ...doc.data() });
+        }
+      });
+    } else {
+      // --- ID検索 (ドキュメントID = UID で検索) ---
+      const userDocRef = doc(db, "users", text);
+      const userSnap = await getDoc(userDocRef);
+
+      if (userSnap.exists() && userSnap.id !== auth.currentUser?.uid) {
+        results.push({ uid: userSnap.id, ...userSnap.data() });
+      }
+    }
+
+    searchResults.value = results;
+  } catch (error) {
+    console.error("検索エラー:", error);
+  }
+};
 
 watch(searchQuery, () => performSearch());
 
@@ -109,9 +144,12 @@ const executeRequest = async () => {
   const targetUser = selectedUser.value;
 
   try {
+    const myDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
+    const myName = myDoc.exists() ? (myDoc.data().name || "名前なし") : "名前なし";
+
     await addDoc(collection(db, "friendRequests"), {
       formId: auth.currentUser.uid,
-      formName: auth.currentUser.displayName,
+      formName: myName,
       toId: targetUser.uid,
       toName: targetUser.name,
       status: "pending",
