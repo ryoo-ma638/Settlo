@@ -10,7 +10,7 @@
           <p class="request-alert">❗ 友達申請が届いています</p>
           <div class="request-card" v-for="req in pendingRequests" :key="req.id">
             <div class="request-avatar blue-avatar" :style="{ backgroundColor: req.color }"></div>
-            <span class="request-name">{{ req.name }}</span>
+            <span class="request-name">{{ req.formName }}</span>
             <button class="approve-button" @click="openApproveModal(req)">確認</button>
           </div>
         </div>
@@ -57,8 +57,23 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+
+import { auth, db } from '@/firebase' // ★ firebase.js から db と auth を読み込む
+import { onAuthStateChanged } from 'firebase/auth' // ★ ログイン状態の監視
+import { 
+  collection, 
+  query, 
+  where, 
+  onSnapshot, 
+  doc, 
+  getDoc, 
+  setDoc, 
+  deleteDoc, 
+  serverTimestamp 
+} from 'firebase/firestore' // ★ Firestore操作に必要なものすべて
+
 import FriendAddModal from '@/components/FriendAddModal.vue'
 import FriendCard from '@/components/FriendCard.vue' // 🌟 追加
 // 🌟 <script setup> に追加する処理
@@ -70,7 +85,9 @@ const isModalOpen = ref(false)
 const currentFilter = ref('all')
 const currentSort = ref('added_desc')
 
-
+const friendData = ref([]); 
+const pendingRequests = ref([]);
+/*
 // 🌟 ダミーデータ（テスト用にフィルターがかかるよう情報を追加）
 const friendData = ref([
   { id: 1, name: '天野 椋祐', kana: 'アマノ リョウスケ', color: '#ff9980', isFriend: true, isTrading: true, tradeCount: 5, addedAt: '2026-03-20' },
@@ -82,9 +99,42 @@ const friendData = ref([
 const pendingRequests = ref([
   { id: 101, name: 'テスト 太郎', color: '#a0aec0' }
 ]);
+*/
+
+// Firestoreからデータを読み込む処理
+onMounted(() => {
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      // 1. 自分宛の申請を監視
+      const qReq = query(
+        collection(db, "friendRequests"), 
+        where("toId", "==", user.uid),
+        where("status", "==", "pending")
+      )
+      onSnapshot(qReq, (snapshot) => {
+        pendingRequests.value = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+      })
+
+      // 2. 自分の友達リストを監視
+      const qFriends = collection(db, "users", user.uid, "friends")
+      onSnapshot(qFriends, (snapshot) => {
+        friendData.value = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+      })
+    }
+  })
+})
+
 // 承認モーダル用の状態管理
 const isApproveModalOpen = ref(false);
 const selectedRequestUser = ref(null);
+
+
 
 // 確認ボタンを押した時
 const openApproveModal = (user) => {
@@ -92,31 +142,67 @@ const openApproveModal = (user) => {
   isApproveModalOpen.value = true;
 };
 
-// モーダル内で「承認する」が実行された後の処理
-const handleApproveDone = (approvedUser) => {
-  // 承認された人を「申請一覧」から消す（ダミー処理）
-  pendingRequests.value = pendingRequests.value.filter(u => u.id !== approvedUser.id);
-};
-
-const processedList = computed(() => {
-  let list = friendData.value;
-  
-  if (currentFilter.value === 'trading') {
-    list = list.filter(u => u.isTrading);
-  } else if (currentFilter.value === 'not_friend') {
-    list = list.filter(u => !u.isFriend);
-  } else if (currentFilter.value === 'friend_only') {
-    // 🌟 追加：フレンド（isFriend が true）のみを残す
-    list = list.filter(u => u.isFriend);
+// ★ 承認処理（ここが正しく書かれていないとエラーになります）
+const handleApproveDone = async (request) => {
+  // 安全装置：もし formId がなければ処理を中断する
+  if (!request.formId) {
+    alert("この申請データには送信者ID(formId)が含まれていないため、承認できません。");
+    return;
   }
   
+  const myUid = auth.currentUser.uid
+  const friendUid = request.formId
+
+  try {
+    // 1. 自分のリストに相手を追加
+    await setDoc(doc(db, "users", myUid, "friends", friendUid), {
+      uid: friendUid,
+      name: request.formName || "名前なし",
+      isFriend: true,
+      addedAt: serverTimestamp(),
+      tradeCount: 0,  // 初期値を追加しておくと安心
+      isTrading: false
+    })
+
+    // 2. 相手側の名前を取得（存在しない場合に備えて安全に処理）
+    const myDoc = await getDoc(doc(db, "users", myUid))
+    let myName = "名前なし"
+    
+    if (myDoc.exists()) {
+      myName = myDoc.data().name || "名前なし"
+    }
+
+    // 3. 相手のリストに自分を追加
+    await setDoc(doc(db, "users", friendUid, "friends", myUid), {
+      uid: myUid,
+      name: myName,
+      isFriend: true,
+      addedAt: serverTimestamp(),
+      tradeCount: 0,
+      isTrading: false
+    })
+
+    // 4. 申請データを削除
+    await deleteDoc(doc(db, "friendRequests", request.id))
+    
+    isApproveModalOpen.value = false
+  } catch (error) {
+    console.error("承認エラーの詳細:", error)
+    alert("承認に失敗しました。もう一度試すか、相手のデータがあるか確認してください。")
+  }
+}
+
+// フィルタ・ソートロジック
+const processedList = computed(() => {
+  let list = friendData.value
+  if (currentFilter.value === 'trading') list = list.filter(u => u.isTrading)
+  if (currentFilter.value === 'friend_only') list = list.filter(u => u.isFriend)
+  
   return [...list].sort((a, b) => {
-    if (currentSort.value === 'kana_asc') return a.kana.localeCompare(b.kana, 'ja');
-    if (currentSort.value === 'trade_desc') return b.tradeCount - a.tradeCount;
-    if (currentSort.value === 'added_desc') return new Date(b.addedAt || 0) - new Date(a.addedAt || 0);
-    return 0;
-  });
-});
+    if (currentSort.value === 'kana_asc') return (a.kana || "").localeCompare(b.kana || "", 'ja')
+    return (b.addedAt?.seconds || 0) - (a.addedAt?.seconds || 0)
+  })
+})
 
 const navigateToDetail = (friend) => {
   router.push(`/friend/${encodeURIComponent(friend.name)}`)
