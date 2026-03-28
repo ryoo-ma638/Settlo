@@ -205,7 +205,7 @@ const processedList = computed(() => {
 })
 
 const navigateToDetail = (friend) => {
-  router.push(`/friend/${encodeURIComponent(friend.name)}`)
+  router.push(`/friend/${encodeURIComponent(friend.name)}/${friend.uid}`)
 }
 </script>
 

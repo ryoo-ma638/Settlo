@@ -1,12 +1,51 @@
 <script setup>
 import { ref, computed } from 'vue';
+import { useRoute, useRouter } from 'vue-router'; // ルート操作用
+import { db, auth } from '@/firebase';
+import { doc, deleteDoc } from 'firebase/firestore';
 
 // 🌟 本来はFirebase等から取得しますが、一旦ダミーデータです
 const waitingTotal = ref(3500); // 相手から受け取る分（お支払い待ち）
 const unpaidTotal = ref(4800);  // 自分が支払う分（未払い）
+//フレンド削除
+const route = useRoute();
+const router = useRouter();
 
 // 🌟 トータル収支（受け取り - 支払い）を計算
 const netBalance = computed(() => waitingTotal.value - unpaidTotal.value);
+
+//フレンド削除
+const handleDeleteFriend = async () => {
+  const friendName = route.params.name;
+  const friendUid = route.params.uid; // ルーターからUIDを受け取っている想定
+  const myUid = auth.currentUser?.uid;
+
+  if (!myUid || !friendUid) {
+    alert("ユーザー情報の取得に失敗しました。");
+    return;
+  }
+
+  // 1. 確認ダイアログを表示
+  const confirmDelete = confirm(`${friendName} さんをフレンドから削除しますか？\n(相手のリストからもあなたが削除されます)`);
+  
+  if (!confirmDelete) return;
+
+  try {
+    // 2. 自分のリストから相手を削除
+    await deleteDoc(doc(db, "users", myUid, "friends", friendUid));
+    
+    // 3. 相手のリストから自分を削除 (相互削除)
+    await deleteDoc(doc(db, "users", friendUid, "friends", myUid));
+
+    alert(`${friendName} さんを削除しました。`);
+    
+    // 4. 一覧画面に戻る
+    router.push('/friend'); // フレンド一覧のパスに合わせて調整してください
+  } catch (error) {
+    console.error("削除エラー:", error);
+    alert("削除に失敗しました。");
+  }
+};
 </script>
 <template>
   <div class="friend-detail-container">
@@ -16,7 +55,7 @@ const netBalance = computed(() => waitingTotal.value - unpaidTotal.value);
         <div class="user-avatar" style="background-color: #ff9980;"></div>
         <h1 class="user-name">{{ $route.params.name }}</h1>
       </div>
-      <button class="delete-link-btn">削除する</button>
+      <button class="delete-link-btn" @click="handleDeleteFriend">削除する</button>
     </header>
 
     <main class="scroll-content">
