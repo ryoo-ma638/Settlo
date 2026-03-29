@@ -13,6 +13,15 @@
         <div class="modal-window">
           <h2 class="modal-title">お知らせ</h2>
           <div class="notification-list">
+
+            <div v-for="req in notifications" :key="req.id" class="notif-item pink">
+              <span class="dot"></span>
+              <div class="notif-body">
+                <p>{{ req.formName }}さんから友達申請が届いています</p>
+                <button class="mini-accept-btn" @click="acceptRequest(req)">承認する</button>
+              </div>
+            </div>
+<!--
             <div class="notif-item pink"><span class="dot"></span><p>〇〇さんから友達申請が届いています</p></div>
             <div class="notif-item blue"><span class="dot"></span><p>〇〇さんの友達申請が承認されました</p></div>
             <div class="notif-item red"><p>〇〇さんから催促が来ています<br>今すぐお支払いしましょう</p></div>
@@ -21,6 +30,10 @@
             <div class="notif-item blue"><p>追加のお知らせテスト2</p></div>
             <div class="notif-item yellow"><p>追加のお知らせテスト3</p></div>
             <div class="notif-item pink"><p>スクロール確認用：一番下のお知らせです</p></div>
+-->
+            <div v-if="notifications.length === 0" class="empty-msg">
+              新しいお知らせはありません
+            </div>
           </div>
           <button class="close-modal-btn" @click="showModal = false">閉じる</button>
         </div>
@@ -30,6 +43,7 @@
     <div v-else class="static-notification-panel">
       <h2 class="sidebar-title">お知らせ</h2>
       <div class="notification-list">
+        <!--
         <div class="notif-item pink"><span class="dot"></span><p>〇〇さんから友達申請が届いています</p></div>
         <div class="notif-item blue"><span class="dot"></span><p>〇〇さんの友達申請が承認されました</p></div>
         <div class="notif-item red"><p>〇〇さんから催促が来ています<br>今すぐお支払いしましょう</p></div>
@@ -38,13 +52,108 @@
         <div class="notif-item blue"><p>追加のお知らせテスト2</p></div>
         <div class="notif-item yellow"><p>追加のお知らせテスト3</p></div>
         <div class="notif-item pink"><p>スクロール確認用：一番下のお知らせです</p></div>
+          -->
+        <div v-for="req in notifications" :key="req.id" class="notif-item pink">
+          <span class="dot"></span>
+          <div class="notif-body">
+            <p>{{ req.formName }}さんから友達申請が届いています</p>
+            <button class="mini-accept-btn" @click="acceptRequest(req)">承認する</button>
+          </div>
+        </div>
+
+        <div v-if="notifications.length === 0" class="empty-msg">
+          新しいお知らせはありません
+        </div>
+
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref , onMounted} from 'vue';
+import { db, auth } from '@/firebase';
+import { 
+  collection, query, where, onSnapshot, 
+  doc, getDoc, setDoc, deleteDoc, serverTimestamp 
+} from 'firebase/firestore';
+
+const notifications = ref([]);
+
+onMounted(() => {
+  // 🌟 currentUser を直接見るのではなく、状態変化を監視するように変更
+  auth.onAuthStateChanged((user) => {
+    if (!user) {
+      notifications.value = []; // ログアウト時は空にする
+      return;
+    }
+
+    // 🌟 ログインが確認できてからクエリを実行
+    const q = query(
+      collection(db, "friendRequests"),
+      where("toId", "==", user.uid),
+      where("status", "==", "pending")
+    );
+
+    onSnapshot(q, (snapshot) => {
+      notifications.value = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    });
+  });
+});
+
+// 🌟 承認ボタンを押した時の処理
+const acceptRequest = async (request) => {
+// 🌟 安全チェック：IDや名前がない場合は処理を中断する
+  if (!request.id || !request.formId) {
+    console.error("データが足りません:", request);
+    alert("エラー：申請データが不完全です。");
+    return;
+  }
+
+  const myUid = auth.currentUser.uid
+  const friendUid = request.formId
+
+  try {
+    // 1. 自分のリストに相手を追加
+    await setDoc(doc(db, "users", myUid, "friends", friendUid), {
+      uid: friendUid,
+      name: request.formName || "名前なし",
+      isFriend: true,
+      addedAt: serverTimestamp(),
+      tradeCount: 0,  // 初期値を追加しておくと安心
+      isTrading: false
+    })
+
+    // 2. 相手側の名前を取得（存在しない場合に備えて安全に処理）
+    const myDoc = await getDoc(doc(db, "users", myUid))
+    let myName = "名前なし"
+    
+    if (myDoc.exists()) {
+      myName = myDoc.data().name || "名前なし"
+    }
+
+    // 3. 相手のリストに自分を追加
+    await setDoc(doc(db, "users", friendUid, "friends", myUid), {
+      uid: myUid,
+      name: myName,
+      isFriend: true,
+      addedAt: serverTimestamp(),
+      tradeCount: 0,
+      isTrading: false
+    })
+
+    // 3. 申請ドキュメントを削除（用済みのため）
+    await deleteDoc(doc(db, "friendRequests", request.id));
+
+    alert(`${request.formName}さんとフレンドになりました！`);
+  } catch (error) {
+    console.error("承認エラー:", error);
+    alert("承認に失敗しました。");
+  }
+};
 
 const props = defineProps({
   // PC右カラム用：trueにするとアイコンではなく中身が直接表示される
@@ -152,6 +261,27 @@ defineExpose({ open });
   font-size: 14px; font-weight: bold; line-height: 1.4;
   color: #1a1a1a !important; text-align: left;
   flex-shrink: 0; 
+}
+
+/* お知らせの中身を整える */
+.notif-body {
+  display: flex;  flex-direction: column;  gap: 8px;  width: 100%;
+}
+
+/* 承認ボタンのデザイン */
+.mini-accept-btn {
+  align-self: flex-end; /* 右寄せ */  background-color: #ffffff;  border: 1px solid #fca5a5; /* 薄いピンクの枠線 */
+  color: #ef4444;  padding: 4px 12px;  border-radius: 12px;  font-size: 12px;
+  font-weight: bold;  cursor: pointer;  transition: all 0.2s;
+}
+
+.mini-accept-btn:hover {
+  background-color: #ef4444;  color: #fff;
+}
+
+/* 空の状態のメッセージ */
+.empty-msg {
+  text-align: center;  color: #94a3b8;  font-size: 14px;  margin-top: 20px;
 }
 
 .dot {
