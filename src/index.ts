@@ -1,33 +1,43 @@
+// backend/src/index.ts
+
 import express from 'express';
 import cors from 'cors';
 import admin from 'firebase-admin';
+import path from 'path';
 import eventRoutes from './routes/event';
+import friendRoutes from './routes/friend'; // 🌟 既にインポート済みですね！
 
 const app = express();
 
-// 1. Firebase Admin SDKの初期化
+// 1. CORS設定
+app.use(cors({
+  origin: 'http://localhost:5173',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // 🌟 PATCHを追加（承認用）
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
+app.use(express.json());
+
+// 3. Firebase Admin初期化
+const serviceAccountPath = path.join(process.cwd(), 'service-account.json');
+
 if (admin.apps.length === 0) {
   try {
     admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
+      credential: admin.credential.cert(serviceAccountPath),
     });
-    console.log("🔥 Firebase Admin initialized");
+    console.log("✅ Firebase Admin initialized successfully");
   } catch (error) {
     console.error("❌ Firebase初期化エラー:", error);
   }
 }
 
-// 2. ミドルウェア設定
-app.use(cors());
-app.use(express.json());
-
-// 3. ルーティング設定
-// http://localhost:3001/api/events などの窓口になります
+// 4. ルーティング
 app.use('/api', eventRoutes);
+app.use('/api/friends', friendRoutes); // 🌟 これを追加！
 
-// 4. サーバー起動
-const PORT = process.env.PORT || 3001;
+const PORT = 3001;
 app.listen(PORT, () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
-  console.log(`📡 API Base URL: http://localhost:${PORT}/api`);
+  console.log(`🚀 Server ready at http://localhost:${PORT}`);
 });
