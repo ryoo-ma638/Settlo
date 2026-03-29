@@ -169,15 +169,19 @@ const handleApproveDone = async (request) => {
     // 2. 相手側の名前を取得（存在しない場合に備えて安全に処理）
     const myDoc = await getDoc(doc(db, "users", myUid))
     let myName = "名前なし"
+    let myPhoto = "" // 🌟 自分のアイコン用
     
     if (myDoc.exists()) {
+      const myData = myDoc.data()
       myName = myDoc.data().name || "名前なし"
+      myPhoto = myData.photoURL || "" // 🌟 ここで自分の画像URLをキャッチ！
     }
 
     // 3. 相手のリストに自分を追加
     await setDoc(doc(db, "users", friendUid, "friends", myUid), {
       uid: myUid,
       name: myName,
+      photoURL: myPhoto, // 🌟 相手のFirestoreに自分の画像URLを書き込む
       isFriend: true,
       addedAt: serverTimestamp(),
       tradeCount: 0,
