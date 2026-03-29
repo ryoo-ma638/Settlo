@@ -16,7 +16,10 @@
 
           <div class="result-scroll-area">
             <div v-for="user in searchResults" :key="user.uid" class="result-card">
-              <div class="user-avatar" :style="{ backgroundColor: user.color || '#cbd5e1' }"></div>
+              <div class="user-avatar-wrapper-mini">
+                <img v-if="user.photoURL" :src="user.photoURL" class="user-avatar-img" />
+                <div v-else class="user-avatar" :style="{ backgroundColor: user.color || '#cbd5e1' }"></div>
+              </div>
               <span class="user-name">{{ user.name }}</span>
               <button class="add-btn" @click="selectedUser = user">追加</button>
             </div>
@@ -32,7 +35,10 @@
           <h2 class="modal-title">フレンド追加</h2>
           
           <div class="target-user">
-            <div class="avatar" :style="{ backgroundColor: selectedUser.color || '#cbd5e1' }"></div>
+            <div class="avatar-wrapper-large">
+              <img v-if="selectedUser.photoURL" :src="selectedUser.photoURL" class="user-avatar-img-large" />
+              <div v-else class="avatar" :style="{ backgroundColor: selectedUser.color || '#cbd5e1' }"></div>
+            </div>
             <h3 class="name">{{ selectedUser.name }}</h3>
           </div>
 
@@ -146,10 +152,12 @@ const executeRequest = async () => {
   try {
     const myDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
     const myName = myDoc.exists() ? (myDoc.data().name || "名前なし") : "名前なし";
+    const myPhoto = myDoc.exists() ? (myDoc.data().photoURL || "") : ""; // 🌟 photo を追加
 
     await addDoc(collection(db, "friendRequests"), {
       formId: auth.currentUser.uid,
       formName: myName,
+      formPhoto: myPhoto,
       toId: targetUser.uid,
       toName: targetUser.name,
       status: "pending",
@@ -199,4 +207,8 @@ const executeRequest = async () => {
 .btn { width: 100%; padding: 15px; border-radius: 15px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; }
 .execute-btn { background: #2169a3; color: white; }
 .cancel-btn { background: #e2e8f0; color: #64748b; }
+
+.user-avatar-wrapper-mini { width: 35px; height: 35px; flex-shrink: 0; }
+.avatar-wrapper-large { width: 80px; height: 80px; flex-shrink: 0; }
+.user-avatar-img, .user-avatar-img-large { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 </style>

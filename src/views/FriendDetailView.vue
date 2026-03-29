@@ -1,8 +1,8 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router'; // ルート操作用
 import { db, auth } from '@/firebase';
-import { doc, deleteDoc } from 'firebase/firestore';
+import { doc, deleteDoc, getDoc } from 'firebase/firestore';
 
 // 🌟 本来はFirebase等から取得しますが、一旦ダミーデータです
 const waitingTotal = ref(3500); // 相手から受け取る分（お支払い待ち）
@@ -11,8 +11,28 @@ const unpaidTotal = ref(4800);  // 自分が支払う分（未払い）
 const route = useRoute();
 const router = useRouter();
 
+// 🌟 ここが重要：最初は null にしておき、読み込みを待ちます
+const friend = ref(null);
+
 // 🌟 トータル収支（受け取り - 支払い）を計算
 const netBalance = computed(() => waitingTotal.value - unpaidTotal.value);
+
+// 🌟 画面が開かれた時にデータを取ってくる処理
+onMounted(async () => {
+  const uid = route.params.uid;
+  if (!uid) return;
+
+  try {
+    const userDoc = await getDoc(doc(db, "users", uid));
+    if (userDoc.exists()) {
+      friend.value = userDoc.data();
+    } else {
+      console.error("ユーザーが見つかりません");
+    }
+  } catch (error) {
+    console.error("データ取得エラー:", error);
+  }
+});
 
 //フレンド削除
 const handleDeleteFriend = async () => {
@@ -51,15 +71,18 @@ console.log("削除対象:", { friendName, friendUid, myUid });
 };
 </script>
 <template>
-  <div class="friend-detail-container">
-    <header class="detail-header">
-      <button class="back-btn" @click="$router.back()">‹</button>
-      <div class="user-info-block">
-        <div class="user-avatar" style="background-color: #ff9980;"></div>
-        <h1 class="user-name">{{ $route.params.name }}</h1>
-      </div>
-      <button class="delete-link-btn" @click="handleDeleteFriend">削除する</button>
-    </header>
+  <div v-if="friend" class="friend-detail-container">
+      <header class="detail-header">
+        <button class="back-btn" @click="$router.back()">‹</button>
+        <div class="user-info-block">
+          <div class="main-avatar-wrapper">
+            <img v-if="friend.photoURL" :src="friend.photoURL" class="main-avatar-img" />
+            <div v-else class="default-avatar" :style="{ backgroundColor: friend.color }"></div>
+          </div>
+          <h1 class="user-name">{{ $route.params.name }}</h1>
+        </div>
+        <button class="delete-link-btn" @click="handleDeleteFriend">削除する</button>
+      </header>
 
     <main class="scroll-content">
       <section class="total-balance-card" @click="$router.push('/combined-settlement/' + $route.params.name)">
@@ -218,4 +241,16 @@ console.log("削除対象:", { friendName, friendUid, myUid });
 .dummy-friend { background-color: #8bb4ff; }
 .history-amount { font-size: 18px; font-weight: bold; }
 .check-icon { color: #22c55e; }
+
+/* 🌟 画像のスタイル（丸く、小さめに） */
+.main-avatar-img {
+  width: 50px; /* 🌟 スクリーンショットに合わせたサイズ */  height: 50px;
+  border-radius: 50%; /* 正円にする */  object-fit: cover; /* 画像を歪ませずに収める */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* 軽い影をつける */
+}
+
+/* 🌟 画像がない場合の予備の丸 */
+.default-avatar {
+  width: 50px;  height: 50px;  border-radius: 50%;
+}
 </style>
