@@ -198,8 +198,17 @@ const processedList = computed(() => {
 })
 
 const navigateToDetail = (friend) => {
-  router.push(`/friend/${encodeURIComponent(friend.name)}/${friend.uid}`)
-}
+  // console.log(friend) で中身を確認すると、id または uid という名前でIDが入っているはずです
+  const uid = friend.uid || friend.id; 
+
+  if (!uid) {
+    console.error("UIDが見つかりません:", friend);
+    return;
+  }
+
+  // 第二引数に正しくUIDを入れます
+  router.push(`/friend/${encodeURIComponent(friend.name)}/${uid}`);
+};
 </script>
 
 <style scoped>

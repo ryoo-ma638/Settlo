@@ -20,6 +20,9 @@ const handleDeleteFriend = async () => {
   const friendUid = route.params.uid; // ルーターからUIDを受け取っている想定
   const myUid = auth.currentUser?.uid;
 
+  // デバッグ用：正しく取得できているか確認
+console.log("削除対象:", { friendName, friendUid, myUid });
+
   if (!myUid || !friendUid) {
     alert("ユーザー情報の取得に失敗しました。");
     return;
