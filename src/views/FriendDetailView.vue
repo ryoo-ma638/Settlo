@@ -90,7 +90,7 @@ console.log("削除対象:", { friendName, friendUid, myUid });
         
         <div class="user-info-block">
           <div class="main-avatar-wrapper">
-            <img v-if="friend.photoURL" :src="friend.photoURL" class="main-avatar-img" />
+            <img v-if="friend.photo" :src="friend.photo" class="main-avatar-img" />
             <div v-else class="default-avatar" :style="{ backgroundColor: friend.color }"></div>
           </div>
           <h1 class="user-name">{{ friend.name }}</h1>

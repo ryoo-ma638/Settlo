@@ -41,10 +41,11 @@
 </template>
 
 <script setup>
-import { auth } from "../firebase";
+import { auth ,db } from "../firebase";
 import { signOut } from "firebase/auth";
 import { useRouter } from "vue-router";
 import { ref, onMounted } from "vue";
+import { doc, getDoc } from "firebase/firestore";
 
 const router = useRouter();
 const userName = ref("");
@@ -72,12 +73,26 @@ const copyMyId = async () => {
   }
 };
 
-onMounted(() => {
+// MyPageView.vue の修正案
+onMounted(async () => {
   const user = auth.currentUser;
   if (user) {
-    userName.value = user.displayName;
-    userPhoto.value = user.photoURL;
-    userUid.value = user.uid; // 🌟 UIDをセット
+    // 🌟 1. Firestore から自分のドキュメントを読み込む
+    const userDocRef = doc(db, "users", user.uid);
+    const userSnap = await getDoc(userDocRef);
+
+    if (userSnap.exists()) {
+      const data = userSnap.data();
+      // 🌟 2. Firestore の 'photo' フィールドを使う
+      // もし photo がなければ Auth の photoURL を使う（バックアップ）
+      userPhoto.value = data.photo || user.photoURL;
+      userName.value = data.name || user.displayName;
+    } else {
+      // ドキュメントがない場合のフォールバック
+      userName.value = user.displayName;
+      userPhoto.value = user.photoURL;
+    }
+    userUid.value = user.uid;
   }
 });
 </script>

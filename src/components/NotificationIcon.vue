@@ -129,62 +129,68 @@ const deleteNotification = async (notifId) => {
 
 // 🌟 承認ボタンを押した時の処理
 const acceptRequest = async (request) => {
-// 🌟 安全チェック：IDや名前がない場合は処理を中断する
+  // 🌟 安全チェック
   if (!request.id || !request.formId) {
     console.error("データが足りません:", request);
     alert("エラー：申請データが不完全です。");
     return;
   }
 
-  const myUid = auth.currentUser.uid
-  const friendUid = request.formId
+  const myUid = auth.currentUser.uid;
+  const friendUid = request.formId;
 
   try {
     // 1. 自分のリストに相手を追加
     await setDoc(doc(db, "users", myUid, "friends", friendUid), {
       uid: friendUid,
       name: request.formName || "名前なし",
+      photo: request.formPhoto || "", 
       isFriend: true,
       addedAt: serverTimestamp(),
-      tradeCount: 0,  // 初期値を追加しておくと安心
+      tradeCount: 0,
       isTrading: false
-    })
+    });
 
-    // 2. 相手側の名前を取得（存在しない場合に備えて安全に処理）
-    const myDoc = await getDoc(doc(db, "users", myUid))
-    let myName = "名前なし"
+    // 2. 自分の情報を取得
+    const myDoc = await getDoc(doc(db, "users", myUid));
+    let myName = "名前なし";
+    let myPhoto = ""; 
     
     if (myDoc.exists()) {
-      myName = myDoc.data().name || "名前なし"
+      const myData = myDoc.data(); // 🌟 これが必要！
+      myName = myData.name || "名前なし";
+      // photo または photoURL どちらからでも取る
+      myPhoto = myData.photo || myData.photoURL || ""; 
     }
 
     // 3. 相手のリストに自分を追加
     await setDoc(doc(db, "users", friendUid, "friends", myUid), {
       uid: myUid,
       name: myName,
+      photo: myPhoto, // 🌟 自分の画像を相手の友達リストへ
       isFriend: true,
       addedAt: serverTimestamp(),
       tradeCount: 0,
       isTrading: false
-    })
+    });
 
-    // 🌟 4. 相手側に「フレンド成立」の通知を送る 
-    // これをすることで、相手の画面に青い通知が出ます
+    // 4. 相手側に「フレンド成立」の通知を送る 
     await addDoc(collection(db, "friendRequests"), {
       toId: friendUid,
       formId: myUid,
       formName: myName,
+      formPhoto: myPhoto, // 🌟 追記：通知にも画像を載せる
       status: "accepted",
       createdAt: serverTimestamp()
     });
 
-    // 3. 申請ドキュメントを削除（用済みのため）
+    // 5. 申請ドキュメントを削除
     await deleteDoc(doc(db, "friendRequests", request.id));
 
     alert(`${request.formName}さんとフレンドになりました！`);
   } catch (error) {
     console.error("承認エラー:", error);
-    alert("承認に失敗しました。");
+    alert("承認に失敗しました。詳細はコンソールを確認してください。");
   }
 };
 

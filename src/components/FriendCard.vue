@@ -2,8 +2,8 @@
     <div class="friend-card" @click="$emit('click', user)">
       <div class="friend-avatar-wrapper">
       <img 
-        v-if="user.photoURL" 
-        :src="user.photoURL" 
+        v-if="user.photo" 
+        :src="user.photo" 
         class="friend-avatar-img"
       />
       <div v-else class="friend-avatar-placeholder" :style="{ backgroundColor: user.color }"></div>
