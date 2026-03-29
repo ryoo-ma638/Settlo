@@ -43,7 +43,7 @@
     emit('close');
   };
   </script>
-  
+
   <style scoped>
   .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0, 0, 0, 0.5); z-index: 2000; display: flex; justify-content: center; align-items: center; padding: 20px; }
   .confirm-view { background: #eef7ff; width: 100%; max-width: 350px; border-radius: 30px; padding: 25px 20px; text-align: center; }
