@@ -1,25 +1,28 @@
 import { Request, Response, NextFunction } from 'express';
-import admin from 'firebase-admin'; // firebase-adminの初期化が必要
+import admin from 'firebase-admin';
 
-declare global {
-  namespace Express {
-    interface Request {
-      user?: any; // もしくは admin.auth.DecodedIdToken
-    }
-  }
+// 🌟 TypeScriptに「Request型の中に user も入れてね」と教える設定
+interface AuthRequest extends Request {
+  user?: any;
 }
-export const checkAuth = async (req: Request, res: Response, next: NextFunction) => {
-  const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) {
-    return res.status(401).send('Unauthorized');
+
+export const checkAuth = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log("❌ 認証エラー: Authorizationヘッダーがありません");
+    return res.status(403).json({ error: 'No token provided' });
   }
 
-  const idToken = header.split('Bearer ')[1];
+  const token = authHeader.split('Bearer ')[1];
+
   try {
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-    req.user = decodedToken; // reqにユーザー情報を格納
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    req.user = decodedToken; // ✅ これでエラーが消えます！
+    console.log("✅ 認証成功: ユーザーUID =", decodedToken.uid);
     next();
   } catch (error) {
-    res.status(403).send('Forbidden');
+    console.error("❌ トークン検証失敗:", error);
+    return res.status(403).json({ error: 'Invalid token' });
   }
 };

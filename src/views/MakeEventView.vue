@@ -57,6 +57,7 @@
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
+import api from '@/services/api';
 
 const router = useRouter();
 const isJoinMode = ref(false);
@@ -82,30 +83,47 @@ const copyToClipboard = () => {
   alert('コピーしました！');
 };
 
-const createEvent = () => {
+// 🌟 イベント作成関数（API連携版）
+const createEvent = async () => {
+  console.log("🔥 ボタンが押されました！");
   if (!eventName.value) return alert('詳細を入力してください');
 
-  const newEvent = {
-    id: Date.now(),
-    name: eventName.value,
-    memo: eventMemo.value,
-    tag: selectedIcon.value,
-    code: invitationCode.value, // 🌟 ここでしっかり保存
-    amount: '¥0',
-    status: 'active'
-  };
+  try {
+    // バックエンドの [POST] /events を叩く
+    const response = await api.post('/events', {
+      name: eventName.value,
+      memo: eventMemo.value,
+      tag: selectedIcon.value,
+      invitationCode: invitationCode.value,
+      amount: 0 // 初期金額
+    });
 
-  const saved = JSON.parse(localStorage.getItem('settlo_events') || '[]');
-  saved.unshift(newEvent);
-  localStorage.setItem('settlo_events', JSON.stringify(saved));
-  
-  router.push('/');
+    console.log('✅ サーバーに保存されました:', response.data);
+    alert('イベントを作成しました！');
+    router.push('/'); // 一覧画面へ戻る
+  } catch (error) {
+    console.error('❌ 作成失敗:', error);
+    alert('イベントの作成に失敗しました。');
+  }
 };
 
-const joinEvent = () => {
+// 🌟 イベント参加関数（API連携版）
+const joinEvent = async () => {
   if (joinCode.value.length < 6) return alert('正しいコードを入力してください');
-  alert('イベントに参加しました！');
-  router.push('/');
+
+  try {
+    // バックエンドの [POST] /events/join を叩く
+    const response = await api.post('/events/join', {
+      invitationCode: joinCode.value.toUpperCase()
+    });
+
+    console.log('✅ イベントに参加しました:', response.data);
+    alert('イベントに参加しました！');
+    router.push('/');
+  } catch (error) {
+    console.error('❌ 参加失敗:', error);
+    alert('無効なコードか、既に参加しています。');
+  }
 };
 </script>
 
