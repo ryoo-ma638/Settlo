@@ -113,19 +113,28 @@ onMounted(() => {
         where("status", "==", "pending")
       )
       onSnapshot(qReq, (snapshot) => {
-        pendingRequests.value = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }))
+        pendingRequests.value = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            formPhoto: data.formPhoto || data.photo || data.photoURL || "" 
+          };
+        })
       })
 
       // 2. 自分の友達リストを監視
       const qFriends = collection(db, "users", user.uid, "friends")
       onSnapshot(qFriends, (snapshot) => {
-        friendData.value = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }))
+        friendData.value = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            // FriendCard内で 'photo' を参照しているなら、ここで photo を確定させる
+            photo: data.photo || data.photoURL || "" 
+          };
+        })
       })
     }
   })
@@ -160,7 +169,7 @@ const handleApproveDone = async (request) => {
       uid: request.formId,
       name: request.formName,
       // 🌟 ここがポイント：申請データからアイコンURLをコピーする
-      photoURL: request.formPhoto || "", 
+      photo: request.formPhoto || "", 
       isFriend: true,
       isTrading: false,
       tradeCount: 0,
@@ -183,7 +192,7 @@ const handleApproveDone = async (request) => {
     await setDoc(doc(db, "users", friendUid, "friends", myUid), {
       uid: myUid,
       name: myName,
-      photoURL: myPhoto || "",
+      photo: myPhoto || "",
       isFriend: true,
       addedAt: serverTimestamp(),
       tradeCount: 0,
@@ -196,7 +205,7 @@ const handleApproveDone = async (request) => {
       toId: friendUid,          // 相手のID
       formId: myUid,            // 自分のID
       formName: myName,         // 自分の名前
-      photoURL: myPhoto, // 🌟 相手のFirestoreに自分の画像URLを書き込む
+      photo: myPhoto, // 🌟 相手のFirestoreに自分の画像URLを書き込む
       status: "accepted",       // 🌟 状態を 'accepted' にする
       createdAt: serverTimestamp()
     });
