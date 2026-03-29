@@ -63,15 +63,8 @@ import { useRouter } from 'vue-router'
 import { auth, db } from '@/firebase' // ★ firebase.js から db と auth を読み込む
 import { onAuthStateChanged } from 'firebase/auth' // ★ ログイン状態の監視
 import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  doc, 
-  getDoc, 
-  setDoc, 
-  deleteDoc, 
-  serverTimestamp 
+  collection,   query,   where,   onSnapshot, 
+  doc,   getDoc,   setDoc,   deleteDoc,   serverTimestamp 
 } from 'firebase/firestore' // ★ Firestore操作に必要なものすべて
 
 import FriendAddModal from '@/components/FriendAddModal.vue'
@@ -146,7 +139,7 @@ const openApproveModal = (user) => {
 const handleApproveDone = async (request) => {
   // 安全装置：もし formId がなければ処理を中断する
   if (!request.formId) {
-    alert("この申請データには送信者ID(formId)が含まれていないため、承認できません。");
+    alert("この申請データには送信者ID(fromId)が含まれていないため、承認できません。");//ここは文字なのでfromにしている
     return;
   }
   
