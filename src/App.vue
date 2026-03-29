@@ -66,9 +66,17 @@ onUnmounted(() => {
 onAuthStateChanged(auth, (user) => {
   if (user) {
     console.log("ログイン中", user);
+
+    if (router.currentRoute.value.path === "/login") {
+      router.push("/mypage");
+    }
+
   } else {
     console.log("未ログイン");
-    router.push("/login");
+
+    if (router.currentRoute.value.path !== "/login") {
+      router.push("/login");
+    }
   }
 });
 </script>
@@ -80,11 +88,13 @@ body {
   padding: 0;
   background-color: #f0f4f8; 
   font-family: sans-serif;
+  overflow-x: hidden; /* 🌟 追加：画面全体が横にブレるのを強制的に防ぐ */
 }
 #app {
   max-width: 100% !important;
   width: 100%;
   padding: 0 !important;
+
 }
 
 /* --- 📱 スマホ版用のスタイル --- */
@@ -107,27 +117,38 @@ body:not(:has(.login-container)) .mobile-layout .main-content {
 .pc-left-sidebar {
   width: 280px;
   flex-shrink: 0;
+  background-color: #1e293b;
+  
+
+  position: sticky;
+  top: 0;
+  height: 100vh;
 }
 
 /* 中央カラム */
 .pc-center-main {
   flex: 1;
+  min-width: 0; 
   display: flex;
   flex-direction: column;
   background-color: #ffffff;
-  box-shadow: 0 0 15px rgba(0,0,0,0.05);
+  /* 🌟 修正：影を消して、左右のカラムと完全にフラットに繋げる */
+  box-shadow: none; 
 }
+
 .pc-content-area {
   flex: 1;
-  padding: 30px;
+  /* 🌟 修正：30pxあった上下左右の余白を 0 にして隙間をなくす */
+  padding: 0; 
+  
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  flex-direction: column;
 }
 .pc-content-area > * {
-  width: 100%;
-  max-width: 600px;
+  flex: 1; /* これでどのページも自動的に一番下まで伸びます！ */
 }
+
+/* --- App.vue の <style> の最後の方 --- */
 
 /* 右カラム */
 .pc-right-sidebar {
@@ -135,13 +156,15 @@ body:not(:has(.login-container)) .mobile-layout .main-content {
   flex-shrink: 0;
   background-color: #ffffff;
   border-left: 1px solid #cbd5e1;
+  
+  position: sticky;
+  top: 0;
+  height: 100vh; /* 画面全体の高さにする */
 }
 
 .notification-box {
   padding: 0; 
-  position: sticky;
-  top: 0;
   height: 100vh;
-  overflow-y: auto;
+  overflow: hidden; /* 二重スクロールを防ぐ */
 }
 </style>

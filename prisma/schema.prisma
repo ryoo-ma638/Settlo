@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// ユーザー情報
+model User {
+  id            Int            @id @default(autoincrement())
+  firebaseUid   String         @unique // Firebase AuthのUID
+  name          String
+  currentEnergy Float          @default(100.0)
+  
+  createdEvents Event[]        @relation("EventCreator") // 作成したイベント
+  participating Participant[]  // 参加しているイベント（中間テーブル経由）
+  transactions  Transaction[]
+}
+
+// 精算イベント（飲み会や旅行など）
+model Event {
+  id            Int           @id @default(autoincrement())
+  name          String
+  memo          String?       // 🌟 MakeEventViewの「メモ」用
+  tag           String?       // 🌟 MakeEventViewの「アイコン」用
+  invitationCode String        @unique // 🌟 他の人が参加するために必要
+  totalAmount   Int           @default(0)
+  entropy       Float         @default(0.0)
+  isClosed      Boolean       @default(false)
+  
+  // 作成者との紐付け
+  creator       User          @relation("EventCreator", fields: [creatorId], references: [firebaseUid])
+  creatorId     String
+
+  participants  Participant[] // 🌟 参加者一覧
+  transactions  Transaction[]
+  createdAt     DateTime      @default(now())
+}
+
+// 🌟 精算イベントの参加者（誰がメンバーか）を管理する中間テーブル
+model Participant {
+  id        Int      @id @default(autoincrement())
+  event     Event    @relation(fields: [eventId], references: [id])
+  eventId   Int
+  user      User     @relation(fields: [userUid], references: [firebaseUid])
+  userUid   String
+  joinedAt  DateTime @default(now())
+
+  @@unique([eventId, userUid]) // 同じイベントに二重登録されるのを防ぐ
+}
+
+// 支払い履歴
+model Transaction {
+  id                Int      @id @default(autoincrement())
+  amount            Int
+  description       String
+  activationEnergy  Float    @default(10.0)
+  
+  // 支払い者
+  payer             User     @relation(fields: [payerUid], references: [firebaseUid])
+  payerUid          String
+  
+  event             Event    @relation(fields: [eventId], references: [id])
+  eventId           Int
+  createdAt         DateTime @default(now())
+}
