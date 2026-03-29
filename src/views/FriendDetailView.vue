@@ -19,13 +19,26 @@ const netBalance = computed(() => waitingTotal.value - unpaidTotal.value);
 
 // 🌟 画面が開かれた時にデータを取ってくる処理
 onMounted(async () => {
+  // 🌟 デバッグ：現在受け取っているUIDが正しいか確認
   const uid = route.params.uid;
-  if (!uid) return;
+  const myUid = auth.currentUser?.uid; // 🌟 自分のIDを取得
+  
+  console.log("取得対象のUID:", uid);
+  console.log("自分のUID:", myUid);
+  
+  if (!uid || !myUid) {
+    console.error("UIDが不足しています");
+    return;
+  }
 
   try {
-    const userDoc = await getDoc(doc(db, "users", uid));
+    // 🌟 修正：階層を users > 自分のID > friends > 相手のID に変更
+    const friendDocRef = doc(db, "users", myUid, "friends", uid);
+    const userDoc = await getDoc(friendDocRef);
+
     if (userDoc.exists()) {
       friend.value = userDoc.data();
+      console.log("取得成功:", friend.value);
     } else {
       console.error("ユーザーが見つかりません");
     }
@@ -74,12 +87,13 @@ console.log("削除対象:", { friendName, friendUid, myUid });
   <div v-if="friend" class="friend-detail-container">
       <header class="detail-header">
         <button class="back-btn" @click="$router.back()">‹</button>
+        
         <div class="user-info-block">
           <div class="main-avatar-wrapper">
             <img v-if="friend.photoURL" :src="friend.photoURL" class="main-avatar-img" />
             <div v-else class="default-avatar" :style="{ backgroundColor: friend.color }"></div>
           </div>
-          <h1 class="user-name">{{ $route.params.name }}</h1>
+          <h1 class="user-name">{{ friend.name }}</h1>
         </div>
         <button class="delete-link-btn" @click="handleDeleteFriend">削除する</button>
       </header>
@@ -98,7 +112,7 @@ console.log("削除対象:", { friendName, friendUid, myUid });
       <div class="sub-item"><span class="dot orange-dot"></span> 未払い: ¥{{ unpaidTotal.toLocaleString() }}</div>
     </div>
   </section> 
-  <h2 class="section-title">{{ $route.params.name }} さんとのお支払い状況</h2>
+  <h2 class="section-title">{{ friend.name }} さんとのお支払い状況</h2>
 
       <section class="status-section">
         <div class="status-header">
@@ -160,6 +174,10 @@ console.log("削除対象:", { friendName, friendUid, myUid });
         </div>
       </section>
     </main>
+  </div>
+
+  <div v-else class="loading-state">
+    <p>読み込み中、またはデータが見つかりません...</p>
   </div>
 </template>
 
