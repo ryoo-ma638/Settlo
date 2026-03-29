@@ -144,30 +144,78 @@ const close = () => {
   emit('close');
 };
 
-// 🌟 本当に申請を送る関数 (引数を不要にし、selectedUser を使う)
+/*
 const executeRequest = async () => {
   if (!auth.currentUser) { alert("ログインが必要です。"); return; }
-  const targetUser = selectedUser.value;
+  const targetUser = selectedUser.value; // 申請相手
 
   try {
-    const myDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
-    const myName = myDoc.exists() ? (myDoc.data().name || "名前なし") : "名前なし";
-    const myPhoto = myDoc.exists() ? (myDoc.data().photoURL || "") : ""; // 🌟 photo を追加
+    // 🌟 1. A自分のプロフィール情報を Firestore から取得する
+    // A自分のドキュメントIDはauth.currentUser.uid
+    const myDocRef = doc(db, "users", auth.currentUser.uid);
+    const myDoc = await getDoc(myDocRef);
 
+    // 🌟 2. Firestore から最新の名前とアイコンURLを取得する
+    // (存在しない場合に備えて、安全に処理するためのロジック)
+    const myName = myDoc.exists() ? (myDoc.data().name || "名前なし") : "名前なし";
+    const myPhoto = myDoc.exists() ? (myDoc.data().photoURL || "") : ""; // 🌟 これを追加！自分のアイコンURLを取得
+
+    // Firestore に申請データを追加
     await addDoc(collection(db, "friendRequests"), {
-      formId: auth.currentUser.uid,
-      formName: myName,
-      formPhoto: myPhoto,
-      toId: targetUser.uid,
-      toName: targetUser.name,
-      status: "pending",
-      createdAt: serverTimestamp()
+      formId: auth.currentUser.uid, // あなたのID
+      formName: myName,              // あなたの名前
+      fformPhoto: myData.photoURL || "",          // 🌟 これを追加！あなたのアイコンURLを保存する
+      toId: targetUser.uid,          // 相手のID
+      toName: targetUser.name,       // 相手の名前
+      status: "pending",             // 状態を pending（承認待ち）にする
+      createdAt: serverTimestamp()   // 時間を保存
     });
+    
     alert(`${targetUser.name}さんにフレンド申請を送りました。`);
-    close(); // 成功したらモーダルを閉じる
+    close(); 
   } catch (error) {
     console.error("エラー内容:", error);
     alert("申請に失敗しました。もう一度試してください。");
+  }
+};
+*/
+
+const executeRequest = async () => {
+  if (!auth.currentUser) return;
+  const targetUser = selectedUser.value;
+
+  try {
+    // 🌟 1. 自分のデータを Firestore から取得する
+    const myDocRef = doc(db, "users", auth.currentUser.uid);
+    const myDoc = await getDoc(myDocRef);
+
+    // 🌟 2. 変数 myData を定義する（ここでエラーが解決します）
+    let myName = "名前なし";
+    let myPhoto = "";
+
+    if (myDoc.exists()) {
+      const myData = myDoc.data();
+      myName = myData.name || "名前なし";
+      // 🌟 photoURL ではなく photo に変更！
+      myPhoto = myData.photo || ""; 
+    }
+
+    // 🌟 3. 申請データを保存する (formPhoto を追加)
+    await addDoc(collection(db, "friendRequests"), {
+      toId: targetUser.uid,
+      toName: targetUser.name,
+      formId: auth.currentUser.uid,
+      formName: myName,
+      formPhoto: myPhoto, // 🌟 これで相手に画像URLが届きます
+      status: "pending",
+      createdAt: serverTimestamp()
+    });
+
+    alert("申請を送りました！");
+    emit('close');
+  } catch (error) {
+    console.error("エラー内容:", error);
+    alert("申請に失敗しました。");
   }
 };
 </script>

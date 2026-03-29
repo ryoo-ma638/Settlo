@@ -155,16 +155,17 @@ const handleApproveDone = async (request) => {
   const friendUid = request.formId
 
   try {
-    // 1. 自分のリストに相手を追加
-    await setDoc(doc(db, "users", myUid, "friends", friendUid), {
-      uid: friendUid,
-      name: request.formName || "名前なし",
-      photoURL: request.formPhoto || "",
+    // 1. 自分の「friends」サブコレクションに相手を追加
+    await setDoc(doc(db, "users", myUid, "friends", request.formId), {
+      uid: request.formId,
+      name: request.formName,
+      // 🌟 ここがポイント：申請データからアイコンURLをコピーする
+      photoURL: request.formPhoto || "", 
       isFriend: true,
-      addedAt: serverTimestamp(),
-      tradeCount: 0,  // 初期値を追加しておくと安心
-      isTrading: false
-    })
+      isTrading: false,
+      tradeCount: 0,
+      addedAt: serverTimestamp()
+    });
 
     // 2. 相手側の名前を取得（存在しない場合に備えて安全に処理）
     const myDoc = await getDoc(doc(db, "users", myUid))
@@ -173,15 +174,16 @@ const handleApproveDone = async (request) => {
     
     if (myDoc.exists()) {
       const myData = myDoc.data()
-      myName = myDoc.data().name || "名前なし"
-      myPhoto = myData.photoURL || "" // 🌟 ここで自分の画像URLをキャッチ！
+      myName = myData.name || "名前なし"
+      // 🌟 photoURL ではなく photo に変更！
+      myPhoto = myData.photo || "" 
     }
 
     // 3. 相手のリストに自分を追加
     await setDoc(doc(db, "users", friendUid, "friends", myUid), {
       uid: myUid,
       name: myName,
-      photoURL: myPhoto, // 🌟 相手のFirestoreに自分の画像URLを書き込む
+      photoURL: myPhoto || "",
       isFriend: true,
       addedAt: serverTimestamp(),
       tradeCount: 0,
@@ -194,6 +196,7 @@ const handleApproveDone = async (request) => {
       toId: friendUid,          // 相手のID
       formId: myUid,            // 自分のID
       formName: myName,         // 自分の名前
+      photoURL: myPhoto, // 🌟 相手のFirestoreに自分の画像URLを書き込む
       status: "accepted",       // 🌟 状態を 'accepted' にする
       createdAt: serverTimestamp()
     });
