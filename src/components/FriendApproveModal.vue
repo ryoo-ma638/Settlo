@@ -45,7 +45,7 @@
   
   const approve = () => {
     // TODO: 将来的にFirebaseの status を "accepted" に更新する処理などを書く
-    alert(`${props.requestUser.name} さんとフレンドになりました！`);
+    alert(`${props.requestUser.formName} さんとフレンドになりました！`);
     emit('approve', props.requestUser);
     emit('close');
   };
