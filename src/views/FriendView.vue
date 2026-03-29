@@ -9,9 +9,17 @@
         <div class="request-section" v-if="pendingRequests.length > 0">
           <p class="request-alert">❗ 友達申請が届いています</p>
           <div class="request-card" v-for="req in pendingRequests" :key="req.id">
-            <div class="request-avatar blue-avatar" :style="{ backgroundColor: req.color }"></div>
-            <span class="request-name">{{ req.formName }}</span>
-            <button class="approve-button" @click="openApproveModal(req)">確認</button>
+
+            <div class="request-avatar-wrapper">
+              <img 
+                v-if="req.formPhoto" 
+                :src="req.formPhoto" 
+                class="request-avatar-img"
+              />
+              <div v-else class="request-avatar-placeholder" :style="{ backgroundColor: req.color || '#8bb4ff' }"></div>
+            </div>
+          <span class="request-name">{{ req.formName }}</span>
+          <button class="approve-button" @click="openApproveModal(req)">確認</button>
           </div>
         </div>
 
@@ -64,7 +72,7 @@ import { auth, db } from '@/firebase' // ★ firebase.js から db と auth を�
 import { onAuthStateChanged } from 'firebase/auth' // ★ ログイン状態の監視
 import { 
   collection,   query,   where,   onSnapshot, 
-  doc,   getDoc,   setDoc,   deleteDoc,   serverTimestamp 
+  doc,   getDoc,   setDoc,   deleteDoc, addDoc,  serverTimestamp 
 } from 'firebase/firestore' // ★ Firestore操作に必要なものすべて
 
 import FriendAddModal from '@/components/FriendAddModal.vue'
@@ -151,6 +159,7 @@ const handleApproveDone = async (request) => {
     await setDoc(doc(db, "users", myUid, "friends", friendUid), {
       uid: friendUid,
       name: request.formName || "名前なし",
+      photoURL: request.formPhoto || "",
       isFriend: true,
       addedAt: serverTimestamp(),
       tradeCount: 0,  // 初期値を追加しておくと安心
@@ -229,7 +238,13 @@ const navigateToDetail = (friend) => {
 .add-friend-main-button { width: 100%; padding: 12px; background-color: #2169a3; color: white; border: none; border-radius: 25px; font-size: 18px; font-weight: bold; margin-bottom: 25px; cursor: pointer; }
 .request-alert { font-weight: bold; font-size: 16px; margin-bottom: 10px; color: #ef4444; }
 .request-card { background-color: white; display: flex; align-items: center; padding: 10px 20px; border-radius: 40px; margin-bottom: 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-.blue-avatar { background-color: #8bb4ff; width: 35px; height: 35px; border-radius: 50%; margin-right: 15px; }
+/* 元の .blue-avatar を変更 */
+.request-avatar-wrapper {
+  width: 35px; height: 35px; flex-shrink: 0; margin-right: 15px;
+}
+.request-avatar-placeholder {
+  width: 100%; height: 100%; border-radius: 50%;
+}
 .request-name { flex: 1; font-size: 18px; font-weight: bold; }
 .approve-button { background-color: #ffedb3; border: none; padding: 8px 30px; border-radius: 20px; font-weight: bold; cursor: pointer; }
 
@@ -241,4 +256,8 @@ const navigateToDetail = (friend) => {
 
 .friend-scroll-area { display: flex; flex-direction: column; gap: 12px; }
 .empty-msg { text-align: center; color: #64748b; font-weight: bold; margin-top: 40px; }
+
+.request-avatar-img {
+  width: 100%;  height: 100%;  border-radius: 50%;  object-fit: cover;
+}
 </style>
