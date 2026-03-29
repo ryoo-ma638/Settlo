@@ -65,7 +65,54 @@
 </template>
 
 <script setup>
-// 特にロジックが必要ないため空白です
+import { ref, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import api from '@/services/api';
+
+const route = useRoute();
+const router = useRouter();
+
+// 🌟 本物のデータをいれるための箱
+const event = ref({
+  name: '読み込み中...',
+  totalAmount: 0,
+  createdAt: '',
+  participants: [],
+  transactions: []
+});
+
+// 🌟 サーバーからデータを取ってくる関数
+const fetchEvent = async () => {
+  try {
+    const response = await api.get(`/events/${route.params.id}`);
+    event.value = response.data;
+  } catch (error) {
+    console.error("取得エラー:", error);
+    alert("イベントが見つかりません");
+    router.push('/');
+  }
+};
+
+// 🌟 支払いを追加する関数（見た目を壊さないよう prompt を使用）
+const addPayment = async () => {
+  const amount = prompt("金額を入力してください");
+  const description = prompt("内容を入力してください（例：ランチ）");
+
+  if (!amount || !description) return;
+
+  try {
+    await api.post('/transactions', {
+      amount: Number(amount),
+      description: description,
+      eventId: Number(route.params.id)
+    });
+    fetchEvent(); // 成功したらリストを再読み込み
+  } catch (error) {
+    alert("エラーが発生しました");
+  }
+};
+
+onMounted(fetchEvent);
 </script>
 
 <style scoped>
