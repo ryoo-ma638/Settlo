@@ -17,7 +17,7 @@
           <div class="result-scroll-area">
             <div v-for="user in searchResults" :key="user.uid" class="result-card">
               <div class="user-avatar-wrapper-mini">
-                <img v-if="user.photoURL" :src="user.photoURL" class="user-avatar-img" />
+                <img v-if="user.photo" :src="user.photo" class="user-avatar-img" />
                 <div v-else class="user-avatar" :style="{ backgroundColor: user.color || '#cbd5e1' }"></div>
               </div>
               <span class="user-name">{{ user.name }}</span>
@@ -36,7 +36,7 @@
           
           <div class="target-user">
             <div class="avatar-wrapper-large">
-              <img v-if="selectedUser.photoURL" :src="selectedUser.photoURL" class="user-avatar-img-large" />
+              <img v-if="selectedUser.photo" :src="selectedUser.photo" class="user-avatar-img-large" />
               <div v-else class="avatar" :style="{ backgroundColor: selectedUser.color || '#cbd5e1' }"></div>
             </div>
             <h3 class="name">{{ selectedUser.name }}</h3>
@@ -117,7 +117,13 @@ const performSearch = async () => {
       const querySnapshot = await getDocs(q);
       querySnapshot.forEach((doc) => {
         if (doc.id !== auth.currentUser?.uid) {
-          results.push({ uid: doc.id, ...doc.data() });
+          const data = doc.data(); // 🌟 一旦データを変数に入れる
+          results.push({
+            uid: doc.id,
+            name: data.name,
+            // 🌟 ここを追加！Firestoreのフィールド名「photo」を取得する
+            photo: data.photo || ""
+          });
         }
       });
     } else {
@@ -126,7 +132,13 @@ const performSearch = async () => {
       const userSnap = await getDoc(userDocRef);
 
       if (userSnap.exists() && userSnap.id !== auth.currentUser?.uid) {
-        results.push({ uid: userSnap.id, ...userSnap.data() });
+        const data = userSnap.data();
+        results.push({ 
+          uid: userSnap.id, 
+          name: data.name,
+          // 🌟 ここを追加！
+          photo: data.photo || "" 
+        });
       }
     }
 
@@ -181,8 +193,8 @@ const executeRequest = async () => {
 */
 
 const executeRequest = async () => {
-  if (!auth.currentUser) return;
-  const targetUser = selectedUser.value;
+  if (!auth.currentUser) { alert("ログインが必要です。"); return; }
+  const targetUser = selectedUser.value; // 申請相手
 
   try {
     // 🌟 1. 自分のデータを Firestore から取得する
@@ -197,7 +209,8 @@ const executeRequest = async () => {
       const myData = myDoc.data();
       myName = myData.name || "名前なし";
       // 🌟 photoURL ではなく photo に変更！
-      myPhoto = myData.photo || ""; 
+      myPhoto = myData.photo || myData.photoURL || "";
+      console.log("自分のphoto:", myPhoto); // 🌟 デバッグ：URLが取得できているか確認
     }
 
     // 🌟 3. 申請データを保存する (formPhoto を追加)
