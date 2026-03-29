@@ -7,9 +7,9 @@
       <button class="close-btn" v-if="!isDesktop" @click="closeMenu">✕</button>
 
       <div class="profile-section">
-        <div class="user-circle"></div>
+        <img :src="userPhoto" class="user-circle-large" />
         <div class="user-info">
-          <h2 class="user-name">名前</h2>
+          <h2 class="user-name">{{ userName || '読み込み中...' }}</h2>
           <p class="mypage-link" @click="navigate('/mypage')">⚙️ マイページ</p>
         </div>
       </div>
@@ -54,6 +54,11 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { auth } from "../firebase"; 
+import { onAuthStateChanged } from "firebase/auth";
+
+const userName = ref("");
+const userPhoto = ref("");
 
 const props = defineProps({
   isOpen: Boolean
@@ -68,8 +73,16 @@ const updateSize = () => {
 }
 
 onMounted(() => {
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      userName.value = user.displayName;
+      userPhoto.value = user.photoURL;
+    }
+  });
+
   window.addEventListener('resize', updateSize)
 })
+
 onUnmounted(() => {
   window.removeEventListener('resize', updateSize)
 })
@@ -108,6 +121,12 @@ const navigate = (path) => {
 }
 .profile-section { display: flex; align-items: center; margin-bottom: 20px; gap: 15px; }
 .user-circle { width: 60px; height: 60px; background-color: #d9a0a0; border-radius: 50%; }
+.user-circle-large {
+  width: 60px; height: 60px; background-color: #e3a8a8; 
+  border-radius: 50%; margin: 0 auto 15px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  object-fit: cover; /* 🌟 画像が歪まないように追加 */
+  margin : 0; /* 画像の上下の余白をなくす */
+}
 .user-info { display: flex; flex-direction: column; }
 .user-name { font-size: 22px; font-weight: bold; margin: 0; }
 .mypage-link { font-size: 13px; color: #cbd5e1; margin: 5px 0 0 0; cursor: pointer; text-decoration: underline; }
