@@ -175,6 +175,16 @@ const handleApproveDone = async (request) => {
       isTrading: false
     })
 
+    // 🌟 3. 相手へ「承認されました」というお知らせを送る
+    // friendRequests コレクションに新しいドキュメントを作る
+    await addDoc(collection(db, "friendRequests"), {
+      toId: friendUid,          // 相手のID
+      formId: myUid,            // 自分のID
+      formName: myName,         // 自分の名前
+      status: "accepted",       // 🌟 状態を 'accepted' にする
+      createdAt: serverTimestamp()
+    });
+
     // 4. 申請データを削除
     await deleteDoc(doc(db, "friendRequests", request.id))
     

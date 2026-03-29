@@ -14,11 +14,18 @@
           <h2 class="modal-title">お知らせ</h2>
           <div class="notification-list">
 
-            <div v-for="req in notifications" :key="req.id" class="notif-item pink">
+            <div   v-for="req in notifications"   :key="req.id"   :class="['notif-item', req.status === 'accepted' ? 'blue' : 'pink']">
               <span class="dot"></span>
               <div class="notif-body">
-                <p>{{ req.formName }}さんから友達申請が届いています</p>
-                <button class="mini-accept-btn" @click="acceptRequest(req)">承認する</button>
+                <template v-if="req.status === 'pending'">
+                  <p>{{ req.formName }}さんから友達申請が届いています</p>
+                  <button class="mini-accept-btn" @click="acceptRequest(req)">承認する</button>
+                </template>
+
+                <template v-else-if="req.status === 'accepted'">
+                  <p>{{ req.formName }}さんとフレンドになりました！</p>
+                  <button class="mini-accept-btn" @click="deleteNotification(req.id)">確認</button>
+                </template>
               </div>
             </div>
 <!--
@@ -53,12 +60,19 @@
         <div class="notif-item yellow"><p>追加のお知らせテスト3</p></div>
         <div class="notif-item pink"><p>スクロール確認用：一番下のお知らせです</p></div>
           -->
-        <div v-for="req in notifications" :key="req.id" class="notif-item pink">
+        <div   v-for="req in notifications"   :key="req.id"   :class="['notif-item', req.status === 'accepted' ? 'blue' : 'pink']">
           <span class="dot"></span>
           <div class="notif-body">
-            <p>{{ req.formName }}さんから友達申請が届いています</p>
-            <button class="mini-accept-btn" @click="acceptRequest(req)">承認する</button>
-          </div>
+            <template v-if="req.status === 'pending'">
+              <p>{{ req.formName }}さんから友達申請が届いています</p>
+              <button class="mini-accept-btn" @click="acceptRequest(req)">承認する</button>
+            </template>
+
+            <template v-else-if="req.status === 'accepted'">
+              <p>{{ req.formName }}さんとフレンドになりました！</p>
+              <button class="mini-accept-btn" @click="deleteNotification(req.id)">確認</button>
+            </template>
+            </div>
         </div>
 
         <div v-if="notifications.length === 0" class="empty-msg">
@@ -75,7 +89,7 @@ import { ref , onMounted} from 'vue';
 import { db, auth } from '@/firebase';
 import { 
   collection, query, where, onSnapshot, 
-  doc, getDoc, setDoc, deleteDoc, serverTimestamp 
+  doc, getDoc, setDoc, deleteDoc, addDoc, serverTimestamp 
 } from 'firebase/firestore';
 
 const notifications = ref([]);
@@ -92,7 +106,7 @@ onMounted(() => {
     const q = query(
       collection(db, "friendRequests"),
       where("toId", "==", user.uid),
-      where("status", "==", "pending")
+      where("status", "in", ["pending", "accepted"])
     );
 
     onSnapshot(q, (snapshot) => {
@@ -103,6 +117,15 @@ onMounted(() => {
     });
   });
 });
+
+// 通知を消去（既読にする）処理 🌟 追加
+const deleteNotification = async (notifId) => {
+  try {
+    await deleteDoc(doc(db, "friendRequests", notifId));
+  } catch (error) {
+    console.error("通知の削除に失敗しました:", error);
+  }
+};
 
 // 🌟 承認ボタンを押した時の処理
 const acceptRequest = async (request) => {
@@ -144,6 +167,16 @@ const acceptRequest = async (request) => {
       tradeCount: 0,
       isTrading: false
     })
+
+    // 🌟 4. 相手側に「フレンド成立」の通知を送る 
+    // これをすることで、相手の画面に青い通知が出ます
+    await addDoc(collection(db, "friendRequests"), {
+      toId: friendUid,
+      formId: myUid,
+      formName: myName,
+      status: "accepted",
+      createdAt: serverTimestamp()
+    });
 
     // 3. 申請ドキュメントを削除（用済みのため）
     await deleteDoc(doc(db, "friendRequests", request.id));
