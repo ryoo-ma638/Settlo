@@ -43,11 +43,15 @@
       <div v-if="currentTab === 'unpaid'" class="tab-content">
         <div class="card summary-card orange-bg">
           <p class="summary-title">現在の未払い</p>
-          <h1 class="summary-amount">¥ 8,300</h1>
-          <div class="badge">△ 2件の未支払い</div>
+          <h1 class="summary-amount">¥ {{ totalPayable.toLocaleString() }}</h1>
+          <div class="badge">△ {{ payableList.length }}件の未支払い</div>
         </div>
 
         <h2 class="section-title">支払い詳細</h2>
+
+        <div v-if="payableList.length === 0" style="text-align: center; padding: 30px; color: #64748b;">
+          現在、未払いの情報はありません。
+        </div>
 
         <div v-for="item in payableList" :key="item.id" class="card list-card">
           <div class="list-left">

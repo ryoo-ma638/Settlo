@@ -1,6 +1,6 @@
 <template>
   <div class="home-container">
-    <PaymentCarousel />
+    <PaymentCarousel :summary="paymentSummary" />
 
     <section class="ongoing-events">
       <div class="section-header">
@@ -78,8 +78,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { db, auth } from '@/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { collection, query, where, onSnapshot, getDoc, doc } from 'firebase/firestore';
 import PaymentCarousel from '@/components/PaymentCarousel.vue';
 import api from '@/services/api'; // 🌟 連結用 api.ts をインポート
 
@@ -91,6 +94,95 @@ const loading = ref(true);
 const openDetail = (event) => {
   selectedEvent.value = event;
 };
+
+const paymentSummary = ref({
+  receivableTotal: 0,
+  receivableList: [], // { name, itemName, amount }
+  payableTotal: 0,
+  payableList: []
+});
+
+// 🌟 名前取得の効率化（何度も同じ人を呼ばないようにキャッシュ）
+const nameCache = {};
+const getUserName = async (uid) => {
+  if (!uid) return "不明";
+  if (nameCache[uid]) return nameCache[uid]; // キャッシュがあればそれを返す
+  
+  try {
+    const userDoc = await getDoc(doc(db, "users", uid));
+    const name = userDoc.exists() ? userDoc.data().name : "不明";
+    nameCache[uid] = name;
+    return name;
+  } catch (error) {
+    console.error("Name fetch error:", error);
+    return "不明";
+  }
+};
+
+// 監視解除用の関数を保持
+let unsubReceivable = null;
+let unsubPayable = null;
+
+onMounted(() => {
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      const myUid = user.uid;
+
+      // --- A. 入金待ち（自分が受け取る） ---
+      const qReceivable = query(
+        collection(db, "transactions"),
+        where("paidToId", "==", myUid),
+        where("status", "==", "unpaid")
+      );
+
+      unsubReceivable = onSnapshot(qReceivable, async (snapshot) => {
+        let total = 0;
+        const list = await Promise.all(snapshot.docs.map(async (d) => {
+          const data = d.data();
+          total += data.amount || 0;
+          const name = await getUserName(data.paidById); // 相手（払う人）の名前
+          return { id: d.id, name, itemName: data.itemName, amount: data.amount };
+        }));
+        paymentSummary.value.receivableTotal = total;
+        paymentSummary.value.receivableList = list;
+      });
+
+      // --- B. 未払い（自分が支払う）の監視 ---
+const qPayable = query(
+  collection(db, "transactions"),
+  where("paidById", "==", myUid), // 🌟 自分が「支払う側」のデータを取得
+  where("status", "==", "unpaid")
+);
+
+unsubPayable = onSnapshot(qPayable, async (snapshot) => {
+  let total = 0;
+  const list = await Promise.all(snapshot.docs.map(async (d) => {
+    const data = d.data();
+    total += data.amount || 0;
+    
+    // 🌟 相手（受け取る人 = paidToId）の名前を取得して表示する
+    const name = await getUserName(data.paidToId); 
+    
+    return { 
+      id: d.id, 
+      name: name, 
+      itemName: data.itemName, 
+      amount: data.amount 
+    };
+  }));
+  
+  // 🌟 反映先の変数名が正しいかチェック
+  paymentSummary.value.payableTotal = total;
+  paymentSummary.value.payableList = list;
+});
+    }
+  });
+});
+
+onUnmounted(() => {
+  if (unsubReceivable) unsubReceivable();
+  if (unsubPayable) unsubPayable();
+});
 
 const copyCode = (code) => {
   if (!code) return alert('コードがありません');
