@@ -30,6 +30,19 @@
     </section>
 
     <Teleport to="body">
+      <BaseModal 
+        :show="modalState.show"
+        :type="modalState.type"
+        :title="modalState.title"
+        :message="modalState.message"
+        :showCancel="modalState.showCancel"
+        :confirmText="modalState.confirmText"
+        :cancelText="modalState.cancelText"
+        @confirm="handleConfirmModal"
+        @cancel="modalState.show = false"
+        @close="modalState.show = false"
+      />
+
       <transition name="fade">
         <div v-if="selectedEvent" class="modal-overlay" @click.self="selectedEvent = null">
           <div class="detail-modal">
@@ -78,13 +91,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, reactive } from 'vue'; // 🌟 reactiveを追加
 import { useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, onSnapshot, getDoc, doc } from 'firebase/firestore';
 import PaymentCarousel from '@/components/PaymentCarousel.vue';
-import api from '@/services/api'; // 🌟 連結用 api.ts をインポート
+import BaseModal from '@/components/BaseModal.vue'; // 🌟 追加
+import api from '@/services/api'; 
 
 const router = useRouter();
 const ongoingEvents = ref([]);
@@ -95,18 +109,28 @@ const openDetail = (event) => {
   selectedEvent.value = event;
 };
 
+// 🌟 モーダル状態管理
+const modalState = reactive({
+  show: false, type: 'info', title: '', message: '', 
+  showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null
+});
+const showModal = (options) => {
+  Object.assign(modalState, { showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, ...options, show: true });
+};
+const handleConfirmModal = () => {
+  if (modalState.onConfirm) modalState.onConfirm();
+  modalState.show = false;
+};
+
 const paymentSummary = ref({
-  receivableTotal: 0,
-  receivableList: [], // { name, itemName, amount }
-  payableTotal: 0,
-  payableList: []
+  receivableTotal: 0, receivableList: [],
+  payableTotal: 0, payableList: []
 });
 
-// 🌟 名前取得の効率化（何度も同じ人を呼ばないようにキャッシュ）
 const nameCache = {};
 const getUserName = async (uid) => {
   if (!uid) return "不明";
-  if (nameCache[uid]) return nameCache[uid]; // キャッシュがあればそれを返す
+  if (nameCache[uid]) return nameCache[uid]; 
   
   try {
     const userDoc = await getDoc(doc(db, "users", uid));
@@ -119,7 +143,6 @@ const getUserName = async (uid) => {
   }
 };
 
-// 監視解除用の関数を保持
 let unsubReceivable = null;
 let unsubPayable = null;
 
@@ -128,7 +151,6 @@ onMounted(() => {
     if (user) {
       const myUid = user.uid;
 
-      // --- A. 入金待ち（自分が受け取る） ---
       const qReceivable = query(
         collection(db, "transactions"),
         where("paidToId", "==", myUid),
@@ -140,41 +162,31 @@ onMounted(() => {
         const list = await Promise.all(snapshot.docs.map(async (d) => {
           const data = d.data();
           total += data.amount || 0;
-          const name = await getUserName(data.paidById); // 相手（払う人）の名前
+          const name = await getUserName(data.paidById); 
           return { id: d.id, name, itemName: data.itemName, amount: data.amount };
         }));
         paymentSummary.value.receivableTotal = total;
         paymentSummary.value.receivableList = list;
       });
 
-      // --- B. 未払い（自分が支払う）の監視 ---
-const qPayable = query(
-  collection(db, "transactions"),
-  where("paidById", "==", myUid), // 🌟 自分が「支払う側」のデータを取得
-  where("status", "==", "unpaid")
-);
+      const qPayable = query(
+        collection(db, "transactions"),
+        where("paidById", "==", myUid),
+        where("status", "==", "unpaid")
+      );
 
-unsubPayable = onSnapshot(qPayable, async (snapshot) => {
-  let total = 0;
-  const list = await Promise.all(snapshot.docs.map(async (d) => {
-    const data = d.data();
-    total += data.amount || 0;
-    
-    // 🌟 相手（受け取る人 = paidToId）の名前を取得して表示する
-    const name = await getUserName(data.paidToId); 
-    
-    return { 
-      id: d.id, 
-      name: name, 
-      itemName: data.itemName, 
-      amount: data.amount 
-    };
-  }));
-  
-  // 🌟 反映先の変数名が正しいかチェック
-  paymentSummary.value.payableTotal = total;
-  paymentSummary.value.payableList = list;
-});
+      unsubPayable = onSnapshot(qPayable, async (snapshot) => {
+        let total = 0;
+        const list = await Promise.all(snapshot.docs.map(async (d) => {
+          const data = d.data();
+          total += data.amount || 0;
+          const name = await getUserName(data.paidToId); 
+          return { id: d.id, name, itemName: data.itemName, amount: data.amount };
+        }));
+        
+        paymentSummary.value.payableTotal = total;
+        paymentSummary.value.payableList = list;
+      });
     }
   });
 });
@@ -184,13 +196,21 @@ onUnmounted(() => {
   if (unsubPayable) unsubPayable();
 });
 
+// 🌟 コピー完了の alert を美しいモーダルに！
 const copyCode = (code) => {
-  if (!code) return alert('コードがありません');
-  navigator.clipboard.writeText(code);
-  alert('コピーしました！');
+  if (!code) {
+    showModal({ type: 'error', title: 'エラー', message: 'コードがありません' });
+    return;
+  }
+  navigator.clipboard.writeText(code)
+    .then(() => {
+      showModal({ type: 'success', title: 'コピー完了', message: '招待コードをコピーしました！LINE等でシェアしましょう。' });
+    })
+    .catch(() => {
+      showModal({ type: 'error', title: 'エラー', message: 'コピーに失敗しました' });
+    });
 };
 
-// 🌟 イベント一覧をサーバーから取得する関数
 const fetchEvents = async () => {
   try {
     loading.value = true;
@@ -198,12 +218,9 @@ const fetchEvents = async () => {
     
     const res = await api.get('/events');
     
-    // 🌟 取得したデータに invitationCode が含まれているか確認
     ongoingEvents.value = res.data.map(event => ({
       ...event,
-      // もし invitationCode が無ければ '------' と表示させる（デバッグ用）
       invitationCode: event.invitationCode || 'N/A',
-      // 金額表示の整形などもここですると綺麗です
       amount: `¥${(event.totalAmount || 0).toLocaleString()}`
     }));
 
@@ -214,18 +231,31 @@ const fetchEvents = async () => {
   }
 };
 
+// 🌟 イベント削除の confirm と alert を美しいモーダルに！
 const deleteEvent = async (id) => {
-  if (!confirm('このイベントを終了して削除しますか？')) return;
-  try {
-    // 🌟 サーバー側のデータも消す（エンドポイントがある場合）
-    // await api.delete(`/events/${id}`); 
-    
-    // フロントの表示を更新
-    ongoingEvents.value = ongoingEvents.value.filter(e => e.id !== id);
-    selectedEvent.value = null;
-  } catch (error) {
-    alert("削除に失敗しました");
-  }
+  showModal({
+    type: 'warning',
+    title: 'イベントの削除',
+    message: 'このイベントを終了して削除しますか？\n（この操作は元に戻せません）',
+    showCancel: true,
+    confirmText: '削除する',
+    onConfirm: async () => {
+      try {
+        // await api.delete(`/events/${id}`); 
+        
+        ongoingEvents.value = ongoingEvents.value.filter(e => e.id !== id);
+        selectedEvent.value = null;
+
+        // 削除成功メッセージ（少し遅らせるとアニメーションが綺麗に繋がる）
+        setTimeout(() => {
+          showModal({ type: 'success', title: '削除完了', message: 'イベントを終了しました。' });
+        }, 300);
+
+      } catch (error) {
+        showModal({ type: 'error', title: 'エラー', message: '削除に失敗しました' });
+      }
+    }
+  });
 };
 
 const goToEventDetail = (id) => {
@@ -234,7 +264,6 @@ const goToEventDetail = (id) => {
 };
 
 onMounted(() => {
-  // 🌟 2人のコメントを合体！起動時（ページ読み込み時）にサーバーと連結して同期・取得が走る
   fetchEvents(); 
 });
 </script>
@@ -242,13 +271,11 @@ onMounted(() => {
 <style scoped>
 .home-container { position: relative; padding-bottom: 100px; background-color: #f8fafc; min-height: 100vh; }
 
-/* 🌟 セクションヘッダー（タイトルとすべて見るボタン） */
 .ongoing-events { padding: 20px; }
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
 .section-title { font-size: 18px; font-weight: bold; color: #1e293b; margin: 0; }
 .view-all-btn { background: none; border: none; color: #3b82f6; font-size: 14px; font-weight: bold; cursor: pointer; }
 
-/* 🌟 イベントリスト */
 .event-list-container { display: flex; flex-direction: column; gap: 12px; }
 .empty-message { text-align: center; color: #94a3b8; padding: 40px 0; font-size: 14px; font-weight: bold; background: white; border-radius: 16px; border: 2px dashed #e2e8f0; }
 .event-item { background-color: white; border-radius: 16px; padding: 16px; display: flex; align-items: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.03); transition: transform 0.2s; }
@@ -268,7 +295,6 @@ onMounted(() => {
 .amount-value { font-size: 16px; font-weight: 900; color: #1e293b; }
 
 
-/* 🌟 モーダルデザイン（画像に寄せてモダンに） */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 2000; padding: 20px; box-sizing: border-box; }
 .detail-modal { background: white; width: 100%; max-width: 400px; border-radius: 24px; padding: 30px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
 
@@ -287,7 +313,6 @@ onMounted(() => {
 .modal-copy-btn { background: white; color: #2a4c7a; border: none; padding: 8px 16px; border-radius: 10px; font-size: 12px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: 0.2s; }
 .modal-copy-btn:active { transform: scale(0.95); }
 
-/* 🌟 アクションボタン群 */
 .modal-footer { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
 .go-detail-btn { background: #10b981; color: white; border: none; padding: 16px; border-radius: 16px; font-size: 15px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(16,185,129,0.3); transition: 0.2s; }
 .go-detail-btn:active { transform: scale(0.98); }
@@ -298,10 +323,8 @@ onMounted(() => {
 .cancel-btn { background: #f1f5f9; color: #475569; border: none; padding: 14px; border-radius: 16px; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; }
 .cancel-btn:active { background: #e2e8f0; }
 
-/* その他 */
 .add-button { position: fixed; right: 20px; bottom: 100px; width: 60px; height: 60px; background-color: #2169a3; color: white; border: none; border-radius: 50%; font-size: 36px; box-shadow: 0 4px 10px rgba(33,105,163,0.3); z-index: 100; cursor: pointer; }
 
-/* アニメーション */
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 

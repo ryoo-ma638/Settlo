@@ -138,6 +138,18 @@
     </main>
 
     <Teleport to="body">
+      <BaseModal 
+        :show="modals.unpaidWarning"
+        type="warning"
+        title="未完済の取引があります"
+        message="以下の取引がまだ精算されていません。本当に終了リクエストを送りますか？"
+        confirmText="終了リクエストを送る"
+        cancelText="戻って精算する"
+        :showCancel="true"
+        @confirm="forceEndEvent"
+        @cancel="modals.unpaidWarning = false"
+        @close="modals.unpaidWarning = false"
+      />
       <div v-if="modals.participants" class="modal-overlay" @click.self="modals.participants = false">
         <div class="modal-content slide-up">
           <div class="modal-header"><h3>参加者一覧</h3><button class="close-btn" @click="modals.participants = false">×</button></div>
@@ -216,12 +228,22 @@
 // ==========================================
 // 🌟 1. 2人の import を綺麗に合体！
 // ==========================================
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, reactive } from 'vue'; // 🌟 reactiveを追加
 import { useRoute, useRouter } from 'vue-router'; 
 
 import AddPaymentModal from '@/components/AddPaymentModal.vue';
 import ReceiptPaymentModal from '@/components/ReceiptPaymentModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
+import BaseModal from '@/components/BaseModal.vue'; // 🌟 統一モーダルを追加！
+
+// 🌟 どこからでも呼べる美しいアラートの準備
+const alertState = reactive({ show: false, type: 'info', title: '', message: '' });
+const showAlert = (type, title, message) => {
+  alertState.type = type;
+  alertState.title = title;
+  alertState.message = message;
+  alertState.show = true;
+};
 
 // 🌟 サーバー(Friend)と データベース(Main)の道具を合体！
 import { httpsCallable } from "firebase/functions";
@@ -302,12 +324,13 @@ const markAsCompleted = async (id) => {
     modals.value.historyDetail = false; 
   } catch (error) {
     console.error("更新エラー:", error);
-    alert("決済の更新に失敗しました。");
+    showAlert('error', '更新エラー', '決済の更新に失敗しました。電波状況を確認してください。');
   }
 };
 
 const addHistory = async (newPayment) => {
   try {
+
     const eventId = route.params.id || "test-event-1"; 
     const historyRef = collection(db, "events", eventId, "history");
 
@@ -331,7 +354,8 @@ const addHistory = async (newPayment) => {
     setTimeout(scrollToTimeline, 300);
   } catch (error) {
     console.error("保存エラー:", error);
-    alert("支払いの追加に失敗しました。");
+    // 🌟 alert("..."); を以下に変更
+    showAlert('error', '保存エラー', '支払いの追加に失敗しました。');
   }
 };
 
