@@ -16,7 +16,10 @@
 
           <div class="result-scroll-area">
             <div v-for="user in searchResults" :key="user.uid" class="result-card">
-              <div class="user-avatar" :style="{ backgroundColor: user.color || '#cbd5e1' }"></div>
+              <div class="user-avatar-wrapper-mini">
+                <img v-if="user.photo" :src="user.photo" class="user-avatar-img" />
+                <div v-else class="user-avatar" :style="{ backgroundColor: user.color || '#cbd5e1' }"></div>
+              </div>
               <span class="user-name">{{ user.name }}</span>
               <button class="add-btn" @click="selectedUser = user">追加</button>
             </div>
@@ -32,7 +35,10 @@
           <h2 class="modal-title">フレンド追加</h2>
           
           <div class="target-user">
-            <div class="avatar" :style="{ backgroundColor: selectedUser.color || '#cbd5e1' }"></div>
+            <div class="avatar-wrapper-large">
+              <img v-if="selectedUser.photo" :src="selectedUser.photo" class="user-avatar-img-large" />
+              <div v-else class="avatar" :style="{ backgroundColor: selectedUser.color || '#cbd5e1' }"></div>
+            </div>
             <h3 class="name">{{ selectedUser.name }}</h3>
           </div>
 
@@ -61,6 +67,7 @@
 import { ref, watch } from 'vue';
 import { db, auth } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, limit } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore'; // getDoc と doc を追加
 
 const props = defineProps({ isOpen: Boolean });
 const emit = defineEmits(['close']);
@@ -73,7 +80,7 @@ const searchResults = ref([]);
 const selectedUser = ref(null);
 
 // 検索を実行する関数 (既存のまま)
-const performSearch = async () => {
+/*const performSearch = async () => {
   const text = searchQuery.value.trim();
   if (text.length === 0) { searchResults.value = []; return; }
   try {
@@ -94,6 +101,52 @@ const performSearch = async () => {
     console.error("検索エラー:", error);
   }
 };
+*/
+
+const performSearch = async () => {
+  const text = searchQuery.value.trim();
+  if (text.length === 0) { searchResults.value = []; return; }
+  
+  try {
+    const results = [];
+
+    if (searchMode.value === 'name') {
+      // --- 名前検索 (既存のロジック) ---
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("name", "==", text), limit(10));
+      const querySnapshot = await getDocs(q);
+      querySnapshot.forEach((doc) => {
+        if (doc.id !== auth.currentUser?.uid) {
+          const data = doc.data(); // 🌟 一旦データを変数に入れる
+          results.push({
+            uid: doc.id,
+            name: data.name,
+            // 🌟 ここを追加！Firestoreのフィールド名「photo」を取得する
+            photo: data.photo || ""
+          });
+        }
+      });
+    } else {
+      // --- ID検索 (ドキュメントID = UID で検索) ---
+      const userDocRef = doc(db, "users", text);
+      const userSnap = await getDoc(userDocRef);
+
+      if (userSnap.exists() && userSnap.id !== auth.currentUser?.uid) {
+        const data = userSnap.data();
+        results.push({ 
+          uid: userSnap.id, 
+          name: data.name,
+          // 🌟 ここを追加！
+          photo: data.photo || "" 
+        });
+      }
+    }
+
+    searchResults.value = results;
+  } catch (error) {
+    console.error("検索エラー:", error);
+  }
+};
 
 watch(searchQuery, () => performSearch());
 
@@ -103,25 +156,79 @@ const close = () => {
   emit('close');
 };
 
-// 🌟 本当に申請を送る関数 (引数を不要にし、selectedUser を使う)
+/*
 const executeRequest = async () => {
   if (!auth.currentUser) { alert("ログインが必要です。"); return; }
-  const targetUser = selectedUser.value;
+  const targetUser = selectedUser.value; // 申請相手
 
   try {
+    // 🌟 1. A自分のプロフィール情報を Firestore から取得する
+    // A自分のドキュメントIDはauth.currentUser.uid
+    const myDocRef = doc(db, "users", auth.currentUser.uid);
+    const myDoc = await getDoc(myDocRef);
+
+    // 🌟 2. Firestore から最新の名前とアイコンURLを取得する
+    // (存在しない場合に備えて、安全に処理するためのロジック)
+    const myName = myDoc.exists() ? (myDoc.data().name || "名前なし") : "名前なし";
+    const myPhoto = myDoc.exists() ? (myDoc.data().photoURL || "") : ""; // 🌟 これを追加！自分のアイコンURLを取得
+
+    // Firestore に申請データを追加
     await addDoc(collection(db, "friendRequests"), {
-      formId: auth.currentUser.uid,
-      formName: auth.currentUser.displayName,
-      toId: targetUser.uid,
-      toName: targetUser.name,
-      status: "pending",
-      createdAt: serverTimestamp()
+      formId: auth.currentUser.uid, // あなたのID
+      formName: myName,              // あなたの名前
+      fformPhoto: myData.photoURL || "",          // 🌟 これを追加！あなたのアイコンURLを保存する
+      toId: targetUser.uid,          // 相手のID
+      toName: targetUser.name,       // 相手の名前
+      status: "pending",             // 状態を pending（承認待ち）にする
+      createdAt: serverTimestamp()   // 時間を保存
     });
+    
     alert(`${targetUser.name}さんにフレンド申請を送りました。`);
-    close(); // 成功したらモーダルを閉じる
+    close(); 
   } catch (error) {
     console.error("エラー内容:", error);
     alert("申請に失敗しました。もう一度試してください。");
+  }
+};
+*/
+
+const executeRequest = async () => {
+  if (!auth.currentUser) { alert("ログインが必要です。"); return; }
+  const targetUser = selectedUser.value; // 申請相手
+
+  try {
+    // 🌟 1. 自分のデータを Firestore から取得する
+    const myDocRef = doc(db, "users", auth.currentUser.uid);
+    const myDoc = await getDoc(myDocRef);
+
+    // 🌟 2. 変数 myData を定義する（ここでエラーが解決します）
+    let myName = "名前なし";
+    let myPhoto = "";
+
+    if (myDoc.exists()) {
+      const myData = myDoc.data();
+      myName = myData.name || "名前なし";
+      // 🌟 photoURL ではなく photo に変更！
+      myPhoto = myData.photo || myData.photoURL || "";
+      console.log("自分のphoto:", myPhoto); // 🌟 デバッグ：URLが取得できているか確認
+    }
+
+    // 🌟 3. 申請データを保存する (formPhoto を追加)
+    await addDoc(collection(db, "friendRequests"), {
+      toId: targetUser.uid,
+      toName: targetUser.name,
+      formId: auth.currentUser.uid,
+      formName: myName,
+      formPhoto: myPhoto, // 🌟 これで相手に画像URLが届きます
+      status: "pending",
+      createdAt: serverTimestamp()
+    });
+
+    alert("申請を送りました！");
+    emit('close');
+  } catch (error) {
+    console.error("エラー内容:", error);
+    alert("申請に失敗しました。");
   }
 };
 </script>
@@ -161,4 +268,8 @@ const executeRequest = async () => {
 .btn { width: 100%; padding: 15px; border-radius: 15px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; }
 .execute-btn { background: #2169a3; color: white; }
 .cancel-btn { background: #e2e8f0; color: #64748b; }
+
+.user-avatar-wrapper-mini { width: 35px; height: 35px; flex-shrink: 0; }
+.avatar-wrapper-large { width: 80px; height: 80px; flex-shrink: 0; }
+.user-avatar-img, .user-avatar-img-large { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 </style>

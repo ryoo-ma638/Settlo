@@ -1,6 +1,14 @@
 <template>
     <div class="friend-card" @click="$emit('click', user)">
-      <div class="friend-avatar" :style="{ backgroundColor: user.color }"></div>
+      <div class="friend-avatar-wrapper">
+      <img 
+        v-if="user.photo" 
+        :src="user.photo" 
+        class="friend-avatar-img"
+      />
+      <div v-else class="friend-avatar-placeholder" :style="{ backgroundColor: user.color }"></div>
+    </div>
+      
       <div class="friend-info">
         <span class="friend-name-text">{{ user.name }}</span>
         <div class="status-tags">
@@ -28,4 +36,25 @@
   .not-friend { background: #fee2e2; color: #ef4444; }
   .trading { background: #e0f2fe; color: #3b82f6; }
   .count { background: #f1f5f9; color: #64748b; }
-  </style>
+
+  .user-avatar-wrapper {
+  width: 50px; /* カードに合わせたサイズ */  height: 50px;  flex-shrink: 0;  margin-right: 15px; /* 名前との間隔 */
+}
+.user-avatar-img {
+  width: 100%;  height: 100%;  border-radius: 50%; /* 丸くする */  object-fit: cover; /* 画像を枠に合わせる */
+}
+.user-avatar-placeholder {
+  width: 100%;  height: 100%;  border-radius: 50%;  background-color: #cbd5e1; /* グレーの塗りつぶし */
+}
+
+/* 🌟 スタイルの追加・修正 */
+.friend-avatar-wrapper {
+  width: 50px;  height: 50px;  margin-right: 15px;  flex-shrink: 0;
+}
+.friend-avatar-img {
+  width: 100%;  height: 100%;  border-radius: 50%;  object-fit: cover;
+}
+.friend-avatar-placeholder {
+  width: 100%;  height: 100%;  border-radius: 50%;
+}
+</style>
