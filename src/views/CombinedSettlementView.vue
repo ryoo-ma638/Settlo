@@ -95,6 +95,22 @@
   const route = useRoute();
   const router = useRouter();
 
+  const friendDoc = await getDoc(doc(db, "users", uid)); // 🌟 users直下を探す
+
+  if (friendDoc.exists()) {
+  const data = friendDoc.data();
+  // ユーザーは見つかった！
+  friend.value = data; 
+  
+  // 🌟 画像は「あれば入れる、なければ空」にするだけ（これでエラーは出ない）
+  friendPhoto.value = data.photo || data.photoURL || "";
+  
+  console.log("ユーザー発見！名前:", data.name);
+} else {
+  // 🌟 ここを通るなら「IDそのものがFirestoreにない」ということ
+  console.error("ユーザーが見つかりません。UID:", uid);
+}
+
   // 🌟 アイコン保持用の変数
 const myPhoto = ref("");
 const friendPhoto = ref("");
