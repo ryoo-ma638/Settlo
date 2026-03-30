@@ -1,5 +1,11 @@
 <template>
   <div class="friend-container">
+    <header class="page-header">
+      <button class="back-btn" @click="$router.back()">‹</button>
+      <h1 class="page-title">フレンド＆精算</h1>
+      <div class="spacer"></div>
+    </header>
+
     <main class="content">
       <div class="fixed-top-items">
         <button class="add-friend-main-button" @click="isModalOpen = true">
@@ -30,7 +36,8 @@
         <div class="control-panel">
           <select v-model="currentFilter" class="custom-select">
             <option value="all">すべて表示</option>
-            <option value="friend_only">フレンドのみ</option> <option value="trading">取引中</option>
+            <option value="friend_only">フレンドのみ</option> 
+            <option value="trading">取引中</option>
             <option value="not_friend">取引あり（未フレンド）</option>
           </select>
           <select v-model="currentSort" class="custom-select">
@@ -60,9 +67,8 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import FriendAddModal from '@/components/FriendAddModal.vue'
-import FriendCard from '@/components/FriendCard.vue' // 🌟 追加
-// 🌟 <script setup> に追加する処理
-import FriendApproveModal from '@/components/FriendApproveModal.vue' // インポートを追加
+import FriendCard from '@/components/FriendCard.vue' 
+import FriendApproveModal from '@/components/FriendApproveModal.vue' 
 
 const router = useRouter()
 const isModalOpen = ref(false)
@@ -70,31 +76,26 @@ const isModalOpen = ref(false)
 const currentFilter = ref('all')
 const currentSort = ref('added_desc')
 
-
-// 🌟 ダミーデータ（テスト用にフィルターがかかるよう情報を追加）
 const friendData = ref([
   { id: 1, name: '天野 椋祐', kana: 'アマノ リョウスケ', color: '#ff9980', isFriend: true, isTrading: true, tradeCount: 5, addedAt: '2026-03-20' },
   { id: 2, name: '小野木 涼平', kana: 'オノギ リョウヘイ', color: '#ffee10', isFriend: true, isTrading: false, tradeCount: 12, addedAt: '2025-12-10' },
   { id: 3, name: '大崎 稜馬', kana: 'オオサキ リョウマ', color: '#ff0000', isFriend: false, isTrading: true, tradeCount: 2, addedAt: '' },
   { id: 4, name: '中橋 楓華', kana: 'ナカハシ フウカ', color: '#889900', isFriend: true, isTrading: true, tradeCount: 8, addedAt: '2026-01-15' },
 ])
-// 申請がきているユーザーのダミーデータ
+
 const pendingRequests = ref([
   { id: 101, name: 'テスト 太郎', color: '#a0aec0' }
 ]);
-// 承認モーダル用の状態管理
+
 const isApproveModalOpen = ref(false);
 const selectedRequestUser = ref(null);
 
-// 確認ボタンを押した時
 const openApproveModal = (user) => {
   selectedRequestUser.value = user;
   isApproveModalOpen.value = true;
 };
 
-// モーダル内で「承認する」が実行された後の処理
 const handleApproveDone = (approvedUser) => {
-  // 承認された人を「申請一覧」から消す（ダミー処理）
   pendingRequests.value = pendingRequests.value.filter(u => u.id !== approvedUser.id);
 };
 
@@ -106,7 +107,6 @@ const processedList = computed(() => {
   } else if (currentFilter.value === 'not_friend') {
     list = list.filter(u => !u.isFriend);
   } else if (currentFilter.value === 'friend_only') {
-    // 🌟 追加：フレンド（isFriend が true）のみを残す
     list = list.filter(u => u.isFriend);
   }
   
@@ -124,8 +124,15 @@ const navigateToDetail = (friend) => {
 </script>
 
 <style scoped>
-.friend-container { min-height: 100vh; background-color: #eef7ff; }
-.content { padding: 20px 20px 100px 20px; box-sizing: border-box; }
+.friend-container { min-height: 100vh; background-color: #eef7ff; display: flex; flex-direction: column; }
+
+/* 🌟 ヘッダーのスタイルを追加 */
+.page-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px 5px; background: transparent; position: sticky; top: 0; z-index: 100; }
+.back-btn { background: none; border: none; font-size: 36px; color: #64748b; cursor: pointer; padding: 0; line-height: 1; display: flex; align-items: center; z-index: 101; }
+.page-title { position: absolute; left: 50%; transform: translateX(-50%); font-size: 18px; font-weight: 900; margin: 0; color: #1e293b; white-space: nowrap; }
+.spacer { width: 36px; }
+
+.content { padding: 15px 20px 100px 20px; box-sizing: border-box; flex: 1; }
 .fixed-top-items { margin-bottom: 10px; }
 
 .add-friend-main-button { width: 100%; padding: 12px; background-color: #2169a3; color: white; border: none; border-radius: 25px; font-size: 18px; font-weight: bold; margin-bottom: 25px; cursor: pointer; }
