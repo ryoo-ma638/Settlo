@@ -8,12 +8,19 @@
   
       <main class="content">
         <div class="final-card" :class="netBalance >= 0 ? 'receive-bg' : 'pay-bg'">
-          <p class="label">{{ netBalance >= 0 ? 'あなたへの未払い（受け取る）' : 'あなたからの未払い（支払う）' }}</p>
+          <p class="label">{{ netBalance >= 0 ? 'あなたへの未払い（受け取る）' : 'あなたの未払い（支払う）' }}</p>
           <h2 class="amount">¥{{ Math.abs(netBalance).toLocaleString() }}</h2>
+          
           <div class="settle-route">
-            <div class="avatar-me"></div>
+            <div class="avatar-me">
+              <img v-if="myPhoto" :src="myPhoto" class="avatar-img" />
+              <div v-else class="inline-avatar-default"></div>
+            </div>
             <span class="route-arrow">{{ netBalance >= 0 ? '←' : '→' }}</span>
-            <div class="avatar-friend" style="background-color: #ff9980;"></div>
+            <div class="avatar-friend">
+              <img v-if="friendPhoto" :src="friendPhoto" class="avatar-img" />
+              <div v-else class="avatar-placeholder" style="background-color: #ff9980;"></div>
+            </div>
           </div>
         </div>
   
@@ -79,12 +86,63 @@
   </template>
   
   <script setup>
-  import { ref, computed } from 'vue';
+  import { ref, computed, onMounted } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
+  import { auth, db } from '@/firebase'; // firebase のインポートを追加
+  import { doc, getDoc } from 'firebase/firestore'; // Firestore 用
   import PaymentReceipt from '../components/PaymentReceipt.vue'; // 🌟 コンポーネントをインポート
   
   const route = useRoute();
   const router = useRouter();
+
+  const friendDoc = await getDoc(doc(db, "users", uid)); // 🌟 users直下を探す
+
+  if (friendDoc.exists()) {
+  const data = friendDoc.data();
+  // ユーザーは見つかった！
+  friend.value = data; 
+  
+  // 🌟 画像は「あれば入れる、なければ空」にするだけ（これでエラーは出ない）
+  friendPhoto.value = data.photo || data.photoURL || "";
+  
+  console.log("ユーザー発見！名前:", data.name);
+} else {
+  // 🌟 ここを通るなら「IDそのものがFirestoreにない」ということ
+  console.error("ユーザーが見つかりません。UID:", uid);
+}
+
+  // 🌟 アイコン保持用の変数
+const myPhoto = ref("");
+const friendPhoto = ref("");
+
+onMounted(async () => {
+  const myUid = auth.currentUser?.uid;
+  // 🌟 route.params.uid が正しいかチェック
+  const friendUid = route.query.uid;
+
+  if (myUid) {
+    // 1. 自分のデータを取得
+    const myDoc = await getDoc(doc(db, "users", myUid));
+    if (myDoc.exists()) {
+      myPhoto.value = myDoc.data().photo || myDoc.data().photoURL || "";
+    }
+
+    // 2. 相手（中橋梨心さん）のデータを「users」から直接取る
+    if (friendUid) {
+      const friendDoc = await getDoc(doc(db, "users", friendUid));
+      if (friendDoc.exists()) {
+        const data = friendDoc.data();
+        // ここで確実に代入
+        friendPhoto.value = data.photo || data.photoURL || "";
+        console.log("🔥 取得した相手のURL:", friendPhoto.value);
+      } else {
+        console.error("❌ 相手のユーザーが見つかりません。UID:", friendUid);
+      }
+    } else {
+      console.error("❌ 相手のUIDがURLパラメータに含まれていません");
+    }
+  }
+});
   
   // 🌟 データの構造化 (included: true で計算対象にする)
   const allEvents = ref([
@@ -171,20 +229,28 @@
 
   /* 🌟 戻るボタンのスタイル追加 */
 .detail-header {
-  display: flex;
-  align-items: center;
-  padding: 10px 15px;
-  background: white;
+  display: flex;  align-items: center;  padding: 10px 15px;  background: white;
 }
 .back-btn {
-  background: none;
-  border: none;
-  font-size: 32px;
-  color: #64748b;
-  cursor: pointer;
+  background: none;  border: none;  font-size: 32px;  color: #64748b;  cursor: pointer;
 }
 
 .spacer {
   display: none; /* spacer は padding-right で代用するため非表示 */
+}
+
+/* 既存の .avatar-me, .avatar-friend を調整 */
+.avatar-me, .avatar-friend {
+  width: 50px; height: 50px; border-radius: 50%;   background: #dcdcdc; border: 3px solid white;
+  overflow: hidden; /* 🌟 はみ出した画像を切る */  display: flex; align-items: center; justify-content: center;
+}
+
+/* 🌟 追加：画像自体のスタイル */
+.avatar-img {
+  width: 100%; height: 100%;  object-fit: cover; /* 🌟 縦横比を保って枠を埋める */
+}
+
+.avatar-placeholder {
+  width: 100%; height: 100%;
 }
   </style>
