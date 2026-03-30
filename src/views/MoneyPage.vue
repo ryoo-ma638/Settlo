@@ -229,8 +229,6 @@ onMounted(() => {
   });
 })
 
-})
-
 // タブを切り替えずにパラメーターだけ変わった時にも対応
 watch(() => route.query.tab, (newTab) => {
   if (newTab) currentTab.value = newTab
