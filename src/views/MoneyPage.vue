@@ -1,79 +1,70 @@
 <template>
   <div class="money-page-container">
-    <div class="tab-container">
-      <button
-        class="tab-btn"
-        :class="{ active: currentTab === 'waiting' }"
-        @click="currentTab = 'waiting'"
-      >
-        入金待ち
-      </button>
-      <button
-        class="tab-btn"
-        :class="{ active: currentTab === 'unpaid' }"
-        @click="currentTab = 'unpaid'"
-      >
-        未払い
-      </button>
-    </div>
+    <header class="page-header">
+      <button class="back-btn" @click="$router.back()">‹</button>
+      <h1 class="page-title">お支払い・精算</h1>
+      <div class="spacer"></div>
+    </header>
 
-    <div v-if="currentTab === 'waiting'" class="tab-content">
-      <div class="card summary-card blue-bg">
-        <p class="summary-title">現在の入金待ち</p>
-        <h1 class="summary-amount">¥ 12,450</h1>
-        <div class="badge">△ 3件の入金待ち</div>
+    <div class="money-content">
+      <div class="tab-container">
+        <button class="tab-btn" :class="{ active: currentTab === 'waiting' }" @click="currentTab = 'waiting'">入金待ち</button>
+        <button class="tab-btn" :class="{ active: currentTab === 'unpaid' }" @click="currentTab = 'unpaid'">未払い</button>
       </div>
 
-      <h2 class="section-title">入金待ち詳細</h2>
+      <div v-if="currentTab === 'waiting'" class="tab-content">
+        <div class="card summary-card blue-bg">
+          <p class="summary-title">現在の入金待ち</p>
+          <h1 class="summary-amount">¥ 12,450</h1>
+          <div class="badge">△ 3件の入金待ち</div>
+        </div>
 
-      <div v-for="item in receivableList" :key="item.id" class="card list-card">
-        <div class="list-left">
-          <p class="date">{{ item.date }}</p>
-          <div class="circle" :style="{ backgroundColor: item.color }"></div>
-          <div class="info">
-            <p class="name">{{ item.name }}</p>
-            <p class="event">{{ item.itemName }}</p>
+        <h2 class="section-title">入金待ち詳細</h2>
+
+        <div v-for="item in receivableList" :key="item.id" class="card list-card">
+          <div class="list-left">
+            <p class="date">{{ item.date }}</p>
+            <div class="circle" :style="{ backgroundColor: item.color }"></div>
+            <div class="info">
+              <p class="name">{{ item.name }}</p>
+              <p class="event">{{ item.itemName }}</p>
+            </div>
+          </div>
+          <div class="list-right">
+            <p class="amount red-text">¥{{ item.amount.toLocaleString() }}</p>
+            <button class="btn btn-green" @click="$router.push('/payment-detail/waiting-' + item.id)">催促する</button>
           </div>
         </div>
-        <div class="list-right">
-          <p class="amount red-text">¥{{ item.amount.toLocaleString() }}</p>
-          <button class="btn btn-green" @click="$router.push('/payment-detail/waiting-' + item.id)">
-            催促する
-          </button>
+      </div>
+
+      <div v-if="currentTab === 'unpaid'" class="tab-content">
+        <div class="card summary-card orange-bg">
+          <p class="summary-title">現在の未払い</p>
+          <h1 class="summary-amount">¥ 8,300</h1>
+          <div class="badge">△ 2件の未支払い</div>
         </div>
-      </div>
-    </div>
 
-    <div v-if="currentTab === 'unpaid'" class="tab-content">
-      <div class="card summary-card orange-bg">
-        <p class="summary-title">現在の未払い</p>
-        <h1 class="summary-amount">¥ 8,300</h1>
-        <div class="badge">△ 2件の未支払い</div>
-      </div>
+        <h2 class="section-title">支払い詳細</h2>
 
-      <h2 class="section-title">支払い詳細</h2>
-
-      <div v-for="item in payableList" :key="item.id" class="card list-card">
-        <div class="list-left">
-          <p class="date">{{ item.date }}</p>
-          <div class="circle" :style="{ backgroundColor: item.color }"></div>
-          <div class="info">
-            <p class="name">{{ item.name }}</p>
-            <p class="event">{{ item.itemName }}</p>
+        <div v-for="item in payableList" :key="item.id" class="card list-card">
+          <div class="list-left">
+            <p class="date">{{ item.date }}</p>
+            <div class="circle" :style="{ backgroundColor: item.color }"></div>
+            <div class="info">
+              <p class="name">{{ item.name }}</p>
+              <p class="event">{{ item.itemName }}</p>
+            </div>
+          </div>
+          <div class="list-right">
+            <p class="amount red-text">¥{{ item.amount.toLocaleString() }}</p>
+            <button class="btn btn-red" @click="$router.push('/payment-detail/unpaid-' + item.id)">支払いを完了させる</button>
           </div>
         </div>
-        <div class="list-right">
-          <p class="amount red-text">¥{{ item.amount.toLocaleString() }}</p>
-          <button class="btn btn-red" @click="$router.push('/payment-detail/unpaid-' + item.id)">
-            支払いを完了させる
-          </button>
-        </div>
       </div>
-    </div>
-    <div class="all-history-action">
-      <button class="all-history-btn" @click="$router.push('/payment-history')">
-        📜 全ての履歴を見る
-      </button>
+      
+      <div class="all-history-action">
+        <button class="all-history-btn" @click="$router.push('/payment-history')">📜 全ての履歴を見る</button>
+      </div>
     </div>
   </div>
 </template>
@@ -83,23 +74,16 @@ import { ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
-const currentTab = ref('waiting') // デフォルトを左側の「入金待ち」にする
+const currentTab = ref('waiting')
 
-// 🌟 URLパラメータ (?tab=xxx) に応じて開くタブを切り替える
 onMounted(() => {
-  if (route.query.tab) {
-    currentTab.value = route.query.tab
-  }
+  if (route.query.tab) currentTab.value = route.query.tab
 })
 
-// タブを切り替えずにパラメーターだけ変わった時にも対応
 watch(() => route.query.tab, (newTab) => {
-  if (newTab) {
-    currentTab.value = newTab
-  }
+  if (newTab) currentTab.value = newTab
 })
 
-// --- ダミーデータ ---
 const payableList = ref([
   { id: 1, date: '3/10', name: '小野木涼平', itemName: 'レンタカー代', amount: 2000, color: '#fca5a5' },
   { id: 2, date: '3/11', name: '大崎稜馬', itemName: '飲み会代', amount: 6300, color: '#93c5fd' },
@@ -113,7 +97,16 @@ const receivableList = ref([
 </script>
 
 <style scoped>
-.money-page-container { font-family: 'Noto Sans JP', sans-serif; background-color: #f0f4f8; padding: 20px; min-height: 100vh; }
+/* 🌟 レイアウトの調整 */
+.money-page-container { font-family: 'Noto Sans JP', sans-serif; background-color: #f0f4f8; min-height: 100vh; display: flex; flex-direction: column; }
+.money-content { padding: 15px 20px 100px; flex: 1; } /* 🌟 コンテンツ側の余白を設定 */
+
+/* 🌟 ヘッダーのスタイルを追加 */
+.page-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px 0; background: transparent; position: sticky; top: 0; z-index: 100; }
+.back-btn { background: none; border: none; font-size: 36px; color: #64748b; cursor: pointer; padding: 0; line-height: 1; display: flex; align-items: center; z-index: 101; }
+.page-title { position: absolute; left: 50%; transform: translateX(-50%); font-size: 18px; font-weight: 900; margin: 0; color: #1e293b; white-space: nowrap; }
+.spacer { width: 36px; }
+
 .tab-container { display: flex; background-color: #e2e8f0; border-radius: 8px; padding: 4px; margin-bottom: 20px; }
 .tab-btn { flex: 1; padding: 10px; border: none; background: transparent; font-weight: bold; color: #64748b; border-radius: 6px; cursor: pointer; transition: all 0.3s ease; }
 .tab-btn.active { background-color: #fff; color: #0f172a; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); }
@@ -121,8 +114,6 @@ const receivableList = ref([
 .card { background-color: #fff; border-radius: 16px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02); }
 .summary-card { text-align: left; }
 .blue-bg { background-color: #2563eb; color: #fff; }
-
-/* 🌟 追加: オレンジ系の背景設定 */
 .orange-bg { background-color: #f59e0b; color: #fff; }
 
 .summary-title { margin: 0; font-size: 14px; opacity: 0.9; }
@@ -146,7 +137,6 @@ const receivableList = ref([
 .btn-red { background-color: #ef4444; }
 .btn-green { background-color: #4ade80; }
 
-/* 🌟 全ての履歴を見るボタン */
 .all-history-action { margin-top: 30px; text-align: center; padding-bottom: 20px; }
 .all-history-btn { background-color: white; border: 1px solid #cbd5e1; color: #1e293b; padding: 14px 30px; border-radius: 25px; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
 .all-history-btn:active { background-color: #f8fafc; transform: scale(0.95); }

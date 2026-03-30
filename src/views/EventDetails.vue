@@ -165,9 +165,11 @@
               </div>
             </section>
             <template v-else>
-              <p class="s-hint">の支払いが残っています。</p>
-              <button class="action-btn main" @click="$router.push('/payment')">お支払い画面へ進む</button>
-            </template>
+  <p class="s-hint">の支払いが残っています。</p>
+  <button class="action-btn main" @click="goToBatchPayment(selectedSummary)">
+    {{ selectedSummary.isMePayer ? 'まとめて支払う画面へ' : 'まとめて受け取る・催促へ' }}
+  </button>
+          </template>
           </div>
         </div>
       </div>
@@ -273,6 +275,21 @@ const addHistory = (newPayment) => {
   eventData.value.total += newPayment.amount;
   modals.value.addPayment = false;
   setTimeout(scrollToTimeline, 300);
+};
+
+
+// 🌟 自分が払う側か、受け取る側かで「イベント単位のまとめ画面」へ賢く遷移させる
+const goToBatchPayment = (summary) => {
+  modals.value.summaryDetail = false;
+  const eventId = eventData.value.id || 1; // ダミーのイベントID
+  
+  if (summary.isMePayer) {
+    // 支払う側なら、「イベント単位で支払う」画面へ
+    router.push(`/payment-detail/event-unpaid-${eventId}`);
+  } else {
+    // 受け取る側なら、「イベント単位で受け取る・催促する」画面へ
+    router.push(`/payment-detail/event-waiting-${eventId}`);
+  }
 };
 
 const handleEndEvent = () => unpaidItems.value.length > 0 ? modals.value.unpaidWarning = true : router.push('/');
