@@ -134,9 +134,9 @@ const goToEventDetail = (id) => {
   router.push(`/event/${id}`);
 };
 
-onMounted(() => {
+const onMounted = () => {
   fetchEvents(); // 🌟 起動時にサーバーと連結
-});
+};
 </script>
 
 <style scoped>
