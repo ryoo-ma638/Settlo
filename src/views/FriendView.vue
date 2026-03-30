@@ -71,8 +71,8 @@ import { useRouter } from 'vue-router'
 import { auth, db } from '@/firebase' // ★ firebase.js から db と auth を読み込む
 import { onAuthStateChanged } from 'firebase/auth' // ★ ログイン状態の監視
 import { 
-  collection,   query,   where,   onSnapshot, 
-  doc,   getDoc,   setDoc,   deleteDoc, addDoc,  serverTimestamp 
+  collection,  query,  where,  onSnapshot, 
+  doc,  getDoc,  setDoc,  deleteDoc, addDoc,  serverTimestamp 
 } from 'firebase/firestore' // ★ Firestore操作に必要なものすべて
 
 import FriendAddModal from '@/components/FriendAddModal.vue'
@@ -86,7 +86,32 @@ const isModalOpen = ref(false)
 const currentFilter = ref('all')
 const currentSort = ref('added_desc')
 
-const friendData = ref([]); 
+// 決済保存時などに呼び出す関数
+const addTradingUserToList = async (targetUser) => {
+  const myUid = auth.currentUser.uid;
+  const friendUid = targetUser.uid; // 相手のUID
+
+  const friendRef = doc(db, "users", myUid, "friends", friendUid);
+  const friendDoc = await getDoc(friendRef);
+
+  // 🌟 まだリストにいない場合のみ保存（上書き防止）
+  if (!friendDoc.exists()) {
+    await setDoc(friendRef, {
+      uid: friendUid,
+      name: targetUser.name,
+      photo: targetUser.photo || targetUser.photoURL || "",
+      isFriend: false,    // 🌟 ここを false にすることで「未フレンド」扱いにする
+      isTrading: true,    // 取引あり
+      addedAt: serverTimestamp(),
+      tradeCount: 1
+    });
+  } else {
+    // 既にいる場合は取引中フラグだけ更新
+    await updateDoc(friendRef, { isTrading: true });
+  }
+};
+
+const friendData = ref([]);
 const pendingRequests = ref([]);
 /*
 // 🌟 ダミーデータ（テスト用にフィルターがかかるよう情報を追加）
@@ -213,6 +238,8 @@ const handleApproveDone = async (request) => {
     // 4. 申請データを削除
     await deleteDoc(doc(db, "friendRequests", request.id))
     
+
+    
     isApproveModalOpen.value = false
   } catch (error) {
     console.error("承認エラーの詳細:", error)
@@ -223,14 +250,27 @@ const handleApproveDone = async (request) => {
 // フィルタ・ソートロジック
 const processedList = computed(() => {
   let list = friendData.value
-  if (currentFilter.value === 'trading') list = list.filter(u => u.isTrading)
-  if (currentFilter.value === 'friend_only') list = list.filter(u => u.isFriend)
+  // 🌟 フィルター条件を拡充
+  if (currentFilter.value === 'trading') {
+    list = list.filter(u => u.isTrading);
+  } else if (currentFilter.value === 'friend_only') {
+    list = list.filter(u => u.isFriend === true);
+  } else if (currentFilter.value === 'not_friend') {
+    // 🌟 修正：取引はあるが、フレンドではない人（isFriend が false または未定義）
+    list = list.filter(u => u.isFriend === false || u.isFriend === undefined);
+  }
   
+  // ソート処理（既存のまま）
   return [...list].sort((a, b) => {
-    if (currentSort.value === 'kana_asc') return (a.kana || "").localeCompare(b.kana || "", 'ja')
-    return (b.addedAt?.seconds || 0) - (a.addedAt?.seconds || 0)
-  })
-})
+    if (currentSort.value === 'kana_asc') {
+      return (a.kana || "").localeCompare(b.kana || "", 'ja');
+    }
+    // addedAt がない場合（未フレンド時など）を考慮して 0 をデフォルトに
+    const timeA = a.addedAt?.seconds || 0;
+    const timeB = b.addedAt?.seconds || 0;
+    return timeB - timeA;
+  });
+});
 
 const navigateToDetail = (friend) => {
   // console.log(friend) で中身を確認すると、id または uid という名前でIDが入っているはずです
@@ -241,8 +281,11 @@ const navigateToDetail = (friend) => {
     return;
   }
 
-  // 第二引数に正しくUIDを入れます
-  router.push(`/friend/${encodeURIComponent(friend.name)}/${uid}`);
+  // 🌟 pathの末尾にUIDを入れ、さらに query としても UID を渡す
+  router.push({
+    path: `/friend/${encodeURIComponent(friend.name)}/${uid}`,
+    query: { uid: uid } // 🌟 これがないと detail 側の route.query.uid が空になります
+  });
 };
 </script>
 
