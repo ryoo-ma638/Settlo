@@ -10,7 +10,7 @@ export function useTransactions() {
   // 引数 'data' に型 'TransactionData' を指定
   const addTransaction = async (data: TransactionData) => {
     try {
-      const response = await fetch('http://localhost:3001/api/transactions', {
+  const response = await fetch('http://localhost:3000/api/transactions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
