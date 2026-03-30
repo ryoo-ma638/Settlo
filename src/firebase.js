@@ -2,6 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getFunctions } from "firebase/functions";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -24,6 +25,7 @@ const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 
 const db = getFirestore(app);
+const functions = getFunctions(app, "asia-northeast1");
 
 // 一番下の行をこれに書き換えてください
-export { app, auth, provider, db };
+export { app, auth, provider, db, functions };

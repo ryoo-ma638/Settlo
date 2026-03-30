@@ -192,13 +192,20 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import { useRouter } from 'vue-router';
+// 🌟 1. 重複していた import を1つに綺麗にまとめました！
+import { ref, computed, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router'; // useRoute を追加
+
 import AddPaymentModal from '@/components/AddPaymentModal.vue';
 import ReceiptPaymentModal from '@/components/ReceiptPaymentModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
+import { httpsCallable } from "firebase/functions";
+import { functions } from "@/firebase";
 
+// 🌟 2. URLを見るための道具（route）を準備しました！
+const route = useRoute();
 const router = useRouter();
+
 const timelineSection = ref(null);
 const myName = '大崎 稜馬';
 
@@ -277,23 +284,42 @@ const addHistory = (newPayment) => {
   setTimeout(scrollToTimeline, 300);
 };
 
-
-// 🌟 自分が払う側か、受け取る側かで「イベント単位のまとめ画面」へ賢く遷移させる
 const goToBatchPayment = (summary) => {
   modals.value.summaryDetail = false;
-  const eventId = eventData.value.id || 1; // ダミーのイベントID
+  const eventId = eventData.value.id || 1;
   
   if (summary.isMePayer) {
-    // 支払う側なら、「イベント単位で支払う」画面へ
     router.push(`/payment-detail/event-unpaid-${eventId}`);
   } else {
-    // 受け取る側なら、「イベント単位で受け取る・催促する」画面へ
     router.push(`/payment-detail/event-waiting-${eventId}`);
   }
 };
 
 const handleEndEvent = () => unpaidItems.value.length > 0 ? modals.value.unpaidWarning = true : router.push('/');
 const forceEndEvent = () => { modals.value.unpaidWarning = false; router.push('/'); };
+
+// ==========================================
+// 🌟 クラウドの脳みそを呼び出す処理
+// ==========================================
+const settlementTransfers = ref([]); 
+
+const fetchSettlement = async () => {
+  try {
+    console.log("精算計算をリクエスト中...");
+    const calcFunc = httpsCallable(functions, 'calculateSettlement');
+    const response = await calcFunc({ eventId: route.params.id });
+    console.log("🎉 精算結果が返ってきました！", response.data);
+    settlementTransfers.value = response.data.transfers;
+  } catch (error) {
+    console.error("❌ 精算計算エラー:", error);
+  }
+};
+
+onMounted(() => {
+  if (route.params.id) {
+    fetchSettlement();
+  }
+});
 </script>
 
 <style scoped>
