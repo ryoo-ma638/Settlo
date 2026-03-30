@@ -209,23 +209,34 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'; // 🌟 onMountedを追加
-import { useRouter } from 'vue-router';
+// ==========================================
+// 🌟 1. 2人の import を綺麗に合体！
+// ==========================================
+import { ref, computed, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router'; 
+
 import AddPaymentModal from '@/components/AddPaymentModal.vue';
 import ReceiptPaymentModal from '@/components/ReceiptPaymentModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
 
+// 🌟 サーバー(Friend)と データベース(Main)の道具を合体！
+import { httpsCallable } from "firebase/functions";
+import { functions } from "@/firebase";
 import { db } from '../firebase'; 
-// 🌟 変更後（doc と updateDoc を追加！）
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 
+// 🌟 あなたが作った最強の計算ツールを読み込む！
 import { useSettlement } from '../composables/useSettlement';
+
+// ==========================================
+// 🌟 2. 初期設定・データ定義
+// ==========================================
+const route = useRoute();
 const router = useRouter();
 const timelineSection = ref(null);
 const myName = '大崎 稜馬';
 
 const modals = ref({ participants: false, historyDetail: false, summaryDetail: false, unpaidWarning: false, addPayment: false, invite: false });
-
 const inviteUser = () => { modals.value.invite = true; };
 const selectedHistory = ref(null);
 const selectedSummary = ref(null);
@@ -238,29 +249,23 @@ const eventData = ref({
     { id: 3, name: '天野 椋祐', color: '#86efac' },
     { id: 4, name: '中橋 楓華', color: '#fde047' },
   ],
-  summary: [
-    { id: 1, from: '小野木 涼平', fromColor: '#93c5fd', to: '大崎 稜馬', toColor: '#fca5a5', amount: 1500, isMePayer: false, status: 'unpaid' },
-    { id: 2, from: '大崎 稜馬', fromColor: '#fca5a5', to: '天野 椋祐', toColor: '#86efac', amount: 2000, isMePayer: true, status: 'completed' }
-  ],
-  history: [
-    { id: 1, payer: '大崎 稜馬', itemName: 'レンタカー代', splitType: '全員で割勘', amount: 8000, color: '#fca5a5', date: '3/25', time: '10:00', status: 'completed', involvesMe: true, timestamp: 1 },
-    { id: 2, payer: '小野木 涼平', itemName: '高速料金', splitType: '個別会計', amount: 4500, color: '#93c5fd', date: '3/25', time: '11:30', status: 'unpaid', involvesMe: false, timestamp: 2 },
-    { id: 3, payer: '天野 椋祐', itemName: '昼食代', splitType: '全員で割勘', amount: 6000, color: '#86efac', date: '3/25', time: '13:00', status: 'unpaid', involvesMe: true, timestamp: 3 }
-  ]
+  history: [] // データベースから取得するので初期値は空でOK
 });
 
-// 🟢 変更後（sumFilterStatus を消して sharedFilterStatus に統一）
 const sumFilterScope = ref('all'); 
 const histFilterScope = ref('all'); 
 const histSort = ref('new'); 
-const sharedFilterStatus = ref('unpaid'); // 🌟 これ一つで両方をコントロール！
+const sharedFilterStatus = ref('unpaid'); 
 
+// ==========================================
+// 🌟 3. あなたのスッキリ計算ロジック！
+// ==========================================
+// あの長かった100行近いコードが、この1行で発動します！
 const { calculatedSummary } = useSettlement(eventData, myName);
 
 const filteredSummary = computed(() => {
   return calculatedSummary.value.filter(s => {
     const scopeMatch = sumFilterScope.value === 'all' || (s.from === myName || s.to === myName);
-    // 🌟 sharedFilterStatus に変更
     const statusMatch = sharedFilterStatus.value === 'all' || s.status === sharedFilterStatus.value;
     return scopeMatch && statusMatch;
   });
@@ -269,7 +274,6 @@ const filteredSummary = computed(() => {
 const filteredHistory = computed(() => {
   let result = eventData.value.history.filter(h => {
     const scopeMatch = histFilterScope.value === 'all' || h.involvesMe || h.payer === myName;
-    // 🌟 履歴側にも sharedFilterStatus の条件を追加！
     const statusMatch = sharedFilterStatus.value === 'all' || h.status === sharedFilterStatus.value;
     return scopeMatch && statusMatch;
   });
@@ -282,37 +286,27 @@ const scrollToTimeline = () => timelineSection.value?.scrollIntoView({ behavior:
 const openHistoryDetail = (h) => { selectedHistory.value = h; modals.value.historyDetail = true; };
 const openSummaryDetail = (s) => { selectedSummary.value = s; modals.value.summaryDetail = true; };
 
-// 🌟 差し替える部分：Firestoreのデータを「精算済」に更新する
+// ==========================================
+// 🌟 4. Firestore データベース操作
+// ==========================================
 const markAsCompleted = async (id) => {
   try {
-    const eventId = "test-event-1"; 
-    // 更新したい特定の支払いデータの場所をピンポイントで指定
+    const eventId = route.params.id || "test-event-1"; 
     const docRef = doc(db, "events", eventId, "history", id);
-
-    // データベースの status を 'completed' (精算済) に書き換え！
-    await updateDoc(docRef, {
-      status: 'completed'
-    });
-
+    await updateDoc(docRef, { status: 'completed' });
     console.log("✅ 決済完了！Firestoreを更新しました");
-    modals.value.historyDetail = false; // モーダルを自動で閉じる
-    
+    modals.value.historyDetail = false; 
   } catch (error) {
     console.error("更新エラー:", error);
     alert("決済の更新に失敗しました。");
   }
 };
 
-// 🌟 差し替える部分：Firestoreへの保存処理
 const addHistory = async (newPayment) => {
   try {
-    // ※今回はテストのため、イベントIDを "test-event-1" に固定します。（後でURLから取得するようにします）
-    const eventId = "test-event-1"; 
-    
-    // Firestoreの「events」の中の「test-event-1」の中の「history」という引き出しを指定
+    const eventId = route.params.id || "test-event-1"; 
     const historyRef = collection(db, "events", eventId, "history");
 
-    // データベースに新しい支払いを追加（保存）！
     const docRef = await addDoc(historyRef, {
       payer: newPayment.payer, 
       itemName: newPayment.itemName, 
@@ -323,39 +317,32 @@ const addHistory = async (newPayment) => {
       time: newPayment.time, 
       status: 'unpaid', 
       involvesMe: true, 
-      timestamp: serverTimestamp(), // Firebaseの正確な時間を記録
-      items: newPayment.items || [] // レシートの内訳も保存！
+      timestamp: serverTimestamp(), 
+      items: newPayment.items || [] 
     });
 
     console.log("🔥 Firestoreに保存成功！ ID:", docRef.id);
-
-    // 画面の合計金額を更新
     eventData.value.total += newPayment.amount;
     modals.value.addPayment = false;
     setTimeout(scrollToTimeline, 300);
-    
   } catch (error) {
     console.error("保存エラー:", error);
     alert("支払いの追加に失敗しました。");
   }
 };
 
-// 🌟 追加する部分：Firestoreのデータをリアルタイムで監視・取得する
+// リアルタイム監視
 onMounted(() => {
-  const eventId = "test-event-1"; 
+  const eventId = route.params.id || "test-event-1"; 
   const historyRef = collection(db, "events", eventId, "history");
-  
-  // 「追加された時間（timestamp）の古い順」に並び替えて取得するよう指示
   const q = query(historyRef, orderBy("timestamp", "asc"));
 
-  // onSnapshotを使うと、データベースに変更があった瞬間に自動でこの中身が走ります！
   onSnapshot(q, (snapshot) => {
     const fetchedHistory = [];
-    
     snapshot.forEach((doc) => {
       const data = doc.data();
       fetchedHistory.push({
-        id: doc.id, // FirestoreのユニークなIDをセット
+        id: doc.id, 
         payer: data.payer,
         itemName: data.itemName,
         splitType: data.splitType,
@@ -366,36 +353,51 @@ onMounted(() => {
         status: data.status,
         involvesMe: data.involvesMe,
         items: data.items || [],
-        // Firebaseの特殊な時間データを、画面で扱いやすいミリ秒の数値に変換
         timestamp: data.timestamp ? data.timestamp.toMillis() : Date.now()
       });
     });
 
-    // ダミーデータが入っていた eventData.value.history を、今取得した「本物のデータ」で上書き！
     eventData.value.history = fetchedHistory;
-    
-    // 画面の一番上にある「合計金額」も、本物のデータから自動で計算し直す
     eventData.value.total = fetchedHistory.reduce((sum, item) => sum + item.amount, 0);
   });
 });
 
-
-// 🌟 自分が払う側か、受け取る側かで「イベント単位のまとめ画面」へ賢く遷移させる
 const goToBatchPayment = (summary) => {
   modals.value.summaryDetail = false;
-  const eventId = eventData.value.id || 1; // ダミーのイベントID
+  const eventId = eventData.value.id || 1;
   
   if (summary.isMePayer) {
-    // 支払う側なら、「イベント単位で支払う」画面へ
     router.push(`/payment-detail/event-unpaid-${eventId}`);
   } else {
-    // 受け取る側なら、「イベント単位で受け取る・催促する」画面へ
     router.push(`/payment-detail/event-waiting-${eventId}`);
   }
 };
 
 const handleEndEvent = () => unpaidItems.value.length > 0 ? modals.value.unpaidWarning = true : router.push('/');
 const forceEndEvent = () => { modals.value.unpaidWarning = false; router.push('/'); };
+
+// ==========================================
+// 🌟 5. お友達（Friend）のクラウド精算呼び出し！
+// ==========================================
+const settlementTransfers = ref([]); 
+
+const fetchSettlement = async () => {
+  try {
+    console.log("精算計算をリクエスト中...");
+    const calcFunc = httpsCallable(functions, 'calculateSettlement');
+    const response = await calcFunc({ eventId: route.params.id });
+    console.log("🎉 精算結果が返ってきました！", response.data);
+    settlementTransfers.value = response.data.transfers;
+  } catch (error) {
+    console.error("❌ 精算計算エラー:", error);
+  }
+};
+
+onMounted(() => {
+  if (route.params.id) {
+    fetchSettlement();
+  }
+});
 </script>
 
 <style scoped>
