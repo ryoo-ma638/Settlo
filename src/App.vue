@@ -43,8 +43,9 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { onAuthStateChanged } from "firebase/auth"
 import { auth } from "./firebase"
+import { getMessaging, getToken } from "firebase/messaging"
 
-// コンポーネントのインポート
+// 🌟 1. コンポーネントのインポート
 import AppHeader from './components/AppHeader.vue'
 import AppFooter from './components/AppFooter.vue'
 import AppSidebar from './components/AppSidebar.vue'
@@ -52,7 +53,29 @@ import NotificationIcon from './components/NotificationIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
-const authChecked = ref(false) // 🌟 認証状態を確認したかどうかのフラグ
+const authChecked = ref(false)
+const messaging = getMessaging()
+
+// 🌟 2. 通知許可を求める関数
+const requestNotificationPermission = async () => {
+  try {
+    const permission = await Notification.requestPermission()
+    if (permission === "granted") {
+      console.log("通知の許可が得られました！")
+      
+      // ⚠️ ここに、Firebaseコンソールで取得した「VAPID鍵」を貼り付けてください！
+      const token = await getToken(messaging, { 
+        vapidKey: "BJ1ETrFo6dkYa-TueyQTYuSYQbRi0BD_UJmh2bRigKzzZnhHjU7bsUZgLWrPWvngVsN9iwWTz6yZczxkn53-0_c" 
+      })
+      
+      console.log("あなたのデバイストークン:", token)
+    } else {
+      console.warn("通知が拒否されました")
+    }
+  } catch (err) {
+    console.error("トークン取得中にエラー:", err)
+  }
+}
 
 // 🖥 PCサイズ判定ロジック
 const isDesktop = ref(window.innerWidth >= 1024)
@@ -60,27 +83,30 @@ const updateSize = () => {
   isDesktop.value = window.innerWidth >= 1024
 }
 
+// 🌟 3. 起動時の処理を1つの onMounted にまとめました
 onMounted(() => {
+  // サイズ変更イベントの登録
   window.addEventListener('resize', updateSize)
   
-  // 🌟 ログイン監視を開始
+  // Push通知の許可リクエスト
+  requestNotificationPermission()
+  
+  // ログイン監視を開始
   onAuthStateChanged(auth, (user) => {
-    authChecked.value = true // チェック完了！
+    authChecked.value = true
     
     if (user) {
-      console.log("Settlo ログイン中:", user.uid);
-      // ログイン済みでログイン画面にいたらマイページへ
+      console.log("Settlo ログイン中:", user.uid)
       if (route.path === "/login") {
-        router.push("/mypage");
+        router.push("/mypage")
       }
     } else {
-      console.log("未ログイン");
-      // 未ログインでログイン必須ページにいたらログイン画面へ
-      if (route.path !== "/login") {
-        router.push("/login");
+      console.log("未ログイン")
+      if (route.path !== "/login" && route.path !== "/signup") {
+        router.push("/login")
       }
     }
-  });
+  })
 })
 
 onUnmounted(() => {
