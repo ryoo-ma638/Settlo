@@ -13,19 +13,12 @@
           <p class="hint-badge">複数の貸し借りを相殺した金額です</p>
         </div>
   
-        <section v-if="isRemind" class="action-section">
-          <h3 class="section-sub">相手に請求する</h3>
-          <button @click="createPayPayLink" class="method-btn paypay">
-            📱 PayPayで請求リンクを作成
-          </button>
-        </section>
-        
-        <section v-else class="action-section">
-          <h3 class="section-sub">アプリで決済</h3>
-          <button @click="confirmPayment('paypay')" class="method-btn paypay">
-            📱 PayPayで支払う (準備中)
-          </button>
-        </section>
+        <section class="action-section">
+        <h3 class="section-sub">{{ isRemind ? '相手に請求する' : 'アプリで決済' }}</h3>
+        <PayPayAction :mode="isRemind ? 'remind' : 'pay'" :opponentUid="targetUid" />
+      </section>
+
+
   
         <footer class="footer-actions">
           <h3 class="section-sub">手渡しの場合</h3>
@@ -34,30 +27,77 @@
           </button>
         </footer>
       </main>
+      <BaseModal 
+        :show="modalState.show"
+        :type="modalState.type"
+        :title="modalState.title"
+        :message="modalState.message"
+        :showCancel="modalState.showCancel"
+        :confirmText="modalState.confirmText"
+        :cancelText="modalState.cancelText"
+        @confirm="handleConfirm"
+        @cancel="modalState.show = false"
+        @close="modalState.show = false"
+      />
     </div>
   </template>
   
   <script setup>
-  import { computed } from 'vue';
+  import { computed, reactive } from 'vue'; // 🌟 reactiveを追加
   import { useRoute } from 'vue-router';
+  import PayPayAction from '../components/PayPayAction.vue';
+  import BaseModal from '../components/BaseModal.vue';
   
+
   const route = useRoute();
   const isRemind = computed(() => route.query.type === 'remind');
   const amount = computed(() => route.query.amount);
+  const targetUid = computed(() => route.query.uid);
   
-  const confirmCash = () => {
-    const msg = isRemind.value 
-      ? "現金で受け取りましたか？\n「支払い完了の承認リクエスト」を送ります。"
-      : "現金で支払いましたか？\n「受け取り完了の承認リクエスト」を送ります。";
-    if (confirm(msg)) alert("承認リクエストを送信しました！");
+  // 🌟 統一モーダルの状態管理
+  const modalState = reactive({
+    show: false, type: 'info', title: '', message: '', 
+    showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null
+  });
+
+  const showModal = (options) => {
+    Object.assign(modalState, { showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, ...options, show: true });
+  };
+
+  const handleConfirm = () => {
+    if (modalState.onConfirm) modalState.onConfirm();
+    modalState.show = false;
   };
   
+  // 🌟 confirm を美しいモーダルに！
+  const confirmCash = () => {
+    showModal({
+      type: 'warning',
+      title: '現金のやり取り確認',
+      message: isRemind.value 
+        ? "現金で受け取りましたか？\n「支払い完了の承認リクエスト」を送ります。"
+        : "現金で支払いましたか？\n「受け取り完了の承認リクエスト」を送ります。",
+      showCancel: true,
+      confirmText: isRemind.value ? '受け取った' : '支払った',
+      onConfirm: () => {
+        setTimeout(() => {
+          showModal({ type: 'success', title: '送信完了', message: '承認リクエストを送信しました！' });
+        }, 300);
+      }
+    });
+  };
+  
+  // 🌟 alert を美しいモーダルに！
   const createPayPayLink = () => {
-    alert(`¥${amount.value} のPayPay請求リンクを作成しました！\n相殺済みの金額です。`);
+    showModal({
+      type: 'success',
+      title: 'リンク作成完了',
+      message: `¥${amount.value.toLocaleString()} のPayPay請求リンクを作成しました！\n相殺済みの金額です。`
+    });
   };
   
   const confirmPayment = () => {
-    alert("PayPayアプリを起動します");
+    showModal({ type: 'info', title: '準備中', message: 'PayPayアプリを起動します' });
   };
   </script>
   
