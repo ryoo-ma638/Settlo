@@ -4,6 +4,7 @@ import cron from 'node-cron';
 import cors from 'cors';
 import admin from 'firebase-admin';
 import path from 'path';
+import fs from 'fs';
 
 const app = express();
 const prisma = new PrismaClient();
@@ -13,11 +14,27 @@ app.use(express.json());
 
 // Firebase Admin 初期化（service-account.json を使用）
 const serviceAccountPath = path.join(process.cwd(), 'service-account.json');
+let _serviceAccount = null;
+try {
+  const raw = fs.readFileSync(serviceAccountPath, 'utf8');
+  _serviceAccount = JSON.parse(raw);
+} catch (e) {
+  // ファイルが存在しないか不正な場合は無視して、ADC (GOOGLE_APPLICATION_CREDENTIALS) にフォールバックします
+}
+// 読み込み結果の簡易ログ（秘密鍵の中身は表示しない）
+console.log('🔐 serviceAccount file present:', _serviceAccount ? `${_serviceAccount.client_email} @ ${_serviceAccount.project_id}` : 'NO');
+
 if (admin.apps.length === 0) {
   try {
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccountPath),
-    });
+    if (_serviceAccount) {
+      // ESM 環境なので require を使わず、読み込んだオブジェクトを渡す
+      admin.initializeApp({
+        credential: admin.credential.cert(_serviceAccount),
+      });
+    } else {
+      // 環境変数 GOOGLE_APPLICATION_CREDENTIALS による認証情報を使う場合や GCP 環境で実行する場合のフォールバック
+      admin.initializeApp();
+    }
     console.log('✅ Firebase Admin initialized in server.js');
   } catch (err) {
     console.error('❌ Firebase Admin init failed:', err);
