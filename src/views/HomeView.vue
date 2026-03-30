@@ -47,20 +47,10 @@
       </div>
     </section>
 
-    <Teleport to="body">
-      <BaseModal 
-        :show="modalState.show"
-        :type="modalState.type"
-        :title="modalState.title"
-        :message="modalState.message"
-        :showCancel="modalState.showCancel"
-        :confirmText="modalState.confirmText"
-        :cancelText="modalState.cancelText"
-        @confirm="handleConfirmModal"
-        @cancel="modalState.show = false"
-        @close="modalState.show = false"
-      />
+    
 
+      
+    <Teleport to="body">
       <transition name="fade">
         <div v-if="selectedEvent" class="modal-overlay" @click.self="selectedEvent = null">
           <div class="detail-modal">
@@ -89,11 +79,9 @@
               <button class="go-detail-btn" @click="goToEventDetail(selectedEvent.id)">
                 このイベントの詳細・精算へ進む
               </button>
-              
               <button class="delete-btn" @click="deleteEvent(selectedEvent.id)">
                 このイベントを終了する
               </button>
-              
               <button class="cancel-btn" @click="selectedEvent = null">
                 閉じる
               </button>
@@ -102,7 +90,21 @@
           </div>
         </div>
       </transition>
+
+      <BaseModal 
+        :show="modalState.show"
+        :type="modalState.type"
+        :title="modalState.title"
+        :message="modalState.message"
+        :showCancel="modalState.showCancel"
+        :confirmText="modalState.confirmText"
+        :cancelText="modalState.cancelText"
+        @confirm="handleConfirmModal"
+        @cancel="modalState.show = false"
+        @close="modalState.show = false"
+      />
     </Teleport>
+      
 
     <button class="add-button" @click="$router.push('/make-event')">+</button>
   </div>
