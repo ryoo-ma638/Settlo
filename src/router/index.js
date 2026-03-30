@@ -12,7 +12,7 @@ import EditProfileView from '../views/EditProfileView.vue';
 import PaymentHistoryView from '../views/PaymentHistoryView.vue';
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHashHistory(import.meta.env.BASE_URL),
   routes: [
     { path: '/', name: 'home', component: HomeView },
     { path: '/friend', name: 'friend', component: FriendView },
