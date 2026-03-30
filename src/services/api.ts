@@ -1,8 +1,11 @@
 import axios, { InternalAxiosRequestConfig } from 'axios';
 import { getAuth } from 'firebase/auth';
 
+// Vite 環境変数 VITE_API_BASE_URL を優先し、未定義ならローカルの server.js (port 3000) を使う
+// TypeScript 環境で import.meta.env の型がない場合があるため any キャストで安全に参照する
+const API_BASE = ((import.meta as any)?.env?.VITE_API_BASE_URL) || 'http://localhost:3000/api';
 const api = axios.create({
-  baseURL: 'http://localhost:3001/api',
+  baseURL: API_BASE,
 });
 
 api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
