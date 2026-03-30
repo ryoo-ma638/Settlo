@@ -29,8 +29,8 @@ api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
     console.warn("⚠️ ログインユーザーが見つかりません。");
   }
   return config;
-}, (error) => {
-  return Promise.reject(error);
+}, () => {
+  return Promise.reject(new Error('リクエストの設定に失敗しました'));
 });
 
 export default api;
