@@ -22,7 +22,9 @@
             @click="goToDetail(item)"
           >
             <div class="card-left">
-              <div class="avatar" :style="{ backgroundColor: item.color || '#cbd5e1' }"></div>
+              <div class="avatar" :style="{ backgroundColor: item.color || '#cbd5e1' }">
+                <img v-if="item.photo" :src="item.photo" class="avatar-img" />
+              </div>
               <div class="info">
                 <p class="name">{{ item.name }}</p>
                 <p class="details">{{ item.date }} <span class="dot-separator">•</span> {{ item.eventName }}</p>
@@ -48,13 +50,19 @@
   </template>
   
   <script setup>
-  import { ref, computed } from 'vue';
+  import { ref, computed , onMounted} from 'vue';
   // 🌟 追加：ルーターを使うためのインポート
   import { useRouter } from 'vue-router';
+  import { db, auth } from '@/firebase'; // 🌟 追加
+
+  import { onAuthStateChanged } from 'firebase/auth';
+  import { collection, query, where, onSnapshot, doc, getDoc, orderBy } from 'firebase/firestore';
   
   const router = useRouter(); // ルーターを準備
   const currentFilter = ref('all');
-  
+  // 🌟 ダミーデータを空にして、Firestoreからのデータを格納する
+  const historyData = ref([]);
+  /*
   const historyData = ref([
     { id: 1, date: '2026/03/25', name: '天野 椋祐', eventName: 'カフェ代', amount: 800, type: 'receive', status: 'pending', color: '#93c5fd' },
     { id: 2, date: '2026/03/24', name: '大崎 稜馬', eventName: '飲み会代', amount: 6300, type: 'pay', status: 'completed', color: '#fca5a5' },
@@ -62,7 +70,74 @@
     { id: 4, date: '2026/03/18', name: '小野木 涼平', eventName: 'レンタカー代', amount: 2000, type: 'pay', status: 'pending', color: '#fde047' },
     { id: 5, date: '2026/03/15', name: '松岡 暖來', eventName: 'タクシー代', amount: 1500, type: 'receive', status: 'completed', color: '#f9a8d4' },
   ]);
-  
+  */
+
+  onMounted(() => {
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      const myUid = user.uid;
+
+      // 🌟 自分が「払う側」または「受け取る側」である取引をすべて監視
+      // 注: Firestoreの制限上、OR条件は 'whereIn' などを使いますが、
+      // ここではシンプルに自分に関係する取引を status 問わず取得します
+      const q = query(
+        collection(db, "transactions"),
+        orderBy("createdAt", "desc") // 新しい順に並べる
+      );
+
+      onSnapshot(q, async (snapshot) => {
+        const list = [];
+        
+        for (const transactionDoc of snapshot.docs) {
+          const data = transactionDoc.data();
+          
+          // 自分に関係ないデータはスキップ
+          if (data.paidById !== myUid && data.paidToId !== myUid) continue;
+
+          // 相手のUIDを特定
+          const isPay = data.paidById === myUid;
+          const otherUid = isPay ? data.paidToId : data.paidById;
+
+          // 相手の情報を取得
+          let otherName = isPay ? (data.paidToName || "相手") : (data.paidByName || "相手");
+          let otherPhoto = "";
+          let otherColor = isPay ? "#fca5a5" : "#93c5fd";
+
+          const userDoc = await getDoc(doc(db, "users", otherUid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            otherName = userData.name || otherName;
+            otherPhoto = userData.photo || userData.photoURL || "";
+          }
+
+          list.push({
+            id: transactionDoc.id,
+            date: formatFullDate(data.createdAt),
+            name: otherName,
+            eventName: data.itemName || "イベント代",
+            amount: data.amount || 0,
+            type: isPay ? 'pay' : 'receive', // 自分が払うなら 'pay'
+            status: data.status || 'pending',
+            photo: otherPhoto,
+            color: otherColor
+          });
+        }
+        historyData.value = list;
+      });
+    }
+  });
+});
+
+// 日付フォーマット関数
+  // formatFullDate を以下に書き換え
+const formatFullDate = (timestamp) => {
+  if (!timestamp || typeof timestamp.toDate !== 'function') {
+    return "日付未定"; // データが壊れている、または未作成の場合
+  }
+  const date = timestamp.toDate();
+  return `${date.getFullYear()}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')}`;
+};
+
   const filteredHistory = computed(() => {
     if (currentFilter.value === 'all') return historyData.value;
     if (currentFilter.value === 'pay') return historyData.value.filter(item => item.type === 'pay');
@@ -172,4 +247,15 @@
     color: #94a3b8; font-weight: bold; margin-top: 60px; 
   }
   .empty-icon { font-size: 40px; margin-bottom: 15px; opacity: 0.5; }
+
+  /* アバター枠の修正 */
+.avatar { 
+  width: 44px;   height: 44px;   border-radius: 50%;   flex-shrink: 0;   box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+  overflow: hidden; /* 画像を丸く切り抜く */  display: flex;  align-items: center;  justify-content: center;
+}
+
+/* 🌟 画像のスタイル追加 */
+.avatar-img {
+  width: 100%;  height: 100%;  object-fit: cover;
+}
   </style>
