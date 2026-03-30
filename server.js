@@ -1,12 +1,29 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import cron from 'node-cron';
+import cors from 'cors';
+import admin from 'firebase-admin';
+import path from 'path';
 
 const app = express();
 const prisma = new PrismaClient();
 const PORT = 3000;
 
 app.use(express.json());
+
+// Firebase Admin 初期化（service-account.json を使用）
+const serviceAccountPath = path.join(process.cwd(), 'service-account.json');
+if (admin.apps.length === 0) {
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccountPath),
+    });
+    console.log('✅ Firebase Admin initialized in server.js');
+  } catch (err) {
+    console.error('❌ Firebase Admin init failed:', err);
+  }
+}
+const db = admin.firestore();
 
 // --- 1. 精算アルゴリズム (最小送金回数) ---
 function calculateMinimalTransfers(balances) {
@@ -61,18 +78,89 @@ function calculateEntropy(balances, totalAmount, createdAt) {
 
 // --- 3. APIエンドポイント ---
 
-// イベント（閉鎖系）の新規作成
+// イベント一覧取得（Firestore ベース）
+app.get('/api/events', async (req, res) => {
+  try {
+    const snapshot = await db.collection('events').orderBy('createdAt', 'desc').get();
+    const events = snapshot.docs.map(doc => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        name: d.name,
+        memo: d.memo || null,
+        tag: d.tag || null,
+        invitationCode: d.invitationCode || null,
+        totalAmount: d.totalAmount || 0,
+        entropy: d.entropy || 0,
+        isClosed: d.isClosed || false,
+        creatorId: d.creatorId || null,
+        createdAt: d.createdAt ? d.createdAt.toDate().toISOString() : null
+      };
+    });
+    return res.json(events);
+  } catch (err) {
+    console.error('❌ Firestore get events failed, falling back to Prisma:', err.message || err);
+    // Firestore が使えない場合は Prisma の DB から読み出すフォールバック
+    try {
+      const prismaEvents = await prisma.event.findMany({ orderBy: { createdAt: 'desc' } });
+      return res.json(prismaEvents);
+    } catch (pErr) {
+      console.error('❌ Prisma fallback also failed:', pErr);
+      return res.status(500).json({ error: pErr.message || err.message });
+    }
+  }
+});
+
+// イベント（閉鎖系）の新規作成（Firestore ベース）
 app.post('/api/events', async (req, res) => {
   try {
-    const { name } = req.body;
-    if (!name) return res.status(400).json({ error: "イベント名が必要です" });
-    const newEvent = await prisma.event.create({
-      data: { name, entropy: 0.0, isClosed: true }
+    const { name, memo, tag, invitationCode, amount, creatorId } = req.body;
+    if (!name) return res.status(400).json({ error: 'イベント名が必要です' });
+
+    const code = invitationCode || Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    const docRef = await db.collection('events').add({
+      name,
+      memo: memo || null,
+      tag: tag || null,
+      invitationCode: code,
+      totalAmount: Number(amount) || 0,
+      entropy: 0.0,
+      isClosed: true,
+      creatorId: creatorId || 'system',
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
-    console.log(`🌌 創世記: 新しい系「${name}」が誕生しました。`);
-    res.json(newEvent);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+
+    const created = await docRef.get();
+    const data = created.data();
+    console.log(`🌌 Firestore: Created event "${name}" (code: ${code}) id=${docRef.id}`);
+    return res.json({ id: docRef.id, ...data, createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null });
+  } catch (err) {
+    console.error('❌ Firestore create event failed, falling back to Prisma:', err.message || err);
+    // Firestore が使えない場合、既存の Prisma ベースの作成にフォールバック
+    try {
+      const { name, invitationCode } = req.body;
+      const code = invitationCode || Math.random().toString(36).substring(2, 8).toUpperCase();
+      const newEvent = await prisma.event.create({
+        data: {
+          name,
+          invitationCode: code,
+          entropy: 0.0,
+          isClosed: true,
+          creator: {
+            connectOrCreate: {
+              where: { firebaseUid: 'system' },
+              create: { firebaseUid: 'system', name: 'system' }
+            }
+          }
+        }
+      });
+      console.log(`🌌 Prisma fallback: Created event "${name}" (code: ${code}) id=${newEvent.id}`);
+      return res.json(newEvent);
+    } catch (pErr) {
+      console.error('❌ Prisma fallback also failed:', pErr);
+      return res.status(500).json({ error: pErr.message || err.message });
+    }
   }
 });
 
@@ -157,20 +245,15 @@ app.get('/api/settlement/:eventId', async (req, res) => {
   }
 });
 
-// --- 時の矢 & 異常検知アラート ---
+// --- 時の矢 & 異常検知アラート（Firestore ベースに切替） ---
 cron.schedule('* * * * *', async () => {
   try {
-    const events = await prisma.event.findMany({ where: { isClosed: true } });
-    
-    for (const event of events) {
-      // エントロピーを増加
-      const newEntropy = event.entropy + 0.1;
-      await prisma.event.update({
-        where: { id: event.id },
-        data: { entropy: newEntropy }
-      });
+    const snapshot = await db.collection('events').where('isClosed', '==', true).get();
+    for (const doc of snapshot.docs) {
+      const event = doc.data();
+      const newEntropy = (event.entropy || 0) + 0.1;
+      await doc.ref.update({ entropy: newEntropy });
 
-      // 限界突破チェック
       if (newEntropy > 100) {
         console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
         console.log(`📢 [SYSTEM NOTIFICATION]`);

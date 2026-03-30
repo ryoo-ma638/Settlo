@@ -81,6 +81,7 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import PaymentCarousel from '@/components/PaymentCarousel.vue';
+import api from '@/services/api';
 
 const router = useRouter();
 const ongoingEvents = ref([]);
@@ -110,9 +111,23 @@ const goToEventDetail = (id) => {
   router.push(`/event/${id}`); // 詳細ページへ飛ぶ
 };
 
-onMounted(() => {
-  const saved = localStorage.getItem('settlo_events');
-  if (saved) ongoingEvents.value = JSON.parse(saved);
+onMounted(async () => {
+  try {
+    const res = await api.get('/events');
+    ongoingEvents.value = res.data.map(e => ({
+      id: e.id,
+      name: e.name,
+      memo: e.memo,
+      tag: e.tag,
+      code: e.invitationCode || e.invitation_code || null,
+      amount: e.totalAmount ?? e.totalAmount ?? 0
+    }));
+    localStorage.setItem('settlo_events', JSON.stringify(ongoingEvents.value));
+  } catch (err) {
+    console.warn('イベント取得に失敗しました。ローカルキャッシュを使用します。', err);
+    const saved = localStorage.getItem('settlo_events');
+    if (saved) ongoingEvents.value = JSON.parse(saved);
+  }
 });
 </script>
 
