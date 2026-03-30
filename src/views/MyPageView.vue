@@ -46,12 +46,24 @@ import { signOut } from "firebase/auth";
 import { useRouter } from "vue-router";
 import { ref, onMounted } from "vue";
 import { doc, getDoc } from "firebase/firestore";
-import api from "../services/api"; // 🌟 api.ts をインポート
+import api from "../services/api";
 
 const router = useRouter();
 const userName = ref("読み込み中...");
 const userPhoto = ref("");
 const userUid = ref("");
+
+// 🌟 追加：IDをコピーする関数
+const copyMyId = async () => {
+  if (!userUid.value) return;
+  try {
+    await navigator.clipboard.writeText(userUid.value);
+    alert("IDをコピーしました！: " + userUid.value);
+  } catch (err) {
+    console.error("コピーに失敗しました", err);
+    alert("コピーに失敗しました。");
+  }
+};
 
 const logout = async () => {
   try {
@@ -66,31 +78,21 @@ onMounted(async () => {
   const user = auth.currentUser;
   if (user) {
     userUid.value = user.uid;
-
+    // ...以下、既存のFirestore取得ロジック（そのまま）
     try {
-      // 1. まず Firestore から現在のデータを取得
       const userDocRef = doc(db, "users", user.uid);
       let userSnap = await getDoc(userDocRef);
-
-      // 2. 🌟 データが存在しない場合のみバックエンド同期（新規ユーザー用）
-      // 既にデータがある場合は、EditProfileで変更した値を優先するため sync を飛ばすか、
-      // あるいは sync の後に再度 getDoc を行います。
       if (!userSnap.exists()) {
         await api.post('/users/sync');
-        userSnap = await getDoc(userDocRef); // 同期後に再度取得
+        userSnap = await getDoc(userDocRef);
       }
-
       if (userSnap.exists()) {
         const data = userSnap.data();
-        // 🌟 Firestore の値を優先的に反映
         userName.value = data.name || user.displayName || "名無し";
         userPhoto.value = data.photo || user.photoURL || "https://via.placeholder.com/150";
-        
-        console.log("✅ 表示する名前:", userName.value);
       }
     } catch (error) {
       console.error("❌ データ取得または同期に失敗:", error);
-      // フォールバック
       userName.value = user.displayName;
       userPhoto.value = user.photoURL;
     }
