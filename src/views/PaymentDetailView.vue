@@ -43,7 +43,7 @@
         <footer class="footer-actions">
           <h3 class="section-sub">手渡しの場合</h3>
           <button class="method-btn cash" @click="confirmCash">
-            💵 {{ mode === 'remind' ? '現金で受け取った (完了にする)' : '現金で支払った (承認リクエスト)' }}
+            💵 {{ mode === 'remind' ? '受け取った (完了にする)' : '支払った (承認リクエスト)' }}
           </button>
         </footer>
       </template>
@@ -100,9 +100,9 @@ const openOverlay = (item) => { selectedItem.value = item; };
 
 const confirmCash = () => {
   if (mode.value === 'remind') {
-    if (confirm("現金で受け取りましたか？\n相手の支払い状況を「完了」に更新します。")) alert("受け取りを完了しました！");
+    if (confirm("お金を受け取りましたか？\n相手の支払い状況を「完了」に更新します。")) alert("受け取りを完了しました！");
   } else {
-    if (confirm("現金で支払いましたか？\n相手に「受け取り完了の承認リクエスト」を送ります。")) alert("承認リクエストを送信しました！");
+    if (confirm("お金を支払いましたか？\n相手に「受け取り完了の承認リクエスト」を送ります。")) alert("承認リクエストを送信しました！");
   }
 };
 

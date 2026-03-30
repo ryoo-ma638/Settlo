@@ -1,5 +1,5 @@
 ### イベント作成（これを先に実行！）
-POST http://localhost:3001/api/events
+POST http://localhost:3000/api/events
 Content-Type: application/json
 
 {
@@ -9,7 +9,7 @@ Content-Type: application/json
 }
 
 ### 1. 別のユーザー（456さん）をこのイベントに参加させる
-POST http://localhost:3001/api/events/join
+POST http://localhost:3000/api/events/join
 Content-Type: application/json
 
 {
@@ -18,7 +18,7 @@ Content-Type: application/json
 }
 
 ### 2. 自分（123さん）が 3000円 支払った記録を付ける
-POST http://localhost:3001/api/transactions
+POST http://localhost:3000/api/transactions
 Content-Type: application/json
 
 {
@@ -29,4 +29,4 @@ Content-Type: application/json
 }
 
 ### 3. 【運命の瞬間】精算結果を確認する
-GET http://localhost:3001/api/events/1/settle
+GET http://localhost:3000/api/events/1/settle

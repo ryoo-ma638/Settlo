@@ -11,23 +11,40 @@
         <div class="modal-body scroll-area">
           
           <div class="upload-section">
-            <input type="file" ref="fileInput" class="hidden-input" accept="image/*" @change="handleFileUpload">
+            <input type="file" ref="cameraInput" accept="image/*" capture="environment" class="hidden-input" @change="handleFileUpload">
+            <input type="file" ref="fileInput" accept="image/*" class="hidden-input" @change="handleFileUpload">
+            
             <div 
               class="drop-zone" 
-              :class="{ 'is-dragover': isDragging }"
+              :class="{ 'is-dragover': isDragging, 'is-analyzing': isAnalyzing }"
               @dragover.prevent="isDragging = true"
               @dragleave.prevent="isDragging = false"
               @drop.prevent="handleDrop"
-              @click="$refs.fileInput.click()"
             >
-              <div v-if="!uploadedImage" class="upload-placeholder">
-                <span class="camera-icon">📷</span>
-                <p class="upload-title">レシートを撮影・選択</p>
-                <p class="upload-hint">または画像をドラッグ＆ドロップ<br>※自動で商品や金額、日時を読み取ります</p>
+              <div v-if="!uploadedImage && !isAnalyzing" class="upload-placeholder">
+                <p class="upload-hint">レシートを読み取って自動入力</p>
+                <div class="upload-actions">
+                  <button class="upload-action-btn" @click="$refs.cameraInput.click()">
+                    <span class="icon">📸</span> カメラで撮影
+                  </button>
+                  <button class="upload-action-btn" @click="$refs.fileInput.click()">
+                    <span class="icon">🖼️</span> アルバムから
+                  </button>
+                </div>
               </div>
+
+              <div v-else-if="isAnalyzing" class="analyzing-view">
+                <div class="scan-line"></div>
+                <img :src="uploadedImage" class="scanning-img">
+                <div class="analyzing-text">
+                  <span class="spinner"></span> AIがレシートを解析中...
+                </div>
+              </div>
+
               <div v-else class="upload-preview">
                 <img :src="uploadedImage" alt="レシート画像" class="preview-img">
-                <button class="re-upload-btn" @click.stop="uploadedImage = null">✕ やり直す</button>
+                <div class="success-badge">✅ 読み取り完了</div>
+                <button class="re-upload-btn" @click.stop="resetUpload">✕ やり直す</button>
               </div>
             </div>
           </div>
@@ -37,7 +54,7 @@
               <label>合計金額</label>
               <div class="amount-input-wrapper">
                 <span class="currency-mark">¥</span>
-                <input v-model="formData.amount" type="tel" class="amount-input" placeholder="0">
+                <input v-model="formData.amount" type="tel" class="amount-input" placeholder="0" @change="calculateRemaining">
                 <span class="currency-unit">円</span>
               </div>
             </div>
@@ -66,10 +83,6 @@
                 <option value="天野 椋祐">天野 椋祐</option>
               </select>
             </div>
-            
-            <p v-if="formData.payer !== '大崎 稜馬'" class="payer-hint">
-              💡 {{ formData.payer }} さんへの「支払い」として登録されます。
-            </p>
           </div>
 
           <div class="split-type-section">
@@ -89,7 +102,13 @@
           </div>
 
           <div v-if="formData.splitType === 'custom'" class="dynamic-section slide-in">
-            <p class="section-desc">誰がいくら払うかを入力してください。</p>
+            <div class="custom-split-header">
+              <p class="section-desc">誰がいくら払うかを入力してください。</p>
+              <span class="remaining-text" :class="{ 'error': remainingAmount < 0 }">
+                残り: ¥{{ remainingAmount.toLocaleString() }}
+              </span>
+            </div>
+            
             <div class="custom-split-list">
               <div class="custom-item" v-for="p in participants" :key="p.name">
                 <div class="user-info">
@@ -97,10 +116,18 @@
                   <span>{{ p.name }}</span>
                 </div>
                 <div class="custom-input-box">
-                  <span>¥</span><input type="tel" placeholder="0"><span>円</span>
+                  <span>¥</span>
+                  <input 
+                    v-model="customSplitAmounts[p.name]" 
+                    type="tel" 
+                    placeholder="0"
+                    @blur="calculateRemaining"
+                  >
+                  <span>円</span>
                 </div>
               </div>
             </div>
+            <p class="ai-hint">💡 最後の1人は、残りの金額が自動で入力されます！</p>
           </div>
 
           <div v-if="formData.splitType === 'item'" class="dynamic-section slide-in">
@@ -110,6 +137,8 @@
             </div>
 
             <div class="receipt-items-list">
+              <div v-if="receiptItems.length === 0" class="empty-items">レシートを読み取るとここに商品が並びます</div>
+              
               <div class="receipt-item-card" v-for="(item, index) in receiptItems" :key="index">
                 <div class="item-header">
                   <input v-model="item.name" class="item-name-input" placeholder="商品名">
@@ -150,12 +179,19 @@
 <script setup>
 import { ref, computed } from 'vue';
 
+// 🌟 ここを追加！Firebaseと通信するための準備
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { app } from "../firebase"; // ※firebase.jsの場所に合わせてパス("../firebase"など)は調整してください
+
 const props = defineProps({ isOpen: Boolean });
 const emit = defineEmits(['close', 'submit']);
 
+// --- 状態管理 ---
+const cameraInput = ref(null);
 const fileInput = ref(null);
 const isDragging = ref(false);
 const uploadedImage = ref(null);
+const isAnalyzing = ref(false);
 
 const formData = ref({
   amount: '',
@@ -172,17 +208,51 @@ const participants = [
   { name: '天野 椋祐', color: '#86efac' },
 ];
 
-const receiptItems = ref([
-  { name: '生ビール', price: 1200, assignees: ['大崎 稜馬', '小野木 涼平'] },
-  { name: 'レモンサワー', price: 450, assignees: ['天野 椋祐'] },
-]);
+const receiptItems = ref([]);
 
+const customSplitAmounts = ref({});
+participants.forEach(p => {
+  customSplitAmounts.value[p.name] = '';
+});
+
+// --- 計算ロジック ---
 const calculatedSplitAmount = computed(() => {
   const amt = Number(formData.value.amount);
   if (!amt || isNaN(amt)) return 0;
   return Math.floor(amt / participants.length).toLocaleString();
 });
 
+const remainingAmount = computed(() => {
+  const total = Number(formData.value.amount) || 0;
+  let entered = 0;
+  for (const name in customSplitAmounts.value) {
+    const val = Number(customSplitAmounts.value[name]);
+    if (!isNaN(val)) entered += val;
+  }
+  return total - entered;
+});
+
+const calculateRemaining = () => {
+  const total = Number(formData.value.amount) || 0;
+  let enteredTotal = 0;
+  let emptyKeys = [];
+
+  for (const name in customSplitAmounts.value) {
+    const val = customSplitAmounts.value[name];
+    if (val !== '' && val !== null && !isNaN(val)) {
+      enteredTotal += Number(val);
+    } else {
+      emptyKeys.push(name);
+    }
+  }
+
+  if (emptyKeys.length === 1) {
+    const remaining = total - enteredTotal;
+    customSplitAmounts.value[emptyKeys[0]] = remaining > 0 ? remaining : 0;
+  }
+};
+
+// --- アクション ---
 const closeModal = () => emit('close');
 
 const handleSubmit = () => {
@@ -196,42 +266,76 @@ const handleSubmit = () => {
   const payload = {
     payer: formData.value.payer,
     itemName: formData.value.itemName,
-    splitType: formData.value.splitType === 'all' ? '全員で均等' : (formData.value.splitType === 'item' ? '商品ごとに指定' : '個別指定'),
+    splitType: formData.value.splitType,
     amount: Number(formData.value.amount),
     date: formData.value.date.replace(/-/g, '/'),
-    time: submitTime 
+    time: submitTime,
+    items: receiptItems.value
   };
 
   emit('submit', payload);
-  
+  resetUpload();
+};
+
+const resetUpload = () => {
   formData.value.amount = '';
   formData.value.itemName = '';
   formData.value.time = '';
   uploadedImage.value = null;
+  isAnalyzing.value = false;
+  receiptItems.value = [];
+  participants.forEach(p => customSplitAmounts.value[p.name] = '');
 };
 
+// --- 🌟 本物のAIを呼び出す処理に書き換え！ ---
 const handleFileUpload = (e) => {
   const file = e.target.files[0];
-  if (file) createPreview(file);
+  if (file) processImage(file);
 };
 const handleDrop = (e) => {
   isDragging.value = false;
   const file = e.dataTransfer.files[0];
-  if (file && file.type.startsWith('image/')) createPreview(file);
+  if (file && file.type.startsWith('image/')) processImage(file);
 };
 
-const createPreview = (file) => {
+const processImage = (file) => {
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     uploadedImage.value = e.target.result;
-    setTimeout(() => {
-      formData.value.itemName = '鳥貴族 名古屋店';
-      formData.value.amount = '4500';
-      formData.value.date = '2026-03-25';
-      formData.value.time = '19:30'; 
-    }, 800);
+    isAnalyzing.value = true; // アニメーション開始
+    
+    try {
+      // さっきデプロイしたFirebase Functions（本物のAI）を呼び出す
+      const functions = getFunctions(app, 'asia-northeast1');
+      const analyzeReceipt = httpsCallable(functions, 'analyzeReceipt');
+      
+      const result = await analyzeReceipt({ image: uploadedImage.value });
+      const data = result.data; // AIが返してきたJSONデータ！
+
+      // フォームに自動入力
+      formData.value.itemName = data.storeName || '不明な店舗';
+      formData.value.amount = data.totalAmount ? String(data.totalAmount) : '';
+      if (data.date) formData.value.date = data.date;
+      if (data.time) formData.value.time = data.time;
+      
+      // 商品リストの構築
+      if (data.items && data.items.length > 0) {
+        receiptItems.value = data.items.map(item => ({
+          name: item.name || '不明な商品',
+          price: item.price || 0,
+          assignees: [] 
+        }));
+        formData.value.splitType = 'item'; // 商品タブに切り替え
+      }
+
+    } catch (error) {
+      console.error("読み取りエラー:", error);
+      alert("レシートの読み取りに失敗しました。手動で入力してください。");
+    } finally {
+      isAnalyzing.value = false; // アニメーション終了
+    }
   };
-  reader.readAsDataURL(file);
+  reader.readAsDataURL(file); // 画像をBase64に変換して読み込み
 };
 
 const toggleAssignee = (item, name) => {
@@ -245,25 +349,46 @@ const addDummyItem = () => {
 </script>
 
 <style scoped>
+/* 🌟 モーダル全体のベース */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.6); display: flex; align-items: flex-end; justify-content: center; z-index: 2000; backdrop-filter: blur(4px); }
 .modal-content { background: #f4f7f9; width: 100%; max-width: 600px; border-radius: 32px 32px 0 0; display: flex; flex-direction: column; max-height: 90vh; }
+
 .modal-header { padding: 24px 24px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.05); background: white; border-radius: 32px 32px 0 0; }
 .modal-title { margin: 0; font-size: 18px; color: #0f172a; font-weight: 900; }
 .close-btn { background: #f1f5f9; border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 18px; color: #64748b; cursor: pointer; font-weight: bold; }
+
 .scroll-area { overflow-y: auto; padding: 20px 24px; flex: 1; }
 
+/* 🌟 1. レシート撮影・選択エリア */
 .upload-section { margin-bottom: 24px; }
 .hidden-input { display: none; }
-.drop-zone { border: 2px dashed #cbd5e1; border-radius: 20px; background: white; padding: 20px; text-align: center; cursor: pointer; transition: 0.2s; position: relative; overflow: hidden; min-height: 120px; display: flex; align-items: center; justify-content: center; }
-.drop-zone:active { background: #f8fafc; transform: scale(0.98); }
+.drop-zone { border: 2px dashed #cbd5e1; border-radius: 20px; background: white; padding: 20px; text-align: center; transition: 0.2s; position: relative; overflow: hidden; min-height: 140px; display: flex; align-items: center; justify-content: center; }
 .drop-zone.is-dragover { border-color: #3b82f6; background: #eff6ff; }
-.camera-icon { font-size: 32px; display: block; margin-bottom: 8px; }
-.upload-title { font-size: 15px; font-weight: 800; color: #3b82f6; margin: 0 0 4px 0; }
-.upload-hint { font-size: 11px; color: #94a3b8; font-weight: 700; margin: 0; line-height: 1.4; }
-.upload-preview { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
-.preview-img { width: 100%; height: 100%; object-fit: cover; opacity: 0.6; }
-.re-upload-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(15,23,42,0.8); color: white; border: none; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: bold; backdrop-filter: blur(4px); }
+.drop-zone.is-analyzing { border-color: #f59e0b; background: #fffbeb; }
 
+.upload-placeholder { width: 100%; }
+.upload-hint { font-size: 13px; font-weight: 800; color: #64748b; margin: 0 0 15px 0; }
+.upload-actions { display: flex; gap: 10px; justify-content: center; }
+.upload-action-btn { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 16px; font-size: 12px; font-weight: 900; color: #1e293b; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+.upload-action-btn:active { transform: scale(0.96); background: #e2e8f0; }
+.upload-action-btn .icon { font-size: 24px; }
+
+/* AI解析中のアニメーション */
+.analyzing-view { width: 100%; height: 100%; position: absolute; top: 0; left: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.7); z-index: 10; }
+.scanning-img { width: 100%; height: 100%; object-fit: cover; opacity: 0.4; position: absolute; top: 0; left: 0; }
+.scan-line { position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: #3b82f6; box-shadow: 0 0 15px #3b82f6; animation: scan 1.5s infinite linear; z-index: 11; }
+@keyframes scan { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
+.analyzing-text { position: relative; z-index: 12; color: white; font-weight: 900; font-size: 14px; display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.6); padding: 8px 16px; border-radius: 20px; backdrop-filter: blur(4px); }
+.spinner { width: 16px; height: 16px; border: 3px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s infinite linear; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* アップロード完了後 */
+.upload-preview { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+.preview-img { width: 100%; height: 100%; object-fit: cover; opacity: 0.3; }
+.success-badge { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -100%); background: #10b981; color: white; padding: 6px 12px; border-radius: 12px; font-size: 12px; font-weight: 900; box-shadow: 0 4px 10px rgba(16,185,129,0.3); }
+.re-upload-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, 20%); background: rgba(15,23,42,0.8); color: white; border: none; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: bold; backdrop-filter: blur(4px); cursor: pointer; }
+
+/* 🌟 2. 基本情報のカード */
 .basic-info-card { background: white; border-radius: 24px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 24px; display: flex; flex-direction: column; gap: 16px; }
 .input-row label { display: block; font-size: 12px; font-weight: 800; color: #64748b; margin-bottom: 6px; }
 .hint-text { font-weight: normal; font-size: 10px; color: #94a3b8; } 
@@ -282,18 +407,26 @@ const addDummyItem = () => {
 .select-style { appearance: none; cursor: pointer; }
 .payer-hint { font-size: 11px; color: #059669; background: #ecfdf5; padding: 8px 12px; border-radius: 10px; margin: 0; font-weight: 700; }
 
+/* 🌟 3. 割り勘タイプ選択 */
 .split-type-section { margin-bottom: 16px; }
 .section-sub-title { font-size: 14px; font-weight: 900; color: #0f172a; margin: 0 0 10px 0; }
 .ios-segmented-control { display: flex; background: #e2e8f0; border-radius: 12px; padding: 4px; }
 .ios-segmented-control button { flex: 1; padding: 10px 0; border: none; background: transparent; font-weight: 800; font-size: 12px; color: #64748b; border-radius: 10px; cursor: pointer; transition: 0.2s; }
 .ios-segmented-control button.active { background: white; color: #0f172a; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
 
+/* 🌟 4. 動的セクション */
 .dynamic-section { margin-bottom: 24px; }
 .section-desc { font-size: 12px; color: #64748b; font-weight: 700; margin: 0 0 12px 0; }
 
 .split-result-box { background: white; border: 2px solid #3b82f6; border-radius: 20px; padding: 20px; text-align: center; }
 .split-desc { font-size: 12px; color: #3b82f6; font-weight: 800; }
 .split-calc-amount { font-size: 28px; font-weight: 900; color: #1e293b; margin: 8px 0 0 0; }
+
+/* カスタム（金額指定） */
+.custom-split-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+.remaining-text { font-size: 13px; font-weight: 900; color: #3b82f6; background: #eff6ff; padding: 4px 10px; border-radius: 12px; transition: 0.2s; }
+.remaining-text.error { color: #ef4444; background: #fef2f2; }
+.ai-hint { font-size: 11px; font-weight: 800; color: #10b981; text-align: center; margin-top: 12px; }
 
 .custom-split-list { background: white; border-radius: 20px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .custom-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px dashed #e2e8f0; }
@@ -303,9 +436,11 @@ const addDummyItem = () => {
 .custom-input-box { display: flex; align-items: baseline; gap: 4px; font-size: 14px; font-weight: 800; color: #64748b; }
 .custom-input-box input { width: 80px; text-align: right; font-size: 18px; font-weight: 900; border: none; border-bottom: 2px solid #e2e8f0; outline: none; color: #f59e0b; padding-bottom: 2px; }
 
+/* 商品ごとに指定 */
 .item-split-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px; }
 .add-item-btn { background: #eff6ff; color: #3b82f6; border: none; padding: 6px 12px; border-radius: 12px; font-size: 11px; font-weight: 800; cursor: pointer; }
 .receipt-items-list { display: flex; flex-direction: column; gap: 12px; }
+.empty-items { background: white; padding: 30px; text-align: center; border-radius: 20px; border: 2px dashed #cbd5e1; font-size: 12px; font-weight: 800; color: #94a3b8; }
 .receipt-item-card { background: white; border-radius: 20px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); border: 1px solid #f1f5f9; }
 .item-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
 .item-name-input { flex: 1; border: none; border-bottom: 2px solid #e2e8f0; font-size: 15px; font-weight: 900; color: #1e293b; padding-bottom: 4px; outline: none; }
@@ -319,6 +454,7 @@ const addDummyItem = () => {
 .chip { background: white; border: 1px solid #cbd5e1; color: #64748b; padding: 6px 12px; border-radius: 16px; font-size: 11px; font-weight: 800; cursor: pointer; transition: 0.2s; }
 .chip.selected { background: #3b82f6; border-color: #3b82f6; color: white; box-shadow: 0 2px 6px rgba(59,130,246,0.3); }
 
+/* 🌟 フッター（固定） */
 .modal-footer { padding: 16px 24px 30px; background: white; border-top: 1px solid rgba(0,0,0,0.05); }
 .submit-btn { width: 100%; background-color: #0f172a; color: white; border: none; padding: 18px; border-radius: 20px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,0.15); transition: 0.2s; }
 .submit-btn:active { transform: scale(0.96); }

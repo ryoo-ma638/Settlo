@@ -25,4 +25,5 @@ const provider = new GoogleAuthProvider();
 
 const db = getFirestore(app);
 
-export { auth, provider, db };
+// 一番下の行をこれに書き換えてください
+export { app, auth, provider, db };

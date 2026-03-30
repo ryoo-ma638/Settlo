@@ -1,212 +1,192 @@
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
 import cron from 'node-cron';
 import cors from 'cors';
+import admin from 'firebase-admin';
+import fs from 'fs';
+import path from 'path';
 
+// --- Firebase Admin 初期化 ---
+let serviceAccount = null;
+try {
+  const saPath = path.join(process.cwd(), 'service-account.json');
+  const raw = fs.readFileSync(saPath, 'utf8');
+  serviceAccount = JSON.parse(raw);
+  console.log('🔐 Loaded service-account.json:', serviceAccount.client_email);
+} catch (e) {
+  console.warn('⚠️ service-account.json が読み込めません。Firestore操作が失敗する可能性があります。');
+}
+
+if (serviceAccount) {
+  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+  console.log("✅ Firebase Admin Initialized");
+} else {
+  admin.initializeApp();
+}
+
+const db = admin.firestore();
 const app = express();
-const prisma = new PrismaClient();
-const PORT = 3000;
+const PORT = 3001;
 
 app.use(express.json());
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'https://pairpay-4c17a.web.app'
-  ],
+  origin: ['http://localhost:5173', 'https://pairpay-4c17a.web.app'],
   credentials: true
 }));
 
-// --- 1. 精算アルゴリズム (最小送金回数) ---
-function calculateMinimalTransfers(balances) {
-  const creditors = [];
-  const debtors = [];
-  
-  Object.keys(balances).forEach(user => {
-    const amount = balances[user];
-    if (amount > 1) creditors.push({ name: user, amount }); // 誤差を考慮して1円以上
-    else if (amount < -1) debtors.push({ name: user, amount: Math.abs(amount) });
-  });
-
-  creditors.sort((a, b) => b.amount - a.amount);
-  debtors.sort((a, b) => b.amount - a.amount);
-
-  const transfers = [];
-  let i = 0, j = 0;
-  while (i < creditors.length && j < debtors.length) {
-    const credit = creditors[i];
-    const debt = debtors[j];
-    const settlementAmount = Math.min(credit.amount, debt.amount);
-    
-    transfers.push({ 
-      from: debt.name, 
-      to: credit.name, 
-      amount: Math.round(settlementAmount) 
-    });
-
-    credit.amount -= settlementAmount;
-    debt.amount -= settlementAmount;
-    if (credit.amount <= 1) i++;
-    if (debt.amount <= 1) j++;
+// --- 認証ミドルウェア ---
+const authenticateUser = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: '認証トークンが必要です' });
   }
-  return transfers;
-}
-
-// --- 2. エントロピー計算ロジック (理系モデル) ---
-function calculateEntropy(balances, totalAmount, createdAt) {
-  if (totalAmount === 0) return 0;
-
-  const now = new Date();
-  const t = (now - new Date(createdAt)) / (1000 * 60); // 経過時間(分)
-
-  // 残高の偏り（乱雑さ）を算出
-  const disorder = Object.values(balances).reduce((sum, b) => sum + Math.abs(b), 0);
-  
-  // S = (偏り / 総額) * ln(t + 2) * 係数
-  // 時間が経つほど、かつ貸し借りの偏りが激しいほどエントロピーが増大する
-  const entropyValue = (disorder / totalAmount) * Math.log(t + 2) * 10;
-  return parseFloat(entropyValue.toFixed(3));
-}
-
-// --- 3. APIエンドポイント ---
-
-// イベント（閉鎖系）の新規作成
-app.post('/api/events', async (req, res) => {
+  const token = authHeader.split(' ')[1];
   try {
-    const { name, invitationCode } = req.body;
-    if (!name) return res.status(400).json({ error: "イベント名が必要です" });
-
-    // invitationCode はスキーマで必須かつユニークなので、なければ自動生成する
-    const code = invitationCode || Math.random().toString(36).substring(2, 8).toUpperCase();
-
-    const newEvent = await prisma.event.create({
-      data: {
-        name,
-        invitationCode: code,
-        entropy: 0.0,
-        isClosed: true,
-        creator: {
-          connectOrCreate: {
-            where: { firebaseUid: 'system' },
-            create: { firebaseUid: 'system', name: 'system' }
-          }
-        }
-      }
-    });
-    console.log(`🌌 創世記: 新しい系「${name}」が誕生しました。（code: ${code}）`);
-    res.json(newEvent);
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    req.user = decodedToken; 
+    next();
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("❌ Token Verify Error:", error.message);
+    res.status(401).json({ error: '無効なトークンです' });
   }
-});
+};
 
-// 支払い登録（活性化エネルギーを動的に計算）
-app.post('/api/transactions', async (req, res) => {
+// --- APIエンドポイント ---
+
+// 1. ユーザー同期 (Prisma -> Firestore)
+app.post('/api/users/sync', authenticateUser, async (req, res) => {
+  console.log("🚀 Sync開始:", req.user.uid);
   try {
-    const { amount, description, payerId, eventId } = req.body;
+    const { uid, name, email, picture } = req.user;
     
-    // 高額なほど活性化エネルギー（精算の心理的障壁）が高い
-    const calculatedEa = Math.log10(parseInt(amount)) * 5;
-
-    const newTransaction = await prisma.transaction.create({
-      data: {
-        amount: parseInt(amount),
-        description,
-        payerId: parseInt(payerId),
-        eventId: parseInt(eventId),
-        activationEnergy: calculatedEa
-      }
-    });
-
-    // 支払いの追加自体でもエントロピーを少し上昇させる
-    await prisma.event.update({
-      where: { id: parseInt(eventId) },
-      data: { entropy: { increment: 1.0 } }
-    });
-
-    res.json({ message: "エントロピー増大を観測。", activationEnergy: calculatedEa, data: newTransaction });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// --- 特定イベントの精算状況（通知・警告機能付き）を取得 ---
-app.get('/api/settlement/:eventId', async (req, res) => {
-  try {
-    const eventId = parseInt(req.params.eventId);
-    const event = await prisma.event.findUnique({
-      where: { id: eventId },
-      include: { transactions: { include: { payer: true } } }
-    });
-
-    if (!event) return res.status(404).json({ error: "系が見つかりません" });
-
-    const allUsers = await prisma.user.findMany();
-    const totalAmount = event.transactions.reduce((sum, t) => sum + t.amount, 0);
-    const averageShare = totalAmount / allUsers.length;
-
-    const balances = {};
-    allUsers.forEach(u => balances[u.name] = 0);
-    event.transactions.forEach(t => { balances[t.payer.name] += t.amount; });
-    allUsers.forEach(u => { balances[u.name] -= averageShare; });
-
-    // エントロピー計算
-    const dynamicEntropy = calculateEntropy(balances, totalAmount, event.createdAt) + event.entropy;
-    const transfers = calculateMinimalTransfers(balances);
-
-    // --- 通知・警告ロジック ---
-    let alertMessage = null;
-    let systemPriority = "NORMAL";
-
-    if (dynamicEntropy > 100) {
-      alertMessage = "⚠️ 警告: 熱的死を観測。これ以上の放置は系の完全な崩壊を招きます。直ちに精算を実行してください。";
-      systemPriority = "EMERGENCY";
-      console.log(`🚨 [ALERT] Event ID ${eventId}: Entropy limit exceeded!`);
-    } else if (dynamicEntropy > 70) {
-      alertMessage = "注意: 高エネルギー状態です。精算によるエントロピーの減少を推奨します。";
-      systemPriority = "HIGH";
+    // DB接続チェック
+    if (!db) {
+      throw new Error("Firestore DBが初期化されていません");
     }
 
-    res.json({
-      eventName: event.name,
-      totalAmount,
-      entropy: dynamicEntropy,
-      transfers,
-      alert: alertMessage,      // フロントエンドに表示させる警告文
-      priority: systemPriority, // フロントエンドで色を変えるためのフラグ
-      isHeatDeath: dynamicEntropy > 100
+    const userRef = db.collection('users').doc(uid);
+    const userData = {
+      uid,
+      name: name || 'ゲストユーザー',
+      email: email || '',
+      photoURL: picture || '',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    await userRef.set(userData, { merge: true });
+    console.log(`✅ Firestore保存成功: ${userData.name}`);
+    return res.json(userData);
+  } catch (error) {
+    // 🌟 ここでターミナルに詳細なエラーを表示
+    console.error("❌ Sync内部エラー詳細:", error); 
+    return res.status(500).json({ 
+      error: error.message, 
+      stack: error.stack 
     });
+  }
+});
+
+// 2. イベント一覧取得
+app.get('/api/events', authenticateUser, async (req, res) => {
+  try {
+    const uid = req.user.uid;
+    // 作成者であるか、参加者リストに含まれているイベントを取得
+    const q1 = db.collection('events').where('creatorId', '==', uid).get();
+    const q2 = db.collection('events').where('participants', 'array-contains', uid).get();
+
+    const [snap1, snap2] = await Promise.all([q1, q2]);
+    const map = new Map();
+    
+    const processDoc = (doc) => {
+      const data = doc.data();
+      map.set(doc.id, {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null
+      });
+    };
+
+    snap1.docs.forEach(processDoc);
+    snap2.docs.forEach(processDoc);
+
+    const events = Array.from(map.values()).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    return res.json(events);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// 3. イベント作成
+app.post('/api/events', authenticateUser, async (req, res) => {
+  try {
+    const { name, invitationCode, tag, memo } = req.body;
+    const uid = req.user.uid;
+
+    const docRef = await db.collection('events').add({
+      name,
+      memo: memo || '',
+      tag: tag || 'その他',
+      invitationCode: invitationCode || Math.random().toString(36).substring(2, 8).toUpperCase(),
+      totalAmount: 0,
+      entropy: 0.0,
+      isClosed: false,
+      creatorId: uid,
+      participants: [uid], // 自分を参加者に含める
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ id: docRef.id, message: "作成成功" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// --- 時の矢 & 異常検知アラート ---
+// 4. 支払い登録 (Prisma -> Firestore)
+app.post('/api/transactions', authenticateUser, async (req, res) => {
+  try {
+    const { amount, description, eventId } = req.body;
+    const uid = req.user.uid;
+
+    // 🌟 Firestoreの transactions コレクションへ追加
+    const transRef = await db.collection('transactions').add({
+      amount: Number(amount),
+      description: description || '',
+      payerId: uid,
+      eventId: eventId,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // 🌟 イベント側の合計金額とエントロピーを更新
+    const eventRef = db.collection('events').doc(eventId);
+    await eventRef.update({
+      totalAmount: admin.firestore.FieldValue.increment(Number(amount)),
+      entropy: admin.firestore.FieldValue.increment(1.0)
+    });
+
+    res.json({ id: transRef.id, message: "更新完了" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- 時の矢 (Cron) ---
 cron.schedule('* * * * *', async () => {
   try {
-    const events = await prisma.event.findMany({ where: { isClosed: true } });
-    
-    for (const event of events) {
-      // エントロピーを増加
-      const newEntropy = event.entropy + 0.1;
-      await prisma.event.update({
-        where: { id: event.id },
-        data: { entropy: newEntropy }
-      });
+    // 終了していない(isClosed: false)イベントのエントロピーを増やす
+    const snapshot = await db.collection('events').where('isClosed', '==', false).get();
+    if (snapshot.empty) return;
 
-      // 限界突破チェック
-      if (newEntropy > 100) {
-        console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-        console.log(`📢 [SYSTEM NOTIFICATION]`);
-        console.log(`イベント「${event.name}」のエントロピーが100を突破しました。`);
-        console.log(`精算という名の「仕事」を加えて、系を浄化してください。`);
-        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
-      }
-    }
+    const batch = db.batch();
+    snapshot.docs.forEach(doc => {
+      batch.update(doc.ref, { entropy: admin.firestore.FieldValue.increment(0.1) });
+    });
+    await batch.commit();
+    console.log(`⏰ Entropy increased for ${snapshot.size} events`);
   } catch (error) {
-    console.error("時間経過処理に失敗:", error);
+    console.error("❌ Cron Error:", error.message);
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Life-Entropy API Server running at http://localhost:${PORT}`);
+  console.log(`🚀 Settlo Backend Server running at http://localhost:${PORT}`);
 });
+

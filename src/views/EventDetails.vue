@@ -158,6 +158,17 @@
             <p class="s-text"><strong>{{ selectedSummary.from }}</strong> さんから<br><strong>{{ selectedSummary.to }}</strong> さんへ</p>
             <h1 class="s-amount" :class="selectedSummary.isMePayer ? 'orange-text' : 'blue-text'">¥{{ selectedSummary.amount.toLocaleString() }}</h1>
             
+            <div v-if="selectedSummary.details && selectedSummary.details.length > 0" class="breakdown-list">
+              <h4 class="breakdown-title">合算された内訳</h4>
+              <div class="breakdown-item" v-for="(detail, i) in selectedSummary.details" :key="i">
+                <span class="bd-name">{{ detail.itemName }}</span>
+                <div class="bd-right">
+                  <span class="bd-who">{{ detail.from }} → {{ detail.to }}</span>
+                  <span class="bd-amount">¥{{ detail.amount.toLocaleString() }}</span>
+                </div>
+              </div>
+            </div>
+            
             <section v-if="selectedSummary.status === 'completed'" class="completed-section">
               <div class="completed-card">
                 <span class="completed-icon">✅</span>
@@ -165,11 +176,11 @@
               </div>
             </section>
             <template v-else>
-  <p class="s-hint">の支払いが残っています。</p>
-  <button class="action-btn main" @click="goToBatchPayment(selectedSummary)">
-    {{ selectedSummary.isMePayer ? 'まとめて支払う画面へ' : 'まとめて受け取る・催促へ' }}
-  </button>
-          </template>
+              <p class="s-hint">の支払いが残っています。</p>
+              <button class="action-btn main" @click="goToBatchPayment(selectedSummary)">
+                {{ selectedSummary.isMePayer ? 'まとめて支払う画面へ' : 'まとめて受け取る・催促へ' }}
+              </button>
+            </template>
           </div>
         </div>
       </div>
@@ -192,11 +203,15 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue'; // 🌟 onMountedを追加
 import { useRouter } from 'vue-router';
 import AddPaymentModal from '@/components/AddPaymentModal.vue';
 import ReceiptPaymentModal from '@/components/ReceiptPaymentModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
+
+import { db } from '../firebase'; 
+// 🌟 変更後（doc と updateDoc を追加！）
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 
 const router = useRouter();
 const timelineSection = ref(null);
@@ -232,13 +247,115 @@ const sumFilterStatus = ref('unpaid');
 const histFilterScope = ref('all'); 
 const histSort = ref('new'); 
 
+// 🌟 差し替え：履歴から「誰が誰にいくら払うか」を相殺・合算する頭脳！
+const calculatedSummary = computed(() => {
+  const myName = '大崎 稜馬';
+  const rawDebts = [];
+  
+  // 1. まず全ての「誰から誰へ、いくら」の生の借金データを洗い出す
+  eventData.value.history.forEach(history => {
+    let creditor = history.payer; // お金を立て替えた人（受け取る権利がある人）
+    
+    // 全員で均等割りの場合
+    if (history.splitType === 'all' || history.splitType === '全員で割勘') {
+      const amountPerPerson = Math.floor(history.amount / eventData.value.participants.length);
+      eventData.value.participants.forEach(p => {
+        if (p.name !== creditor) {
+          rawDebts.push({
+            from: p.name, to: creditor,
+            amount: amountPerPerson, itemName: history.itemName, status: history.status
+          });
+        }
+      });
+    } 
+    // 商品ごとに指定の場合（選択された人数で均等割り！）
+    else if (history.splitType === 'item' && history.items) {
+      history.items.forEach(item => {
+        if (item.assignees && item.assignees.length > 0) {
+          // 商品の金額を、割り当てられた人数で割る
+          const itemAmount = Math.floor(item.price / item.assignees.length);
+          item.assignees.forEach(assignee => {
+            if (assignee !== creditor) {
+              rawDebts.push({
+                from: assignee, to: creditor,
+                amount: itemAmount, itemName: item.name, status: history.status
+              });
+            }
+          });
+        }
+      });
+    }
+  });
+
+  // 2. 洗い出した借金データを「ステータス」と「2人のペア」ごとにグループ化して相殺（ネット）する
+  const aggregated = [];
+  const statuses = ['unpaid', 'completed'];
+  
+  statuses.forEach(status => {
+    const debtsForStatus = rawDebts.filter(d => d.status === status);
+    const pairs = {}; // "人A|人B" のペアごとに計算をまとめる
+    
+    debtsForStatus.forEach(debt => {
+      // 常に名前のあいうえお順等でペアのキーを統一する（A君とB君のやり取りを一つの箱に）
+      const personA = debt.from < debt.to ? debt.from : debt.to;
+      const personB = debt.from < debt.to ? debt.to : debt.from;
+      const key = `${personA}|${personB}`;
+      
+      if (!pairs[key]) pairs[key] = { netA: 0, details: [] };
+      
+      if (debt.from === personA) {
+        pairs[key].netA -= debt.amount; // AがBに払う（Aの財布がマイナス）
+      } else {
+        pairs[key].netA += debt.amount; // BがAに払う（Aの財布がプラス）
+      }
+      pairs[key].details.push(debt); // 内訳として保存
+    });
+
+    // 3. 相殺された結果から、最終的な「サマリーカード」を1枚だけ生成する
+    Object.keys(pairs).forEach(key => {
+      const [personA, personB] = key.split('|');
+      const netA = pairs[key].netA;
+      const details = pairs[key].details;
+      
+      if (netA === 0) return; // 完全に相殺されて0円なら表示しない
+      
+      let finalFrom, finalTo, finalAmount;
+      if (netA < 0) {
+        finalFrom = personA; finalTo = personB; finalAmount = Math.abs(netA);
+      } else {
+        finalFrom = personB; finalTo = personA; finalAmount = netA;
+      }
+      
+      const fromColor = eventData.value.participants.find(p => p.name === finalFrom)?.color || '#ccc';
+      const toColor = eventData.value.participants.find(p => p.name === finalTo)?.color || '#ccc';
+      
+      aggregated.push({
+        id: `${status}-${key}`,
+        from: finalFrom, fromColor,
+        to: finalTo, toColor,
+        amount: finalAmount,
+        status: status,
+        isMePayer: (finalTo === myName), // 自分がお金を受け取る側なら true（文字がオレンジになる）
+        involvesMe: (finalFrom === myName || finalTo === myName),
+        details: details // 🌟 合算の内訳リスト
+      });
+    });
+  });
+  
+  return aggregated;
+});
+
+
+// 🌟 修正：画面のフィルター処理を、ダミーではなく自動計算されたデータ（calculatedSummary）に向ける
 const filteredSummary = computed(() => {
-  return eventData.value.summary.filter(s => {
+  return calculatedSummary.value.filter(s => {
     const scopeMatch = sumFilterScope.value === 'all' || (s.from === myName || s.to === myName);
     const statusMatch = sumFilterStatus.value === 'all' || s.status === sumFilterStatus.value;
     return scopeMatch && statusMatch;
   });
 });
+
+
 
 const filteredHistory = computed(() => {
   let result = eventData.value.history.filter(h => {
@@ -247,35 +364,110 @@ const filteredHistory = computed(() => {
   return result.sort((a, b) => histSort.value === 'new' ? b.timestamp - a.timestamp : a.timestamp - b.timestamp);
 });
 
+
+
 const unpaidItems = computed(() => eventData.value.history.filter(h => h.status === 'unpaid'));
 
 const scrollToTimeline = () => timelineSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 const openHistoryDetail = (h) => { selectedHistory.value = h; modals.value.historyDetail = true; };
 const openSummaryDetail = (s) => { selectedSummary.value = s; modals.value.summaryDetail = true; };
 
-const markAsCompleted = (id) => {
-  const item = eventData.value.history.find(h => h.id === id);
-  if(item) item.status = 'completed';
+// 🌟 差し替える部分：Firestoreのデータを「精算済」に更新する
+const markAsCompleted = async (id) => {
+  try {
+    const eventId = "test-event-1"; 
+    // 更新したい特定の支払いデータの場所をピンポイントで指定
+    const docRef = doc(db, "events", eventId, "history", id);
+
+    // データベースの status を 'completed' (精算済) に書き換え！
+    await updateDoc(docRef, {
+      status: 'completed'
+    });
+
+    console.log("✅ 決済完了！Firestoreを更新しました");
+    modals.value.historyDetail = false; // モーダルを自動で閉じる
+    
+  } catch (error) {
+    console.error("更新エラー:", error);
+    alert("決済の更新に失敗しました。");
+  }
 };
 
-const addHistory = (newPayment) => {
-  eventData.value.history.push({
-    id: Date.now(), 
-    payer: newPayment.payer, 
-    itemName: newPayment.itemName, 
-    splitType: newPayment.splitType,
-    amount: newPayment.amount, 
-    color: '#fca5a5', 
-    date: newPayment.date, 
-    time: newPayment.time, 
-    status: 'unpaid', 
-    involvesMe: true, 
-    timestamp: Date.now()
-  });
-  eventData.value.total += newPayment.amount;
-  modals.value.addPayment = false;
-  setTimeout(scrollToTimeline, 300);
+// 🌟 差し替える部分：Firestoreへの保存処理
+const addHistory = async (newPayment) => {
+  try {
+    // ※今回はテストのため、イベントIDを "test-event-1" に固定します。（後でURLから取得するようにします）
+    const eventId = "test-event-1"; 
+    
+    // Firestoreの「events」の中の「test-event-1」の中の「history」という引き出しを指定
+    const historyRef = collection(db, "events", eventId, "history");
+
+    // データベースに新しい支払いを追加（保存）！
+    const docRef = await addDoc(historyRef, {
+      payer: newPayment.payer, 
+      itemName: newPayment.itemName, 
+      splitType: newPayment.splitType,
+      amount: newPayment.amount, 
+      color: '#fca5a5', 
+      date: newPayment.date, 
+      time: newPayment.time, 
+      status: 'unpaid', 
+      involvesMe: true, 
+      timestamp: serverTimestamp(), // Firebaseの正確な時間を記録
+      items: newPayment.items || [] // レシートの内訳も保存！
+    });
+
+    console.log("🔥 Firestoreに保存成功！ ID:", docRef.id);
+
+    // 画面の合計金額を更新
+    eventData.value.total += newPayment.amount;
+    modals.value.addPayment = false;
+    setTimeout(scrollToTimeline, 300);
+    
+  } catch (error) {
+    console.error("保存エラー:", error);
+    alert("支払いの追加に失敗しました。");
+  }
 };
+
+// 🌟 追加する部分：Firestoreのデータをリアルタイムで監視・取得する
+onMounted(() => {
+  const eventId = "test-event-1"; 
+  const historyRef = collection(db, "events", eventId, "history");
+  
+  // 「追加された時間（timestamp）の古い順」に並び替えて取得するよう指示
+  const q = query(historyRef, orderBy("timestamp", "asc"));
+
+  // onSnapshotを使うと、データベースに変更があった瞬間に自動でこの中身が走ります！
+  onSnapshot(q, (snapshot) => {
+    const fetchedHistory = [];
+    
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      fetchedHistory.push({
+        id: doc.id, // FirestoreのユニークなIDをセット
+        payer: data.payer,
+        itemName: data.itemName,
+        splitType: data.splitType,
+        amount: data.amount,
+        color: data.color || '#fca5a5',
+        date: data.date,
+        time: data.time,
+        status: data.status,
+        involvesMe: data.involvesMe,
+        items: data.items || [],
+        // Firebaseの特殊な時間データを、画面で扱いやすいミリ秒の数値に変換
+        timestamp: data.timestamp ? data.timestamp.toMillis() : Date.now()
+      });
+    });
+
+    // ダミーデータが入っていた eventData.value.history を、今取得した「本物のデータ」で上書き！
+    eventData.value.history = fetchedHistory;
+    
+    // 画面の一番上にある「合計金額」も、本物のデータから自動で計算し直す
+    eventData.value.total = fetchedHistory.reduce((sum, item) => sum + item.amount, 0);
+  });
+});
 
 
 // 🌟 自分が払う側か、受け取る側かで「イベント単位のまとめ画面」へ賢く遷移させる
@@ -366,10 +558,56 @@ const forceEndEvent = () => { modals.value.unpaidWarning = false; router.push('/
 .history-card:active { transform: scale(0.98); }
 .unpaid-card { border: 1px solid #fca5a5; background: #fff5f5; box-shadow: 0 4px 12px rgba(239,68,68,0.05); }
 
-.history-main { display: flex; align-items: center; gap: 14px; }
-.history-avatar { width: 36px; height: 36px; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-.history-text { display: flex; flex-direction: column; gap: 2px; }
-.history-item-name { font-size: 15px; font-weight: 900; color: #0f172a; }
+/* 🌟 差し替える部分（レイアウト崩れ防止） */
+.history-main { 
+  display: flex; 
+  align-items: center; 
+  gap: 14px; 
+  flex: 1; /* 右側の余白をしっかり確保する */
+  min-width: 0; /* 子要素がはみ出すのを防ぐ魔法のコード */
+}
+.history-avatar { 
+  width: 36px; 
+  height: 36px; 
+  border-radius: 50%; 
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1); 
+  flex-shrink: 0; /* アバターが潰れないようにする */
+}
+.history-text { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 2px; 
+  min-width: 0; /* 長いテキストのはみ出し防止 */
+  width: 100%;
+}
+.history-item-name { 
+  font-size: 15px; 
+  font-weight: 900; 
+  color: #0f172a; 
+  white-space: nowrap; /* 折り返さない */
+  overflow: hidden; /* はみ出た部分を隠す */
+  text-overflow: ellipsis; /* ...で省略する */
+  display: flex;
+  align-items: center;
+}
+.split-type { 
+  font-size: 10px; 
+  color: #64748b; 
+  font-weight: 700; 
+  background: #f1f5f9; 
+  padding: 2px 6px; 
+  border-radius: 6px; 
+  margin-left: 6px; 
+  flex-shrink: 0; /* バッジが潰れないようにする */
+}
+.history-right { 
+  display: flex; 
+  flex-direction: column; 
+  align-items: flex-end; 
+  gap: 6px; 
+  flex-shrink: 0; /* 金額やボタンが潰れないようにする */
+  margin-left: 12px; /* 左のテキストとの間隔を確保 */
+}
 .split-type { font-size: 10px; color: #64748b; font-weight: 700; background: #f1f5f9; padding: 2px 6px; border-radius: 6px; margin-left: 4px; vertical-align: middle; }
 .history-payer { font-size: 11px; color: #64748b; font-weight: 700; }
 .history-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
@@ -420,4 +658,55 @@ const forceEndEvent = () => { modals.value.unpaidWarning = false; router.push('/
 
 .slide-up { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
 @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+/* 🌟 追加：サマリー内訳のスタイル */
+.breakdown-list {
+  background: #f8fafc;
+  border-radius: 16px;
+  padding: 16px;
+  margin: 20px 0;
+  text-align: left;
+  border: 1px solid #e2e8f0;
+}
+.breakdown-title {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0 0 12px 0;
+  font-weight: 800;
+  border-bottom: 1px dashed #cbd5e1;
+  padding-bottom: 8px;
+}
+.breakdown-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.breakdown-item:last-child {
+  margin-bottom: 0;
+}
+.bd-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: #334155;
+}
+.bd-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.bd-who {
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 800;
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.bd-amount {
+  font-size: 15px;
+  font-weight: 900;
+  color: #0f172a;
+}
 </style>
