@@ -8,7 +8,7 @@ import MyPageView from '../views/MyPageView.vue'
 import MakeEventView from '../views/MakeEventView.vue'
 import LoginView from '../views/LoginView.vue'
 import EventViews from '../views/EventViews.vue' 
-// import EventDetails from '../views/EventDetails.vue' 
+import EventDetails from '../views/EventDetails.vue' 
 import EditProfileView from '../views/EditProfileView.vue';
 import PaymentHistoryView from '../views/PaymentHistoryView.vue';
 
