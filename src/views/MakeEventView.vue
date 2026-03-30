@@ -43,7 +43,7 @@
       </div>
     </div>
 
-    <div v-else>
+    <div v-else class="join-mode">
       <div class="input-section">
         <label class="input-label">招待コードを入力</label>
         <input v-model="joinCode" type="text" placeholder="例：A1B2C3" class="input-field shadow-box join-input" maxlength="6" />
@@ -60,6 +60,7 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '@/services/api'; // 🌟 パスに注意
+import { watch } from 'vue';
 
 const router = useRouter();
 const isJoinMode = ref(false);
@@ -113,11 +114,37 @@ const joinEvent = async () => {
   // 参加ロジック（サーバー側の実装に合わせて調整）
   alert('現在、参加機能は調整中です。');
 };
+
+watch(isJoinMode, () => {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
 </script>
 
 <style scoped>
-/* スタイルはあなたの既存のものをそのまま使えます */
-.make-event-container { padding: 20px 25px; background-color: #f8fafc; min-height: 100vh; }
+.make-event-container { 
+  padding: 20px 25px; 
+  background-color: #f8fafc; 
+  min-height: 100vh; 
+  box-sizing: border-box;
+
+  /* 🌟 全体の開始位置を下げる（ヘッダー被り防止） */
+  /* ヘッダーの高さが 60px なら 80px 程度が理想的です */
+  padding-top: 80px; 
+}
+
+/* 🌟 .join-mode の padding-top は削除するか、containerと合わせる */
+.join-mode {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 💻 PC版の調整 */
+@media (min-width: 1024px) {
+  .make-event-container {
+    padding-top: 40px; /* PC版サイドバー利用時は余白を詰める */
+  }
+}
 .page-title { font-size: 20px; font-weight: bold; margin-bottom: 30px; text-align: center; color: #1e293b; }
 .input-section { margin-bottom: 25px; }
 .input-label { display: block; font-weight: bold; font-size: 13px; margin-bottom: 8px; color: #64748b; }
