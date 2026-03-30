@@ -69,7 +69,9 @@
       </div>
       
       <div class="all-history-action">
-        <button class="all-history-btn" @click="$router.push('/payment-history')">📜 全ての履歴を見る</button>
+        <router-link to="/payment-history" class="bg-white border border-gray-200 px-6 py-3 rounded-full shadow-sm text-sm font-bold flex items-center justify-center gap-2 mx-auto w-fit mt-8 active:scale-95 transition-transform">
+          📜 全ての履歴を見る
+        </router-link>
       </div>
     </div>
   </div>
