@@ -1,12 +1,20 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import cron from 'node-cron';
+import cors from 'cors';
 
 const app = express();
 const prisma = new PrismaClient();
 const PORT = 3000;
 
 app.use(express.json());
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'https://pairpay-4c17a.web.app'
+  ],
+  credentials: true
+}));
 
 // --- 1. 精算アルゴリズム (最小送金回数) ---
 function calculateMinimalTransfers(balances) {
@@ -64,12 +72,27 @@ function calculateEntropy(balances, totalAmount, createdAt) {
 // イベント（閉鎖系）の新規作成
 app.post('/api/events', async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, invitationCode } = req.body;
     if (!name) return res.status(400).json({ error: "イベント名が必要です" });
+
+    // invitationCode はスキーマで必須かつユニークなので、なければ自動生成する
+    const code = invitationCode || Math.random().toString(36).substring(2, 8).toUpperCase();
+
     const newEvent = await prisma.event.create({
-      data: { name, entropy: 0.0, isClosed: true }
+      data: {
+        name,
+        invitationCode: code,
+        entropy: 0.0,
+        isClosed: true,
+        creator: {
+          connectOrCreate: {
+            where: { firebaseUid: 'system' },
+            create: { firebaseUid: 'system', name: 'system' }
+          }
+        }
+      }
     });
-    console.log(`🌌 創世記: 新しい系「${name}」が誕生しました。`);
+    console.log(`🌌 創世記: 新しい系「${name}」が誕生しました。（code: ${code}）`);
     res.json(newEvent);
   } catch (error) {
     res.status(500).json({ error: error.message });
