@@ -5,8 +5,15 @@
           <h2 class="modal-title">フレンド承認</h2>
           
           <div class="target-user" v-if="requestUser">
-            <div class="avatar" :style="{ backgroundColor: requestUser.color || '#cbd5e1' }"></div>
-            <h3 class="name">{{ requestUser.name }}</h3>
+            <div class="avatar-wrapper-large">
+              <img 
+                v-if="requestUser && requestUser.formPhoto" 
+                :src="requestUser.formPhoto" 
+                class="avatar-img-large"
+              />
+            <div v-else class="avatar-placeholder-large" :style="{ backgroundColor: requestUser?.color || '#cbd5e1' }"></div>
+          </div>
+          <h3 class="name">{{ requestUser.name }}</h3>
           </div>
   
           <p class="question">このユーザーからのフレンド申請を承認しますか？</p>
@@ -38,7 +45,7 @@
   
   const approve = () => {
     // TODO: 将来的にFirebaseの status を "accepted" に更新する処理などを書く
-    alert(`${props.requestUser.name} さんとフレンドになりました！`);
+    alert(`${props.requestUser.formName} さんとフレンドになりました！`);
     emit('approve', props.requestUser);
     emit('close');
   };
@@ -64,4 +71,17 @@
   .btn { width: 100%; padding: 15px; border-radius: 15px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; }
   .execute-btn { background: #22c55e; color: white; } /* 承認は緑色 */
   .cancel-btn { background: #e2e8f0; color: #64748b; }
-  </style>
+
+  .avatar-wrapper-large {
+  width: 100px; /* スクリーンショットに合わせて調整してください */
+  height: 100px;  margin: 0 auto 15px auto;  flex-shrink: 0;
+}
+
+.avatar-img-large {
+  width: 100%;  height: 100%;  border-radius: 50%;  object-fit: cover;  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.avatar-placeholder-large {
+  width: 100%;  height: 100%;  border-radius: 50%;
+}
+</style>

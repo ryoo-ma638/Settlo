@@ -38,5 +38,6 @@ __screenshots__/
 # Vite
 *.timestamp-*-*.mjs
 
-# Don't commit Firebase service account (local only)
 service-account.json
+
+.env

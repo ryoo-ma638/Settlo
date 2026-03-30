@@ -43,7 +43,7 @@
         <footer class="footer-actions">
           <h3 class="section-sub">手渡しの場合</h3>
           <button class="method-btn cash" @click="confirmCash">
-            💵 {{ mode === 'remind' ? '現金で受け取った (承認リクエスト)' : '現金で支払った (承認リクエスト)' }}
+            💵 {{ mode === 'remind' ? '現金で受け取った (完了にする)' : '現金で支払った (承認リクエスト)' }}
           </button>
         </footer>
       </template>
@@ -70,24 +70,29 @@ import BatchItemList from '../components/BatchItemList.vue';
 const route = useRoute();
 const selectedItem = ref(null);
 
-// 🌟 URLのクエリ（?status=completed）を見て完了済みか判定する
 const isCompleted = computed(() => route.query.status === 'completed');
-// 🌟 完了日のダミーデータ（後でFirebaseから取得した日付を入れます）
 const completedDate = ref('2026/03/25 14:30'); 
 
 // 判定ロジック
 const mode = computed(() => route.params.id?.includes('waiting') ? 'remind' : 'pay');
-const isBatch = computed(() => route.params.id?.includes('batch') || route.params.id === 'all');
+// 🌟 `event` が含まれる場合も「まとめ払い」として扱う
+const isBatch = computed(() => route.params.id?.includes('batch') || route.params.id === 'all' || route.params.id?.includes('event'));
+
 const modeLabel = computed(() => mode.value === 'remind' ? 'ご請求合計' : 'お支払い合計');
-const modeClass = computed(() => {
-  // 🌟 完了済みの場合はグレーぽい色にして落ち着かせるのもアリです（今回は既存の色を維持）
-  return mode.value === 'remind' ? 'blue-mode' : 'orange-mode';
+const modeClass = computed(() => mode.value === 'remind' ? 'blue-mode' : 'orange-mode');
+
+// 🌟 タイトルを動的に変化
+const pageTitle = computed(() => {
+  if (mode.value === 'remind') {
+    return route.params.id?.includes('event') ? 'イベントのまとめて受け取り' : (isBatch.value ? 'まとめて催促' : '催促の詳細');
+  } else {
+    return route.params.id?.includes('event') ? 'イベントのまとめてお支払い' : (isBatch.value ? 'まとめてお支払い' : 'お支払いの詳細');
+  }
 });
-const pageTitle = computed(() => mode.value === 'remind' ? (isBatch.value ? 'まとめて催促' : '催促の詳細') : (isBatch.value ? 'まとめてお支払い' : 'お支払いの詳細'));
 
 const items = ref([
-  { id: 1, eventName: 'スノボ旅行', date: '3/10', name: '小野木涼平', itemName: 'レンタカー代', amount: 2000, itemsDetail: ['基本料金', 'スタッドレス'] },
-  { id: 2, eventName: '飲み会', date: '3/11', name: '大崎稜馬', itemName: '飲み会代', amount: 6300, itemsDetail: ['コース代', '飲み放題'] },
+  { id: 1, eventName: '鈴○サーキット', date: '3/25', name: '小野木涼平', itemName: 'レンタカー代', amount: 1500, itemsDetail: ['基本料金', 'ガソリン代'] },
+  { id: 2, eventName: '鈴○サーキット', date: '3/25', name: '小野木涼平', itemName: '高速料金', amount: 2000, itemsDetail: ['ETC代'] },
 ]);
 
 const totalAmount = computed(() => items.value.reduce((sum, i) => sum + i.amount, 0));
@@ -95,27 +100,21 @@ const openOverlay = (item) => { selectedItem.value = item; };
 
 const confirmCash = () => {
   if (mode.value === 'remind') {
-    const ok = confirm("現金で受け取りましたか？\n相手に「支払い完了の承認リクエスト」を送ります。");
-    if (ok) alert("承認リクエストを送信しました！相手が承認すると完了になります。");
+    if (confirm("現金で受け取りましたか？\n相手の支払い状況を「完了」に更新します。")) alert("受け取りを完了しました！");
   } else {
-    const ok = confirm("現金で支払いましたか？\n相手に「受け取り完了の承認リクエスト」を送ります。");
-    if (ok) alert("承認リクエストを送信しました！相手が承認すると完了になります。");
+    if (confirm("現金で支払いましたか？\n相手に「受け取り完了の承認リクエスト」を送ります。")) alert("承認リクエストを送信しました！");
   }
 };
 
 const createPayPayLink = () => {
-  alert(`¥${totalAmount.value.toLocaleString()} のPayPay請求リンクを作成し、クリップボードにコピーしました！\nLINE等で送信してください。`);
+  alert(`¥${totalAmount.value.toLocaleString()} のPayPay請求リンクを作成しコピーしました！`);
 };
-
 const confirmPayment = (method) => {
-  if (method === 'paypay') {
-    alert("PayPayアプリを起動します（現在準備中）");
-  }
+  if (method === 'paypay') alert("PayPayアプリを起動します（現在準備中）");
 };
 </script>
 
 <style scoped>
-/* 既存のCSSはそのまま */
 .payment-detail-container { width: 100%; min-height: 100vh; background-color: #f8fafc; display: flex; flex-direction: column; box-sizing: border-box; overflow-x: hidden; }
 .content { padding: 15px; width: 100%; box-sizing: border-box; }
 .summary-card { padding: 25px; border-radius: 20px; color: white; text-align: center; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
@@ -136,7 +135,6 @@ const confirmPayment = (method) => {
 .back-btn { background: none; border: none; font-size: 32px; color: #64748b; }
 .detail-header { display: flex; align-items: center; padding: 10px 15px; background: white; }
 
-/* 🌟 追加: 取引完了時のカードデザイン */
 .completed-section { margin-top: 30px; }
 .completed-card { 
   background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 16px; 
