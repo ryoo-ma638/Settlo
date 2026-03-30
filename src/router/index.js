@@ -17,7 +17,7 @@ const router = createRouter({
   routes: [
     { path: '/', name: 'home', component: HomeView },
     { path: '/friend', name: 'friend', component: FriendView },
-    { path: '/friend/:name', name: 'friend-detail', component: FriendDetailView },
+    { path: '/friend/:name/:uid', name: 'friend-detail', component: FriendDetailView },
     { path: '/payment', name: 'payment', component: MoneyPage },
     { path: '/mypage', name: 'mypage', component: MyPageView },
     { path: '/make-event', name: 'make-event', component: MakeEventView },
