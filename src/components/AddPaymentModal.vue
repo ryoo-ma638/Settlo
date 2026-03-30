@@ -108,6 +108,7 @@
               <p class="section-desc">商品ごとに支払う人を選べます。</p>
               <button class="add-item-btn" @click="addDummyItem">＋ 商品追加</button>
             </div>
+
             <div class="receipt-items-list">
               <div class="receipt-item-card" v-for="(item, index) in receiptItems" :key="index">
                 <div class="item-header">
@@ -117,6 +118,7 @@
                   </div>
                   <button class="remove-item-btn" @click="receiptItems.splice(index, 1)">✕</button>
                 </div>
+                
                 <div class="item-assignees">
                   <span class="assign-label">支払う人:</span>
                   <div class="assign-chips">
@@ -155,7 +157,6 @@ const fileInput = ref(null);
 const isDragging = ref(false);
 const uploadedImage = ref(null);
 
-// 🌟 formData に time を追加
 const formData = ref({
   amount: '',
   itemName: '',
@@ -190,7 +191,6 @@ const handleSubmit = () => {
     return;
   }
   
-  // 🌟 時間が空なら、現在時刻を自動で取得してセットする
   const submitTime = formData.value.time || new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 
   const payload = {
@@ -199,7 +199,7 @@ const handleSubmit = () => {
     splitType: formData.value.splitType === 'all' ? '全員で均等' : (formData.value.splitType === 'item' ? '商品ごとに指定' : '個別指定'),
     amount: Number(formData.value.amount),
     date: formData.value.date.replace(/-/g, '/'),
-    time: submitTime // 🌟 取得した時間を追加
+    time: submitTime 
   };
 
   emit('submit', payload);
@@ -224,7 +224,6 @@ const createPreview = (file) => {
   const reader = new FileReader();
   reader.onload = (e) => {
     uploadedImage.value = e.target.result;
-    // 🌟 モック: レシート読み取りで時間まで取れた場合の演出
     setTimeout(() => {
       formData.value.itemName = '鳥貴族 名古屋店';
       formData.value.amount = '4500';
@@ -246,7 +245,6 @@ const addDummyItem = () => {
 </script>
 
 <style scoped>
-/* 前回と全く同じCSSです（時間のヒントテキスト用だけ少し追加） */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.6); display: flex; align-items: flex-end; justify-content: center; z-index: 2000; backdrop-filter: blur(4px); }
 .modal-content { background: #f4f7f9; width: 100%; max-width: 600px; border-radius: 32px 32px 0 0; display: flex; flex-direction: column; max-height: 90vh; }
 .modal-header { padding: 24px 24px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.05); background: white; border-radius: 32px 32px 0 0; }
@@ -268,7 +266,7 @@ const addDummyItem = () => {
 
 .basic-info-card { background: white; border-radius: 24px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 24px; display: flex; flex-direction: column; gap: 16px; }
 .input-row label { display: block; font-size: 12px; font-weight: 800; color: #64748b; margin-bottom: 6px; }
-.hint-text { font-weight: normal; font-size: 10px; color: #94a3b8; } /* 🌟 追加 */
+.hint-text { font-weight: normal; font-size: 10px; color: #94a3b8; } 
 .half-row { display: flex; gap: 12px; }
 .half { flex: 1; }
 

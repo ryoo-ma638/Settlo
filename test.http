@@ -1,0 +1,32 @@
+### イベント作成（これを先に実行！）
+POST http://localhost:3001/api/events
+Content-Type: application/json
+
+{
+  "name": "テスト打ち上げ",
+  "amount": 0,
+  "invitationCode": "TEST2026"
+}
+
+### 1. 別のユーザー（456さん）をこのイベントに参加させる
+POST http://localhost:3001/api/events/join
+Content-Type: application/json
+
+{
+  "invitationCode": "TEST2026",
+  "userUid": "test-user-456"
+}
+
+### 2. 自分（123さん）が 3000円 支払った記録を付ける
+POST http://localhost:3001/api/transactions
+Content-Type: application/json
+
+{
+  "amount": 3000,
+  "description": "飲み物代",
+  "eventId": 1,
+  "payerUid": "test-user-123"
+}
+
+### 3. 【運命の瞬間】精算結果を確認する
+GET http://localhost:3001/api/events/1/settle

@@ -34,6 +34,8 @@ const router = createRouter({
     { path: '/edit-profile', name: 'EditProfile', component: EditProfileView },
 
     { path: '/payment-history', name: 'PaymentHistory', component: PaymentHistoryView },
+    // router/index.js の routes 配列の中
+    {path: '/event/:id',name: 'EventDetails',component: () => import('../views/EventDetails.vue')}
   ]
 })
 
