@@ -40,21 +40,30 @@
   
   <script setup>
   import { ref, onMounted } from 'vue';
-  import { auth } from "../firebase";
+  import { auth, db } from "../firebase"; // 💡 db を追加
+  import { doc, updateDoc, getDoc } from "firebase/firestore"; // 💡 保存に使う機能を追加
+  import { useRouter } from "vue-router"; // 💡 画面移動に使う機能を追加
   
   const newName = ref("");
   const userPhoto = ref("");
   const previewPhoto = ref(null);
+  const router = useRouter(); // 💡 ルーターを使えるように定義
   
   // UI制御用の変数
   const showPhotoOptions = ref(false);
   const fileInputLibrary = ref(null);
   const fileInputCamera = ref(null);
   
-  onMounted(() => {
+  onMounted(async() => {
     const user = auth.currentUser;
     if (user) {
+      // 💡 Authからではなく、Firestoreから最新の名前を取ってくる
+    const userDoc = await getDoc(doc(db, "users", user.uid));
+    if (userDoc.exists()) {
+      newName.value = userDoc.data().name || user.displayName || "";
+    } else {
       newName.value = user.displayName || "";
+    }
       // 初期アイコンがない場合のダミー画像
       userPhoto.value = user.photoURL || "https://via.placeholder.com/150/e2e8f0/808080?text=No+Image";
     }
@@ -80,14 +89,35 @@
     const file = event.target.files[0];
     if (file) {
       previewPhoto.value = URL.createObjectURL(file);
-      // TODO: 後でここにFirebaseへのアップロード処理を書く
     }
   };
   
+  // 🌟 保存ボタンを押した時の処理（ここを書き換えました）
   const saveProfile = async () => {
-    alert(`${newName.value} さんとして保存します！\n(※実際の保存処理は準備中です)`);
+    const user = auth.currentUser;
+    if (!user) {
+      alert("ログインが必要です");
+      return;
+    }
+
+    try {
+      // 💡 Firestoreの 'users' コレクションにある自分のデータを指定
+      const userRef = doc(db, "users", user.uid);
+
+      // 💡 データベースの 'name' フィールドを新しい名前に更新
+      await updateDoc(userRef, {
+        name: newName.value
+      });
+
+      alert("プロフィールを更新しました！");
+      router.push("/mypage"); // 💡 マイページに戻る
+
+    } catch (error) {
+      console.error("保存失敗:", error);
+      alert("保存に失敗しました。権限（ルール）を確認してください。");
+    }
   };
-  </script>
+</script>
   
   <style scoped>
   /* 🌟 全体のコンテナ */
