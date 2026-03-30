@@ -341,9 +341,9 @@ console.log("削除対象:", { friendName, friendUid, myUid });
 
 /* ❌ 不要になった dummy クラスを削除、または背景色用に変更 */
 .history-me {
-  /* background-color: #d9a0a0; */ /* 画像がない時の予備色として template で指定 */
+  background-color: #d9a0a0; /* 画像がない時の予備色として template で指定 */
 }
 .history-friend {
-  /* background-color: #8bb4ff; */
+  background-color: #8bb4ff;
 }
 </style>
