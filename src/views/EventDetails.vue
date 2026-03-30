@@ -164,12 +164,10 @@
                 <h3 class="completed-title">この取引は完了しています</h3>
               </div>
             </section>
-
             <template v-else>
               <p class="s-hint">の支払いが残っています。</p>
               <button class="action-btn main" @click="$router.push('/payment')">お支払い画面へ進む</button>
             </template>
-            
           </div>
         </div>
       </div>
@@ -208,7 +206,6 @@ const inviteUser = () => { modals.value.invite = true; };
 const selectedHistory = ref(null);
 const selectedSummary = ref(null);
 
-// データ (変更なし)
 const eventData = ref({
   name: '鈴○サーキット', date: '2026/03/25', total: 18500,
   participants: [
@@ -228,7 +225,6 @@ const eventData = ref({
   ]
 });
 
-// フィルター
 const sumFilterScope = ref('all'); 
 const sumFilterStatus = ref('unpaid'); 
 const histFilterScope = ref('all'); 
@@ -251,7 +247,6 @@ const filteredHistory = computed(() => {
 
 const unpaidItems = computed(() => eventData.value.history.filter(h => h.status === 'unpaid'));
 
-// アクション
 const scrollToTimeline = () => timelineSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 const openHistoryDetail = (h) => { selectedHistory.value = h; modals.value.historyDetail = true; };
 const openSummaryDetail = (s) => { selectedSummary.value = s; modals.value.summaryDetail = true; };
@@ -263,8 +258,17 @@ const markAsCompleted = (id) => {
 
 const addHistory = (newPayment) => {
   eventData.value.history.push({
-    id: Date.now(), payer: newPayment.payer, itemName: newPayment.itemName, splitType: newPayment.splitType,
-    amount: newPayment.amount, color: '#fca5a5', date: newPayment.date, time: '現在', status: 'unpaid', involvesMe: true, timestamp: Date.now()
+    id: Date.now(), 
+    payer: newPayment.payer, 
+    itemName: newPayment.itemName, 
+    splitType: newPayment.splitType,
+    amount: newPayment.amount, 
+    color: '#fca5a5', 
+    date: newPayment.date, 
+    time: newPayment.time, 
+    status: 'unpaid', 
+    involvesMe: true, 
+    timestamp: Date.now()
   });
   eventData.value.total += newPayment.amount;
   modals.value.addPayment = false;
@@ -276,14 +280,12 @@ const forceEndEvent = () => { modals.value.unpaidWarning = false; router.push('/
 </script>
 
 <style scoped>
-/* 🌟 全体のベースとヘッダー */
 .event-detail-container { min-height: 100vh; background-color: #f4f7f9; display: flex; flex-direction: column; font-family: 'Helvetica Neue', Arial, sans-serif; }
 .detail-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 100; border-bottom: 1px solid rgba(0,0,0,0.03); }
 .back-btn { background: none; border: none; font-size: 32px; color: #64748b; cursor: pointer; padding: 0; display: flex; align-items: center; }
 .title { font-size: 17px; font-weight: 800; margin: 0; color: #1e293b; }
 .content { padding: 20px; flex: 1; padding-bottom: 120px; }
 
-/* 🌟 サマリーカード（影を柔らかく、角丸を大きく） */
 .summary-card { background: white; border-radius: 28px; padding: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); margin-bottom: 32px; }
 .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .event-name { font-size: 22px; font-weight: 900; margin: 0; color: #0f172a; letter-spacing: -0.5px; }
@@ -296,39 +298,33 @@ const forceEndEvent = () => { modals.value.unpaidWarning = false; router.push('/
 .arrow-down { font-size: 10px; color: #3b82f6; background: #eff6ff; padding: 4px 10px; border-radius: 12px; margin-left: 8px; font-weight: 800; }
 .total-amount { font-size: 44px; font-weight: 900; margin: 0; color: #0f172a; letter-spacing: -1.5px; }
 
-/* 🌟 参加者セクションのUI崩れを修正 */
 .participants-section { background: #f8fafc; padding: 16px; border-radius: 20px; cursor: pointer; transition: 0.2s; border: 1px solid #f1f5f9; }
 .participants-section:active { background: #f1f5f9; }
 .participants-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .participants-header .label { margin: 0; color: #475569; }
 .participants-header .arrow { color: #cbd5e1; font-weight: bold; font-size: 16px; }
 .participants-row { display: flex; justify-content: space-between; align-items: center; }
-.avatar-stack { display: flex; align-items: center; padding-left: 8px; } /* 重なりの調整 */
+.avatar-stack { display: flex; align-items: center; padding-left: 8px; }
 .avatar { width: 36px; height: 36px; border-radius: 50%; border: 3px solid #f8fafc; margin-left: -12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
 .avatar-more { width: 36px; height: 36px; border-radius: 50%; border: 3px solid #f8fafc; margin-left: -12px; background: #e2e8f0; color: #64748b; font-size: 11px; font-weight: bold; display: flex; align-items: center; justify-content: center; z-index: 0; }
-/* 新しい招待ボタン */
 .invite-pill-btn { background: #eff6ff; color: #3b82f6; border: none; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 800; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 8px rgba(59,130,246,0.15); }
 .invite-pill-btn:active { transform: scale(0.95); background: #dbeafe; }
 
-/* 🌟 セクションヘッダー */
 .section-title { font-size: 18px; font-weight: 900; color: #0f172a; margin: 0 0 16px 0; }
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .add-payment-btn { background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px rgba(59,130,246,0.25); transition: 0.2s; }
 .add-payment-btn:active { transform: scale(0.95); }
 .settlement-summary-section, .history-section { margin-bottom: 36px; }
 
-/* 🌟 iOS風フィルター（超洗練） */
 .filter-wrapper { display: flex; gap: 10px; margin-bottom: 20px; }
 .ios-segmented-control { display: flex; flex: 1; background: #e2e8f0; border-radius: 12px; padding: 3px; }
 .ios-segmented-control button { flex: 1; padding: 8px 0; border: none; background: transparent; font-weight: 800; font-size: 12px; color: #64748b; border-radius: 10px; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
 .ios-segmented-control button.active { background: white; color: #0f172a; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-
 .custom-select-wrapper { flex: 1; position: relative; }
 .custom-select-wrapper.auto-width { flex: 0.6; }
 .ios-select { width: 100%; padding: 0 12px; border-radius: 12px; border: 1px solid #cbd5e1; background: white; font-size: 12px; font-weight: 800; color: #1e293b; outline: none; height: 100%; min-height: 36px; appearance: none; -webkit-appearance: none; cursor: pointer; }
 .custom-select-wrapper::after { content: '▾'; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 10px; color: #94a3b8; pointer-events: none; }
 
-/* 🌟 サマリーカードリスト */
 .summary-list, .timeline { display: flex; flex-direction: column; gap: 12px; }
 .empty-state { text-align: center; font-size: 13px; color: #94a3b8; font-weight: 800; padding: 30px; background: white; border-radius: 20px; border: 2px dashed #e2e8f0; }
 .summary-card-item { background: white; border-radius: 20px; padding: 18px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.03); cursor: pointer; transition: 0.2s; border: 1px solid transparent; }
@@ -342,7 +338,6 @@ const forceEndEvent = () => { modals.value.unpaidWarning = false; router.push('/
 .blue-text { color: #3b82f6; } .orange-text { color: #f59e0b; }
 .arrow-icon { font-size: 16px; color: #cbd5e1; }
 
-/* 🌟 美しいタイムライン */
 .timeline { position: relative; padding-left: 12px; }
 .timeline-item { position: relative; margin-bottom: 16px; cursor: pointer; display: flex; align-items: stretch; }
 .timeline-line { position: absolute; left: 6px; top: 24px; bottom: -16px; width: 2px; background-color: #e2e8f0; z-index: 1; }
@@ -360,35 +355,29 @@ const forceEndEvent = () => { modals.value.unpaidWarning = false; router.push('/
 .history-item-name { font-size: 15px; font-weight: 900; color: #0f172a; }
 .split-type { font-size: 10px; color: #64748b; font-weight: 700; background: #f1f5f9; padding: 2px 6px; border-radius: 6px; margin-left: 4px; vertical-align: middle; }
 .history-payer { font-size: 11px; color: #64748b; font-weight: 700; }
-
 .history-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .history-price { font-size: 18px; font-weight: 900; color: #0f172a; letter-spacing: -0.5px; }
 .pay-now-btn { background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 12px; font-size: 11px; font-weight: 800; cursor: pointer; box-shadow: 0 2px 8px rgba(239,68,68,0.2); transition: 0.2s; }
 .pay-now-btn:active { transform: scale(0.95); }
 
-/* バッジ類 */
 .badge { font-size: 10px; padding: 4px 10px; border-radius: 12px; font-weight: 800; }
 .paid { background: #f1f5f9; color: #64748b; }
 
-/* 🌟 下部ボタン */
 .end-event-btn { width: 100%; background-color: #0f172a; color: white; border: none; padding: 18px; border-radius: 20px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,0.15); transition: 0.2s; margin-bottom: 12px; }
 .end-event-btn:active { transform: scale(0.96); }
 .end-hint { font-size: 11px; color: #94a3b8; text-align: center; margin: 0; font-weight: 700; }
 
-/* モーダル群 */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.6); display: flex; align-items: flex-end; justify-content: center; z-index: 2000; backdrop-filter: blur(4px); }
 .modal-content { background: white; width: 100%; max-width: 600px; border-radius: 32px 32px 0 0; padding: 30px 25px; box-sizing: border-box; max-height: 85vh; overflow-y: auto; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .modal-header h3 { margin: 0; font-size: 20px; color: #0f172a; font-weight: 900; }
 .close-btn { background: #f1f5f9; border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 20px; color: #64748b; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; }
 
-/* 参加者一覧用 */
 .list-item { display: flex; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid #f1f5f9; }
 .avatar-medium { width: 44px; height: 44px; border-radius: 50%; }
 .item-name { font-size: 16px; font-weight: 800; color: #334155; display: flex; align-items: center; gap: 10px; }
 .me-badge { font-size: 10px; background: #3b82f6; color: white; padding: 2px 8px; border-radius: 10px; font-weight: 800; }
 
-/* サマリー詳細用 */
 .summary-detail-body { text-align: center; padding: 10px 0; }
 .flow-large { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 20px; }
 .avatar-large { width: 64px; height: 64px; border-radius: 50%; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
@@ -396,13 +385,10 @@ const forceEndEvent = () => { modals.value.unpaidWarning = false; router.push('/
 .s-text { font-size: 16px; color: #475569; line-height: 1.6; margin-bottom: 16px; font-weight: 700; }
 .s-amount { font-size: 48px; font-weight: 900; margin: 0 0 10px; letter-spacing: -1.5px; }
 .s-hint { font-size: 14px; color: #94a3b8; margin-bottom: 32px; font-weight: 700; }
-
-/* アクションボタン */
 .action-btn { width: 100%; padding: 18px; border-radius: 20px; border: none; font-weight: 900; font-size: 16px; cursor: pointer; transition: 0.2s; }
 .action-btn.main { background: #3b82f6; color: white; box-shadow: 0 8px 20px rgba(59,130,246,0.25); }
 .action-btn.main:active { transform: scale(0.96); }
 
-/* 警告モーダル */
 .warning-modal { background: #fef2f2; }
 .warning-title { color: #ef4444 !important; }
 .warning-desc { font-size: 15px; color: #475569; font-weight: 800; margin-bottom: 24px; line-height: 1.6; }
@@ -410,15 +396,11 @@ const forceEndEvent = () => { modals.value.unpaidWarning = false; router.push('/
 .danger-btn { background: #ef4444; color: white; border: none; padding: 18px; border-radius: 20px; font-weight: 900; font-size: 16px; cursor: pointer; box-shadow: 0 8px 20px rgba(239,68,68,0.25); }
 .safe-btn { background: white; color: #475569; border: 2px solid #cbd5e1; padding: 16px; border-radius: 20px; font-weight: 900; font-size: 16px; cursor: pointer; }
 
-.slide-up { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
-@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-
-/* 🌟 取引完了時のカードデザイン（サマリー詳細用） */
 .completed-section { margin-top: 20px; margin-bottom: 20px; }
-.completed-card { 
-  background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 16px; 
-  padding: 20px; text-align: center; color: #166534; box-shadow: 0 4px 10px rgba(0,0,0,0.02); 
-}
+.completed-card { background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 16px; padding: 20px; text-align: center; color: #166534; box-shadow: 0 4px 10px rgba(0,0,0,0.02); }
 .completed-icon { font-size: 32px; display: block; margin-bottom: 8px; }
 .completed-title { font-size: 15px; font-weight: 900; margin: 0; }
+
+.slide-up { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 </style>
