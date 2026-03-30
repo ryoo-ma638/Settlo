@@ -132,20 +132,48 @@
 
           <div v-if="formData.splitType === 'item'" class="dynamic-section slide-in">
             <div class="item-split-header">
-              <p class="section-desc">商品ごとに支払う人を選べます。</p>
+              <div class="header-left">
+                <p class="section-desc">商品ごとに支払う人を選べます。</p>
+                <p class="match-status" :class="{'matched': itemsTotal === Number(formData.amount), 'error': itemsTotal !== Number(formData.amount)}">
+                  内訳合計: ¥{{ itemsTotal.toLocaleString() }} / 全体: ¥{{ Number(formData.amount).toLocaleString() }}
+                </p>
+              </div>
               <button class="add-item-btn" @click="addDummyItem">＋ 商品追加</button>
+            </div>
+
+            <div class="global-tax-control">
+              <span>一括設定:</span>
+              <button class="global-tax-btn" @click="setGlobalTax(0)">すべて税抜</button>
+              <button class="global-tax-btn" @click="setGlobalTax(8)">すべて+8%</button>
+              <button class="global-tax-btn" @click="setGlobalTax(10)">すべて+10%</button>
             </div>
 
             <div class="receipt-items-list">
               <div v-if="receiptItems.length === 0" class="empty-items">レシートを読み取るとここに商品が並びます</div>
               
               <div class="receipt-item-card" v-for="(item, index) in receiptItems" :key="index">
-                <div class="item-header">
+                <div class="item-main-row">
                   <input v-model="item.name" class="item-name-input" placeholder="商品名">
-                  <div class="item-price-box">
-                    <span>¥</span><input v-model="item.price" type="tel" class="item-price-input">
-                  </div>
                   <button class="remove-item-btn" @click="receiptItems.splice(index, 1)">✕</button>
+                </div>
+                
+                <div class="item-math-row">
+                  <div class="price-input-wrapper">
+                    <span>¥</span><input v-model="item.price" type="tel" class="item-price-input" placeholder="単価">
+                  </div>
+                  <span class="math-sign">×</span>
+                  <div class="qty-control">
+                    <button @click="item.qty > 1 && item.qty--">-</button>
+                    <span>{{ item.qty }}</span>
+                    <button @click="item.qty++">+</button>
+                  </div>
+                  <button class="tax-toggle-btn" :class="'tax-' + item.taxRate" @click="toggleTax(item)">
+                    {{ item.taxRate === 0 ? '税込' : `+${item.taxRate}%` }}
+                  </button>
+                </div>
+
+                <div class="item-subtotal">
+                  小計: <strong>¥{{ calcItemTotal(item).toLocaleString() }}</strong>
                 </div>
                 
                 <div class="item-assignees">
@@ -222,6 +250,8 @@ const calculatedSplitAmount = computed(() => {
   return Math.floor(amt / participants.length).toLocaleString();
 });
 
+
+
 const remainingAmount = computed(() => {
   const total = Number(formData.value.amount) || 0;
   let entered = 0;
@@ -255,27 +285,6 @@ const calculateRemaining = () => {
 // --- アクション ---
 const closeModal = () => emit('close');
 
-const handleSubmit = () => {
-  if (!formData.value.amount || !formData.value.itemName) {
-    alert('合計金額と店名・内容は必須です！');
-    return;
-  }
-  
-  const submitTime = formData.value.time || new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-
-  const payload = {
-    payer: formData.value.payer,
-    itemName: formData.value.itemName,
-    splitType: formData.value.splitType,
-    amount: Number(formData.value.amount),
-    date: formData.value.date.replace(/-/g, '/'),
-    time: submitTime,
-    items: receiptItems.value
-  };
-
-  emit('submit', payload);
-  resetUpload();
-};
 
 const resetUpload = () => {
   formData.value.amount = '';
@@ -305,7 +314,7 @@ const processImage = (file) => {
     isAnalyzing.value = true; // アニメーション開始
     
     try {
-      // さっきデプロイしたFirebase Functions（本物のAI）を呼び出す
+      // Firebase Functions（本物のAI）を呼び出す
       const functions = getFunctions(app, 'asia-northeast1');
       const analyzeReceipt = httpsCallable(functions, 'analyzeReceipt');
       
@@ -318,14 +327,16 @@ const processImage = (file) => {
       if (data.date) formData.value.date = data.date;
       if (data.time) formData.value.time = data.time;
       
-      // 商品リストの構築
+      // 🌟 ここが新しい処理！展開せずに「個数（qty）」と「税率（taxRate）」として綺麗にセットする
       if (data.items && data.items.length > 0) {
         receiptItems.value = data.items.map(item => ({
           name: item.name || '不明な商品',
           price: item.price || 0,
+          qty: item.quantity && item.quantity > 0 ? item.quantity : 1, // AIが読んだ個数をセット
+          taxRate: 0, // 初期値は税込(0%)
           assignees: [] 
         }));
-        formData.value.splitType = 'item'; // 商品タブに切り替え
+        formData.value.splitType = 'item'; // 商品タブに自動で切り替え
       }
 
     } catch (error) {
@@ -344,7 +355,69 @@ const toggleAssignee = (item, name) => {
   else item.assignees.push(name);
 };
 const addDummyItem = () => {
-  receiptItems.value.push({ name: '', price: null, assignees: [] });
+  receiptItems.value.push({ name: '', price: null, qty: 1, taxRate: 0, assignees: [] });
+};
+
+// 🌟 小計・合計の計算ロジック
+const calcItemTotal = (item) => {
+  const base = (Number(item.price) || 0) * (item.qty || 1);
+  return Math.floor(base * (1 + (item.taxRate / 100)));
+};
+
+const itemsTotal = computed(() => {
+  return receiptItems.value.reduce((sum, item) => sum + calcItemTotal(item), 0);
+});
+
+// 🌟 税率の切り替え機能
+const toggleTax = (item) => {
+  if (item.taxRate === 0) item.taxRate = 8;
+  else if (item.taxRate === 8) item.taxRate = 10;
+  else item.taxRate = 0;
+};
+const setGlobalTax = (rate) => {
+  receiptItems.value.forEach(item => item.taxRate = rate);
+};
+
+// 🌟 緩やかな送信チェック（エラーではなく確認ダイアログにする）
+const handleSubmit = () => {
+  if (!formData.value.amount || !formData.value.itemName) {
+    alert('合計金額と店名・内容は必須です！');
+    return;
+  }
+  
+  if (formData.value.splitType === 'item') {
+    const unassignedItem = receiptItems.value.find(item => item.assignees.length === 0);
+    if (unassignedItem) {
+      alert(`「${unassignedItem.name}」を支払う人が選択されていません！`);
+      return;
+    }
+    
+    // 🌟 金額がズレていても、ユーザーがOKなら通す！
+    if (itemsTotal.value !== Number(formData.value.amount)) {
+      const proceed = confirm(`内訳の合計（¥${itemsTotal.value.toLocaleString()}）が、全体の合計（¥${Number(formData.value.amount).toLocaleString()}）と一致していません。\n\n差額は誰の支払いにもならず消滅するか、立替者が多く負担することになります。\nこのまま追加しますか？`);
+      if (!proceed) return;
+    }
+  }
+
+  // EventDetails に送るデータを整形（個数や税金を計算済みの最終価格で送る）
+  const processedItems = receiptItems.value.map(item => ({
+    name: item.qty > 1 ? `${item.name} (x${item.qty})` : item.name,
+    price: calcItemTotal(item),
+    assignees: item.assignees
+  }));
+
+  const payload = {
+    payer: formData.value.payer,
+    itemName: formData.value.itemName,
+    splitType: formData.value.splitType,
+    amount: Number(formData.value.amount),
+    date: formData.value.date.replace(/-/g, '/'),
+    time: formData.value.time || new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
+    items: processedItems
+  };
+
+  emit('submit', payload);
+  resetUpload();
 };
 </script>
 
@@ -463,4 +536,37 @@ const addDummyItem = () => {
 @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .slide-up { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
 @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+/* 🌟 追加：金額一致チェックのスタイル */
+.header-left { display: flex; flex-direction: column; gap: 6px; }
+.match-status { font-size: 13px; font-weight: 900; margin: 0; padding: 4px 10px; border-radius: 8px; display: inline-block; align-self: flex-start; transition: 0.3s; }
+.match-status.matched { color: #10b981; background: #d1fae5; }
+.match-status.error { color: #ef4444; background: #fee2e2; border: 1px dashed #ef4444; }
+
+/* 🌟 UX向上：商品ごとのレイアウト */
+.global-tax-control { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; font-size: 11px; font-weight: 800; color: #64748b; }
+.global-tax-btn { padding: 6px 10px; border-radius: 12px; border: 1px solid #cbd5e1; background: white; cursor: pointer; color: #475569; font-weight: bold; transition: 0.2s; }
+.global-tax-btn:active { background: #f1f5f9; }
+
+.item-main-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.item-math-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.math-sign { font-size: 14px; font-weight: bold; color: #94a3b8; }
+
+.qty-control { display: flex; align-items: center; background: #f1f5f9; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; }
+.qty-control button { width: 32px; height: 32px; border: none; background: transparent; color: #475569; font-size: 16px; font-weight: bold; cursor: pointer; }
+.qty-control button:active { background: #e2e8f0; }
+.qty-control span { width: 24px; text-align: center; font-size: 14px; font-weight: 900; color: #1e293b; }
+
+.tax-toggle-btn { padding: 6px 10px; border-radius: 10px; font-size: 12px; font-weight: 900; border: 1px solid #cbd5e1; cursor: pointer; background: white; transition: 0.2s; }
+.tax-toggle-btn.tax-0 { color: #64748b; }
+.tax-toggle-btn.tax-8 { color: #f59e0b; border-color: #f59e0b; background: #fffbeb; }
+.tax-toggle-btn.tax-10 { color: #ef4444; border-color: #ef4444; background: #fef2f2; }
+
+.item-subtotal { text-align: right; font-size: 12px; color: #64748b; margin-bottom: 16px; font-weight: 700; border-bottom: 1px dashed #e2e8f0; padding-bottom: 12px; }
+.item-subtotal strong { font-size: 18px; color: #0f172a; margin-left: 6px; }
+
+.header-left { display: flex; flex-direction: column; gap: 6px; }
+.match-status { font-size: 12px; font-weight: 900; margin: 0; padding: 6px 12px; border-radius: 10px; display: inline-block; align-self: flex-start; transition: 0.3s; }
+.match-status.matched { color: #10b981; background: #d1fae5; }
+.match-status.error { color: #ef4444; background: #fee2e2; border: 1px dashed #ef4444; }
 </style>
