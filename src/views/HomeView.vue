@@ -49,8 +49,8 @@
             <div class="modal-section">
               <label>招待コード</label>
               <div class="modal-code-box">
-                <span class="modal-code">{{ selectedEvent.code }}</span>
-                <button class="modal-copy-btn" @click="copyCode(selectedEvent.code)">コピー</button>
+                <span class="modal-code">{{ selectedEvent.invitationCode }}</span>
+                <button class="modal-copy-btn" @click="copyCode(selectedEvent.invitationCode)">コピー</button>
               </div>
             </div>
 
@@ -194,12 +194,19 @@ const copyCode = (code) => {
 const fetchEvents = async () => {
   try {
     loading.value = true;
-    // 1. まずサーバー(Prisma)側にユーザー情報を同期する（連結の要）
     await api.post('/users/sync'); 
     
-    // 2. サーバーからイベント一覧を取得
     const res = await api.get('/events');
-    ongoingEvents.value = res.data;
+    
+    // 🌟 取得したデータに invitationCode が含まれているか確認
+    ongoingEvents.value = res.data.map(event => ({
+      ...event,
+      // もし invitationCode が無ければ '------' と表示させる（デバッグ用）
+      invitationCode: event.invitationCode || 'N/A',
+      // 金額表示の整形などもここですると綺麗です
+      amount: `¥${(event.totalAmount || 0).toLocaleString()}`
+    }));
+
   } catch (error) {
     console.error("イベント取得に失敗:", error);
   } finally {

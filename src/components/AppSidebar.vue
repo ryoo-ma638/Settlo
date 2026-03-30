@@ -32,7 +32,7 @@
       <hr class="divider" />
 
       <ul class="menu-list">
-        <li @click="navigate('/make-event')">
+        <li @click="navigate('/event')">
           <span class="icon">📅</span> 進行中のイベント
         </li>
         <li @click="navigate('/payment')">
