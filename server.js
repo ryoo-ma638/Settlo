@@ -98,10 +98,13 @@ app.get('/api/events', authenticateUser, async (req, res) => {
     
     const processDoc = (doc) => {
       const data = doc.data();
-      map.set(doc.id, {
+        map.set(doc.id, {
         id: doc.id,
-        ...data,
-        createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null
+        name: data.name,
+        invitationCode: data.invitationCode, // 🌟 ここが漏れていないかチェック
+        tag: data.tag,
+        memo: data.memo,
+        totalAmount: data.totalAmount,
       });
     };
 
