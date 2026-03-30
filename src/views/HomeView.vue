@@ -134,9 +134,9 @@ const goToEventDetail = (id) => {
   router.push(`/event/${id}`);
 };
 
-const onMounted = () => {
-  fetchEvents(); // 🌟 起動時にサーバーと連結
-};
+onMounted(() => {
+  fetchEvents(); // 🌟 これでページ読み込み時に同期と取得が走る
+});
 </script>
 
 <style scoped>
