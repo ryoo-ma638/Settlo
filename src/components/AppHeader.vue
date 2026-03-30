@@ -9,8 +9,8 @@
     
     <div class="header-left">
       <div class="user-icon-container" @click="navigate('/mypage')">
-        <div class="user-circle"></div>
-        <span class="user-name">名前</span>
+        <img :src="userPhoto" class="user-circle" />
+        <span class="user-name">{{ userName || '名前' }}</span>
       </div>
     </div>
 
@@ -34,18 +34,32 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import AppSidebar from './AppSidebar.vue';
 import NotificationIcon from './NotificationIcon.vue';
+import { auth } from "../firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
 const router = useRouter();
 const isSidebarOpen = ref(false);
 const notifRef = ref(null); // お知らせコンポーネントを操作するための参照
 
+const userName = ref("");
+const userPhoto = ref("");
+
 const navigate = (path) => {
 router.push(path);
 };
+
+onMounted(() => {
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      userName.value = user.displayName;
+      userPhoto.value = user.photoURL;
+    }
+  });
+});
 
 // 🌟 サイドバーで「お知らせ」が押された時の処理
 const handleOpenNotification = () => {
@@ -72,7 +86,14 @@ box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); height: 75px; box-sizing: border-box
 
 .user-icon-container { display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: opacity 0.2s; }
 .user-icon-container:active { opacity: 0.5; }
-.user-circle { width: 40px; height: 40px; background-color: #d9a0a0; border-radius: 50%; }
+.user-circle { 
+  width: 40px; 
+  height: 40px; 
+  background-color: #e3a8a8; 
+  border-radius: 50%; 
+  object-fit: cover; /* 🌟 画像が縦横に伸びないように追加 */
+}
+
 .user-name { font-size: 11px; color: #333; margin-top: 4px; font-weight: bold; }
 .app-title { 
   font-size: 26px; font-weight: 900; color: #059669; margin: 0; letter-spacing: 1px; 
