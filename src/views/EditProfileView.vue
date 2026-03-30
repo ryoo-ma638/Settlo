@@ -36,10 +36,22 @@
       <input ref="fileInputLibrary" type="file" accept="image/*" style="display: none;" @change="onFileChange" />
       <input ref="fileInputCamera" type="file" accept="image/*" capture="environment" style="display: none;" @change="onFileChange" />
     </div>
+    <BaseModal 
+        :show="modalState.show"
+        :type="modalState.type"
+        :title="modalState.title"
+        :message="modalState.message"
+        :showCancel="modalState.showCancel"
+        :confirmText="modalState.confirmText"
+        @confirm="modalState.onConfirm ? modalState.onConfirm() : (modalState.show = false)"
+        @cancel="modalState.show = false"
+        @close="modalState.show = false"
+      />
   </template>
   
   <script setup>
-  import { ref, onMounted } from 'vue';
+  import { ref, onMounted, reactive } from 'vue'; // 🌟 reactiveを追加
+  import BaseModal from '../components/BaseModal.vue'; // 🌟 追加
   import { auth } from "../firebase";
   
   const newName = ref("");
@@ -66,14 +78,35 @@
     fileInputLibrary.value.click();
   };
   
-  // 🌟 カメラを起動する処理（許可ダイアログ付き）
-  const triggerCamera = () => {
-    showPhotoOptions.value = false;
-    // 擬似的な許可ダイアログを出して確認する
-    if (confirm("Settlo がカメラへのアクセスを求めています。\n許可しますか？")) {
-      fileInputCamera.value.click();
-    }
-  };
+  const modalState = reactive({
+  show: false, type: 'info', title: '', message: '', 
+  showCancel: false, confirmText: 'OK', onConfirm: null
+});
+const showModal = (options) => {
+  Object.assign(modalState, { showCancel: false, confirmText: 'OK', onConfirm: null, ...options, show: true });
+};
+
+const triggerCamera = () => {
+  showPhotoOptions.value = false;
+  // 🌟 confirm を美しいモーダルに
+  showModal({
+    type: 'info',
+    title: 'カメラの使用',
+    message: 'Settlo がカメラへのアクセスを求めています。許可しますか？',
+    showCancel: true,
+    confirmText: '許可する',
+    onConfirm: () => fileInputCamera.value.click()
+  });
+};
+
+const saveProfile = async () => {
+  // 🌟 alert を美しいモーダルに
+  showModal({
+    type: 'success',
+    title: '保存完了',
+    message: `${newName.value} さんとして保存しました！\n(※実際の保存処理は準備中です)`
+  });
+};
   
   // 画像が選択された時にプレビューを表示する処理
   const onFileChange = (event) => {
@@ -84,9 +117,7 @@
     }
   };
   
-  const saveProfile = async () => {
-    alert(`${newName.value} さんとして保存します！\n(※実際の保存処理は準備中です)`);
-  };
+  
   </script>
   
   <style scoped>

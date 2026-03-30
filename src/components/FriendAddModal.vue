@@ -60,14 +60,28 @@
 
       </div>
     </div>
+    
+    <BaseModal 
+      :show="modalState.show"
+      :type="modalState.type"
+      :title="modalState.title"
+      :message="modalState.message"
+      :showCancel="modalState.showCancel"
+      :confirmText="modalState.confirmText"
+      :cancelText="modalState.cancelText"
+      @confirm="handleConfirmModal"
+      @cancel="modalState.show = false"
+      @close="modalState.show = false"
+    />
   </Teleport>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, reactive } from 'vue'; 
+import BaseModal from './BaseModal.vue'; // 🌟 統一モーダルをインポート
 import { db, auth } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, limit } from 'firebase/firestore';
-import { doc, getDoc } from 'firebase/firestore'; // getDoc と doc を追加
+import { doc, getDoc } from 'firebase/firestore'; 
 
 const props = defineProps({ isOpen: Boolean });
 const emit = defineEmits(['close']);
@@ -75,34 +89,24 @@ const emit = defineEmits(['close']);
 const searchMode = ref('name');
 const searchQuery = ref('');
 const searchResults = ref([]);
-
-// 🌟 新しく追加した変数：選択されたユーザーを一時保存する
 const selectedUser = ref(null);
 
-// 検索を実行する関数 (既存のまま)
-/*const performSearch = async () => {
-  const text = searchQuery.value.trim();
-  if (text.length === 0) { searchResults.value = []; return; }
-  try {
-    const usersRef = collection(db, "users");
-    let q = searchMode.value === 'name' 
-      ? query(usersRef, where("name", "==", text), limit(10))
-      : query(usersRef, where("displayId", "==", text), limit(1));
-      
-    const querySnapshot = await getDocs(q);
-    const results = [];
-    querySnapshot.forEach((doc) => {
-      if (doc.id !== auth.currentUser?.uid) {
-        results.push({ uid: doc.id, ...doc.data() });
-      }
-    });
-    searchResults.value = results;
-  } catch (error) {
-    console.error("検索エラー:", error);
-  }
-};
-*/
+// 🌟 統一モーダルの状態管理
+const modalState = reactive({
+  show: false, type: 'info', title: '', message: '', 
+  showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null
+});
 
+const showModal = (options) => {
+  Object.assign(modalState, { showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, ...options, show: true });
+};
+
+const handleConfirmModal = () => {
+  if (modalState.onConfirm) modalState.onConfirm();
+  modalState.show = false;
+};
+
+// 検索処理
 const performSearch = async () => {
   const text = searchQuery.value.trim();
   if (text.length === 0) { searchResults.value = []; return; }
@@ -111,23 +115,20 @@ const performSearch = async () => {
     const results = [];
 
     if (searchMode.value === 'name') {
-      // --- 名前検索 (既存のロジック) ---
       const usersRef = collection(db, "users");
       const q = query(usersRef, where("name", "==", text), limit(10));
       const querySnapshot = await getDocs(q);
       querySnapshot.forEach((doc) => {
         if (doc.id !== auth.currentUser?.uid) {
-          const data = doc.data(); // 🌟 一旦データを変数に入れる
+          const data = doc.data(); 
           results.push({
             uid: doc.id,
             name: data.name,
-            // 🌟 ここを追加！Firestoreのフィールド名「photo」を取得する
             photo: data.photo || ""
           });
         }
       });
     } else {
-      // --- ID検索 (ドキュメントID = UID で検索) ---
       const userDocRef = doc(db, "users", text);
       const userSnap = await getDoc(userDocRef);
 
@@ -136,7 +137,6 @@ const performSearch = async () => {
         results.push({ 
           uid: userSnap.id, 
           name: data.name,
-          // 🌟 ここを追加！
           photo: data.photo || "" 
         });
       }
@@ -152,89 +152,65 @@ watch(searchQuery, () => performSearch());
 
 const close = () => {
   searchQuery.value = '';
-  selectedUser.value = null; // 閉じる時は選択状態もリセット
+  selectedUser.value = null; 
   emit('close');
 };
 
-/*
+// 🌟 申請を送る処理（alertをモーダルに変更）
 const executeRequest = async () => {
-  if (!auth.currentUser) { alert("ログインが必要です。"); return; }
-  const targetUser = selectedUser.value; // 申請相手
-
-  try {
-    // 🌟 1. A自分のプロフィール情報を Firestore から取得する
-    // A自分のドキュメントIDはauth.currentUser.uid
-    const myDocRef = doc(db, "users", auth.currentUser.uid);
-    const myDoc = await getDoc(myDocRef);
-
-    // 🌟 2. Firestore から最新の名前とアイコンURLを取得する
-    // (存在しない場合に備えて、安全に処理するためのロジック)
-    const myName = myDoc.exists() ? (myDoc.data().name || "名前なし") : "名前なし";
-    const myPhoto = myDoc.exists() ? (myDoc.data().photoURL || "") : ""; // 🌟 これを追加！自分のアイコンURLを取得
-
-    // Firestore に申請データを追加
-    await addDoc(collection(db, "friendRequests"), {
-      formId: auth.currentUser.uid, // あなたのID
-      formName: myName,              // あなたの名前
-      fformPhoto: myData.photoURL || "",          // 🌟 これを追加！あなたのアイコンURLを保存する
-      toId: targetUser.uid,          // 相手のID
-      toName: targetUser.name,       // 相手の名前
-      status: "pending",             // 状態を pending（承認待ち）にする
-      createdAt: serverTimestamp()   // 時間を保存
-    });
-    
-    alert(`${targetUser.name}さんにフレンド申請を送りました。`);
-    close(); 
-  } catch (error) {
-    console.error("エラー内容:", error);
-    alert("申請に失敗しました。もう一度試してください。");
+  if (!auth.currentUser) { 
+    showModal({ type: 'error', title: 'エラー', message: 'ログインが必要です。' });
+    return; 
   }
-};
-*/
-
-const executeRequest = async () => {
-  if (!auth.currentUser) { alert("ログインが必要です。"); return; }
-  const targetUser = selectedUser.value; // 申請相手
+  const targetUser = selectedUser.value;
 
   try {
-    // 🌟 1. 自分のデータを Firestore から取得する
     const myDocRef = doc(db, "users", auth.currentUser.uid);
     const myDoc = await getDoc(myDocRef);
 
-    // 🌟 2. 変数 myData を定義する（ここでエラーが解決します）
     let myName = "名前なし";
     let myPhoto = "";
 
     if (myDoc.exists()) {
       const myData = myDoc.data();
       myName = myData.name || "名前なし";
-      // 🌟 photoURL ではなく photo に変更！
       myPhoto = myData.photo || myData.photoURL || "";
-      console.log("自分のphoto:", myPhoto); // 🌟 デバッグ：URLが取得できているか確認
     }
 
-    // 🌟 3. 申請データを保存する (formPhoto を追加)
     await addDoc(collection(db, "friendRequests"), {
       toId: targetUser.uid,
       toName: targetUser.name,
       formId: auth.currentUser.uid,
       formName: myName,
-      formPhoto: myPhoto, // 🌟 これで相手に画像URLが届きます
+      formPhoto: myPhoto, 
       status: "pending",
       createdAt: serverTimestamp()
     });
 
-    alert("申請を送りました！");
-    emit('close');
+    // 🌟 alert("申請を送りました！"); を美しいモーダルに！
+    showModal({ 
+      type: 'success', 
+      title: '申請完了', 
+      message: `${targetUser.name}さんにフレンド申請を送りました！`,
+      onConfirm: () => {
+        emit('close'); // OKボタンを押したらモーダルも閉じる
+      }
+    });
+
   } catch (error) {
     console.error("エラー内容:", error);
-    alert("申請に失敗しました。");
+    // 🌟 alert("申請に失敗しました。"); を美しいモーダルに！
+    showModal({ 
+      type: 'error', 
+      title: '送信失敗', 
+      message: '申請に失敗しました。もう一度試してください。' 
+    });
   }
 };
 </script>
 
 <style scoped>
-/* 既存のCSSと新しい確認画面のCSSを統合 */
+/* 既存のCSSはそのまま */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0, 0, 0, 0.5); z-index: 2000; display: flex; justify-content: center; align-items: center; padding: 20px; }
 .add-modal { width: 100%; max-width: 350px; background-color: #eef7ff; border-radius: 30px; padding: 25px 20px; display: flex; flex-direction: column; gap: 15px; }
 .tab-container { display: flex; background-color: #fff; border-radius: 15px; padding: 3px; margin-bottom: 10px;}
