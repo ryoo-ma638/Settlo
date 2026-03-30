@@ -41,58 +41,53 @@
 </template>
 
 <script setup>
-import { auth ,db } from "../firebase";
+import { auth, db } from "../firebase";
 import { signOut } from "firebase/auth";
 import { useRouter } from "vue-router";
 import { ref, onMounted } from "vue";
 import { doc, getDoc } from "firebase/firestore";
+import api from "../services/api"; // 🌟 api.ts をインポート
 
 const router = useRouter();
-const userName = ref("");
+const userName = ref("読み込み中...");
 const userPhoto = ref("");
-const userUid = ref(""); // 🌟 UID保存用に追加
+const userUid = ref("");
 
 const logout = async () => {
-  console.log("ログアウト押された！");
   try {
     await signOut(auth);
-    console.log("ログアウト成功");
     router.push("/login");
   } catch (error) {
     console.error("ログアウトエラー", error);
   }
 };
 
-// 🌟 コピー用関数を追加
-const copyMyId = async () => {
-  try {
-    await navigator.clipboard.writeText(userUid.value);
-    alert("マイIDをコピーしました！");
-  } catch (err) {
-    console.error("コピー失敗", err);
-  }
-};
-
-// MyPageView.vue の修正案
 onMounted(async () => {
   const user = auth.currentUser;
   if (user) {
-    // 🌟 1. Firestore から自分のドキュメントを読み込む
-    const userDocRef = doc(db, "users", user.uid);
-    const userSnap = await getDoc(userDocRef);
+    userUid.value = user.uid;
 
-    if (userSnap.exists()) {
-      const data = userSnap.data();
-      // 🌟 2. Firestore の 'photo' フィールドを使う
-      // もし photo がなければ Auth の photoURL を使う（バックアップ）
-      userPhoto.value = data.photo || user.photoURL;
-      userName.value = data.name || user.displayName;
-    } else {
-      // ドキュメントがない場合のフォールバック
+    try {
+      // 🌟 【最重要】バックエンドを叩いて Firestore との同期を行う
+      // これにより server.js の /api/users/sync が走り、Firestore にドキュメントが作られる
+      const syncRes = await api.post('/users/sync');
+      console.log("✅ User synced with Firestore via Backend:", syncRes.data);
+
+      // 同期された最新データを Firestore から直接取得
+      const userDocRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userDocRef);
+
+      if (userSnap.exists()) {
+        const data = userSnap.data();
+        userName.value = data.name || user.displayName || "名無し";
+        userPhoto.value = data.photoURL || user.photoURL || "https://via.placeholder.com/150";
+      }
+    } catch (error) {
+      console.error("❌ 同期またはデータ取得に失敗:", error);
+      // フォールバック
       userName.value = user.displayName;
       userPhoto.value = user.photoURL;
     }
-    userUid.value = user.uid;
   }
 });
 </script>
