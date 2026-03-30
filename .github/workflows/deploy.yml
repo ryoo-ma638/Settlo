@@ -1,16 +1,25 @@
 name: Deploy to GitHub Pages
+
 on:
   push:
-    branches: [main] # mainブランチにpushされたら実行
+    branches: [main]
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # サブモジュールのエラーを完全に無視するための設定
+          submodules: false
+          fetch-depth: 0
+
       - name: Install and Build
         run: |
           npm install
           npm run build
+
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         with:
