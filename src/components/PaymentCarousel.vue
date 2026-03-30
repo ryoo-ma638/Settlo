@@ -16,12 +16,17 @@
             @click="handleCardClick(0, '/payment?tab=waiting')" 
           > <div class="card-main">
               <span class="detail-label">お支払い待ち（受け取る）</span>
-              <div class="price-large">¥3,500</div>
+              <div class="price-large">¥{{ summary.receivableTotal.toLocaleString() }}</div>
             </div>
             <div class="recent-list">
               <p class="recent-title">直近の未受け取り</p>
-              <div class="recent-item" v-for="(item, index) in recentReceiving" :key="'r'+index" @click.stop="navigateIfActive(0, '/payment-detail/waiting-' + item.id)">
-                <span class="recent-name">{{ item.name }}</span>
+              <div 
+                class="recent-item" 
+                v-for="(item, index) in summary.receivableList" 
+                :key="index"
+                @click.stop="item.id ? navigateIfActive(0, '/payment-detail/waiting-' + item.id) : null"
+              >
+                <span class="recent-name">{{ item.name }}（{{ item.itemName }}）</span>
                 <span class="recent-amount">¥{{ item.amount.toLocaleString() }}</span>
               </div>
             </div>
@@ -31,13 +36,13 @@
             <div class="summary-top">
               <div class="status-box" @click.stop="navigateIfActive(1, '/payment?tab=waiting')">
                 <span class="badge blue">お支払い待ち</span>
-                <div class="price blue-text">¥3,500</div>
+                <div class="price blue-text">¥{{ summary.receivableTotal.toLocaleString() }}</div>
                 <div class="progress-bar"><div class="bar blue-bar"></div></div>
               </div>
               <div class="divider"></div>
               <div class="status-box" @click.stop="navigateIfActive(1, '/payment?tab=unpaid')">
                 <span class="badge orange">未払い</span>
-                <div class="price orange-text">¥4,800</div>
+                <div class="price orange-text">¥{{ summary.payableTotal.toLocaleString() }}</div>
                 <div class="progress-bar"><div class="bar orange-bar"></div></div>
               </div>
             </div>
@@ -51,12 +56,16 @@
             @click="handleCardClick(2, '/payment?tab=unpaid')"
           > <div class="card-main">
               <span class="detail-label">未払い（支払う）</span>
-              <div class="price-large">¥4,800</div>
+              <div class="price-large">¥{{ summary.payableTotal.toLocaleString() }}</div>
             </div>
             <div class="recent-list">
               <p class="recent-title">直近のお支払い</p>
-              <div class="recent-item" v-for="(item, index) in recentPaying" :key="'p'+index" @click.stop="navigateIfActive(2, '/payment-detail/unpaid-' + item.id)">
-                <span class="recent-name">{{ item.name }}</span>
+              <div 
+                class="recent-item" 
+                v-for="(item, index) in summary.payableList.slice(0, 2)" 
+              :key="'p'+index"
+              >
+                <span class="recent-name">{{ item.name }}（{{ item.itemName }}）</span>
                 <span class="recent-amount">¥{{ item.amount.toLocaleString() }}</span>
               </div>
             </div>
@@ -80,21 +89,41 @@
   <script setup>
   import { ref, onMounted } from 'vue';
   import { useRouter } from 'vue-router';
+  import { computed } from 'vue'; // 合計や収支を計算するために追加
   
   const router = useRouter();
   const currentCard = ref(1);
   const carousel = ref(null);
   
+// PaymentCarousel.vue の props 部分
+const props = defineProps({
+  summary: {
+    type: Object,
+    required: true,
+    // 🌟 初期値をしっかり入れることで、データが届く前の「真っ白」を防ぎます
+    default: () => ({
+      receivableTotal: 0,
+      payableTotal: 0,
+      receivableList: [],
+      payableList: []
+    })
+  }
+});
+
   // 🌟 データにIDを追加し、個別ページへ飛べるように修正
   const recentReceiving = ref([
-    { id: 1, name: '天野 椋祐 (カフェ代)', amount: 800 },
-    { id: 2, name: '中橋 楓華 (ランチ代)', amount: 1200 }
+    /*{ id: 1, name: '天野 椋祐 (カフェ代)', amount: 800 },
+    { id: 2, name: '中橋 楓華 (ランチ代)', amount: 1200 }*/
   ]);
   const recentPaying = ref([
-    { id: 1, name: '小野木 涼平 (レンタカー)', amount: 2000 },
-    { id: 2, name: '大崎 稜馬 (飲み会代)', amount: 6300 }
+    /*{ id: 1, name: '小野木 涼平 (レンタカー)', amount: 2000 },
+    { id: 2, name: '大崎 稜馬 (飲み会代)', amount: 6300 }*/
   ]);
-  const monthlyBalance = ref('+ ¥ 1,500');
+  const monthlyBalance = computed(() => {
+  const balance = props.summary.receivableTotal - props.summary.payableTotal;
+  const sign = balance >= 0 ? '+' : '-';
+  return `${sign} ¥ ${Math.abs(balance).toLocaleString()}`;
+});
   
   // ------------------------------
   // スクロール計算系のロジック
