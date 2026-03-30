@@ -99,7 +99,12 @@ console.log("削除対象:", { friendName, friendUid, myUid });
       </header>
 
     <main class="scroll-content">
-      <section class="total-balance-card" @click="$router.push('/combined-settlement/' + $route.params.name)">
+      <section class="total-balance-card" 
+        @click="$router.push({ 
+          path: '/combined-settlement/' + $route.params.name, 
+          query: { uid: route.params.uid } 
+        })"
+      >
     <div class="balance-label">トータルの貸し借り</div>
     <div class="balance-main">
       <h2 class="balance-amount" :class="netBalance >= 0 ? 'blue-text' : 'orange-text'">
