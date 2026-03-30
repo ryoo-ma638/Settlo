@@ -25,12 +25,20 @@
           
           <div class="card-footer">
             <div class="participants">
-              <div 
-                class="avatar" 
-                v-for="i in Math.min(event.participants.length, 4)" 
-                :key="i"
-                :style="{ backgroundColor: '#cbd5e1', zIndex: 5 - i }"
-              ></div>
+              <template v-for="(photo, index) in (event.participantsPhotos || []).slice(0, 4)" :key="index">
+                <img 
+                  v-if="photo.startsWith('http')" 
+                  :src="photo" 
+                  class="avatar" 
+                  :style="{ zIndex: 5 - index }"
+                />
+                <div 
+                  v-else 
+                  class="avatar" 
+                  :style="{ backgroundColor: photo, zIndex: 5 - index }"
+                ></div>
+              </template>
+
               <div v-if="event.participants.length > 4" class="avatar-more">
                 +{{ event.participants.length - 4 }}
               </div>
@@ -52,32 +60,64 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import api from '@/services/api'; // 🌟 API サービスをインポート
+import { db } from '@/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import api from '@/services/api';
 
 const events = ref([]);
 const loading = ref(true);
 
-// 🌟 サーバーからイベント一覧を取得する関数
+// 🌟 キャッシュ用オブジェクト（同じユーザーを何度も取得しない）
+const userCache = {};
+
+// 🌟 UIDからアイコン（写真または色）を取得する関数
+const getUserIcon = async (uid) => {
+  if (!uid) return "#cbd5e1";
+  if (userCache[uid]) return userCache[uid];
+
+  try {
+    const userDoc = await getDoc(doc(db, "users", uid));
+    if (userDoc.exists()) {
+      const data = userDoc.data();
+      const icon = data.photoURL || data.photo || data.color || "#cbd5e1";
+      userCache[uid] = icon;
+      return icon;
+    }
+    return "#cbd5e1";
+  } catch (error) {
+    console.error("User icon fetch error:", error);
+    return "#cbd5e1";
+  }
+};
+
+// 🌟 サーバーからイベント一覧を取得・整形する関数
 const fetchEvents = async () => {
   try {
     loading.value = true;
-    // ユーザー情報の同期
     await api.post('/users/sync'); 
     
-    // イベント一覧の取得
     const res = await api.get('/events');
     
-    // 取得したデータを整形
-    events.value = res.data.map(event => {
-      // 日付を「2026/03/25」形式に変換
+    // 🌟 全イベントの参加者アイコンを非同期で一斉に取得
+    const formattedEvents = await Promise.all(res.data.map(async (event) => {
+      // 日付の整形
       const dateObj = event.createdAt ? new Date(event.createdAt) : new Date();
       const formattedDate = `${dateObj.getFullYear()}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getDate().toString().padStart(2, '0')}`;
       
+      // 参加者のアイコンを先頭4人分取得
+      const uids = event.participants || [];
+      const photos = await Promise.all(
+        uids.slice(0, 4).map(uid => getUserIcon(uid))
+      );
+
       return {
         ...event,
-        createdAtDate: formattedDate
+        createdAtDate: formattedDate,
+        participantsPhotos: photos // 🌟 テンプレート側で使うための配列
       };
-    });
+    }));
+
+    events.value = formattedEvents;
   } catch (error) {
     console.error("イベント一覧の取得に失敗:", error);
   } finally {
@@ -91,7 +131,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* スタイルは変更なし（既存のものをそのまま利用） */
+/* 基本スタイル */
 .event-page-container { min-height: 100vh; background-color: #f0f4f8; padding-bottom: 80px; }
 .page-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; background: rgba(255,255,255,0.8); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 10; }
 .page-title { font-size: 20px; font-weight: bold; margin: 0; color: #1e293b; }
@@ -105,14 +145,22 @@ onMounted(() => {
 .card-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
 .event-tag { padding: 4px 12px; border-radius: 12px; font-size: 10px; font-weight: bold; color: white; }
 .blue-tag { background-color: #3b82f6; }
-.orange-tag { background-color: #f59e0b; }
 .event-date { font-size: 12px; color: #94a3b8; }
 
 .event-name { font-size: 18px; font-weight: bold; margin: 0 0 20px 0; color: #1e293b; }
 
 .card-footer { display: flex; justify-content: space-between; align-items: flex-end; }
 .participants { display: flex; align-items: center; }
-.avatar, .avatar-more { width: 30px; height: 30px; border-radius: 50%; border: 2px solid white; margin-left: -10px; }
+
+/* 🌟 アバターのスタイル（画像対応） */
+.avatar, .avatar-more { 
+  width: 30px; 
+  height: 30px; 
+  border-radius: 50%; 
+  border: 2px solid white; 
+  margin-left: -10px; 
+  object-fit: cover; /* 画像が歪まないように */
+}
 .avatar:first-child { margin-left: 0; }
 .avatar-more { background-color: #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; color: #64748b; margin-left: -10px; z-index: 0; }
 
