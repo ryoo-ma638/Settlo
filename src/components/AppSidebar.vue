@@ -22,7 +22,7 @@
         <li v-if="!isDesktop" @click="$emit('open-notification')"> 
           <div class="menu-item-inner">
             <span><span class="icon">🔔</span> お知らせ</span>
-            <span class="badge">3</span>
+            <span v-if="notificationCount > 0" class="badge">{{ notificationCount }}</span>
           </div>
         </li>
         
@@ -54,11 +54,13 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { auth } from "../firebase"; 
+import { auth, db  } from "../firebase"; 
 import { onAuthStateChanged } from "firebase/auth";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
 
 const userName = ref("");
 const userPhoto = ref("");
+const notificationCount = ref(0);
 
 const props = defineProps({
   isOpen: Boolean
@@ -77,6 +79,20 @@ onMounted(() => {
     if (user) {
       userName.value = user.displayName;
       userPhoto.value = user.photoURL;
+
+      // 🌟 通知ドキュメントをリアルタイム監視してカウント
+      const q = query(
+        collection(db, "friendRequests"),
+        where("toId", "==", user.uid),
+        where("status", "in", ["pending", "accepted"])
+      );
+
+      // データが更新されるたびに件数を取得
+      onSnapshot(q, (snapshot) => {
+        notificationCount.value = snapshot.docs.length;
+      });
+    } else {
+      notificationCount.value = 0; // ログアウト時はリセット
     }
   });
 
