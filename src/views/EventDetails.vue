@@ -222,7 +222,8 @@ import InviteModal from '@/components/InviteModal.vue';
 // 🌟 サーバー(Friend)と データベース(Main)の道具を合体！
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/firebase";
-import { db } from '../firebase'; 
+// 🌟 修正：auth（ユーザー情報）を使えるように追加しました！
+import { db, auth } from '../firebase'; 
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 
 // 🌟 あなたが作った最強の計算ツールを読み込む！
@@ -260,7 +261,6 @@ const sharedFilterStatus = ref('unpaid');
 // ==========================================
 // 🌟 3. あなたのスッキリ計算ロジック！
 // ==========================================
-// あの長かった100行近いコードが、この1行で発動します！
 const { calculatedSummary } = useSettlement(eventData, myName);
 
 const filteredSummary = computed(() => {
@@ -302,11 +302,40 @@ const markAsCompleted = async (id) => {
   }
 };
 
+// 🌟 ここが最大の修正ポイント！「共通の履歴」と「イベント内」の両方に保存します
 const addHistory = async (newPayment) => {
   try {
     const eventId = route.params.id || "test-event-1"; 
-    const historyRef = collection(db, "events", eventId, "history");
 
+    // 🌟 1. 履歴画面(PaymentHistoryView)が見ている「共通の箱」に入れるデータ
+    const globalTransactionData = {
+      ...newPayment, // 🌟 👈 ここを超追加！(itemsや割り勘情報など、すべてのデータを引き継ぎます)
+      
+      // 履歴画面が「自分のデータだ！」と認識するために、UIDをセットします
+      paidById: auth?.currentUser?.uid || "unknown", 
+      paidByName: newPayment.payer, 
+      paidToId: "group_event",       // 🌟追加1: 相手のID（履歴画面が探してエラーになるのを防ぐ）
+      paidToName: "イベントメンバー",
+      itemName: newPayment.itemName || "支払い",
+      amount: newPayment.amount || 0,
+      status: 'pending',
+      type: 'pay', 
+      date: newPayment.date || "",
+      createdAt: serverTimestamp(), // 履歴画面の並び替えに必須
+      eventName: eventData.value.name || "イベント代",
+      // 🌟 履歴画面が indexOf で探してエラーになるのを防ぐ「防弾シールド」！
+      // 配列（リスト）がないと怒られるので、全て入れておきます。
+      involvedUsers: [auth?.currentUser?.uid || "unknown", "group_event"],
+      participants: [auth?.currentUser?.uid || "unknown", "group_event"],
+      members: [auth?.currentUser?.uid || "unknown", "group_event"],
+      items: newPayment.items || []
+    };
+
+    // 🌟 2. 「transactions」コレクションに保存（これで履歴画面に出る！）
+    await addDoc(collection(db, "transactions"), globalTransactionData);
+
+    // 🌟 3. 元々あったイベント画面用の保存処理（events/.../history）
+    const historyRef = collection(db, "events", eventId, "history");
     const docRef = await addDoc(historyRef, {
       payer: newPayment.payer, 
       itemName: newPayment.itemName, 
@@ -321,7 +350,7 @@ const addHistory = async (newPayment) => {
       items: newPayment.items || [] 
     });
 
-    console.log("🔥 Firestoreに保存成功！ ID:", docRef.id);
+    console.log("🔥 Firestoreに保存成功！（全体履歴＆イベント履歴の両方） ID:", docRef.id);
     eventData.value.total += newPayment.amount;
     modals.value.addPayment = false;
     setTimeout(scrollToTimeline, 300);

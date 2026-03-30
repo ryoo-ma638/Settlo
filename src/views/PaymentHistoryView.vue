@@ -50,36 +50,31 @@
   </template>
   
   <script setup>
-  import { ref, computed , onMounted} from 'vue';
-  // 🌟 追加：ルーターを使うためのインポート
-  import { useRouter } from 'vue-router';
-  import { db, auth } from '@/firebase'; // 🌟 追加
+import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { db, auth } from '@/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { collection, query, onSnapshot, doc, getDoc, orderBy } from 'firebase/firestore';
 
-  import { onAuthStateChanged } from 'firebase/auth';
-  import { collection, query, where, onSnapshot, doc, getDoc, orderBy } from 'firebase/firestore';
-  
-  const router = useRouter(); // ルーターを準備
-  const currentFilter = ref('all');
-  // 🌟 ダミーデータを空にして、Firestoreからのデータを格納する
-  const historyData = ref([]);
-  /*
-  const historyData = ref([
-    { id: 1, date: '2026/03/25', name: '天野 椋祐', eventName: 'カフェ代', amount: 800, type: 'receive', status: 'pending', color: '#93c5fd' },
-    { id: 2, date: '2026/03/24', name: '大崎 稜馬', eventName: '飲み会代', amount: 6300, type: 'pay', status: 'completed', color: '#fca5a5' },
-    { id: 3, date: '2026/03/20', name: '中橋 楓華', eventName: 'ランチ代', amount: 1200, type: 'receive', status: 'completed', color: '#bbf7d0' },
-    { id: 4, date: '2026/03/18', name: '小野木 涼平', eventName: 'レンタカー代', amount: 2000, type: 'pay', status: 'pending', color: '#fde047' },
-    { id: 5, date: '2026/03/15', name: '松岡 暖來', eventName: 'タクシー代', amount: 1500, type: 'receive', status: 'completed', color: '#f9a8d4' },
-  ]);
-  */
+const router = useRouter(); // ルーターを準備
+const currentFilter = ref('all');
+const historyData = ref([]);
 
-  onMounted(() => {
+// 🌟 修正ポイント：フォーマット関数を onMounted より「上」に配置！（これでエラーが消えます）
+const formatFullDate = (timestamp) => {
+  if (!timestamp || typeof timestamp.toDate !== 'function') {
+    return "日付未定"; // データが壊れている、または未作成の場合
+  }
+  const date = timestamp.toDate();
+  return `${date.getFullYear()}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')}`;
+};
+
+onMounted(() => {
   onAuthStateChanged(auth, (user) => {
     if (user) {
       const myUid = user.uid;
 
       // 🌟 自分が「払う側」または「受け取る側」である取引をすべて監視
-      // 注: Firestoreの制限上、OR条件は 'whereIn' などを使いますが、
-      // ここではシンプルに自分に関係する取引を status 問わず取得します
       const q = query(
         collection(db, "transactions"),
         orderBy("createdAt", "desc") // 新しい順に並べる
@@ -128,31 +123,21 @@
   });
 });
 
-// 日付フォーマット関数
-  // formatFullDate を以下に書き換え
-const formatFullDate = (timestamp) => {
-  if (!timestamp || typeof timestamp.toDate !== 'function') {
-    return "日付未定"; // データが壊れている、または未作成の場合
-  }
-  const date = timestamp.toDate();
-  return `${date.getFullYear()}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')}`;
-};
+const filteredHistory = computed(() => {
+  if (currentFilter.value === 'all') return historyData.value;
+  if (currentFilter.value === 'pay') return historyData.value.filter(item => item.type === 'pay');
+  if (currentFilter.value === 'receive') return historyData.value.filter(item => item.type === 'receive');
+  if (currentFilter.value === 'completed') return historyData.value.filter(item => item.status === 'completed');
+  return historyData.value;
+});
 
-  const filteredHistory = computed(() => {
-    if (currentFilter.value === 'all') return historyData.value;
-    if (currentFilter.value === 'pay') return historyData.value.filter(item => item.type === 'pay');
-    if (currentFilter.value === 'receive') return historyData.value.filter(item => item.type === 'receive');
-    if (currentFilter.value === 'completed') return historyData.value.filter(item => item.status === 'completed');
-    return historyData.value;
-  });
-  
-  // 🌟 追加：カードがタップされた時の遷移ロジック
-  const goToDetail = (item) => {
+// 🌟 カードがタップされた時の遷移ロジック
+const goToDetail = (item) => {
   const prefix = item.type === 'receive' ? 'waiting' : 'unpaid';
   // 🌟 URLの最後に ?status=xxx をつけて、詳細画面に状態を教える
   router.push(`/payment-detail/${prefix}-${item.id}?status=${item.status}`);
 };
-  </script>
+</script>
   
   <style scoped>
   /* 🌟 大外のコンテナ：横揺れ・見切れを完全に防止 */
