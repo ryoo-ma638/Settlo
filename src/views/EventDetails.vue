@@ -202,7 +202,11 @@
         </div>
       </div>
 
-      <InviteModal :isOpen="modals.invite" eventCode="EO2Q2Z" @close="modals.invite = false" />
+      <InviteModal 
+        :isOpen="modals.invite" 
+        :eventCode="eventData.invitationCode" 
+        @close="modals.invite = false" 
+      />
       <AddPaymentModal :isOpen="modals.addPayment" @close="modals.addPayment = false" @submit="addHistory" />
     </Teleport>
   </div>
@@ -339,26 +343,46 @@ onMounted(() => {
 
   onSnapshot(q, (snapshot) => {
     const fetchedHistory = [];
-    snapshot.forEach((doc) => {
-      const data = doc.data();
-      fetchedHistory.push({
-        id: doc.id, 
-        payer: data.payer,
-        itemName: data.itemName,
-        splitType: data.splitType,
-        amount: data.amount,
-        color: data.color || '#fca5a5',
-        date: data.date,
-        time: data.time,
-        status: data.status,
-        involvesMe: data.involvesMe,
-        items: data.items || [],
-        timestamp: data.timestamp ? data.timestamp.toMillis() : Date.now()
-      });
+    const eventId = route.params.id || "test-event-1"; 
+  
+    // 🌟 1. イベント本体のデータを取得（招待コードなどを取るため）
+    const eventDocRef = doc(db, "events", eventId);
+    onSnapshot(eventDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        eventData.value.name = data.name || eventData.value.name;
+        // 🌟 ここで招待コードを更新！
+        eventData.value.invitationCode = data.invitationCode || "------";
+      }
     });
 
-    eventData.value.history = fetchedHistory;
-    eventData.value.total = fetchedHistory.reduce((sum, item) => sum + item.amount, 0);
+    // 🌟 2. 履歴（history）の監視（既存のコード）
+    const historyRef = collection(db, "events", eventId, "history");
+    const q = query(historyRef, orderBy("timestamp", "asc"));
+
+    onSnapshot(q, (snapshot) => {
+      const fetchedHistory = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        fetchedHistory.push({
+          id: doc.id, 
+          payer: data.payer,
+          itemName: data.itemName,
+          splitType: data.splitType,
+          amount: data.amount,
+          color: data.color || '#fca5a5',
+          date: data.date,
+          time: data.time,
+          status: data.status,
+          involvesMe: data.involvesMe,
+          items: data.items || [],
+          timestamp: data.timestamp ? data.timestamp.toMillis() : Date.now()
+        });
+      });
+
+      eventData.value.history = fetchedHistory;
+      eventData.value.total = fetchedHistory.reduce((sum, item) => sum + item.amount, 0);
+    });
   });
 });
 
