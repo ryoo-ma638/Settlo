@@ -30,14 +30,14 @@ exports.analyzeReceipt = onCall(
       console.log("初期化5");
       const prompt = `
         レシート画像から以下の情報を抽出し、必ず指定されたJSON形式のみで出力してください。
-        不明な項目は空文字 "" または 0 にしてください。
+        同じ商品が複数ある場合や「×3」などの記載がある場合は、個数をカウントしてください。
         {
           "storeName": "店名",
           "date": "YYYY-MM-DD",
           "time": "HH:MM",
           "totalAmount": 合計金額(数値),
           "items": [
-            { "name": "商品名", "price": 金額(数値) }
+            { "name": "商品名", "price": その商品の合計金額(数値), "quantity": 個数(数値、不明な場合は1) }
           ]
         }
       `;

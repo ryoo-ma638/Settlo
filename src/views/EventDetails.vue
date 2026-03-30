@@ -51,14 +51,13 @@
             <button :class="{ active: sumFilterScope === 'me' }" @click="sumFilterScope = 'me'">自分のみ</button>
           </div>
           <div class="custom-select-wrapper">
-            <select v-model="sumFilterStatus" class="ios-select">
+            <select v-model="sharedFilterStatus" class="ios-select">
               <option value="unpaid">未決済のみ</option>
               <option value="all">すべて</option>
               <option value="completed">精算済み</option>
             </select>
           </div>
         </div>
-
         <div class="summary-list">
           <div v-if="filteredSummary.length === 0" class="empty-state">該当する精算はありません</div>
           <div class="summary-card-item" v-for="sum in filteredSummary" :key="sum.id" @click="openSummaryDetail(sum)">
@@ -89,6 +88,13 @@
           <div class="ios-segmented-control">
             <button :class="{ active: histFilterScope === 'all' }" @click="histFilterScope = 'all'">全体</button>
             <button :class="{ active: histFilterScope === 'me' }" @click="histFilterScope = 'me'">自分のみ</button>
+          </div>
+          <div class="custom-select-wrapper auto-width">
+            <select v-model="sharedFilterStatus" class="ios-select">
+              <option value="unpaid">未決済のみ</option>
+              <option value="all">すべて</option>
+              <option value="completed">精算済み</option>
+            </select>
           </div>
           <div class="custom-select-wrapper auto-width">
             <select v-model="histSort" class="ios-select">
@@ -213,6 +219,7 @@ import { db } from '../firebase';
 // 🌟 変更後（doc と updateDoc を追加！）
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 
+import { useSettlement } from '../composables/useSettlement';
 const router = useRouter();
 const timelineSection = ref(null);
 const myName = '大崎 稜馬';
@@ -242,129 +249,32 @@ const eventData = ref({
   ]
 });
 
+// 🟢 変更後（sumFilterStatus を消して sharedFilterStatus に統一）
 const sumFilterScope = ref('all'); 
-const sumFilterStatus = ref('unpaid'); 
 const histFilterScope = ref('all'); 
 const histSort = ref('new'); 
+const sharedFilterStatus = ref('unpaid'); // 🌟 これ一つで両方をコントロール！
 
-// 🌟 差し替え：履歴から「誰が誰にいくら払うか」を相殺・合算する頭脳！
-const calculatedSummary = computed(() => {
-  const myName = '大崎 稜馬';
-  const rawDebts = [];
-  
-  // 1. まず全ての「誰から誰へ、いくら」の生の借金データを洗い出す
-  eventData.value.history.forEach(history => {
-    let creditor = history.payer; // お金を立て替えた人（受け取る権利がある人）
-    
-    // 全員で均等割りの場合
-    if (history.splitType === 'all' || history.splitType === '全員で割勘') {
-      const amountPerPerson = Math.floor(history.amount / eventData.value.participants.length);
-      eventData.value.participants.forEach(p => {
-        if (p.name !== creditor) {
-          rawDebts.push({
-            from: p.name, to: creditor,
-            amount: amountPerPerson, itemName: history.itemName, status: history.status
-          });
-        }
-      });
-    } 
-    // 商品ごとに指定の場合（選択された人数で均等割り！）
-    else if (history.splitType === 'item' && history.items) {
-      history.items.forEach(item => {
-        if (item.assignees && item.assignees.length > 0) {
-          // 商品の金額を、割り当てられた人数で割る
-          const itemAmount = Math.floor(item.price / item.assignees.length);
-          item.assignees.forEach(assignee => {
-            if (assignee !== creditor) {
-              rawDebts.push({
-                from: assignee, to: creditor,
-                amount: itemAmount, itemName: item.name, status: history.status
-              });
-            }
-          });
-        }
-      });
-    }
-  });
+const { calculatedSummary } = useSettlement(eventData, myName);
 
-  // 2. 洗い出した借金データを「ステータス」と「2人のペア」ごとにグループ化して相殺（ネット）する
-  const aggregated = [];
-  const statuses = ['unpaid', 'completed'];
-  
-  statuses.forEach(status => {
-    const debtsForStatus = rawDebts.filter(d => d.status === status);
-    const pairs = {}; // "人A|人B" のペアごとに計算をまとめる
-    
-    debtsForStatus.forEach(debt => {
-      // 常に名前のあいうえお順等でペアのキーを統一する（A君とB君のやり取りを一つの箱に）
-      const personA = debt.from < debt.to ? debt.from : debt.to;
-      const personB = debt.from < debt.to ? debt.to : debt.from;
-      const key = `${personA}|${personB}`;
-      
-      if (!pairs[key]) pairs[key] = { netA: 0, details: [] };
-      
-      if (debt.from === personA) {
-        pairs[key].netA -= debt.amount; // AがBに払う（Aの財布がマイナス）
-      } else {
-        pairs[key].netA += debt.amount; // BがAに払う（Aの財布がプラス）
-      }
-      pairs[key].details.push(debt); // 内訳として保存
-    });
-
-    // 3. 相殺された結果から、最終的な「サマリーカード」を1枚だけ生成する
-    Object.keys(pairs).forEach(key => {
-      const [personA, personB] = key.split('|');
-      const netA = pairs[key].netA;
-      const details = pairs[key].details;
-      
-      if (netA === 0) return; // 完全に相殺されて0円なら表示しない
-      
-      let finalFrom, finalTo, finalAmount;
-      if (netA < 0) {
-        finalFrom = personA; finalTo = personB; finalAmount = Math.abs(netA);
-      } else {
-        finalFrom = personB; finalTo = personA; finalAmount = netA;
-      }
-      
-      const fromColor = eventData.value.participants.find(p => p.name === finalFrom)?.color || '#ccc';
-      const toColor = eventData.value.participants.find(p => p.name === finalTo)?.color || '#ccc';
-      
-      aggregated.push({
-        id: `${status}-${key}`,
-        from: finalFrom, fromColor,
-        to: finalTo, toColor,
-        amount: finalAmount,
-        status: status,
-        isMePayer: (finalTo === myName), // 自分がお金を受け取る側なら true（文字がオレンジになる）
-        involvesMe: (finalFrom === myName || finalTo === myName),
-        details: details // 🌟 合算の内訳リスト
-      });
-    });
-  });
-  
-  return aggregated;
-});
-
-
-// 🌟 修正：画面のフィルター処理を、ダミーではなく自動計算されたデータ（calculatedSummary）に向ける
 const filteredSummary = computed(() => {
   return calculatedSummary.value.filter(s => {
     const scopeMatch = sumFilterScope.value === 'all' || (s.from === myName || s.to === myName);
-    const statusMatch = sumFilterStatus.value === 'all' || s.status === sumFilterStatus.value;
+    // 🌟 sharedFilterStatus に変更
+    const statusMatch = sharedFilterStatus.value === 'all' || s.status === sharedFilterStatus.value;
     return scopeMatch && statusMatch;
   });
 });
 
-
-
 const filteredHistory = computed(() => {
   let result = eventData.value.history.filter(h => {
-    return histFilterScope.value === 'all' || h.involvesMe || h.payer === myName;
+    const scopeMatch = histFilterScope.value === 'all' || h.involvesMe || h.payer === myName;
+    // 🌟 履歴側にも sharedFilterStatus の条件を追加！
+    const statusMatch = sharedFilterStatus.value === 'all' || h.status === sharedFilterStatus.value;
+    return scopeMatch && statusMatch;
   });
   return result.sort((a, b) => histSort.value === 'new' ? b.timestamp - a.timestamp : a.timestamp - b.timestamp);
 });
-
-
 
 const unpaidItems = computed(() => eventData.value.history.filter(h => h.status === 'unpaid'));
 
