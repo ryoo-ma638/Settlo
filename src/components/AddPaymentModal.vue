@@ -269,7 +269,8 @@ const handleSubmit = () => {
     splitType: formData.value.splitType,
     amount: Number(formData.value.amount),
     date: formData.value.date.replace(/-/g, '/'),
-    time: submitTime 
+    time: submitTime,
+    items: receiptItems.value
   };
 
   emit('submit', payload);
