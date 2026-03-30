@@ -6,7 +6,7 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 // https://vite.dev/config/
 export default defineConfig({
   // GitHub Pagesで正しくパスを通すための設定
-  base: '/<Settlo>/', 
+  base: '/Settlo/', 
   plugins: [
     vue(),
     vueDevTools(),
