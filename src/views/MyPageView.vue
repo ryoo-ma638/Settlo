@@ -68,22 +68,28 @@ onMounted(async () => {
     userUid.value = user.uid;
 
     try {
-      // 🌟 【最重要】バックエンドを叩いて Firestore との同期を行う
-      // これにより server.js の /api/users/sync が走り、Firestore にドキュメントが作られる
-      const syncRes = await api.post('/users/sync');
-      console.log("✅ User synced with Firestore via Backend:", syncRes.data);
-
-      // 同期された最新データを Firestore から直接取得
+      // 1. まず Firestore から現在のデータを取得
       const userDocRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userDocRef);
+      let userSnap = await getDoc(userDocRef);
+
+      // 2. 🌟 データが存在しない場合のみバックエンド同期（新規ユーザー用）
+      // 既にデータがある場合は、EditProfileで変更した値を優先するため sync を飛ばすか、
+      // あるいは sync の後に再度 getDoc を行います。
+      if (!userSnap.exists()) {
+        await api.post('/users/sync');
+        userSnap = await getDoc(userDocRef); // 同期後に再度取得
+      }
 
       if (userSnap.exists()) {
         const data = userSnap.data();
+        // 🌟 Firestore の値を優先的に反映
         userName.value = data.name || user.displayName || "名無し";
-        userPhoto.value = data.photoURL || user.photoURL || "https://via.placeholder.com/150";
+        userPhoto.value = data.photo || user.photoURL || "https://via.placeholder.com/150";
+        
+        console.log("✅ 表示する名前:", userName.value);
       }
     } catch (error) {
-      console.error("❌ 同期またはデータ取得に失敗:", error);
+      console.error("❌ データ取得または同期に失敗:", error);
       // フォールバック
       userName.value = user.displayName;
       userPhoto.value = user.photoURL;
