@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
-    "module": "CommonJS",
+    "module": "es2020",
+    "moduleResolution": "node",
     "noImplicitAny": true,
     "outDir": "lib",
     "preserveConstEnums": true,
