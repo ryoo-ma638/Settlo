@@ -37,13 +37,17 @@
               <div class="status-box" @click.stop="navigateIfActive(1, '/payment?tab=waiting')">
                 <span class="badge blue">お支払い待ち</span>
                 <div class="price blue-text">¥{{ summary.receivableTotal.toLocaleString() }}</div>
-                <div class="progress-bar"><div class="bar blue-bar"></div></div>
+                <div class="progress-bar">
+                  <div class="bar blue-bar" :style="{ width: summary.receivableTotal > 0 ? '100%' : '0%' }"></div>
+                </div>
               </div>
               <div class="divider"></div>
               <div class="status-box" @click.stop="navigateIfActive(1, '/payment?tab=unpaid')">
                 <span class="badge orange">未払い</span>
                 <div class="price orange-text">¥{{ summary.payableTotal.toLocaleString() }}</div>
-                <div class="progress-bar"><div class="bar orange-bar"></div></div>
+                <div class="progress-bar">
+                  <div class="bar orange-bar" :style="{ width: summary.payableTotal > 0 ? '100%' : '0%' }"></div>
+                </div>
               </div>
             </div>
             <div class="monthly-balance">
@@ -235,8 +239,8 @@ const props = defineProps({
   .divider { width: 1px; height: 60px; background-color: #f1f5f9; margin: 0 15px; }
   .progress-bar { width: 85%; height: 6px; background-color: #f1f5f9; border-radius: 10px; margin: 8px auto 0; overflow: hidden; }
   .bar { height: 100%; border-radius: 10px; }
-  .blue-bar { width: 60%; background-color: #3b82f6; }
-  .orange-bar { width: 40%; background-color: #f59e0b; }
+  .blue-bar { background-color: #3b82f6; transition: width 0.3s ease; }
+  .orange-bar { background-color: #f59e0b; transition: width 0.3s ease; }
   
   .monthly-balance { margin-top: 20px; text-align: center; font-size: 13px; font-weight: bold; color: #94a3b8; background: #f8fafc; padding: 10px; border-radius: 12px; }
   .balance-number { font-size: 18px; color: #10b981; margin-left: 8px; }
