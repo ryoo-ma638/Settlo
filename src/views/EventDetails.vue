@@ -478,23 +478,47 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.event-detail-container { min-height: 100vh; background-color: #f4f7f9; display: flex; flex-direction: column; font-family: 'Helvetica Neue', Arial, sans-serif; }
-.detail-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 100; border-bottom: 1px solid rgba(0,0,0,0.03); }
-.back-btn { background: none; border: none; font-size: 32px; color: #64748b; cursor: pointer; padding: 0; display: flex; align-items: center; }
-.title { font-size: 17px; font-weight: 800; margin: 0; color: #1e293b; }
-.content { padding: 20px; flex: 1; padding-bottom: 120px; }
+.event-detail-container { 
+  min-height: 100vh; 
+  background-color: #f4f7f9; 
+  display: flex; 
+  flex-direction: column; 
+  font-family: 'Helvetica Neue', Arial, sans-serif; 
+  box-sizing: border-box;
+}
 
-.summary-card { background: white; border-radius: 28px; padding: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); margin-bottom: 32px; }
+.detail-header { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  padding: 16px 20px; /* 🌟 少し余白をリッチに */
+  background: linear-gradient(135deg, #dcfce7 0%, #e0f2fe 100%); /* 🌟 爽やかなグラデーションに！ */
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+  position: sticky; 
+  z-index: 100; 
+  border-bottom-left-radius: 20px;
+  border-bottom-right-radius: 20px;
+  margin-bottom: 10px;
+}
+
+
+.back-btn { background: none; border: none; font-size: 32px; color: #0f172a; cursor: pointer; padding: 0; display: flex; align-items: center; transition: 0.2s; }
+.back-btn:active { transform: scale(0.9); }
+.title { font-size: 18px; font-weight: 800; margin: 0; color: #0f172a; letter-spacing: 0.5px; }
+
+/* 🌟 コンテンツ全体の余白とカードの洗練 */
+.content { padding: 15px 20px 20px; flex: 1; padding-bottom: 120px; }
+
+.summary-card { background: white; border-radius: 28px; padding: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); margin-bottom: 32px; border: 1px solid #f1f5f9; }
 .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .event-name { font-size: 22px; font-weight: 900; margin: 0; color: #0f172a; letter-spacing: -0.5px; }
-.event-date { font-size: 12px; color: #94a3b8; font-weight: 700; background: #f1f5f9; padding: 4px 10px; border-radius: 12px; }
+.event-date { font-size: 12px; color: #3b82f6; font-weight: 800; background: #eff6ff; padding: 6px 12px; border-radius: 12px; }
 
-.clickable { cursor: pointer; transition: all 0.2s ease; border-radius: 20px; padding: 12px; margin: 0 -12px; }
-.clickable:active { background: #f8fafc; transform: scale(0.98); }
-.total-section { text-align: center; margin-bottom: 20px; }
-.label { font-size: 13px; color: #64748b; font-weight: 700; display: flex; justify-content: center; align-items: center; margin-bottom: 6px; }
-.arrow-down { font-size: 10px; color: #3b82f6; background: #eff6ff; padding: 4px 10px; border-radius: 12px; margin-left: 8px; font-weight: 800; }
-.total-amount { font-size: 44px; font-weight: 900; margin: 0; color: #0f172a; letter-spacing: -1.5px; }
+.total-section { text-align: center; margin-bottom: 24px; background: #f8fafc; padding: 20px; border-radius: 20px; }
+.label { font-size: 13px; color: #64748b; font-weight: 800; display: flex; justify-content: center; align-items: center; margin-bottom: 8px; }
+.total-amount { font-size: 48px; font-weight: 900; margin: 0; color: #0f172a; letter-spacing: -1.5px; }
+
+/* （これ以降のCSSは既存のままでOKです） */
 
 .participants-section { background: #f8fafc; padding: 16px; border-radius: 20px; cursor: pointer; transition: 0.2s; border: 1px solid #f1f5f9; }
 .participants-section:active { background: #f1f5f9; }
