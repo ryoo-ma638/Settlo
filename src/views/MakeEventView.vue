@@ -81,8 +81,10 @@
 // 🌟 エラー原因1の修正：ここで ref, watch, reactive を「1回だけ」インポートする
 import { ref, watch, reactive } from 'vue'; 
 import { useRouter } from 'vue-router';
-import api from '@/services/api'; 
-import BaseModal from '@/components/BaseModal.vue'; 
+import api from '@/services/api'; // 🌟 パスに注意
+//import { watch } from 'vue';
+import BaseModal from '@/components/BaseModal.vue'; // 🌟 追加
+import { auth } from '@/firebase';
 
 const router = useRouter();
 const isJoinMode = ref(false);

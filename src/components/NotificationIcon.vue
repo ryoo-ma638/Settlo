@@ -5,8 +5,7 @@
         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
         <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
       </svg>
-      
-      <span v-if="notifications.length > 0" class="notification-dot"></span>
+      <span v-if="totalNotifs > 0" class="notification-dot"></span>
     </button>
 
     <Teleport to="body" v-if="!isStatic">
@@ -15,23 +14,29 @@
           <h2 class="modal-title">お知らせ</h2>
           <div class="notification-list">
 
-            <div   v-for="req in notifications"   :key="req.id"   :class="['notif-item', req.status === 'accepted' ? 'blue' : 'pink']">
+            <div v-for="req in paymentReqs" :key="req.id" class="notif-item yellow">
+              <span class="dot"></span>
+              <div class="notif-body">
+                <p>{{ req.fromUserName }}さんから支払いの承認リクエストが届いています</p>
+                <button class="mini-accept-btn" @click="goToPaymentDetail(req)">詳細を確認する</button>
+              </div>
+            </div>
+
+            <div v-for="req in friendReqs" :key="req.id" :class="['notif-item', req.status === 'accepted' ? 'blue' : 'pink']">
               <span class="dot"></span>
               <div class="notif-body">
                 <template v-if="req.status === 'pending'">
                   <p>{{ req.formName }}さんから友達申請が届いています</p>
                   <button class="mini-accept-btn" @click="acceptRequest(req)">承認する</button>
                 </template>
-
                 <template v-else-if="req.status === 'accepted'">
                   <p>{{ req.formName }}さんとフレンドになりました！</p>
                   <button class="mini-accept-btn" @click="deleteNotification(req.id)">確認</button>
                 </template>
               </div>
             </div>
-            <div v-if="notifications.length === 0" class="empty-msg">
-              新しいお知らせはありません
-            </div>
+
+            <div v-if="totalNotifs === 0" class="empty-msg">新しいお知らせはありません</div>
           </div>
           <button class="close-modal-btn" @click="showModal = false">閉じる</button>
         </div>
@@ -42,162 +47,152 @@
       <h2 class="sidebar-title">お知らせ</h2>
       <div class="notification-list">
 
-        <div   v-for="req in notifications"   :key="req.id"   :class="['notif-item', req.status === 'accepted' ? 'blue' : 'pink']">
+        <div v-for="req in paymentReqs" :key="req.id" class="notif-item yellow">
+          <span class="dot"></span>
+          <div class="notif-body">
+            <p>{{ req.fromUserName }}さんから支払いの承認リクエストが届いています</p>
+            <button class="mini-accept-btn" @click="goToPaymentDetail(req)">詳細を確認する</button>
+          </div>
+        </div>
+
+        <div v-for="req in friendReqs" :key="req.id" :class="['notif-item', req.status === 'accepted' ? 'blue' : 'pink']">
           <span class="dot"></span>
           <div class="notif-body">
             <template v-if="req.status === 'pending'">
               <p>{{ req.formName }}さんから友達申請が届いています</p>
               <button class="mini-accept-btn" @click="acceptRequest(req)">承認する</button>
             </template>
-
             <template v-else-if="req.status === 'accepted'">
               <p>{{ req.formName }}さんとフレンドになりました！</p>
               <button class="mini-accept-btn" @click="deleteNotification(req.id)">確認</button>
             </template>
-            </div>
+          </div>
         </div>
 
-        <div v-if="notifications.length === 0" class="empty-msg">
-          新しいお知らせはありません
-        </div>
+        <div v-if="totalNotifs === 0" class="empty-msg">新しいお知らせはありません</div>
 
       </div>
     </div>
   </div>
+
   <BaseModal 
-            :show="modalState.show"
-            type="success"
-            :title="modalState.title"
-            :message="modalState.message"
-            @confirm="modalState.show = false"
-            @close="modalState.show = false"
-          />
+    :show="modalState.show"
+    type="success"
+    :title="modalState.title"
+    :message="modalState.message"
+    @confirm="modalState.show = false"
+    @close="modalState.show = false"
+  />
 </template>
 
 <script setup>
-import { ref, onMounted, reactive } from 'vue'; // 🌟 reactiveを追加
-import BaseModal from './BaseModal.vue'; // 🌟 追加
+import { ref, computed, onMounted, reactive } from 'vue'; 
+import { useRouter } from 'vue-router'; // 🌟 ルーター追加
+import BaseModal from './BaseModal.vue'; 
 import { db, auth } from '@/firebase';
 import { 
   collection, query, where, onSnapshot, 
-  doc, getDoc, setDoc, deleteDoc, addDoc, serverTimestamp 
+  doc, getDoc, setDoc, deleteDoc, updateDoc, addDoc, serverTimestamp 
 } from 'firebase/firestore';
 
-const notifications = ref([]);
+const router = useRouter(); // 🌟 画面遷移用
+const friendReqs = ref([]);
+const paymentReqs = ref([]); // 🌟 支払いリクエスト用の配列
+
+// お知らせの合計件数
+const totalNotifs = computed(() => friendReqs.value.length + paymentReqs.value.length);
 
 onMounted(() => {
-  // 🌟 currentUser を直接見るのではなく、状態変化を監視するように変更
   auth.onAuthStateChanged((user) => {
     if (!user) {
-      notifications.value = []; // ログアウト時は空にする
+      friendReqs.value = [];
+      paymentReqs.value = [];
       return;
     }
 
-    // 🌟 ログインが確認できてからクエリを実行
-    const q = query(
+    // 1. フレンド申請の取得
+    const qFriend = query(
       collection(db, "friendRequests"),
       where("toId", "==", user.uid),
       where("status", "in", ["pending", "accepted"])
     );
+    onSnapshot(qFriend, (snapshot) => {
+      friendReqs.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    });
 
-    onSnapshot(q, (snapshot) => {
-      notifications.value = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+    // 🌟 2. 支払いの承認リクエストの取得
+    const qPayment = query(
+      collection(db, "notifications"),
+      where("toUserId", "==", user.uid),
+      where("isRead", "==", false)
+    );
+    onSnapshot(qPayment, (snapshot) => {
+      paymentReqs.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     });
   });
 });
 
-// 通知を消去（既読にする）処理 🌟 追加
-const deleteNotification = async (notifId) => {
+// 🌟 承認リクエストをタップした時の処理
+const goToPaymentDetail = async (req) => {
   try {
-    await deleteDoc(doc(db, "friendRequests", notifId));
+    // 1. 通知を既読にしてリストから消す
+    await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+    
+    // 2. スマホ版ならモーダルを閉じる
+    showModal.value = false;
+
+    // 3. お支払い詳細画面へ移動する（受け取る側なので "waiting-" をつける）
+    router.push(`/payment-detail/waiting-${req.transactionId}`);
   } catch (error) {
-    console.error("通知の削除に失敗しました:", error);
+    console.error("詳細画面への移動に失敗:", error);
   }
 };
 
-// 🌟 承認ボタンを押した時の処理
+// --- 既存のフレンド申請の処理 ---
+const deleteNotification = async (notifId) => {
+  try { await deleteDoc(doc(db, "friendRequests", notifId)); } 
+  catch (error) { console.error("通知の削除に失敗しました:", error); }
+};
+
 const modalState = reactive({ show: false, type: 'success', title: '', message: '' });
 
 const acceptRequest = async (request) => {
-  // 🌟 安全チェック
-  if (!request.id || !request.formId) {
-    console.error("データが足りません:", request);
-    alert("エラー：申請データが不完全です。");
-    return;
-  }
-
+  if (!request.id || !request.formId) return;
   const myUid = auth.currentUser.uid;
   const friendUid = request.formId;
 
   try {
-    // 1. 自分のリストに相手を追加
     await setDoc(doc(db, "users", myUid, "friends", friendUid), {
-      uid: friendUid,
-      name: request.formName || "名前なし",
-      photo: request.formPhoto || "", 
-      isFriend: true,
-      addedAt: serverTimestamp(),
-      tradeCount: 0,
-      isTrading: false
+      uid: friendUid, name: request.formName || "名前なし", photo: request.formPhoto || "", 
+      isFriend: true, addedAt: serverTimestamp(), tradeCount: 0, isTrading: false
     });
 
-    // 2. 自分の情報を取得
     const myDoc = await getDoc(doc(db, "users", myUid));
-    let myName = "名前なし";
-    let myPhoto = ""; 
-    
+    let myName = "名前なし", myPhoto = ""; 
     if (myDoc.exists()) {
-      const myData = myDoc.data(); // 🌟 これが必要！
+      const myData = myDoc.data(); 
       myName = myData.name || "名前なし";
-      // photo または photoURL どちらからでも取る
       myPhoto = myData.photo || myData.photoURL || ""; 
     }
 
-    // 3. 相手のリストに自分を追加
     await setDoc(doc(db, "users", friendUid, "friends", myUid), {
-      uid: myUid,
-      name: myName,
-      photo: myPhoto, // 🌟 自分の画像を相手の友達リストへ
-      isFriend: true,
-      addedAt: serverTimestamp(),
-      tradeCount: 0,
-      isTrading: false
+      uid: myUid, name: myName, photo: myPhoto, isFriend: true, addedAt: serverTimestamp(), tradeCount: 0, isTrading: false
     });
 
-    // 4. 相手側に「フレンド成立」の通知を送る 
     await addDoc(collection(db, "friendRequests"), {
-      toId: friendUid,
-      formId: myUid,
-      formName: myName,
-      formPhoto: myPhoto, // 🌟 追記：通知にも画像を載せる
-      status: "accepted",
-      createdAt: serverTimestamp()
+      toId: friendUid, formId: myUid, formName: myName, formPhoto: myPhoto, status: "accepted", createdAt: serverTimestamp()
     });
 
-    // 5. 申請ドキュメントを削除
     await deleteDoc(doc(db, "friendRequests", request.id));
-
     alert(`${request.formName}さんとフレンドになりました！`);
   } catch (error) {
     console.error("承認エラー:", error);
-    alert("承認に失敗しました。詳細はコンソールを確認してください。");
   }
 };
 
-const props = defineProps({
-  // PC右カラム用：trueにするとアイコンではなく中身が直接表示される
-  isStatic: { type: Boolean, default: false }
-});
-
+const props = defineProps({ isStatic: { type: Boolean, default: false } });
 const showModal = ref(false);
-
-// 親（AppHeader）からモーダルを開けるように関数を公開
-const open = () => {
-  showModal.value = true;
-};
+const open = () => { showModal.value = true; };
 defineExpose({ open });
 </script>
 
