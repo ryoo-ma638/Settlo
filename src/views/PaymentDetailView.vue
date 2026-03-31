@@ -179,8 +179,27 @@ const confirmCash = () => {
 
 <style scoped>
 /* スタイルは既存のまま */
-.payment-detail-container { width: 100%; min-height: 100vh; background-color: #f8fafc; display: flex; flex-direction: column; box-sizing: border-box; overflow-x: hidden; }
+/* PaymentDetailView.vue の <style scoped> 一番上を上書き */
+.payment-detail-container { 
+  width: 100%; min-height: 100vh; background-color: #f8fafc; 
+  display: flex; flex-direction: column; box-sizing: border-box; overflow-x: hidden; 
+}
+
+.detail-header { 
+  display: flex; justify-content: space-between; align-items: center; 
+  padding: 16px 20px; 
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); /* 🌟 温かいイエロー系 */
+  position: sticky; top: 60px; z-index: 100; 
+  border-radius: 0 0 24px 24px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+  margin-bottom: 15px;
+}
+.back-btn { background: none; border: none; font-size: 32px; color: #0f172a; cursor: pointer; padding: 0; display: flex; align-items: center; transition: 0.2s; }
+.back-btn:active { transform: scale(0.9); }
+.title { font-size: 18px; font-weight: 900; margin: 0; color: #0f172a; flex: 1; text-align: center; }
+.spacer { width: 32px; }
+
 .content { padding: 15px; width: 100%; box-sizing: border-box; }
+/* ↑ここまで上書き。以降は既存の .summary-card などが続きます */
 .summary-card { padding: 25px; border-radius: 20px; color: white; text-align: center; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
 .blue-mode { background: linear-gradient(135deg, #3b82f6, #2563eb); }
 .orange-mode { background: linear-gradient(135deg, #f59e0b, #d97706); }

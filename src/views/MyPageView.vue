@@ -101,12 +101,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* マイページ固有のスタイル */
-.mypage-container {
-  padding: 30px 20px;
-  background-color: #f0f4f8; 
-  min-height: calc(100vh - 175px); 
-}
+
 
 /* 1. プロフィールエリア */
 .profile-section { text-align: center; margin-bottom: 40px; }
@@ -156,5 +151,19 @@ onMounted(async () => {
   .hide-on-pc {
     display: none !important;
   }
+}
+
+/* MyPageView.vue の <style scoped> に追加・上書き */
+.mypage-container {
+  min-height: calc(100vh - 60px); /* 🌟 画面の高さ - 共通ヘッダーの高さ */
+  background-color: #ffffff; /* 下まで真っ白にする */
+  display: flex;
+  flex-direction: column;
+}
+
+/* 3カラムの中央エリア（もし個別のラッパーがあれば） */
+.content-wrapper {
+  flex: 1;
+  background-color: #ffffff;
 }
 </style>
