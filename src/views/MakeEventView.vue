@@ -53,30 +53,13 @@
         <button class="sub-btn" @click="isJoinMode = false">新しくイベントを作る</button>
       </div>
     </div>
-
-    <Teleport to="body">
-      <BaseModal 
-        :show="modalState.show"
-        :type="modalState.type"
-        :title="modalState.title"
-        :message="modalState.message"
-        :showCancel="modalState.showCancel"
-        :confirmText="modalState.confirmText"
-        :cancelText="modalState.cancelText"
-        @confirm="handleConfirmModal"
-        @cancel="modalState.show = false"
-        @close="modalState.show = false"
-      />
-    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, reactive } from 'vue'; // 🌟 reactiveを追加
+import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '@/services/api'; // 🌟 パスに注意
-import { watch } from 'vue';
-import { auth } from '@/firebase';
 
 const router = useRouter();
 const isJoinMode = ref(false);
@@ -94,64 +77,41 @@ const icons = [
   { label: '飲み会', emoji: '🍺' }, { label: 'その他', emoji: '✨' }
 ];
 
-// 🌟 モーダル状態管理
-const modalState = reactive({
-  show: false, type: 'info', title: '', message: '', 
-  showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null
-});
-const showModal = (options) => {
-  Object.assign(modalState, { showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, ...options, show: true });
-};
-const handleConfirmModal = () => {
-  if (modalState.onConfirm) modalState.onConfirm();
-  modalState.show = false;
-};
-
-// 🌟 alertをモーダルに置き換え
 const copyToClipboard = () => {
-  navigator.clipboard.writeText(invitationCode.value)
-    .then(() => {
-      showModal({ type: 'success', title: 'コピー完了', message: '招待コードをクリップボードにコピーしました！' });
-    })
-    .catch(() => {
-      showModal({ type: 'error', title: 'エラー', message: 'コピーに失敗しました' });
-    });
+  navigator.clipboard.writeText(invitationCode.value);
+  alert('コピーしました！');
 };
 
+// 🌟 連結されたイベント作成処理
 const createEvent = async () => {
-  if (!eventName.value) {
-    showModal({ type: 'error', title: '入力エラー', message: 'イベント名を入力してください' });
-    return;
-  }
+  if (!eventName.value) return alert('名前を入力してください');
   
   loading.value = true;
   try {
-    // ユーザー同期
+    // 1. Prisma側にユーザーがいない可能性を考慮して同期
     await api.post('/users/sync');
 
-    // 🌟 ログイン中の自分のUIDを取得
-    const myUid = auth.currentUser ? auth.currentUser.uid : null;
+    // 2. イベントを作成
     const response = await api.post('/events', {
       name: eventName.value,
       memo: eventMemo.value,
       tag: selectedIcon.value,
-      invitationCode: invitationCode.value,
-      // 🌟 重要：作成者を最初の参加者として登録する
-      participants: myUid ? [myUid] : [] 
+      invitationCode: invitationCode.value
     });
 
     console.log('✅ サーバーに保存完了:', response.data);
     router.push('/'); 
   } catch (error) {
     console.error('❌ 作成失敗:', error);
-    showModal({ type: 'error', title: 'エラー', message: 'イベントの作成に失敗しました。電波状況を確認してください。' });
+    alert('作成に失敗しました。');
   } finally {
     loading.value = false;
   }
 };
 
 const joinEvent = async () => {
-  showModal({ type: 'info', title: 'お知らせ', message: '現在、イベント参加機能は準備中です。' });
+  // 参加ロジック（サーバー側の実装に合わせて調整）
+  alert('現在、参加機能は調整中です。');
 };
 
 watch(isJoinMode, () => {
@@ -160,24 +120,28 @@ watch(isJoinMode, () => {
 </script>
 
 <style scoped>
-/* 既存のスタイルそのまま */
 .make-event-container { 
   padding: 20px 25px; 
   background-color: #f8fafc; 
   min-height: 100vh; 
   box-sizing: border-box;
+
+  /* 🌟 全体の開始位置を下げる（ヘッダー被り防止） */
+  /* ヘッダーの高さが 60px なら 80px 程度が理想的です */
   padding-top: 80px; 
 }
 
+/* 🌟 .join-mode の padding-top は削除するか、containerと合わせる */
 .join-mode {
   width: 100%;
   display: flex;
   flex-direction: column;
 }
 
+/* 💻 PC版の調整 */
 @media (min-width: 1024px) {
   .make-event-container {
-    padding-top: 40px; 
+    padding-top: 40px; /* PC版サイドバー利用時は余白を詰める */
   }
 }
 .page-title { font-size: 20px; font-weight: bold; margin-bottom: 30px; text-align: center; color: #1e293b; }
