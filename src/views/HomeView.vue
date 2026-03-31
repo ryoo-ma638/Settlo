@@ -15,12 +15,12 @@
           進行中のイベントはありません
         </div>
         
-        <div v-else class="event-item" v-for="event in ongoingEvents" :key="event.id" @click="openDetail(event)">
+        <div v-else class="event-item" v-for="event in ongoingEvents" :key="event.id" @click="goToEventDetail(event.id)">
           <div class="event-tag">{{ event.tag }}</div>
           <div class="event-info">
             <h3 class="event-name">{{ event.name }}</h3>
             <div class="member-icons">
-              <template v-for="(photo, index) in event.participantsPhotos.slice(0, 4)" :key="index">
+              <template v-for="(photo, index) in (event.participantsPhotos || []).slice(0, 4)" :key="index">
                 <img 
                   v-if="photo.startsWith('http')" 
                   :src="photo" 
@@ -34,8 +34,8 @@
                 ></div>
               </template>
 
-              <div v-if="event.participants.length > 4" class="circle-more">
-                +{{ event.participants.length - 4 }}
+              <div v-if="(event.participants || []).length > 4" class="circle-more">
+                +{{ (event.participants || []).length - 4 }}
               </div>
             </div>
           </div>

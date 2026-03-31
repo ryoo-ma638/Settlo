@@ -265,15 +265,35 @@ const formatTimestamp = (timestamp) => {
 </script>
 
 <style scoped>
-/* 🌟 レイアウトの調整 */
-.money-page-container { font-family: 'Noto Sans JP', sans-serif; background-color: #f0f4f8; min-height: 100vh; display: flex; flex-direction: column; }
-.money-content { padding: 15px 20px 100px; flex: 1; } /* 🌟 コンテンツ側の余白を設定 */
+/* MoneyPage.vue の <style scoped> 一番上を上書き */
+.money-page-container { 
+  font-family: 'Noto Sans JP', sans-serif; 
+  background-color: #f8fafc; 
+  min-height: 100vh; 
+  display: flex; 
+  flex-direction: column;
+  box-sizing: border-box;
+}
 
-/* 🌟 ヘッダーのスタイルを追加 */
-.page-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px 0; background: transparent; position: sticky; top: 0; z-index: 100; }
-.back-btn { background: none; border: none; font-size: 36px; color: #64748b; cursor: pointer; padding: 0; line-height: 1; display: flex; align-items: center; z-index: 101; }
-.page-title { position: absolute; left: 50%; transform: translateX(-50%); font-size: 18px; font-weight: 900; margin: 0; color: #1e293b; white-space: nowrap; }
-.spacer { width: 36px; }
+.page-header { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  padding: 16px 20px; 
+  background: linear-gradient(135deg, #dcfce7 0%, #d1fae5 100%); /* 🌟 爽やかなグリーン */
+  position: sticky; 
+  z-index: 100;
+  border-radius: 0 0 24px 24px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+  margin-bottom: 15px;
+}
+.back-btn { background: none; border: none; font-size: 32px; color: #0f172a; cursor: pointer; padding: 0; display: flex; align-items: center; transition: 0.2s; }
+.back-btn:active { transform: scale(0.9); }
+.page-title { font-size: 18px; font-weight: 900; margin: 0; color: #0f172a; flex: 1; text-align: center; }
+.spacer { width: 32px; }
+
+.money-content { padding: 15px 20px 100px; flex: 1; }
+/* ↑ここまで上書き。以降は既存の .tab-container などが続きます */
 
 .tab-container { display: flex; background-color: #e2e8f0; border-radius: 8px; padding: 4px; margin-bottom: 20px; }
 .tab-btn { flex: 1; padding: 10px; border: none; background: transparent; font-weight: bold; color: #64748b; border-radius: 6px; cursor: pointer; transition: all 0.3s ease; }
