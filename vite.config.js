@@ -5,7 +5,7 @@ import vue from '@vitejs/plugin-vue'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/Settlo/', 
+  base: process.env.GITHUB_PAGES ? 'Settlo' : './',
   plugins: [
     vue(),
     //vueDevTools(),
