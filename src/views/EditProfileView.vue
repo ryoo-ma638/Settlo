@@ -40,8 +40,11 @@
   
   <script setup>
   import { ref, onMounted } from 'vue';
-  import { auth } from "../firebase";
+  import { auth, db } from "../firebase"; // 🌟 db を追加
+  import { doc, getDoc, updateDoc } from "firebase/firestore"; // 🌟 Firestore用関数を追加
+  import { useRouter } from "vue-router"; // 🌟 ルーターを追加
   
+  const router = useRouter();
   const newName = ref("");
   const userPhoto = ref("");
   const previewPhoto = ref(null);
@@ -51,14 +54,25 @@
   const fileInputLibrary = ref(null);
   const fileInputCamera = ref(null);
   
-  onMounted(() => {
-    const user = auth.currentUser;
-    if (user) {
+onMounted(async () => {
+  const user = auth.currentUser;
+  if (user) {
+    // 🌟 Firestore から最新のデータを直接取得
+    const userDocRef = doc(db, "users", user.uid);
+    const userSnap = await getDoc(userDocRef);
+    
+    if (userSnap.exists()) {
+      const data = userSnap.data();
+      // 🌟 フィールド名を 'photo' に修正
+      newName.value = data.name || "";
+      userPhoto.value = data.photo || "https://via.placeholder.com/150";
+    } else {
+      // 予備として Auth の情報を使う
       newName.value = user.displayName || "";
-      // 初期アイコンがない場合のダミー画像
-      userPhoto.value = user.photoURL || "https://via.placeholder.com/150/e2e8f0/808080?text=No+Image";
+      userPhoto.value = user.photoURL || "https://via.placeholder.com/150";
     }
-  });
+  }
+});
   
   // 🌟 アルバムを開く処理
   const triggerLibrary = () => {
@@ -84,9 +98,35 @@
     }
   };
   
-  const saveProfile = async () => {
-    alert(`${newName.value} さんとして保存します！\n(※実際の保存処理は準備中です)`);
-  };
+  // 🌟 プロフィール保存処理
+const saveProfile = async () => {
+  const user = auth.currentUser;
+  const nameToSave = newName.value.trim();
+
+  if (!nameToSave) {
+    alert("名前を入力してください");
+    return;
+  }
+
+  try {
+    if (user) {
+      const userDocRef = doc(db, "users", user.uid);
+      
+      // 🌟 Firestore を更新
+      await updateDoc(userDocRef, {
+        name: nameToSave,
+        // photo フィールドも更新対象ならここに入れる
+      });
+
+      alert("プロフィールを保存しました！");
+      // 🌟 確実に保存が終わってから戻る
+      router.replace("/mypage"); 
+    }
+  } catch (error) {
+    console.error("❌ 保存エラー:", error);
+    alert("保存に失敗しました。サーバーが起動しているか確認してください。");
+  }
+};
   </script>
   
   <style scoped>
