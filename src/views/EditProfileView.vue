@@ -36,24 +36,15 @@
       <input ref="fileInputLibrary" type="file" accept="image/*" style="display: none;" @change="onFileChange" />
       <input ref="fileInputCamera" type="file" accept="image/*" capture="environment" style="display: none;" @change="onFileChange" />
     </div>
-    <BaseModal 
-        :show="modalState.show"
-        :type="modalState.type"
-        :title="modalState.title"
-        :message="modalState.message"
-        :showCancel="modalState.showCancel"
-        :confirmText="modalState.confirmText"
-        @confirm="modalState.onConfirm ? modalState.onConfirm() : (modalState.show = false)"
-        @cancel="modalState.show = false"
-        @close="modalState.show = false"
-      />
   </template>
   
   <script setup>
-  import { ref, onMounted, reactive } from 'vue'; // 🌟 reactiveを追加
-  import BaseModal from '../components/BaseModal.vue'; // 🌟 追加
-  import { auth } from "../firebase";
+  import { ref, onMounted } from 'vue';
+  import { auth, db } from "../firebase"; // 🌟 db を追加
+  import { doc, getDoc, updateDoc } from "firebase/firestore"; // 🌟 Firestore用関数を追加
+  import { useRouter } from "vue-router"; // 🌟 ルーターを追加
   
+  const router = useRouter();
   const newName = ref("");
   const userPhoto = ref("");
   const previewPhoto = ref(null);
@@ -63,14 +54,25 @@
   const fileInputLibrary = ref(null);
   const fileInputCamera = ref(null);
   
-  onMounted(() => {
-    const user = auth.currentUser;
-    if (user) {
+onMounted(async () => {
+  const user = auth.currentUser;
+  if (user) {
+    // 🌟 Firestore から最新のデータを直接取得
+    const userDocRef = doc(db, "users", user.uid);
+    const userSnap = await getDoc(userDocRef);
+    
+    if (userSnap.exists()) {
+      const data = userSnap.data();
+      // 🌟 フィールド名を 'photo' に修正
+      newName.value = data.name || "";
+      userPhoto.value = data.photo || "https://via.placeholder.com/150";
+    } else {
+      // 予備として Auth の情報を使う
       newName.value = user.displayName || "";
-      // 初期アイコンがない場合のダミー画像
-      userPhoto.value = user.photoURL || "https://via.placeholder.com/150/e2e8f0/808080?text=No+Image";
+      userPhoto.value = user.photoURL || "https://via.placeholder.com/150";
     }
-  });
+  }
+});
   
   // 🌟 アルバムを開く処理
   const triggerLibrary = () => {
@@ -78,35 +80,14 @@
     fileInputLibrary.value.click();
   };
   
-  const modalState = reactive({
-  show: false, type: 'info', title: '', message: '', 
-  showCancel: false, confirmText: 'OK', onConfirm: null
-});
-const showModal = (options) => {
-  Object.assign(modalState, { showCancel: false, confirmText: 'OK', onConfirm: null, ...options, show: true });
-};
-
-const triggerCamera = () => {
-  showPhotoOptions.value = false;
-  // 🌟 confirm を美しいモーダルに
-  showModal({
-    type: 'info',
-    title: 'カメラの使用',
-    message: 'Settlo がカメラへのアクセスを求めています。許可しますか？',
-    showCancel: true,
-    confirmText: '許可する',
-    onConfirm: () => fileInputCamera.value.click()
-  });
-};
-
-const saveProfile = async () => {
-  // 🌟 alert を美しいモーダルに
-  showModal({
-    type: 'success',
-    title: '保存完了',
-    message: `${newName.value} さんとして保存しました！\n(※実際の保存処理は準備中です)`
-  });
-};
+  // 🌟 カメラを起動する処理（許可ダイアログ付き）
+  const triggerCamera = () => {
+    showPhotoOptions.value = false;
+    // 擬似的な許可ダイアログを出して確認する
+    if (confirm("Settlo がカメラへのアクセスを求めています。\n許可しますか？")) {
+      fileInputCamera.value.click();
+    }
+  };
   
   // 画像が選択された時にプレビューを表示する処理
   const onFileChange = (event) => {
@@ -117,7 +98,35 @@ const saveProfile = async () => {
     }
   };
   
-  
+  // 🌟 プロフィール保存処理
+const saveProfile = async () => {
+  const user = auth.currentUser;
+  const nameToSave = newName.value.trim();
+
+  if (!nameToSave) {
+    alert("名前を入力してください");
+    return;
+  }
+
+  try {
+    if (user) {
+      const userDocRef = doc(db, "users", user.uid);
+      
+      // 🌟 Firestore を更新
+      await updateDoc(userDocRef, {
+        name: nameToSave,
+        // photo フィールドも更新対象ならここに入れる
+      });
+
+      alert("プロフィールを保存しました！");
+      // 🌟 確実に保存が終わってから戻る
+      router.replace("/mypage"); 
+    }
+  } catch (error) {
+    console.error("❌ 保存エラー:", error);
+    alert("保存に失敗しました。サーバーが起動しているか確認してください。");
+  }
+};
   </script>
   
   <style scoped>
