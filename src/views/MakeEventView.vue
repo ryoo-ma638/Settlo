@@ -80,6 +80,7 @@
 <script setup>
 import { ref, watch, reactive } from 'vue'; 
 import { useRouter } from 'vue-router';
+import api from '@/services/api'; // 🌟 パスに注意
 import { db, auth } from '@/firebase'; 
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'; 
 import BaseModal from '@/components/BaseModal.vue';

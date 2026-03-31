@@ -422,24 +422,31 @@ const handleSubmit = () => {
 
 // 🌟 実際の送信処理（モーダルのOKボタンからも呼べるように分けたもの）
 const executeSubmit = () => {
-  const processedItems = receiptItems.value.map(item => ({
-    name: item.qty > 1 ? `${item.name} (x${item.qty})` : item.name,
-    price: calcItemTotal(item),
-    assignees: item.assignees
-  }));
+  console.log("🔥 モーダル内の送信処理を開始"); // 🌟 これが出るか？
+  
+  // new Date().toLocaleTimeString... の部分でエラーが出ることがあるので
+  // 以下のように安全な書き方に変更してみてください
+  const now = new Date();
+  const currentTime = formData.value.time || 
+                     `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
   const payload = {
     payer: formData.value.payer,
     itemName: formData.value.itemName,
     splitType: formData.value.splitType,
     amount: Number(formData.value.amount),
-    date: formData.value.date.replace(/-/g, '/'),
-    time: formData.value.time || new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
-    items: processedItems
+    date: formData.value.date ? formData.value.date.replace(/-/g, '/') : "",
+    time: currentTime,
+    items: receiptItems.value.map(item => ({
+      name: item.name,
+      price: calcItemTotal(item),
+      assignees: item.assignees
+    }))
   };
 
+  console.log("📦 パケット作成完了:", payload);
   emit('submit', payload);
-  resetUpload();
+  emit('close'); // 🌟 送信後に閉じる指示を出す
 };
 </script>
 

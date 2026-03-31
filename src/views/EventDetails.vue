@@ -294,7 +294,7 @@ import { httpsCallable } from "firebase/functions";
 import { functions } from "@/firebase";
 // 🌟 修正：auth（ユーザー情報）を使えるように追加しました！
 import { db, auth } from '../firebase'; 
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, updateDoc, increment } from 'firebase/firestore';
 
 // 🌟 あなたが作った最強の計算ツールを読み込む！
 import { useSettlement } from '../composables/useSettlement';
@@ -372,65 +372,52 @@ const markAsCompleted = async (id) => {
 
 // 🌟 ここが最大の修正ポイント！「共通の履歴」と「イベント内」の両方に保存します
 const addHistory = async (newPayment) => {
+  console.log("🚀 受信したデータ:", newPayment);
   try {
     const eventId = route.params.id || "test-event-1"; 
+    const myUid = auth.currentUser?.uid;
+    if (!myUid) throw new Error("ログインセッションが切れています");
 
-    // 🌟 1. 履歴画面や精算画面が見ている「共通の箱」に入れるデータ
-    const globalTransactionData = {
-      ...newPayment,
-      
-      // 💡 修正A: 自分が立て替えた ＝ 「自分がお金を受け取る（To）」！
-      paidToId: auth?.currentUser?.uid || "unknown", 
-      paidToName: newPayment.payer || "自分", 
-      
-      // 💡 修正B: グループ全体が 「あなたに支払う義務（By）」がある！
-      paidById: "group_event", 
-      paidByName: "イベントメンバー", 
-      
-      itemName: newPayment.itemName || "支払い",
-      amount: newPayment.amount || 0,
-      
-      // 💡 修正C: 'pending' から 'unpaid' に変更！これでお支払い画面に表示されます！
-      status: 'unpaid', 
-      type: 'receive', 
-      
-      date: newPayment.date || "",
+    // 🌟 1. 全体取引履歴への保存 (PaymentHistoryView用)
+    await addDoc(collection(db, "transactions"), {
+      paidById: myUid,
+      paidByName: newPayment.payer,
+      itemName: newPayment.itemName,
+      amount: Number(newPayment.amount),
+      date: newPayment.date,
       createdAt: serverTimestamp(),
-      eventName: eventData.value.name || "イベント代",
-
-      // 履歴画面が indexOf で探してエラーになるのを防ぐ防弾シールド
-      involvedUsers: [auth?.currentUser?.uid || "unknown", "group_event"],
-      participants: [auth?.currentUser?.uid || "unknown", "group_event"],
-      members: [auth?.currentUser?.uid || "unknown", "group_event"],
-      items: newPayment.items || []
-    };
-
-    // 🌟 2. 「transactions」コレクションに保存（これでお支払い画面に出る！）
-    await addDoc(collection(db, "transactions"), globalTransactionData);
-
-    // 🌟 3. 元々あったイベント画面用の保存処理（そのまま維持）
-    const historyRef = collection(db, "events", eventId, "history");
-    const docRef = await addDoc(historyRef, {
-      payer: newPayment.payer, 
-      itemName: newPayment.itemName, 
-      splitType: newPayment.splitType,
-      amount: newPayment.amount, 
-      color: '#fca5a5', 
-      date: newPayment.date, 
-      time: newPayment.time, 
-      status: 'unpaid', 
-      involvesMe: true, 
-      timestamp: serverTimestamp(), 
-      items: newPayment.items || [] 
+      involvedUsers: [myUid, "group_event"],
+      eventId: eventId
     });
 
-    console.log("🔥 Firestoreに保存成功！（全体＆イベントの両方）");
-    eventData.value.total += newPayment.amount;
+    // 🌟 2. このイベント内の「立て替え履歴」サブコレクションへ保存
+    const historyRef = collection(db, "events", eventId, "history");
+    const docRef = await addDoc(historyRef, {
+      payer: newPayment.payer,
+      itemName: newPayment.itemName,
+      splitType: newPayment.splitType,
+      amount: Number(newPayment.amount),
+      date: newPayment.date,
+      time: newPayment.time,
+      status: 'unpaid',
+      timestamp: serverTimestamp(), // 並び替えに使用
+      items: newPayment.items || []
+    });
+
+    // 🌟 3. イベント本体の合計金額(totalAmount)を更新
+    const eventDocRef = doc(db, "events", eventId);
+    await updateDoc(eventDocRef, {
+      totalAmount: increment(Number(newPayment.amount))
+    });
+
+    console.log("✅ 全ての保存が完了しました ID:", docRef.id);
     modals.value.addPayment = false;
+    
+    // 保存後にタイムラインへスクロール
     setTimeout(scrollToTimeline, 300);
   } catch (error) {
-    console.error("保存エラー:", error);
-    alert("支払いの追加に失敗しました。");
+    console.error("❌ 保存失敗:", error);
+    showAlert('error', '保存エラー', 'データの保存に失敗しました。');
   }
 };
 
@@ -439,44 +426,51 @@ onMounted(() => {
   const eventId = route.params.id;
   if (!eventId) return;
 
-  // 🌟 1. イベント基本情報（名前、招待コード）の監視
+  // --- A. イベント本体の情報を監視 (名前や招待コード) ---
   onSnapshot(doc(db, "events", eventId), async (docSnap) => {
     if (docSnap.exists()) {
       const data = docSnap.data();
       eventData.value.name = data.name;
       eventData.value.invitationCode = data.invitationCode || "------";
       
-      // 参加者情報の更新
-      const participantUids = data.participants || [];
-      const detailedParticipants = await Promise.all(
-        participantUids.map(async (uid) => {
-          const icon = await getUserIcon(uid);
-          return { id: uid, name: 'メンバー', color: icon, isMe: uid === auth.currentUser?.uid };
-        })
-      );
-      eventData.value.participants = detailedParticipants;
+      // 参加者情報の取得（キャッシュ利用）
+      const uids = data.participants || [];
+      const detailed = await Promise.all(uids.map(async (uid) => {
+        const icon = await getUserIcon(uid);
+        return { id: uid, name: 'メンバー', color: icon, isMe: uid === auth.currentUser?.uid };
+      }));
+      eventData.value.participants = detailed;
     }
   });
 
-  // 🌟 2. 立て替え履歴（historyサブコレクション）の監視
+  // --- B. 立て替え履歴(history)サブコレクションを監視 ---
   const historyRef = collection(db, "events", eventId, "history");
-  const q = query(historyRef, orderBy("timestamp", "desc")); // 新しい順
+  // 🌟 timestamp（作成日時）の降順（新しい順）で取得
+  const q = query(historyRef, orderBy("timestamp", "desc"));
 
   onSnapshot(q, (snapshot) => {
     const fetchedHistory = [];
     snapshot.forEach((doc) => {
       const data = doc.data();
       fetchedHistory.push({
-        id: doc.id, 
-        ...data,
-        timestamp: data.timestamp ? data.timestamp.toMillis() : Date.now()
+        id: doc.id,
+        payer: data.payer,
+        itemName: data.itemName,
+        splitType: data.splitType,
+        amount: data.amount,
+        color: data.color || '#fca5a5',
+        date: data.date,
+        time: data.time,
+        status: data.status,
+        timestamp: data.timestamp ? data.timestamp.toMillis() : Date.now(),
+        items: data.items || []
       });
     });
 
-    // 履歴を更新
+    // 🌟 これで画面の「立て替え履歴」リストが自動更新される
     eventData.value.history = fetchedHistory;
     
-    // 🌟 3. 重要：合計金額を履歴から再計算して保存（自動的に画面に反映）
+    // 🌟 合計金額も履歴から再計算して反映
     eventData.value.total = fetchedHistory.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
   });
 });
