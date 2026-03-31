@@ -313,14 +313,12 @@ const selectedHistory = ref(null);
 const selectedSummary = ref(null);
 
 const eventData = ref({
-  name: '鈴○サーキット', date: '2026/03/25', total: 18500,
-  participants: [
-    { id: 1, name: '大崎 稜馬', color: '#fca5a5', isMe: true },
-    { id: 2, name: '小野木 涼平', color: '#93c5fd' },
-    { id: 3, name: '天野 椋祐', color: '#86efac' },
-    { id: 4, name: '中橋 楓華', color: '#fde047' },
-  ],
-  history: [] // データベースから取得するので初期値は空でOK
+  name: '読み込み中...',
+  date: '---', 
+  total: 0, // 🌟 最初は 0
+  invitationCode: '------',
+  participants: [], 
+  history: [] 
 });
 
 const sumFilterScope = ref('all'); 
@@ -411,7 +409,7 @@ const addHistory = async (newPayment) => {
       payer: newPayment.payer, 
       itemName: newPayment.itemName, 
       splitType: newPayment.splitType,
-      amount: newPayment.amount, 
+      amount: Number(newPayment.amount), 
       color: '#fca5a5', 
       date: newPayment.date, 
       time: newPayment.time, 
@@ -434,27 +432,48 @@ const addHistory = async (newPayment) => {
 
 // リアルタイム監視
 onMounted(() => {
-  const eventId = route.params.id || "test-event-1"; 
-  const historyRef = collection(db, "events", eventId, "history");
-  const q = query(historyRef, orderBy("timestamp", "asc"));
+  const eventId = route.params.id;
+  if (!eventId) return;
 
+  // 🌟 1. イベント基本情報（名前、招待コード）の監視
   onSnapshot(doc(db, "events", eventId), async (docSnap) => {
     if (docSnap.exists()) {
       const data = docSnap.data();
       eventData.value.name = data.name;
       eventData.value.invitationCode = data.invitationCode || "------";
       
-      // 🌟 UIDリストからアイコンを含む詳細情報を生成
+      // 参加者情報の更新
       const participantUids = data.participants || [];
       const detailedParticipants = await Promise.all(
         participantUids.map(async (uid) => {
           const icon = await getUserIcon(uid);
-          // ここで名前を取得するロジックも必要なら追加
           return { id: uid, name: 'メンバー', color: icon, isMe: uid === auth.currentUser?.uid };
         })
       );
       eventData.value.participants = detailedParticipants;
     }
+  });
+
+  // 🌟 2. 立て替え履歴（historyサブコレクション）の監視
+  const historyRef = collection(db, "events", eventId, "history");
+  const q = query(historyRef, orderBy("timestamp", "desc")); // 新しい順
+
+  onSnapshot(q, (snapshot) => {
+    const fetchedHistory = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      fetchedHistory.push({
+        id: doc.id, 
+        ...data,
+        timestamp: data.timestamp ? data.timestamp.toMillis() : Date.now()
+      });
+    });
+
+    // 履歴を更新
+    eventData.value.history = fetchedHistory;
+    
+    // 🌟 3. 重要：合計金額を履歴から再計算して保存（自動的に画面に反映）
+    eventData.value.total = fetchedHistory.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
   });
 });
 
