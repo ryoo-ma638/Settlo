@@ -75,7 +75,7 @@
 import { ref, watch, reactive } from 'vue'; // 🌟 reactiveを追加
 import { useRouter } from 'vue-router';
 import api from '@/services/api'; // 🌟 パスに注意
-import { watch } from 'vue';
+// import { watch } from 'vue';
 import BaseModal from '@/components/BaseModal.vue'; // 🌟 追加
 import { auth } from '@/firebase';
 
