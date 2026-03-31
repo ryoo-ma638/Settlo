@@ -105,6 +105,7 @@ app.get('/api/events', authenticateUser, async (req, res) => {
         tag: data.tag,
         memo: data.memo,
         totalAmount: data.totalAmount,
+        participants: data.participants || []
       });
     };
 

@@ -61,6 +61,8 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '@/services/api'; // 🌟 パスに注意
 import { watch } from 'vue';
+import BaseModal from '@/components/BaseModal.vue'; // 🌟 追加
+import { auth } from '@/firebase';
 
 const router = useRouter();
 const isJoinMode = ref(false);
@@ -89,22 +91,26 @@ const createEvent = async () => {
   
   loading.value = true;
   try {
-    // 1. Prisma側にユーザーがいない可能性を考慮して同期
+    // ユーザー同期
     await api.post('/users/sync');
 
-    // 2. イベントを作成
+    // 🌟 ログイン中の自分のUIDを取得
+    const myUid = auth.currentUser ? auth.currentUser.uid : null;
+
     const response = await api.post('/events', {
       name: eventName.value,
       memo: eventMemo.value,
       tag: selectedIcon.value,
-      invitationCode: invitationCode.value
+      invitationCode: invitationCode.value,
+      // 🌟 重要：作成者を最初の参加者として登録する
+      participants: myUid ? [myUid] : [] 
     });
 
     console.log('✅ サーバーに保存完了:', response.data);
     router.push('/'); 
   } catch (error) {
     console.error('❌ 作成失敗:', error);
-    alert('作成に失敗しました。');
+    showModal({ type: 'error', title: 'エラー', message: 'イベントの作成に失敗しました。' });
   } finally {
     loading.value = false;
   }
