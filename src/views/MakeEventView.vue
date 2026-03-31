@@ -161,7 +161,6 @@ const joinEvent = async () => {
   showModal({ type: 'info', title: 'お知らせ', message: '現在、イベント参加機能は準備中です。' });
 };
 
-// 🌟 エラー原因1の修正：正しくインポートされた watch がここで動きます
 watch(isJoinMode, () => {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 });
