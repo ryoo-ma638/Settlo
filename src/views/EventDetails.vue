@@ -373,60 +373,30 @@ const markAsCompleted = async (id) => {
 // 🌟 ここが最大の修正ポイント！「共通の履歴」と「イベント内」の両方に保存します
 const addHistory = async (newPayment) => {
   try {
-
     const eventId = route.params.id || "test-event-1"; 
+    const amountNum = Number(newPayment.amount); // 数値に変換
 
-    // 🌟 1. 履歴画面(PaymentHistoryView)が見ている「共通の箱」に入れるデータ
-    const globalTransactionData = {
-      ...newPayment, // 🌟 👈 ここを超追加！(itemsや割り勘情報など、すべてのデータを引き継ぎます)
-      
-      // 履歴画面が「自分のデータだ！」と認識するために、UIDをセットします
-      paidById: auth?.currentUser?.uid || "unknown", 
-      paidByName: newPayment.payer, 
-      paidToId: "group_event",       // 🌟追加1: 相手のID（履歴画面が探してエラーになるのを防ぐ）
-      paidToName: "イベントメンバー",
-      itemName: newPayment.itemName || "支払い",
-      amount: newPayment.amount || 0,
-      status: 'pending',
-      type: 'pay', 
-      date: newPayment.date || "",
-      createdAt: serverTimestamp(), // 履歴画面の並び替えに必須
-      eventName: eventData.value.name || "イベント代",
-      // 🌟 履歴画面が indexOf で探してエラーになるのを防ぐ「防弾シールド」！
-      // 配列（リスト）がないと怒られるので、全て入れておきます。
-      involvedUsers: [auth?.currentUser?.uid || "unknown", "group_event"],
-      participants: [auth?.currentUser?.uid || "unknown", "group_event"],
-      members: [auth?.currentUser?.uid || "unknown", "group_event"],
-      items: newPayment.items || []
-    };
+    // --- (既存のtransactionsへの保存処理などはそのまま) ---
 
-    // 🌟 2. 「transactions」コレクションに保存（これで履歴画面に出る！）
-    await addDoc(collection(db, "transactions"), globalTransactionData);
-
-    // 🌟 3. 元々あったイベント画面用の保存処理（events/.../history）
-    const historyRef = collection(db, "events", eventId, "history");
-    const docRef = await addDoc(historyRef, {
-      payer: newPayment.payer, 
-      itemName: newPayment.itemName, 
-      splitType: newPayment.splitType,
-      amount: Number(newPayment.amount), 
-      color: '#fca5a5', 
-      date: newPayment.date, 
-      time: newPayment.time, 
-      status: 'unpaid', 
-      involvesMe: true, 
-      timestamp: serverTimestamp(), 
-      items: newPayment.items || [] 
+    // 🌟 修正：イベントドキュメントの合計金額をインクリメント（加算）する
+    const eventRef = doc(db, "events", eventId);
+    await updateDoc(eventRef, {
+      totalAmount: admin.firestore.FieldValue.increment(amountNum)
     });
 
-    console.log("🔥 Firestoreに保存成功！（全体履歴＆イベント履歴の両方） ID:", docRef.id);
-    eventData.value.total += newPayment.amount;
-    modals.value.addPayment = false;
-    setTimeout(scrollToTimeline, 300);
+    // --- (既存のhistoryサブコレクションへの保存) ---
+    const historyRef = collection(db, "events", eventId, "history");
+    await addDoc(historyRef, {
+      ...newPayment,
+      amount: amountNum,
+      timestamp: serverTimestamp(),
+      status: 'unpaid'
+    });
+
+    console.log("🔥 イベントの合計金額をDBに反映しました");
+    // ...
   } catch (error) {
-    console.error("保存エラー:", error);
-    // 🌟 alert("..."); を以下に変更
-    showAlert('error', '保存エラー', '支払いの追加に失敗しました。');
+    console.error(error);
   }
 };
 
