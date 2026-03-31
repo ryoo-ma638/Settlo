@@ -25,12 +25,19 @@
           </div>
           <div class="participants-row">
             <div class="avatar-stack">
-              <div 
-                class="avatar" 
-                v-for="(p, i) in eventData.participants.slice(0, 5)" 
-                :key="i" 
-                :style="{ backgroundColor: p.color, zIndex: 10 - i }"
-              ></div>
+              <template v-for="(p, i) in eventData.participants.slice(0, 5)" :key="i">
+                <img 
+                  v-if="p.color && p.color.startsWith('http')" 
+                  :src="p.color" 
+                  class="avatar" 
+                  :style="{ zIndex: 10 - i }" 
+                />
+                <div 
+                  v-else 
+                  class="avatar" 
+                  :style="{ backgroundColor: p.color || '#cbd5e1', zIndex: 10 - i }"
+                ></div>
+              </template>
               <div v-if="eventData.participants.length > 5" class="avatar-more">
                 +{{ eventData.participants.length - 5 }}
               </div>
@@ -114,7 +121,17 @@
             <div class="timeline-content">
               <div class="history-card" :class="{ 'unpaid-card': history.status === 'unpaid' }">
                 <div class="history-main">
-                  <div class="history-avatar" :style="{ backgroundColor: history.color }"></div>
+                  <img 
+                    v-if="history.color && history.color.startsWith('http')" 
+                    :src="history.color" 
+                    class="history-avatar" 
+                  />
+                  <div 
+                    v-else 
+                    class="history-avatar" 
+                    :style="{ backgroundColor: history.color || '#cbd5e1' }"
+                  ></div>
+                  
                   <div class="history-text">
                     <span class="history-item-name">{{ history.itemName }} <span class="split-type">{{ history.splitType }}</span></span>
                     <span class="history-payer">{{ history.date }} {{ history.time }} • {{ history.payer }} が立替</span>
@@ -155,7 +172,16 @@
           <div class="modal-header"><h3>参加者一覧</h3><button class="close-btn" @click="modals.participants = false">×</button></div>
           <div class="modal-list">
             <div class="list-item" v-for="p in eventData.participants" :key="p.id">
-              <div class="avatar-medium" :style="{ backgroundColor: p.color }"></div>
+              <img 
+                v-if="p.color && p.color.startsWith('http')" 
+                :src="p.color" 
+                class="avatar-medium" 
+              />
+              <div 
+                v-else 
+                class="avatar-medium" 
+                :style="{ backgroundColor: p.color || '#cbd5e1' }"
+              ></div>
               <span class="item-name">{{ p.name }} <span v-if="p.isMe" class="me-badge">自分</span></span>
             </div>
           </div>
@@ -225,6 +251,24 @@
 </template>
 
 <script setup>
+import { getDoc } from 'firebase/firestore'; // getDoc が必要
+
+const userCache = {};
+const getUserIcon = async (uid) => {
+  if (!uid) return "#cbd5e1";
+  if (userCache[uid]) return userCache[uid];
+  try {
+    const userDoc = await getDoc(doc(db, "users", uid));
+    if (userDoc.exists()) {
+      const data = userDoc.data();
+      const icon = data.photoURL || data.photo || data.color || "#cbd5e1";
+      userCache[uid] = icon;
+      return icon;
+    }
+  } catch (e) { console.error(e); }
+  return "#cbd5e1";
+};
+
 // ==========================================
 // 🌟 1. 2人の import を綺麗に合体！
 // ==========================================
@@ -394,48 +438,23 @@ onMounted(() => {
   const historyRef = collection(db, "events", eventId, "history");
   const q = query(historyRef, orderBy("timestamp", "asc"));
 
-  onSnapshot(q, (snapshot) => {
-    const fetchedHistory = [];
-    const eventId = route.params.id || "test-event-1"; 
-  
-    // 🌟 1. イベント本体のデータを取得（招待コードなどを取るため）
-    const eventDocRef = doc(db, "events", eventId);
-    onSnapshot(eventDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        eventData.value.name = data.name || eventData.value.name;
-        // 🌟 ここで招待コードを更新！
-        eventData.value.invitationCode = data.invitationCode || "------";
-      }
-    });
-
-    // 🌟 2. 履歴（history）の監視（既存のコード）
-    const historyRef = collection(db, "events", eventId, "history");
-    const q = query(historyRef, orderBy("timestamp", "asc"));
-
-    onSnapshot(q, (snapshot) => {
-      const fetchedHistory = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        fetchedHistory.push({
-          id: doc.id, 
-          payer: data.payer,
-          itemName: data.itemName,
-          splitType: data.splitType,
-          amount: data.amount,
-          color: data.color || '#fca5a5',
-          date: data.date,
-          time: data.time,
-          status: data.status,
-          involvesMe: data.involvesMe,
-          items: data.items || [],
-          timestamp: data.timestamp ? data.timestamp.toMillis() : Date.now()
-        });
-      });
-
-      eventData.value.history = fetchedHistory;
-      eventData.value.total = fetchedHistory.reduce((sum, item) => sum + item.amount, 0);
-    });
+  onSnapshot(doc(db, "events", eventId), async (docSnap) => {
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      eventData.value.name = data.name;
+      eventData.value.invitationCode = data.invitationCode || "------";
+      
+      // 🌟 UIDリストからアイコンを含む詳細情報を生成
+      const participantUids = data.participants || [];
+      const detailedParticipants = await Promise.all(
+        participantUids.map(async (uid) => {
+          const icon = await getUserIcon(uid);
+          // ここで名前を取得するロジックも必要なら追加
+          return { id: uid, name: 'メンバー', color: icon, isMe: uid === auth.currentUser?.uid };
+        })
+      );
+      eventData.value.participants = detailedParticipants;
+    }
   });
 });
 
@@ -478,23 +497,47 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.event-detail-container { min-height: 100vh; background-color: #f4f7f9; display: flex; flex-direction: column; font-family: 'Helvetica Neue', Arial, sans-serif; }
-.detail-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 100; border-bottom: 1px solid rgba(0,0,0,0.03); }
-.back-btn { background: none; border: none; font-size: 32px; color: #64748b; cursor: pointer; padding: 0; display: flex; align-items: center; }
-.title { font-size: 17px; font-weight: 800; margin: 0; color: #1e293b; }
-.content { padding: 20px; flex: 1; padding-bottom: 120px; }
+.event-detail-container { 
+  min-height: 100vh; 
+  background-color: #f4f7f9; 
+  display: flex; 
+  flex-direction: column; 
+  font-family: 'Helvetica Neue', Arial, sans-serif; 
+  box-sizing: border-box;
+}
 
-.summary-card { background: white; border-radius: 28px; padding: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); margin-bottom: 32px; }
+.detail-header { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  padding: 16px 20px; /* 🌟 少し余白をリッチに */
+  background: linear-gradient(135deg, #dcfce7 0%, #e0f2fe 100%); /* 🌟 爽やかなグラデーションに！ */
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+  position: sticky; 
+  z-index: 100; 
+  border-bottom-left-radius: 20px;
+  border-bottom-right-radius: 20px;
+  margin-bottom: 10px;
+}
+
+
+.back-btn { background: none; border: none; font-size: 32px; color: #0f172a; cursor: pointer; padding: 0; display: flex; align-items: center; transition: 0.2s; }
+.back-btn:active { transform: scale(0.9); }
+.title { font-size: 18px; font-weight: 800; margin: 0; color: #0f172a; letter-spacing: 0.5px; }
+
+/* 🌟 コンテンツ全体の余白とカードの洗練 */
+.content { padding: 15px 20px 20px; flex: 1; padding-bottom: 120px; }
+
+.summary-card { background: white; border-radius: 28px; padding: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); margin-bottom: 32px; border: 1px solid #f1f5f9; }
 .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .event-name { font-size: 22px; font-weight: 900; margin: 0; color: #0f172a; letter-spacing: -0.5px; }
-.event-date { font-size: 12px; color: #94a3b8; font-weight: 700; background: #f1f5f9; padding: 4px 10px; border-radius: 12px; }
+.event-date { font-size: 12px; color: #3b82f6; font-weight: 800; background: #eff6ff; padding: 6px 12px; border-radius: 12px; }
 
-.clickable { cursor: pointer; transition: all 0.2s ease; border-radius: 20px; padding: 12px; margin: 0 -12px; }
-.clickable:active { background: #f8fafc; transform: scale(0.98); }
-.total-section { text-align: center; margin-bottom: 20px; }
-.label { font-size: 13px; color: #64748b; font-weight: 700; display: flex; justify-content: center; align-items: center; margin-bottom: 6px; }
-.arrow-down { font-size: 10px; color: #3b82f6; background: #eff6ff; padding: 4px 10px; border-radius: 12px; margin-left: 8px; font-weight: 800; }
-.total-amount { font-size: 44px; font-weight: 900; margin: 0; color: #0f172a; letter-spacing: -1.5px; }
+.total-section { text-align: center; margin-bottom: 24px; background: #f8fafc; padding: 20px; border-radius: 20px; }
+.label { font-size: 13px; color: #64748b; font-weight: 800; display: flex; justify-content: center; align-items: center; margin-bottom: 8px; }
+.total-amount { font-size: 48px; font-weight: 900; margin: 0; color: #0f172a; letter-spacing: -1.5px; }
+
+/* （これ以降のCSSは既存のままでOKです） */
 
 .participants-section { background: #f8fafc; padding: 16px; border-radius: 20px; cursor: pointer; transition: 0.2s; border: 1px solid #f1f5f9; }
 .participants-section:active { background: #f1f5f9; }
@@ -697,5 +740,13 @@ onMounted(() => {
   font-size: 15px;
   font-weight: 900;
   color: #0f172a;
+}
+.avatar, 
+.avatar-medium, 
+.avatar-large, 
+.history-avatar, 
+.avatar-small {
+  object-fit: cover; /* 🌟 画像を枠に合わせて切り抜く */
+  border-radius: 50%; /* 確実に円形にする */
 }
 </style>
