@@ -1,65 +1,88 @@
 <template>
   <div class="make-event-container">
-    <h2 class="page-title">{{ isJoinMode ? 'イベントに参加する' : '新規イベント作成' }}</h2>
+    <header class="detail-header">
+      <button class="back-btn" @click="$router.back()">‹</button>
+      <h1 class="title">{{ isJoinMode ? 'イベントに参加する' : '新規イベント作成' }}</h1>
+      <div class="spacer"></div>
+    </header>
 
-    <div v-if="!isJoinMode">
-      <div class="input-section">
-        <label class="input-label">イベント名</label>
-        <input v-model="eventName" type="text" placeholder="例：キャンプ、飲み会" class="input-field shadow-box" />
-      </div>
+    <main class="content">
+      <div v-if="!isJoinMode">
+        <div class="input-section">
+          <label class="input-label">イベント名</label>
+          <input v-model="eventName" type="text" placeholder="例：キャンプ、飲み会" class="input-field shadow-box" />
+        </div>
 
-      <div class="input-section">
-        <label class="input-label">メモ</label>
-        <textarea v-model="eventMemo" placeholder="予算やルールなど" class="textarea-field shadow-box"></textarea>
-      </div>
+        <div class="input-section">
+          <label class="input-label">メモ</label>
+          <textarea v-model="eventMemo" placeholder="予算やルールなど" class="textarea-field shadow-box"></textarea>
+        </div>
 
-      <div class="input-section">
-        <label class="input-label">イベントのジャンル</label>
-        <div class="icon-grid">
-          <div 
-            v-for="icon in icons" :key="icon.label"
-            class="icon-item" :class="{ active: selectedIcon === icon.label }"
-            @click="selectedIcon = icon.label"
-          >
-            <span class="emoji">{{ icon.emoji }}</span><br>{{ icon.label }}
+        <div class="input-section">
+          <label class="input-label">イベントのジャンル</label>
+          <div class="icon-grid">
+            <div 
+              v-for="icon in icons" :key="icon.label"
+              class="icon-item" :class="{ active: selectedIcon === icon.label }"
+              @click="selectedIcon = icon.label"
+            >
+              <span class="emoji">{{ icon.emoji }}</span><br>{{ icon.label }}
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="input-section">
-        <label class="input-label">招待コード</label>
-        <p class="sub-text">友人に共有してメンバーを増やせます</p>
-        <div class="copy-box shadow-box">
-          <span class="code">{{ invitationCode }}</span>
-          <span class="copy-btn" @click="copyToClipboard">コピー</span>
+        <div class="input-section">
+          <label class="input-label">招待コード</label>
+          <p class="sub-text">友人に共有してメンバーを増やせます</p>
+          <div class="copy-box shadow-box">
+            <span class="code">{{ invitationCode }}</span>
+            <span class="copy-btn" @click="copyToClipboard">コピー</span>
+          </div>
+        </div>
+
+        <div class="action-buttons">
+          <button class="main-btn create" :disabled="loading" @click="createEvent">
+            {{ loading ? '作成中...' : '作成する' }}
+          </button>
+          <button class="sub-btn" @click="isJoinMode = true">既存のイベントに参加する</button>
         </div>
       </div>
 
-      <div class="action-buttons">
-        <button class="main-btn create" :disabled="loading" @click="createEvent">
-          {{ loading ? '作成中...' : '作成する' }}
-        </button>
-        <button class="sub-btn" @click="isJoinMode = true">既存のイベントに参加する</button>
+      <div v-else class="join-mode">
+        <div class="input-section">
+          <label class="input-label">招待コードを入力</label>
+          <input v-model="joinCode" type="text" placeholder="例：A1B2C3" class="input-field shadow-box join-input" maxlength="6" />
+        </div>
+        <div class="action-buttons">
+          <button class="main-btn join" @click="joinEvent">参加する</button>
+          <button class="sub-btn" @click="isJoinMode = false">新しくイベントを作る</button>
+        </div>
       </div>
-    </div>
+    </main>
 
-    <div v-else class="join-mode">
-      <div class="input-section">
-        <label class="input-label">招待コードを入力</label>
-        <input v-model="joinCode" type="text" placeholder="例：A1B2C3" class="input-field shadow-box join-input" maxlength="6" />
-      </div>
-      <div class="action-buttons">
-        <button class="main-btn join" @click="joinEvent">参加する</button>
-        <button class="sub-btn" @click="isJoinMode = false">新しくイベントを作る</button>
-      </div>
-    </div>
+    <Teleport to="body">
+      <BaseModal 
+        :show="modalState.show"
+        :type="modalState.type"
+        :title="modalState.title"
+        :message="modalState.message"
+        :showCancel="modalState.showCancel"
+        :confirmText="modalState.confirmText"
+        :cancelText="modalState.cancelText"
+        @confirm="handleConfirmModal"
+        @cancel="modalState.show = false"
+        @close="modalState.show = false"
+      />
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+// 🌟 エラー原因1の修正：ここで ref, watch, reactive を「1回だけ」インポートする
+import { ref, watch, reactive } from 'vue'; 
 import { useRouter } from 'vue-router';
-import api from '@/services/api'; // 🌟 パスに注意
+import api from '@/services/api'; 
+import BaseModal from '@/components/BaseModal.vue'; 
 
 const router = useRouter();
 const isJoinMode = ref(false);
@@ -77,21 +100,38 @@ const icons = [
   { label: '飲み会', emoji: '🍺' }, { label: 'その他', emoji: '✨' }
 ];
 
-const copyToClipboard = () => {
-  navigator.clipboard.writeText(invitationCode.value);
-  alert('コピーしました！');
+const modalState = reactive({
+  show: false, type: 'info', title: '', message: '', 
+  showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null
+});
+const showModal = (options) => {
+  Object.assign(modalState, { showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, ...options, show: true });
+};
+const handleConfirmModal = () => {
+  if (modalState.onConfirm) modalState.onConfirm();
+  modalState.show = false;
 };
 
-// 🌟 連結されたイベント作成処理
+const copyToClipboard = () => {
+  navigator.clipboard.writeText(invitationCode.value)
+    .then(() => {
+      showModal({ type: 'success', title: 'コピー完了', message: '招待コードをクリップボードにコピーしました！' });
+    })
+    .catch(() => {
+      showModal({ type: 'error', title: 'エラー', message: 'コピーに失敗しました' });
+    });
+};
+
 const createEvent = async () => {
-  if (!eventName.value) return alert('名前を入力してください');
+  if (!eventName.value) {
+    showModal({ type: 'error', title: '入力エラー', message: 'イベント名を入力してください' });
+    return;
+  }
   
   loading.value = true;
   try {
-    // 1. Prisma側にユーザーがいない可能性を考慮して同期
+    // 🌟 エラー原因2の対策：バックエンド(localhost)が動いていない場合でもデモが進むようにする
     await api.post('/users/sync');
-
-    // 2. イベントを作成
     const response = await api.post('/events', {
       name: eventName.value,
       memo: eventMemo.value,
@@ -99,21 +139,29 @@ const createEvent = async () => {
       invitationCode: invitationCode.value
     });
 
-    console.log('✅ サーバーに保存完了:', response.data);
     router.push('/'); 
   } catch (error) {
     console.error('❌ 作成失敗:', error);
-    alert('作成に失敗しました。');
+    
+    // 💡 ハッカソン用安全装置：APIエラー(localhost通信不可)が起きても、強制的に進めるか選ばせる
+    showModal({ 
+      type: 'warning', 
+      title: '通信エラー', 
+      message: 'サーバー(localhost)と通信できませんでした。\nデモ用に、このままホーム画面に進みますか？',
+      showCancel: true,
+      confirmText: '進む',
+      onConfirm: () => router.push('/') // 強制的にホームへ
+    });
   } finally {
     loading.value = false;
   }
 };
 
 const joinEvent = async () => {
-  // 参加ロジック（サーバー側の実装に合わせて調整）
-  alert('現在、参加機能は調整中です。');
+  showModal({ type: 'info', title: 'お知らせ', message: '現在、イベント参加機能は準備中です。' });
 };
 
+// 🌟 エラー原因1の修正：正しくインポートされた watch がここで動きます
 watch(isJoinMode, () => {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 });
@@ -121,44 +169,66 @@ watch(isJoinMode, () => {
 
 <style scoped>
 .make-event-container { 
-  padding: 20px 25px; 
   background-color: #f8fafc; 
   min-height: 100vh; 
   box-sizing: border-box;
-
-  /* 🌟 全体の開始位置を下げる（ヘッダー被り防止） */
-  /* ヘッダーの高さが 60px なら 80px 程度が理想的です */
-  padding-top: 80px; 
+  display: flex;
+  flex-direction: column;
+  padding-top: 60px; /* 共通ヘッダー被り防止 */
 }
 
-/* 🌟 .join-mode の padding-top は削除するか、containerと合わせる */
+/* ヘッダーデザイン: フレッシュなシアン系グラデーション */
+.detail-header { 
+  display: flex; justify-content: space-between; align-items: center; 
+  padding: 16px 20px; 
+  background: linear-gradient(135deg, #cffafe 0%, #bae6fd 100%); 
+  position: sticky; top: 60px; z-index: 100; 
+  border-radius: 0 0 24px 24px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+  margin-bottom: 15px;
+}
+.back-btn { background: none; border: none; font-size: 32px; color: #0f172a; cursor: pointer; padding: 0; display: flex; align-items: center; transition: 0.2s; }
+.back-btn:active { transform: scale(0.9); }
+.title { font-size: 18px; font-weight: 900; margin: 0; color: #0f172a; flex: 1; text-align: center; }
+.spacer { display: block; width: 32px; }
+
+.content { 
+  flex: 1; 
+  padding: 15px 25px 100px; 
+  width: 100%; 
+  max-width: 600px; 
+  margin: 0 auto; 
+  box-sizing: border-box; 
+}
+
 .join-mode {
   width: 100%;
   display: flex;
   flex-direction: column;
 }
 
-/* 💻 PC版の調整 */
-@media (min-width: 1024px) {
-  .make-event-container {
-    padding-top: 40px; /* PC版サイドバー利用時は余白を詰める */
-  }
-}
-.page-title { font-size: 20px; font-weight: bold; margin-bottom: 30px; text-align: center; color: #1e293b; }
 .input-section { margin-bottom: 25px; }
-.input-label { display: block; font-weight: bold; font-size: 13px; margin-bottom: 8px; color: #64748b; }
-.shadow-box { background-color: #f1f5f9; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 15px; width: 100%; box-sizing: border-box; font-size: 16px; transition: 0.2s; }
-.shadow-box:focus { border-color: #3b82f6; background: white; outline: none; }
+.input-label { display: block; font-weight: 800; font-size: 13px; margin-bottom: 8px; color: #64748b; }
+.shadow-box { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; width: 100%; box-sizing: border-box; font-size: 15px; font-weight: 800; color: #1e293b; transition: 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
+.shadow-box:focus { border-color: #3b82f6; outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+.shadow-box::placeholder { color: #cbd5e1; font-weight: normal; }
+
 .textarea-field { height: 100px; resize: none; }
 .icon-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.icon-item { background-color: #f1f5f9; border: 1.5px solid transparent; border-radius: 12px; padding: 12px 5px; text-align: center; cursor: pointer; transition: 0.2s; }
-.icon-item .emoji { font-size: 20px; }
+.icon-item { background-color: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 16px; padding: 14px 5px; text-align: center; cursor: pointer; transition: 0.2s; font-weight: 800; font-size: 12px; color: #64748b; box-shadow: 0 2px 6px rgba(0,0,0,0.02); }
+.icon-item .emoji { font-size: 24px; margin-bottom: 4px; display: inline-block; }
 .icon-item.active { background-color: #eff6ff; border-color: #3b82f6; color: #1e40af; }
-.copy-box { display: flex; justify-content: space-between; align-items: center; background-color: #fff !important; }
-.code { color: #3b82f6; font-weight: bold; font-size: 20px; font-family: monospace; letter-spacing: 2px; }
-.copy-btn { color: #3b82f6; font-size: 12px; font-weight: bold; cursor: pointer; }
-.main-btn { width: 100%; padding: 16px; border-radius: 16px; border: none; font-size: 16px; font-weight: bold; color: white; margin-bottom: 15px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+
+.sub-text { font-size: 11px; font-weight: 700; color: #94a3b8; margin: -4px 0 8px 0; }
+.copy-box { display: flex; justify-content: space-between; align-items: center; background-color: #f8fafc !important; }
+.code { color: #3b82f6; font-weight: 900; font-size: 24px; font-family: monospace; letter-spacing: 4px; }
+.copy-btn { background: white; color: #3b82f6; padding: 6px 12px; border-radius: 10px; font-size: 12px; font-weight: 900; cursor: pointer; border: 1px solid #cbd5e1; transition: 0.2s; }
+.copy-btn:active { transform: scale(0.95); background: #f1f5f9; }
+
+.main-btn { width: 100%; padding: 18px; border-radius: 20px; border: none; font-size: 16px; font-weight: 900; color: white; margin-bottom: 15px; cursor: pointer; box-shadow: 0 8px 20px rgba(59,130,246,0.25); transition: 0.2s; }
+.main-btn:active { transform: scale(0.96); }
 .create { background-color: #3b82f6; }
-.create:disabled { opacity: 0.6; }
-.sub-btn { width: 100%; background: none; border: none; color: #64748b; font-size: 14px; font-weight: bold; cursor: pointer; }
+.create:disabled { opacity: 0.6; cursor: not-allowed; }
+.join { background-color: #10b981; box-shadow: 0 8px 20px rgba(16,185,129,0.25); }
+.sub-btn { width: 100%; background: none; border: none; color: #64748b; font-size: 14px; font-weight: 800; cursor: pointer; padding: 10px; transition: 0.2s; }
+.sub-btn:active { opacity: 0.7; }
 </style>
