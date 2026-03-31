@@ -80,7 +80,6 @@
 <script setup>
 import { ref, watch, reactive } from 'vue'; 
 import { useRouter } from 'vue-router';
-// 🌟 APIの代わりにFirebaseを直接呼び出します（エラー回避策）
 import { db, auth } from '@/firebase'; 
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'; 
 import BaseModal from '@/components/BaseModal.vue';
@@ -168,14 +167,11 @@ watch(isJoinMode, () => {
 </script>
 
 <style scoped>
-.make-event-container { 
-  background-color: #f8fafc; 
-  min-height: 100vh; 
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-}
-
+.event-page-container { min-height: 100vh; background-color: #f0f4f8; padding-bottom: 80px; }
+.page-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; background: rgba(255,255,255,0.8); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 10; }
+.page-title { font-size: 20px; font-weight: bold; margin: 0; color: #1e293b; }
+.check-settle-btn { background-color: #2169a3; color: white; border: none; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 6px rgba(33,105,163,0.3); transition: 0.2s; }
+.check-settle-btn:active { transform: scale(0.95); }
 /* ヘッダーデザイン: フレッシュなシアン系グラデーション */
 .detail-header { 
   display: flex; justify-content: space-between; align-items: center; 

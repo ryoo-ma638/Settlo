@@ -115,7 +115,7 @@ import { ref, onMounted, onUnmounted, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, onSnapshot, getDoc, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDoc, doc, getDocs } from 'firebase/firestore';
 import PaymentCarousel from '@/components/PaymentCarousel.vue';
 import BaseModal from '@/components/BaseModal.vue'; // 🌟 Eventブランチの統一モーダル
 import api from '@/services/api'; 
@@ -184,17 +184,24 @@ const getUserName = async (uid) => {
 // ==========================================
 // 🌟 2. イベント一覧をサーバーから取得・整形する関数（mainブランチの機能）
 // ==========================================
+// HomeView.vue の中にある fetchEvents をこれに上書き！
 const fetchEvents = async () => {
   try {
     loading.value = true;
-    await api.post('/users/sync'); 
-    
-    const res = await api.get('/events');
-    
-    const formattedEvents = await Promise.all(res.data.map(async (event) => {
-      const participantUids = event.participants || [];
+    const myUid = auth.currentUser?.uid;
+    if (!myUid) return;
+
+    // APIを使わず、直接Firestoreから自分のイベントを取得
+    const eventsRef = collection(db, "events");
+    const q = query(eventsRef, where("participants", "array-contains", myUid));
+    const snapshot = await getDocs(q);
+
+    const rawEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    const formattedEvents = await Promise.all(rawEvents.map(async (event) => {
+      const uids = event.participants || [];
       const photos = await Promise.all(
-        participantUids.slice(0, 4).map(async (uid) => {
+        uids.slice(0, 4).map(async (uid) => {
           const info = await getUserInfo(uid); 
           return info.icon;
         })
