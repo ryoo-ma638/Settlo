@@ -56,12 +56,15 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { auth, db } from "../firebase"; 
 import { onAuthStateChanged } from "firebase/auth";
-// 🌟 'doc' と 'onSnapshot' が必要です
 import { collection, query, where, onSnapshot, doc } from "firebase/firestore"; 
 
 const userName = ref("");
 const userPhoto = ref("");
 const notificationCount = ref(0);
+
+// 🌟 カウント用の変数を2つに分ける
+const friendReqCount = ref(0);
+const paymentReqCount = ref(0);
 
 const props = defineProps({
   isOpen: Boolean
@@ -75,38 +78,52 @@ const updateSize = () => {
   isDesktop.value = window.innerWidth >= 1024
 }
 
+// 🌟 合計を計算する関数
+const updateTotalCount = () => {
+  notificationCount.value = friendReqCount.value + paymentReqCount.value;
+};
+
 onMounted(() => {
   onAuthStateChanged(auth, (user) => {
     if (user) {
-      // 🌟 1. ユーザー情報のリアルタイム監視を開始
+      // 1. ユーザー情報の監視
       const userDocRef = doc(db, "users", user.uid);
       onSnapshot(userDocRef, (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
-          // Firestoreのデータを優先して反映
           userName.value = data.name || user.displayName || "名前なし";
           userPhoto.value = data.photo || user.photoURL || "";
         }
-      }, (error) => {
-        console.error("ユーザー情報の取得に失敗:", error);
       });
 
-      // 🌟 2. 通知の監視（既存のコード）
-      const q = query(
+      // 🌟 2. 通知の監視（フレンド申請）
+      const qFriend = query(
         collection(db, "friendRequests"),
         where("toId", "==", user.uid),
         where("status", "in", ["pending", "accepted"])
       );
+      onSnapshot(qFriend, (snapshot) => {
+        friendReqCount.value = snapshot.docs.length;
+        updateTotalCount(); // 合計を更新
+      });
 
-      onSnapshot(q, (snapshot) => {
-        notificationCount.value = snapshot.docs.length;
+      // 🌟 3. 新機能！通知の監視（支払いの承認リクエスト）
+      const qPayment = query(
+        collection(db, "notifications"),
+        where("toUserId", "==", user.uid),
+        where("isRead", "==", false) // 未読のものだけカウント
+      );
+      onSnapshot(qPayment, (snapshot) => {
+        paymentReqCount.value = snapshot.docs.length;
+        updateTotalCount(); // 合計を更新
       });
 
     } else {
-      // ログアウト時
       userName.value = "";
       userPhoto.value = "";
       notificationCount.value = 0;
+      friendReqCount.value = 0;
+      paymentReqCount.value = 0;
     }
   });
 

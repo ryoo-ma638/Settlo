@@ -43,9 +43,12 @@
                 +{{ event.participants.length - 4 }}
               </div>
             </div>
-            <div class="total-amount">
+
+            <div class="event-amount-section">
               <span class="label">合計金額</span>
-              <span class="amount">¥{{ (event.totalAmount || 0).toLocaleString() }}</span>
+              <span class="amount">
+                ¥{{ (event.totalAmount || 0).toLocaleString() }}
+              </span>
             </div>
           </div>
         </div>
@@ -173,4 +176,21 @@ onMounted(() => {
 .amount { font-size: 20px; font-weight: 900; color: #1e293b; }
 
 .empty-msg { text-align: center; color: #94a3b8; font-weight: bold; margin-top: 40px; }
+.event-amount-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end; /* 右寄せ */
+}
+
+.label {
+  font-size: 10px;
+  color: #64748b;
+  font-weight: bold;
+}
+
+.amount {
+  font-size: 20px;
+  font-weight: 900;
+  color: #1e293b;
+}
 </style>

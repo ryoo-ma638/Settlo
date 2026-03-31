@@ -129,12 +129,9 @@ app.post('/api/events', authenticateUser, async (req, res) => {
       name,
       memo: memo || '',
       tag: tag || 'その他',
-      invitationCode: invitationCode || Math.random().toString(36).substring(2, 8).toUpperCase(),
-      totalAmount: 0,
-      entropy: 0.0,
-      isClosed: false,
-      creatorId: uid,
-      participants: [uid], // 自分を参加者に含める
+      invitationCode: invitationCode || '...',
+      totalAmount: 0, // 🌟 最初は必ず 0 に設定
+      participants: [uid],
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
