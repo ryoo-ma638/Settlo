@@ -216,7 +216,6 @@ const handleDeleteFriend = async () => {
 /* 🌟 コンテナ全体の余白を調整（共通ヘッダーの下に配置） */
 .friend-detail-container { 
   height: 100vh; 
-  padding-top: 60px; /* 🌟 共通ヘッダー（AppHeader）の高さ分ずらす */
   box-sizing: border-box;
   background-color: #f8fafc; 
   display: flex;
