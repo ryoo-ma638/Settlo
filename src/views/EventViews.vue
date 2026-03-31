@@ -62,10 +62,11 @@
 </template>
 
 <script setup>
+// EventViews.vue の上の方
 import { ref, onMounted } from 'vue';
-// 🌟 apiの代わりに auth と firestore のクエリ機能を追加
 import { db, auth } from '@/firebase';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+// import api from '@/services/api'; ← これは消すかコメントアウト
 
 const events = ref([]);
 const loading = ref(true);
@@ -93,23 +94,21 @@ const getUserIcon = async (uid) => {
   }
 };
 
-// 🌟 サーバーからイベント一覧を取得・整形する関数
+// EventViews.vue の中にある fetchEvents をこれに上書き！
 const fetchEvents = async () => {
   try {
     loading.value = true;
     const myUid = auth.currentUser?.uid;
     if (!myUid) return;
 
-    // 🌟 API (404) を使わず、Firestoreから自分が参加しているイベントを直接取得
+    // APIを使わず、直接Firestoreから自分のイベントを取得
     const eventsRef = collection(db, "events");
-    // 自分が participant（参加者）に含まれているイベントだけを探す
     const q = query(eventsRef, where("participants", "array-contains", myUid));
     const snapshot = await getDocs(q);
 
     const rawEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     const formattedEvents = await Promise.all(rawEvents.map(async (event) => {
-      // FirebaseのTimestampを通常の日付に変換
       const dateObj = event.createdAt?.toDate ? event.createdAt.toDate() : new Date();
       const formattedDate = `${dateObj.getFullYear()}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getDate().toString().padStart(2, '0')}`;
       
@@ -121,11 +120,10 @@ const fetchEvents = async () => {
       return {
         ...event,
         createdAtDate: formattedDate,
-        participantsPhotos: photos
+        participantsPhotos: photos 
       };
     }));
 
-    // 新しい順に並び替え
     events.value = formattedEvents.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
   } catch (error) {
     console.error("イベント一覧の取得に失敗:", error);
