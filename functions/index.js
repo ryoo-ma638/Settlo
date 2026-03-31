@@ -18,7 +18,7 @@ exports.analyzeReceipt = onCall(
       // 🌟 AIライブラリの読み込み自体を「関数の中」に移動！（タイムアウト対策の最終奥義）
       const { GoogleGenerativeAI } = require("@google/generative-ai");
       
-      const GEMINI_API_KEY = "AIzaSyB8LDOf0LE3j7PtRFjqK3ouLfbGiR8oJo8"; 
+      const GEMINI_API_KEY = "AIzaSyC2OKKkQu51i-k4cLhaAJTHbNU7w3nFkbU"; 
       const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
       console.log("初期化");
       if (!request.data || !request.data.image) {

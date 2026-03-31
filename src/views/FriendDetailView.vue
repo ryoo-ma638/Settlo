@@ -1,98 +1,3 @@
-<script setup>
-import { ref, computed, onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router'; // ルート操作用
-import { db, auth } from '@/firebase';
-import { doc, deleteDoc, getDoc } from 'firebase/firestore';
-
-// 🌟 本来はFirebase等から取得しますが、一旦ダミーデータです
-const waitingTotal = ref(3500); // 相手から受け取る分（お支払い待ち）
-const unpaidTotal = ref(4800);  // 自分が支払う分（未払い）
-//フレンド削除
-const route = useRoute();
-const router = useRouter();
-// 🌟 追加：履歴などで使うための変数を定義
-const myPhoto = ref("");
-const friendPhoto = ref("");
-
-// 🌟 ここが重要：最初は null にしておき、読み込みを待ちます
-const friend = ref(null);
-
-// 🌟 トータル収支（受け取り - 支払い）を計算
-const netBalance = computed(() => waitingTotal.value - unpaidTotal.value);
-
-// 🌟 画面が開かれた時にデータを取ってくる処理
-// frienddetailview.vue の onMounted 修正案
-onMounted(async () => {
-  // 🌟 route.query または params の両方から UID を探す
-  const uid = route.query.uid || route.params.uid;
-  const myUid = auth.currentUser?.uid;
-  
-  if (!uid || !myUid) {
-    console.error("UIDが取得できません。URLを確認してください:", { uid, params: route.params });
-    return;
-  }
-
-  try {
-    // 1. 自分のアイコンを取得
-    const myDoc = await getDoc(doc(db, "users", myUid));
-    if (myDoc.exists()) {
-      myPhoto.value = myDoc.data().photo || myDoc.data().photoURL || "";
-    }
-
-    // 2. 相手の「大元のプロフィール」を直接取得（これが確実）
-    // 🌟 自分の friends サブコレクションではなく、users 直下を見に行きます
-    const userDoc = await getDoc(doc(db, "users", uid));
-    
-    if (userDoc.exists()) {
-      const data = userDoc.data();
-      friend.value = data; 
-      friendPhoto.value = data.photo || data.photoURL || "";
-      console.log("ユーザーデータの取得に成功しました:", data);
-    } else {
-      // 🌟 ここで「見つからない」と出る場合、Firestore の users/ にその UID の書類がないことになります
-      console.error("Firestoreの users コレクションに該当するドキュメントがありません。UID:", uid);
-    }
-  } catch (error) {
-    console.error("データ取得中にエラーが発生しました:", error);
-  }
-});
-
-//フレンド削除
-const handleDeleteFriend = async () => {
-  const friendName = route.params.name;
-  const friendUid = route.params.uid; // ルーターからUIDを受け取っている想定
-  const myUid = auth.currentUser?.uid;
-
-  // デバッグ用：正しく取得できているか確認
-console.log("削除対象:", { friendName, friendUid, myUid });
-
-  if (!myUid || !friendUid) {
-    alert("ユーザー情報の取得に失敗しました。");
-    return;
-  }
-
-  // 1. 確認ダイアログを表示
-  const confirmDelete = confirm(`${friendName} さんをフレンドから削除しますか？\n(相手のリストからもあなたが削除されます)`);
-  
-  if (!confirmDelete) return;
-
-  try {
-    // 2. 自分のリストから相手を削除
-    await deleteDoc(doc(db, "users", myUid, "friends", friendUid));
-    
-    // 3. 相手のリストから自分を削除 (相互削除)
-    await deleteDoc(doc(db, "users", friendUid, "friends", myUid));
-
-    alert(`${friendName} さんを削除しました。`);
-    
-    // 4. 一覧画面に戻る
-    router.push('/friend'); // フレンド一覧のパスに合わせて調整してください
-  } catch (error) {
-    console.error("削除エラー:", error);
-    alert("削除に失敗しました。");
-  }
-};
-</script>
 <template>
   <div v-if="friend" class="friend-detail-container">
       <header class="detail-header">
@@ -199,6 +104,19 @@ console.log("削除対象:", { friendName, friendUid, myUid });
         </div>
       </section>
     </main>
+    
+    <BaseModal 
+      :show="modalState.show"
+      :type="modalState.type"
+      :title="modalState.title"
+      :message="modalState.message"
+      :showCancel="modalState.showCancel"
+      :confirmText="modalState.confirmText"
+      :cancelText="modalState.cancelText"
+      @confirm="handleConfirmModal"
+      @cancel="modalState.show = false"
+      @close="modalState.show = false"
+    />
   </div>
 
   <div v-else class="loading-state">
@@ -206,8 +124,96 @@ console.log("削除対象:", { friendName, friendUid, myUid });
   </div>
 </template>
 
+<script setup>
+import { ref, computed, onMounted, reactive } from 'vue'; // 🌟 reactive追加
+import { useRoute, useRouter } from 'vue-router';
+import { db, auth } from '@/firebase';
+import { doc, deleteDoc, getDoc } from 'firebase/firestore';
+import BaseModal from '@/components/BaseModal.vue'; // 🌟 統一モーダル追加
+
+const waitingTotal = ref(3500); 
+const unpaidTotal = ref(4800);  
+const route = useRoute();
+const router = useRouter();
+
+const myPhoto = ref("");
+const friendPhoto = ref("");
+const friend = ref(null);
+
+const netBalance = computed(() => waitingTotal.value - unpaidTotal.value);
+
+// 🌟 モーダル状態管理
+const modalState = reactive({
+  show: false, type: 'info', title: '', message: '', 
+  showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null
+});
+const showModal = (options) => {
+  Object.assign(modalState, { showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, ...options, show: true });
+};
+const handleConfirmModal = () => {
+  if (modalState.onConfirm) modalState.onConfirm();
+  modalState.show = false;
+};
+
+onMounted(async () => {
+  const uid = route.query.uid || route.params.uid;
+  const myUid = auth.currentUser?.uid;
+  
+  if (!uid || !myUid) return;
+
+  try {
+    const myDoc = await getDoc(doc(db, "users", myUid));
+    if (myDoc.exists()) myPhoto.value = myDoc.data().photo || myDoc.data().photoURL || "";
+
+    const userDoc = await getDoc(doc(db, "users", uid));
+    if (userDoc.exists()) {
+      const data = userDoc.data();
+      friend.value = data; 
+      friendPhoto.value = data.photo || data.photoURL || "";
+    }
+  } catch (error) {
+    console.error("データ取得中にエラーが発生しました:", error);
+  }
+});
+
+// 🌟 フレンド削除 (ダサい confirm と alert を美しいモーダルに！)
+const handleDeleteFriend = async () => {
+  const friendName = route.params.name;
+  const friendUid = route.params.uid; 
+  const myUid = auth.currentUser?.uid;
+
+  if (!myUid || !friendUid) {
+    showModal({ type: 'error', title: 'エラー', message: 'ユーザー情報の取得に失敗しました。' });
+    return;
+  }
+
+  showModal({
+    type: 'warning',
+    title: 'フレンド削除の確認',
+    message: `${friendName} さんをフレンドから削除しますか？\n(相手のリストからもあなたが削除されます)`,
+    showCancel: true,
+    confirmText: '削除する',
+    onConfirm: async () => {
+      try {
+        await deleteDoc(doc(db, "users", myUid, "friends", friendUid));
+        await deleteDoc(doc(db, "users", friendUid, "friends", myUid));
+
+        // 削除成功したら完了モーダルを出して、OKを押したら一覧に戻る
+        showModal({
+          type: 'success', title: '削除完了', message: `${friendName} さんを削除しました。`,
+          onConfirm: () => router.push('/friend')
+        });
+      } catch (error) {
+        console.error("削除エラー:", error);
+        showModal({ type: 'error', title: 'エラー', message: '削除に失敗しました。' });
+      }
+    }
+  });
+};
+</script>
+
 <style scoped>
-/* 🌟 トータル収支カードのスタイル */
+/* 既存のスタイルそのまま */
 .total-balance-card {
   background-color: #fff;
   border-radius: 25px;
@@ -231,7 +237,7 @@ console.log("削除対象:", { friendName, friendUid, myUid });
 .orange-dot { background-color: #f59e0b; }
 
 .friend-detail-container { 
-  height: calc(100vh - 85px); /* フッター分を引く */
+  height: calc(100vh - 85px); 
   background-color: #eef7ff; 
   display: flex;
   flex-direction: column;
@@ -280,70 +286,12 @@ console.log("削除対象:", { friendName, friendUid, myUid });
 .history-event-name { font-size: 16px; font-weight: bold; }
 .history-flow { display: flex; align-items: center; gap: 8px; }
 .avatar { width: 25px; height: 25px; border-radius: 50%; }
-.dummy-me { background-color: #d9a0a0; }
-.dummy-friend { background-color: #8bb4ff; }
 .history-amount { font-size: 18px; font-weight: bold; }
 .check-icon { color: #22c55e; }
 
-/* 🌟 画像のスタイル（丸く、小さめに） */
-.main-avatar-img {
-  width: 50px; /* 🌟 スクリーンショットに合わせたサイズ */  height: 50px;
-  border-radius: 50%; /* 正円にする */  object-fit: cover; /* 画像を歪ませずに収める */
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* 軽い影をつける */
-}
-
-/* 🌟 画像がない場合の予備の丸 */
-.default-avatar {
-  width: 50px;  height: 50px;  border-radius: 50%;
-}
-
-/* 履歴用の追加スタイル */
-.avatar {
-  width: 32px;  /* 履歴用なので少し小さめに設定 */  height: 32px;  border-radius: 50%;  overflow: hidden; /* 🌟 はみ出し防止 */
-  display: flex;  align-items: center;  justify-content: center;  background: #dcdcdc; /* 画像がない時の背景色 */
-}
-
-/* 🌟 アイコン画像自体のスタイル（共通） */
-.avatar-img {
-  width: 100%;  height: 100%;  object-fit: cover; /* 🌟 アスペクト比を維持して埋める */
-}
-
-/* 既存のクラスも調整 */
-.dummy-me {
-  background-color: #ffcccc; /* ピンク */
-}
-.dummy-friend {
-  background-color: #ccccff; /* ブルー */
-}
-
-/* CombinedSettlementView.vue の <style scoped> に追加・修正 */
-
-.history-flow {
-  display: flex;  align-items: center;  gap: 8px;
-}
-
-/* 🌟 アバターの枠のスタイルを共通化・修正 */
-.avatar {
-  width: 30px;  /* 🌟 履歴用なので、上のカード(50px)より小さく設定 */  height: 30px;  border-radius: 50%;
-  overflow: hidden; /* 🌟 はみ出した画像を切る */  display: flex;  align-items: center;
-  justify-content: center;  border: 1px solid #e2e8f0; /* 軽い枠線 */
-}
-
-/* 🌟 追加：画像自体のスタイル（共通） */
-.avatar-img {
-  width: 100%;  height: 100%;  object-fit: cover; /* 🌟 縦横比を保って枠を埋める */
-}
-
-/* 🌟 画像がない時のプレースホルダー */
-.avatar-placeholder {
-  width: 100%;  height: 100%;
-}
-
-/* ❌ 不要になった dummy クラスを削除、または背景色用に変更 */
-.history-me {
-  background-color: #d9a0a0; /* 画像がない時の予備色として template で指定 */
-}
-.history-friend {
-  background-color: #8bb4ff;
-}
+.main-avatar-img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); }
+.default-avatar { width: 50px;  height: 50px;  border-radius: 50%; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #dcdcdc; }
+.avatar-img { width: 100%;  height: 100%;  object-fit: cover; }
+.avatar-placeholder { width: 100%;  height: 100%; }
 </style>

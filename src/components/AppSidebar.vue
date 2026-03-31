@@ -54,9 +54,10 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { auth, db  } from "../firebase"; 
+import { auth, db } from "../firebase"; 
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+// 🌟 'doc' と 'onSnapshot' が必要です
+import { collection, query, where, onSnapshot, doc } from "firebase/firestore"; 
 
 const userName = ref("");
 const userPhoto = ref("");
@@ -77,22 +78,35 @@ const updateSize = () => {
 onMounted(() => {
   onAuthStateChanged(auth, (user) => {
     if (user) {
-      userName.value = user.displayName;
-      userPhoto.value = user.photoURL;
+      // 🌟 1. ユーザー情報のリアルタイム監視を開始
+      const userDocRef = doc(db, "users", user.uid);
+      onSnapshot(userDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          // Firestoreのデータを優先して反映
+          userName.value = data.name || user.displayName || "名前なし";
+          userPhoto.value = data.photo || user.photoURL || "";
+        }
+      }, (error) => {
+        console.error("ユーザー情報の取得に失敗:", error);
+      });
 
-      // 🌟 通知ドキュメントをリアルタイム監視してカウント
+      // 🌟 2. 通知の監視（既存のコード）
       const q = query(
         collection(db, "friendRequests"),
         where("toId", "==", user.uid),
         where("status", "in", ["pending", "accepted"])
       );
 
-      // データが更新されるたびに件数を取得
       onSnapshot(q, (snapshot) => {
         notificationCount.value = snapshot.docs.length;
       });
+
     } else {
-      notificationCount.value = 0; // ログアウト時はリセット
+      // ログアウト時
+      userName.value = "";
+      userPhoto.value = "";
+      notificationCount.value = 0;
     }
   });
 
@@ -110,7 +124,7 @@ const closeMenu = () => {
 const navigate = (path) => {
   router.push(path)
   if (!isDesktop.value) {
-    closeMenu() // スマホの時だけメニューを閉じる
+    closeMenu()
   }
 }
 </script>

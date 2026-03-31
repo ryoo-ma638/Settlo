@@ -205,11 +205,23 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, reactive } from 'vue';
+import BaseModal from '../components/BaseModal.vue';
+import { app } from "../firebase";
+import { getFunctions, httpsCallable } from "firebase/functions"; // ← AI通信に必要なこれらが抜けていました！
 
-// 🌟 ここを追加！Firebaseと通信するための準備
-import { getFunctions, httpsCallable } from "firebase/functions";
-import { app } from "../firebase"; // ※firebase.jsの場所に合わせてパス("../firebase"など)は調整してください
+// 🌟 統一モーダルの状態管理
+const modalState = reactive({
+  show: false, type: 'info', title: '', message: '', 
+  showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null
+});
+const showModal = (options) => {
+  Object.assign(modalState, { showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, ...options, show: true });
+};
+const handleConfirmModal = () => {
+  if (modalState.onConfirm) modalState.onConfirm();
+  modalState.show = false;
+};
 
 const props = defineProps({ isOpen: Boolean });
 const emit = defineEmits(['close', 'submit']);
@@ -338,17 +350,15 @@ const processImage = (file) => {
         }));
         formData.value.splitType = 'item'; // 商品タブに自動で切り替え
       }
-
     } catch (error) {
       console.error("読み取りエラー:", error);
-      alert("レシートの読み取りに失敗しました。手動で入力してください。");
+      showModal({ type: 'error', title: '読み取りエラー', message: 'レシートの読み取りに失敗しました。手動で入力してください。' });
     } finally {
-      isAnalyzing.value = false; // アニメーション終了
+      isAnalyzing.value = false; // ← アニメーションを止める処理が抜けていました！
     }
   };
-  reader.readAsDataURL(file); // 画像をBase64に変換して読み込み
+  reader.readAsDataURL(file); 
 };
-
 const toggleAssignee = (item, name) => {
   const idx = item.assignees.indexOf(name);
   if (idx > -1) item.assignees.splice(idx, 1);
@@ -378,28 +388,40 @@ const setGlobalTax = (rate) => {
   receiptItems.value.forEach(item => item.taxRate = rate);
 };
 
-// 🌟 緩やかな送信チェック（エラーではなく確認ダイアログにする）
+// 🌟 緩やかな送信チェック（美しいモーダルに統一！）
 const handleSubmit = () => {
   if (!formData.value.amount || !formData.value.itemName) {
-    alert('合計金額と店名・内容は必須です！');
+    showModal({ type: 'error', title: '入力エラー', message: '合計金額と店名・内容は必須です！' });
     return;
   }
   
   if (formData.value.splitType === 'item') {
     const unassignedItem = receiptItems.value.find(item => item.assignees.length === 0);
     if (unassignedItem) {
-      alert(`「${unassignedItem.name}」を支払う人が選択されていません！`);
+      showModal({ type: 'error', title: '選択モレ', message: `「${unassignedItem.name}」を支払う人が選択されていません！` });
       return;
     }
     
-    // 🌟 金額がズレていても、ユーザーがOKなら通す！
+    // 金額がズレている場合の confirm を美しいモーダルに！
     if (itemsTotal.value !== Number(formData.value.amount)) {
-      const proceed = confirm(`内訳の合計（¥${itemsTotal.value.toLocaleString()}）が、全体の合計（¥${Number(formData.value.amount).toLocaleString()}）と一致していません。\n\n差額は誰の支払いにもならず消滅するか、立替者が多く負担することになります。\nこのまま追加しますか？`);
-      if (!proceed) return;
+      showModal({
+        type: 'warning',
+        title: '金額が一致しません',
+        message: `内訳の合計（¥${itemsTotal.value.toLocaleString()}）が、全体の合計（¥${Number(formData.value.amount).toLocaleString()}）と一致していません。\n\n差額は誰の支払いにもならず消滅するか、立替者が多く負担することになります。\nこのまま追加しますか？`,
+        showCancel: true,
+        confirmText: 'このまま追加する',
+        onConfirm: () => executeSubmit() // 確認OKなら実際の送信処理へ
+      });
+      return; 
     }
   }
 
-  // EventDetails に送るデータを整形（個数や税金を計算済みの最終価格で送る）
+  // 金額が合っている場合はそのまま送信
+  executeSubmit();
+};
+
+// 🌟 実際の送信処理（モーダルのOKボタンからも呼べるように分けたもの）
+const executeSubmit = () => {
   const processedItems = receiptItems.value.map(item => ({
     name: item.qty > 1 ? `${item.name} (x${item.qty})` : item.name,
     price: calcItemTotal(item),

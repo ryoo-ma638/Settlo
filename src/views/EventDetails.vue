@@ -138,6 +138,18 @@
     </main>
 
     <Teleport to="body">
+      <BaseModal 
+        :show="modals.unpaidWarning"
+        type="warning"
+        title="未完済の取引があります"
+        message="以下の取引がまだ精算されていません。本当に終了リクエストを送りますか？"
+        confirmText="終了リクエストを送る"
+        cancelText="戻って精算する"
+        :showCancel="true"
+        @confirm="forceEndEvent"
+        @cancel="modals.unpaidWarning = false"
+        @close="modals.unpaidWarning = false"
+      />
       <div v-if="modals.participants" class="modal-overlay" @click.self="modals.participants = false">
         <div class="modal-content slide-up">
           <div class="modal-header"><h3>参加者一覧</h3><button class="close-btn" @click="modals.participants = false">×</button></div>
@@ -216,17 +228,28 @@
 // ==========================================
 // 🌟 1. 2人の import を綺麗に合体！
 // ==========================================
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, reactive } from 'vue'; // 🌟 reactiveを追加
 import { useRoute, useRouter } from 'vue-router'; 
 
 import AddPaymentModal from '@/components/AddPaymentModal.vue';
 import ReceiptPaymentModal from '@/components/ReceiptPaymentModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
+import BaseModal from '@/components/BaseModal.vue'; // 🌟 統一モーダルを追加！
+
+// 🌟 どこからでも呼べる美しいアラートの準備
+const alertState = reactive({ show: false, type: 'info', title: '', message: '' });
+const showAlert = (type, title, message) => {
+  alertState.type = type;
+  alertState.title = title;
+  alertState.message = message;
+  alertState.show = true;
+};
 
 // 🌟 サーバー(Friend)と データベース(Main)の道具を合体！
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/firebase";
-import { db } from '../firebase'; 
+// 🌟 修正：auth（ユーザー情報）を使えるように追加しました！
+import { db, auth } from '../firebase'; 
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 
 // 🌟 あなたが作った最強の計算ツールを読み込む！
@@ -264,7 +287,6 @@ const sharedFilterStatus = ref('unpaid');
 // ==========================================
 // 🌟 3. あなたのスッキリ計算ロジック！
 // ==========================================
-// あの長かった100行近いコードが、この1行で発動します！
 const { calculatedSummary } = useSettlement(eventData, myName);
 
 const filteredSummary = computed(() => {
@@ -302,15 +324,45 @@ const markAsCompleted = async (id) => {
     modals.value.historyDetail = false; 
   } catch (error) {
     console.error("更新エラー:", error);
-    alert("決済の更新に失敗しました。");
+    showAlert('error', '更新エラー', '決済の更新に失敗しました。電波状況を確認してください。');
   }
 };
 
+// 🌟 ここが最大の修正ポイント！「共通の履歴」と「イベント内」の両方に保存します
 const addHistory = async (newPayment) => {
   try {
-    const eventId = route.params.id || "test-event-1"; 
-    const historyRef = collection(db, "events", eventId, "history");
 
+    const eventId = route.params.id || "test-event-1"; 
+
+    // 🌟 1. 履歴画面(PaymentHistoryView)が見ている「共通の箱」に入れるデータ
+    const globalTransactionData = {
+      ...newPayment, // 🌟 👈 ここを超追加！(itemsや割り勘情報など、すべてのデータを引き継ぎます)
+      
+      // 履歴画面が「自分のデータだ！」と認識するために、UIDをセットします
+      paidById: auth?.currentUser?.uid || "unknown", 
+      paidByName: newPayment.payer, 
+      paidToId: "group_event",       // 🌟追加1: 相手のID（履歴画面が探してエラーになるのを防ぐ）
+      paidToName: "イベントメンバー",
+      itemName: newPayment.itemName || "支払い",
+      amount: newPayment.amount || 0,
+      status: 'pending',
+      type: 'pay', 
+      date: newPayment.date || "",
+      createdAt: serverTimestamp(), // 履歴画面の並び替えに必須
+      eventName: eventData.value.name || "イベント代",
+      // 🌟 履歴画面が indexOf で探してエラーになるのを防ぐ「防弾シールド」！
+      // 配列（リスト）がないと怒られるので、全て入れておきます。
+      involvedUsers: [auth?.currentUser?.uid || "unknown", "group_event"],
+      participants: [auth?.currentUser?.uid || "unknown", "group_event"],
+      members: [auth?.currentUser?.uid || "unknown", "group_event"],
+      items: newPayment.items || []
+    };
+
+    // 🌟 2. 「transactions」コレクションに保存（これで履歴画面に出る！）
+    await addDoc(collection(db, "transactions"), globalTransactionData);
+
+    // 🌟 3. 元々あったイベント画面用の保存処理（events/.../history）
+    const historyRef = collection(db, "events", eventId, "history");
     const docRef = await addDoc(historyRef, {
       payer: newPayment.payer, 
       itemName: newPayment.itemName, 
@@ -325,13 +377,14 @@ const addHistory = async (newPayment) => {
       items: newPayment.items || [] 
     });
 
-    console.log("🔥 Firestoreに保存成功！ ID:", docRef.id);
+    console.log("🔥 Firestoreに保存成功！（全体履歴＆イベント履歴の両方） ID:", docRef.id);
     eventData.value.total += newPayment.amount;
     modals.value.addPayment = false;
     setTimeout(scrollToTimeline, 300);
   } catch (error) {
     console.error("保存エラー:", error);
-    alert("支払いの追加に失敗しました。");
+    // 🌟 alert("..."); を以下に変更
+    showAlert('error', '保存エラー', '支払いの追加に失敗しました。');
   }
 };
 

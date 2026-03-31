@@ -40,11 +40,15 @@
             <div class="r-status unpaid">未完済の取引です</div>
             <div class="payment-actions">
               <p class="hint">この画面から決済を完了できます</p>
-              <button class="method-btn paypay" @click="handlePayment('paypay')">📱 PayPayで支払う/請求</button>
+              
+              <PayPayAction 
+                :mode="history.status === 'waiting' ? 'remind' : 'pay'" 
+                :opponentUid="history.paidById || history.paidToId" 
+              />
+              
               <button class="method-btn cash" @click="handlePayment('cash')">💵 支払った/受け取った</button>
             </div>
           </template>
-
           <button class="action-btn" @click="$emit('close')">閉じる</button>
         </div>
       </div>
@@ -53,6 +57,7 @@
 </template>
 
 <script setup>
+import PayPayAction from '../components/PayPayAction.vue';
 const props = defineProps({
   isOpen: Boolean,
   history: Object

@@ -38,8 +38,9 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import AppSidebar from './AppSidebar.vue';
 import NotificationIcon from './NotificationIcon.vue';
-import { auth } from "../firebase";
+import { auth, db } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import { doc, onSnapshot } from "firebase/firestore"; // 🌟 追加
 
 const router = useRouter();
 const isSidebarOpen = ref(false);
@@ -55,12 +56,18 @@ router.push(path);
 onMounted(() => {
   onAuthStateChanged(auth, (user) => {
     if (user) {
-      userName.value = user.displayName;
-      userPhoto.value = user.photoURL;
+      // 🌟 Firestoreのユーザー情報をリアルタイム監視
+      const userDocRef = doc(db, "users", user.uid);
+      onSnapshot(userDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          userName.value = data.name || user.displayName || "名前";
+          userPhoto.value = data.photo || user.photoURL || "https://via.placeholder.com/150";
+        }
+      });
     }
   });
 });
-
 // 🌟 サイドバーで「お知らせ」が押された時の処理
 const handleOpenNotification = () => {
 isSidebarOpen.value = false; // 先にメニューを閉じる
