@@ -140,39 +140,34 @@ const goToDetail = (item) => {
 </script>
   
   <style scoped>
-  /* 🌟 大外のコンテナ：横揺れ・見切れを完全に防止 */
-  .history-page-container { 
-    background-color: #f0f4f8; /* アプリ全体の統一背景色 */
-    min-height: 100vh; 
-    width: 100%; 
-    overflow-x: hidden; 
-    display: flex; 
-    flex-direction: column; 
-  }
-  
-  /* 🌟 ヘッダー：スクロールしても上にピタッとくっつく（半透明ぼかし） */
-  .detail-header { 
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 15px 20px; 
-    background: rgba(255, 255, 255, 0.85); 
-    backdrop-filter: blur(10px); /* 磨りガラス効果 */
-    position: sticky; top: 0; z-index: 100;
-    border-bottom: 1px solid rgba(0,0,0,0.05);
-  }
-  .back-btn { background: none; border: none; font-size: 32px; color: #64748b; cursor: pointer; padding: 0; display: flex; align-items: center; }
-  .title { font-size: 18px; font-weight: bold; margin: 0; color: #1e293b; position: absolute; left: 50%; transform: translateX(-50%); }
-  
-  /* 🌟 メインコンテンツ：中央揃えの要 */
-  .content { 
-    flex: 1; 
-    width: 100%; 
-    max-width: 600px; /* PC版でも横に広がりすぎない */
-    margin: 0 auto; /* 左右の余白を均等にしてド真ん中に配置 */
-    padding: 20px 20px 100px 20px; /* 下部フッターの被り防止（100px） */
-    box-sizing: border-box; /* paddingを含めて幅を計算（見切れ防止） */
-    display: flex; 
-    flex-direction: column; 
-  }
+/* PaymentHistoryView.vue の <style scoped> 一番上を上書き */
+.history-page-container { 
+  background-color: #f8fafc; 
+  min-height: 100vh; 
+  width: 100%; 
+  overflow-x: hidden; 
+  display: flex; 
+  flex-direction: column; 
+  box-sizing: border-box;
+}
+
+.detail-header { 
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; 
+  background: linear-gradient(135deg, #fdf4ff 0%, #f3e8ff 100%); /* 🌟 淡いパープル系 */
+  position: sticky; 
+  z-index: 100;
+  border-radius: 0 0 24px 24px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+  margin-bottom: 15px;
+}
+.back-btn { background: none; border: none; font-size: 32px; color: #0f172a; cursor: pointer; padding: 0; display: flex; align-items: center; transition: 0.2s; }
+.back-btn:active { transform: scale(0.9); }
+.title { font-size: 18px; font-weight: 900; margin: 0; color: #0f172a; flex: 1; text-align: center; }
+.spacer { width: 32px; }
+
+.content { flex: 1; width: 100%; max-width: 600px; margin: 0 auto; padding: 20px 20px 100px 20px; box-sizing: border-box; display: flex; flex-direction: column; }
+/* ↑ここまで上書き。以降は既存の .filter-tabs などが続きます */
   
   /* 🌟 iOS風のモダンな切り替えタブ */
   .filter-tabs { 
