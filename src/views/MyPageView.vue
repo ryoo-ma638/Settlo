@@ -46,12 +46,24 @@ import { signOut } from "firebase/auth";
 import { useRouter } from "vue-router";
 import { ref, onMounted } from "vue";
 import { doc, getDoc } from "firebase/firestore";
-import api from "../services/api"; // 🌟 api.ts をインポート
+import api from "../services/api";
 
 const router = useRouter();
 const userName = ref("読み込み中...");
 const userPhoto = ref("");
 const userUid = ref("");
+
+// 🌟 追加：IDをコピーする関数
+const copyMyId = async () => {
+  if (!userUid.value) return;
+  try {
+    await navigator.clipboard.writeText(userUid.value);
+    alert("IDをコピーしました！: " + userUid.value);
+  } catch (err) {
+    console.error("コピーに失敗しました", err);
+    alert("コピーに失敗しました。");
+  }
+};
 
 const logout = async () => {
   try {
@@ -66,25 +78,21 @@ onMounted(async () => {
   const user = auth.currentUser;
   if (user) {
     userUid.value = user.uid;
-
+    // ...以下、既存のFirestore取得ロジック（そのまま）
     try {
-      // 🌟 【最重要】バックエンドを叩いて Firestore との同期を行う
-      // これにより server.js の /api/users/sync が走り、Firestore にドキュメントが作られる
-      const syncRes = await api.post('/users/sync');
-      console.log("✅ User synced with Firestore via Backend:", syncRes.data);
-
-      // 同期された最新データを Firestore から直接取得
       const userDocRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userDocRef);
-
+      let userSnap = await getDoc(userDocRef);
+      if (!userSnap.exists()) {
+        await api.post('/users/sync');
+        userSnap = await getDoc(userDocRef);
+      }
       if (userSnap.exists()) {
         const data = userSnap.data();
         userName.value = data.name || user.displayName || "名無し";
-        userPhoto.value = data.photoURL || user.photoURL || "https://via.placeholder.com/150";
+        userPhoto.value = data.photo || user.photoURL || "https://via.placeholder.com/150";
       }
     } catch (error) {
-      console.error("❌ 同期またはデータ取得に失敗:", error);
-      // フォールバック
+      console.error("❌ データ取得または同期に失敗:", error);
       userName.value = user.displayName;
       userPhoto.value = user.photoURL;
     }
