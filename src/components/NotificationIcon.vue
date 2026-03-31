@@ -29,16 +29,6 @@
                 </template>
               </div>
             </div>
-<!--
-            <div class="notif-item pink"><span class="dot"></span><p>〇〇さんから友達申請が届いています</p></div>
-            <div class="notif-item blue"><span class="dot"></span><p>〇〇さんの友達申請が承認されました</p></div>
-            <div class="notif-item red"><p>〇〇さんから催促が来ています<br>今すぐお支払いしましょう</p></div>
-            <div class="notif-item yellow"><p>〇〇さんから一週間支払いをされていません</p></div>
-            <div class="notif-item pink"><p>追加のお知らせテスト1</p></div>
-            <div class="notif-item blue"><p>追加のお知らせテスト2</p></div>
-            <div class="notif-item yellow"><p>追加のお知らせテスト3</p></div>
-            <div class="notif-item pink"><p>スクロール確認用：一番下のお知らせです</p></div>
--->
             <div v-if="notifications.length === 0" class="empty-msg">
               新しいお知らせはありません
             </div>
@@ -51,16 +41,7 @@
     <div v-else class="static-notification-panel">
       <h2 class="sidebar-title">お知らせ</h2>
       <div class="notification-list">
-        <!--
-        <div class="notif-item pink"><span class="dot"></span><p>〇〇さんから友達申請が届いています</p></div>
-        <div class="notif-item blue"><span class="dot"></span><p>〇〇さんの友達申請が承認されました</p></div>
-        <div class="notif-item red"><p>〇〇さんから催促が来ています<br>今すぐお支払いしましょう</p></div>
-        <div class="notif-item yellow"><p>〇〇さんから一週間支払いをされていません</p></div>
-        <div class="notif-item pink"><p>追加のお知らせテスト1</p></div>
-        <div class="notif-item blue"><p>追加のお知らせテスト2</p></div>
-        <div class="notif-item yellow"><p>追加のお知らせテスト3</p></div>
-        <div class="notif-item pink"><p>スクロール確認用：一番下のお知らせです</p></div>
-          -->
+
         <div   v-for="req in notifications"   :key="req.id"   :class="['notif-item', req.status === 'accepted' ? 'blue' : 'pink']">
           <span class="dot"></span>
           <div class="notif-body">
@@ -83,10 +64,19 @@
       </div>
     </div>
   </div>
+  <BaseModal 
+            :show="modalState.show"
+            type="success"
+            :title="modalState.title"
+            :message="modalState.message"
+            @confirm="modalState.show = false"
+            @close="modalState.show = false"
+          />
 </template>
 
 <script setup>
-import { ref , onMounted} from 'vue';
+import { ref, onMounted, reactive } from 'vue'; // 🌟 reactiveを追加
+import BaseModal from './BaseModal.vue'; // 🌟 追加
 import { db, auth } from '@/firebase';
 import { 
   collection, query, where, onSnapshot, 
@@ -129,6 +119,8 @@ const deleteNotification = async (notifId) => {
 };
 
 // 🌟 承認ボタンを押した時の処理
+const modalState = reactive({ show: false, type: 'success', title: '', message: '' });
+
 const acceptRequest = async (request) => {
   // 🌟 安全チェック
   if (!request.id || !request.formId) {
