@@ -47,21 +47,78 @@
       </div>
     </section>
 
+    
+
+      
     <Teleport to="body">
-      </Teleport>
+      <transition name="fade">
+        <div v-if="selectedEvent" class="modal-overlay" @click.self="selectedEvent = null">
+          <div class="detail-modal">
+            
+            <div class="modal-header">
+              <span class="modal-tag">{{ selectedEvent.tag }}</span>
+              <button class="close-btn" @click="selectedEvent = null">×</button>
+            </div>
+            
+            <h2 class="modal-title">{{ selectedEvent.name }}</h2>
+            
+            <div class="modal-section">
+              <label>メモ（目的・ルール）</label>
+              <div class="modal-text">{{ selectedEvent.memo || 'メモはありません' }}</div>
+            </div>
+
+            <div class="modal-section">
+              <label>招待コード</label>
+              <div class="modal-code-box">
+                <span class="modal-code">{{ selectedEvent.invitationCode }}</span>
+                <button class="modal-copy-btn" @click="copyCode(selectedEvent.invitationCode)">コピー</button>
+              </div>
+            </div>
+
+            <div class="modal-footer">
+              <button class="go-detail-btn" @click="goToEventDetail(selectedEvent.id)">
+                このイベントの詳細・精算へ進む
+              </button>
+              <button class="delete-btn" @click="deleteEvent(selectedEvent.id)">
+                このイベントを終了する
+              </button>
+              <button class="cancel-btn" @click="selectedEvent = null">
+                閉じる
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </transition>
+
+      <BaseModal 
+        :show="modalState.show"
+        :type="modalState.type"
+        :title="modalState.title"
+        :message="modalState.message"
+        :showCancel="modalState.showCancel"
+        :confirmText="modalState.confirmText"
+        :cancelText="modalState.cancelText"
+        @confirm="handleConfirmModal"
+        @cancel="modalState.show = false"
+        @close="modalState.show = false"
+      />
+    </Teleport>
+      
 
     <button class="add-button" @click="$router.push('/make-event')">+</button>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, reactive } from 'vue'; 
 import { useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, onSnapshot, getDoc, doc } from 'firebase/firestore';
 import PaymentCarousel from '@/components/PaymentCarousel.vue';
-import api from '@/services/api';
+import BaseModal from '@/components/BaseModal.vue'; // 🌟 Eventブランチの統一モーダル
+import api from '@/services/api'; 
 
 const router = useRouter();
 const ongoingEvents = ref([]);
@@ -72,6 +129,19 @@ const openDetail = (event) => {
   selectedEvent.value = event;
 };
 
+// 🌟 モーダル状態管理 (Eventブランチの機能)
+const modalState = reactive({
+  show: false, type: 'info', title: '', message: '', 
+  showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null
+});
+const showModal = (options) => {
+  Object.assign(modalState, { showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, ...options, show: true });
+};
+const handleConfirmModal = () => {
+  if (modalState.onConfirm) modalState.onConfirm();
+  modalState.show = false;
+};
+
 const paymentSummary = ref({
   receivableTotal: 0,
   receivableList: [],
@@ -80,13 +150,13 @@ const paymentSummary = ref({
 });
 
 // ==========================================
-// 🌟 1. 名前とアイコン取得の効率化（キャッシュ拡張）
+// 🌟 1. 名前とアイコン取得の効率化（mainブランチの機能）
 // ==========================================
-const userCache = {}; // 名前だけでなく、アイコン情報もキャッシュする
+const userCache = {}; 
 
 const getUserInfo = async (uid) => {
   if (!uid) return { name: "不明", icon: "#cbd5e1" };
-  if (userCache[uid]) return userCache[uid]; // キャッシュがあればそれを返す
+  if (userCache[uid]) return userCache[uid]; 
   
   try {
     const userDoc = await getDoc(doc(db, "users", uid));
@@ -94,7 +164,6 @@ const getUserInfo = async (uid) => {
       const data = userDoc.data();
       const userInfo = {
         name: data.name || "不明",
-        // 写真URL、設定色、フォールバック色の順で取得
         icon: data.photoURL || data.photo || data.color || "#cbd5e1"
       };
       userCache[uid] = userInfo;
@@ -107,14 +176,13 @@ const getUserInfo = async (uid) => {
   }
 };
 
-// 🌟 旧 getUserName は、キャッシュを利用するように修正（後方互換のため）
 const getUserName = async (uid) => {
   const info = await getUserInfo(uid);
   return info.name;
 };
 
 // ==========================================
-// 🌟 2. イベント一覧をサーバーから取得・整形する関数
+// 🌟 2. イベント一覧をサーバーから取得・整形する関数（mainブランチの機能）
 // ==========================================
 const fetchEvents = async () => {
   try {
@@ -123,13 +191,11 @@ const fetchEvents = async () => {
     
     const res = await api.get('/events');
     
-    // Firestoreから参加者のアイコン情報を非同期で取得して合体させる
     const formattedEvents = await Promise.all(res.data.map(async (event) => {
-      // 🌟 参加者のUID配列（event.participants）から、先頭4人分のアイコンを取得
       const participantUids = event.participants || [];
       const photos = await Promise.all(
         participantUids.slice(0, 4).map(async (uid) => {
-          const info = await getUserInfo(uid); // キャッシュ付き取得関数を利用
+          const info = await getUserInfo(uid); 
           return info.icon;
         })
       );
@@ -138,7 +204,7 @@ const fetchEvents = async () => {
         ...event,
         invitationCode: event.invitationCode || 'N/A',
         amount: `¥${(event.totalAmount || 0).toLocaleString()}`,
-        participantsPhotos: photos // 🌟 整形したアイコン配列を追加
+        participantsPhotos: photos 
       };
     }));
 
@@ -151,7 +217,7 @@ const fetchEvents = async () => {
   }
 };
 
-// --- 以下、既存のロジック（そのまま） ---
+// --- 取引情報の監視ロジック ---
 let unsubReceivable = null;
 let unsubPayable = null;
 
@@ -167,7 +233,7 @@ onMounted(() => {
         const list = await Promise.all(snapshot.docs.map(async (d) => {
           const data = d.data();
           total += data.amount || 0;
-          const name = await getUserName(data.paidById); // 修正したキャッシュ関数が走る
+          const name = await getUserName(data.paidById); 
           return { id: d.id, name, itemName: data.itemName, amount: data.amount };
         }));
         paymentSummary.value.receivableTotal = total;
@@ -181,7 +247,7 @@ onMounted(() => {
         const list = await Promise.all(snapshot.docs.map(async (d) => {
           const data = d.data();
           total += data.amount || 0;
-          const name = await getUserName(data.paidToId); // 🌟 相手（受け取る人）の名前を取得
+          const name = await getUserName(data.paidToId); 
           return { id: d.id, name: name, itemName: data.itemName, amount: data.amount };
         }));
         paymentSummary.value.payableTotal = total;
@@ -190,7 +256,7 @@ onMounted(() => {
     }
   });
 
-  fetchEvents(); // 🌟 起動時に実行
+  fetchEvents(); 
 });
 
 onUnmounted(() => {
@@ -198,20 +264,44 @@ onUnmounted(() => {
   if (unsubPayable) unsubPayable();
 });
 
+// 🌟 コピー完了の alert を美しいモーダルに！ (Eventブランチの機能)
 const copyCode = (code) => {
-  if (!code) return alert('コードがありません');
-  navigator.clipboard.writeText(code);
-  alert('コピーしました！');
+  if (!code) {
+    showModal({ type: 'error', title: 'エラー', message: 'コードがありません' });
+    return;
+  }
+  navigator.clipboard.writeText(code)
+    .then(() => {
+      showModal({ type: 'success', title: 'コピー完了', message: '招待コードをコピーしました！LINE等でシェアしましょう。' });
+    })
+    .catch(() => {
+      showModal({ type: 'error', title: 'エラー', message: 'コピーに失敗しました' });
+    });
 };
 
+// 🌟 イベント削除の confirm と alert を美しいモーダルに！ (Eventブランチの機能)
 const deleteEvent = async (id) => {
-  if (!confirm('このイベントを終了して削除しますか？')) return;
-  try {
-    ongoingEvents.value = ongoingEvents.value.filter(e => e.id !== id);
-    selectedEvent.value = null;
-  } catch (error) {
-    alert("削除に失敗しました");
-  }
+  showModal({
+    type: 'warning',
+    title: 'イベントの削除',
+    message: 'このイベントを終了して削除しますか？\n（この操作は元に戻せません）',
+    showCancel: true,
+    confirmText: '削除する',
+    onConfirm: async () => {
+      try {
+        // await api.delete(`/events/${id}`); 
+        ongoingEvents.value = ongoingEvents.value.filter(e => e.id !== id);
+        selectedEvent.value = null;
+
+        setTimeout(() => {
+          showModal({ type: 'success', title: '削除完了', message: 'イベントを終了しました。' });
+        }, 300);
+
+      } catch (error) {
+        showModal({ type: 'error', title: 'エラー', message: '削除に失敗しました' });
+      }
+    }
+  });
 };
 
 const goToEventDetail = (id) => {
@@ -221,7 +311,6 @@ const goToEventDetail = (id) => {
 </script>
 
 <style scoped>
-/* --- 既存のスタイル --- */
 .home-container { position: relative; padding-bottom: 100px; background-color: #f8fafc; min-height: 100vh; }
 .ongoing-events { padding: 20px; }
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
@@ -242,40 +331,58 @@ const goToEventDetail = (id) => {
 .amount-label { font-size: 10px; color: #64748b; font-weight: bold; }
 .amount-value { font-size: 16px; font-weight: 900; color: #1e293b; }
 
-/* 🌟 プラスボタン（＋）のスタイルを元のデザインに修正 */
+/* プラスボタン */
 .add-button {
   position: fixed;
   right: 20px;
-  bottom: 100px; /* ナビゲーションバーがある場合はこの高さでOK */
+  bottom: 100px; 
   width: 60px;
   height: 60px;
-  background-color: #2169a3; /* 元の青色 */
+  background-color: #2169a3; 
   color: white;
   border: none;
   border-radius: 50%;
   font-size: 36px;
-  display: flex;         /* 中央寄せ用 */
-  align-items: center;     /* 垂直中央 */
-  justify-content: center;  /* 水平中央 */
+  display: flex;         
+  align-items: center;     
+  justify-content: center; 
   box-shadow: 0 4px 10px rgba(33,105,163,0.3);
-  z-index: 999;          /* 他の要素より上に表示 */
+  z-index: 999;          
   cursor: pointer;
   padding: 0;
-  line-height: 1;        /* 文字位置の微調整 */
+  line-height: 1;        
+  transition: transform 0.2s;
 }
-
 .add-button:active {
-  transform: scale(0.95); /* 押した時のリアクション */
+  transform: scale(0.95); 
 }
 
-/* 💻 PC版での調整 */
+/* モーダルデザイン */
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 2000; padding: 20px; box-sizing: border-box; }
+.detail-modal { background: white; width: 100%; max-width: 400px; border-radius: 24px; padding: 30px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.modal-tag { background: #3b82f6; color: white; font-size: 12px; font-weight: bold; padding: 6px 16px; border-radius: 20px; }
+.close-btn { background: none; border: none; font-size: 28px; color: #94a3b8; cursor: pointer; padding: 0; line-height: 1; }
+.modal-title { font-size: 24px; font-weight: 900; color: #1e293b; margin: 0 0 25px 0; }
+.modal-section { margin-bottom: 25px; }
+.modal-section label { display: block; font-size: 12px; color: #64748b; font-weight: bold; margin-bottom: 8px; }
+.modal-text { background: #f8fafc; padding: 16px; border-radius: 12px; font-size: 14px; color: #334155; font-weight: bold; border: 1px solid #e2e8f0; }
+.modal-code-box { display: flex; justify-content: space-between; align-items: center; background: #2a4c7a; padding: 16px 20px; border-radius: 16px; }
+.modal-code { color: white; font-family: monospace; font-size: 28px; font-weight: bold; letter-spacing: 6px; }
+.modal-copy-btn { background: white; color: #2a4c7a; border: none; padding: 8px 16px; border-radius: 10px; font-size: 12px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: 0.2s; }
+.modal-copy-btn:active { transform: scale(0.95); }
+.modal-footer { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
+.go-detail-btn { background: #10b981; color: white; border: none; padding: 16px; border-radius: 16px; font-size: 15px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(16,185,129,0.3); transition: 0.2s; }
+.go-detail-btn:active { transform: scale(0.98); }
+.delete-btn { background: white; border: 1.5px solid #ef4444; color: #ef4444; padding: 14px; border-radius: 16px; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+.delete-btn:active { background: #fef2f2; }
+.cancel-btn { background: #f1f5f9; color: #475569; border: none; padding: 14px; border-radius: 16px; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+.cancel-btn:active { background: #e2e8f0; }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
 @media (min-width: 1024px) {
   .home-container { padding-bottom: 40px; }
-  
-  /* 🌟 もしPC版でもプラスボタンを出したいなら、ここを `display: flex;` に変えてください */
-  /* 今はPC版ではサイドバー等から作成する想定で非表示になっています */
-  .add-button {
-    display: none; 
-  }
+  .add-button { display: none; }
 }
 </style>
