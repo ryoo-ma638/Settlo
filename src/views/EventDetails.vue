@@ -25,12 +25,19 @@
           </div>
           <div class="participants-row">
             <div class="avatar-stack">
-              <div 
-                class="avatar" 
-                v-for="(p, i) in eventData.participants.slice(0, 5)" 
-                :key="i" 
-                :style="{ backgroundColor: p.color, zIndex: 10 - i }"
-              ></div>
+              <template v-for="(p, i) in eventData.participants.slice(0, 5)" :key="i">
+                <img 
+                  v-if="p.color && p.color.startsWith('http')" 
+                  :src="p.color" 
+                  class="avatar" 
+                  :style="{ zIndex: 10 - i }" 
+                />
+                <div 
+                  v-else 
+                  class="avatar" 
+                  :style="{ backgroundColor: p.color || '#cbd5e1', zIndex: 10 - i }"
+                ></div>
+              </template>
               <div v-if="eventData.participants.length > 5" class="avatar-more">
                 +{{ eventData.participants.length - 5 }}
               </div>
@@ -114,7 +121,17 @@
             <div class="timeline-content">
               <div class="history-card" :class="{ 'unpaid-card': history.status === 'unpaid' }">
                 <div class="history-main">
-                  <div class="history-avatar" :style="{ backgroundColor: history.color }"></div>
+                  <img 
+                    v-if="history.color && history.color.startsWith('http')" 
+                    :src="history.color" 
+                    class="history-avatar" 
+                  />
+                  <div 
+                    v-else 
+                    class="history-avatar" 
+                    :style="{ backgroundColor: history.color || '#cbd5e1' }"
+                  ></div>
+                  
                   <div class="history-text">
                     <span class="history-item-name">{{ history.itemName }} <span class="split-type">{{ history.splitType }}</span></span>
                     <span class="history-payer">{{ history.date }} {{ history.time }} • {{ history.payer }} が立替</span>
@@ -155,7 +172,16 @@
           <div class="modal-header"><h3>参加者一覧</h3><button class="close-btn" @click="modals.participants = false">×</button></div>
           <div class="modal-list">
             <div class="list-item" v-for="p in eventData.participants" :key="p.id">
-              <div class="avatar-medium" :style="{ backgroundColor: p.color }"></div>
+              <img 
+                v-if="p.color && p.color.startsWith('http')" 
+                :src="p.color" 
+                class="avatar-medium" 
+              />
+              <div 
+                v-else 
+                class="avatar-medium" 
+                :style="{ backgroundColor: p.color || '#cbd5e1' }"
+              ></div>
               <span class="item-name">{{ p.name }} <span v-if="p.isMe" class="me-badge">自分</span></span>
             </div>
           </div>
@@ -225,6 +251,24 @@
 </template>
 
 <script setup>
+import { getDoc } from 'firebase/firestore'; // getDoc が必要
+
+const userCache = {};
+const getUserIcon = async (uid) => {
+  if (!uid) return "#cbd5e1";
+  if (userCache[uid]) return userCache[uid];
+  try {
+    const userDoc = await getDoc(doc(db, "users", uid));
+    if (userDoc.exists()) {
+      const data = userDoc.data();
+      const icon = data.photoURL || data.photo || data.color || "#cbd5e1";
+      userCache[uid] = icon;
+      return icon;
+    }
+  } catch (e) { console.error(e); }
+  return "#cbd5e1";
+};
+
 // ==========================================
 // 🌟 1. 2人の import を綺麗に合体！
 // ==========================================
@@ -394,48 +438,23 @@ onMounted(() => {
   const historyRef = collection(db, "events", eventId, "history");
   const q = query(historyRef, orderBy("timestamp", "asc"));
 
-  onSnapshot(q, (snapshot) => {
-    const fetchedHistory = [];
-    const eventId = route.params.id || "test-event-1"; 
-  
-    // 🌟 1. イベント本体のデータを取得（招待コードなどを取るため）
-    const eventDocRef = doc(db, "events", eventId);
-    onSnapshot(eventDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        eventData.value.name = data.name || eventData.value.name;
-        // 🌟 ここで招待コードを更新！
-        eventData.value.invitationCode = data.invitationCode || "------";
-      }
-    });
-
-    // 🌟 2. 履歴（history）の監視（既存のコード）
-    const historyRef = collection(db, "events", eventId, "history");
-    const q = query(historyRef, orderBy("timestamp", "asc"));
-
-    onSnapshot(q, (snapshot) => {
-      const fetchedHistory = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        fetchedHistory.push({
-          id: doc.id, 
-          payer: data.payer,
-          itemName: data.itemName,
-          splitType: data.splitType,
-          amount: data.amount,
-          color: data.color || '#fca5a5',
-          date: data.date,
-          time: data.time,
-          status: data.status,
-          involvesMe: data.involvesMe,
-          items: data.items || [],
-          timestamp: data.timestamp ? data.timestamp.toMillis() : Date.now()
-        });
-      });
-
-      eventData.value.history = fetchedHistory;
-      eventData.value.total = fetchedHistory.reduce((sum, item) => sum + item.amount, 0);
-    });
+  onSnapshot(doc(db, "events", eventId), async (docSnap) => {
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      eventData.value.name = data.name;
+      eventData.value.invitationCode = data.invitationCode || "------";
+      
+      // 🌟 UIDリストからアイコンを含む詳細情報を生成
+      const participantUids = data.participants || [];
+      const detailedParticipants = await Promise.all(
+        participantUids.map(async (uid) => {
+          const icon = await getUserIcon(uid);
+          // ここで名前を取得するロジックも必要なら追加
+          return { id: uid, name: 'メンバー', color: icon, isMe: uid === auth.currentUser?.uid };
+        })
+      );
+      eventData.value.participants = detailedParticipants;
+    }
   });
 });
 
@@ -721,5 +740,13 @@ onMounted(() => {
   font-size: 15px;
   font-weight: 900;
   color: #0f172a;
+}
+.avatar, 
+.avatar-medium, 
+.avatar-large, 
+.history-avatar, 
+.avatar-small {
+  object-fit: cover; /* 🌟 画像を枠に合わせて切り抜く */
+  border-radius: 50%; /* 確実に円形にする */
 }
 </style>
