@@ -176,7 +176,6 @@ watch(isJoinMode, () => {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  padding-top: 60px; /* 共通ヘッダー被り防止 */
 }
 
 /* ヘッダーデザイン: フレッシュなシアン系グラデーション */
