@@ -78,11 +78,12 @@
 </template>
 
 <script setup>
-// 🌟 エラー原因1の修正：ここで ref, watch, reactive を「1回だけ」インポートする
 import { ref, watch, reactive } from 'vue'; 
 import { useRouter } from 'vue-router';
-import api from '@/services/api'; 
-import BaseModal from '@/components/BaseModal.vue'; 
+// 🌟 apiのインポートはもう使いません！代わりにfirebaseを呼び出します
+import { db, auth } from '@/firebase'; 
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore'; 
+import BaseModal from '@/components/BaseModal.vue';
 
 const router = useRouter();
 const isJoinMode = ref(false);
@@ -130,28 +131,28 @@ const createEvent = async () => {
   
   loading.value = true;
   try {
-    // 🌟 エラー原因2の対策：バックエンド(localhost)が動いていない場合でもデモが進むようにする
-    await api.post('/users/sync');
-    const response = await api.post('/events', {
+    const myUid = auth.currentUser?.uid;
+    if (!myUid) {
+      showModal({ type: 'error', title: 'エラー', message: 'ログイン状態が確認できません。' });
+      return;
+    }
+
+    // 🌟 API (404) を使わず、直接Firestoreに保存する最強の回避策！
+    const docRef = await addDoc(collection(db, "events"), {
       name: eventName.value,
       memo: eventMemo.value,
       tag: selectedIcon.value,
-      invitationCode: invitationCode.value
+      invitationCode: invitationCode.value,
+      participants: [myUid], // 作成者（自分）を参加者に追加
+      totalAmount: 0,
+      createdAt: serverTimestamp()
     });
 
+    console.log('✅ Firestoreに直接保存完了:', docRef.id);
     router.push('/'); 
   } catch (error) {
     console.error('❌ 作成失敗:', error);
-    
-    // 💡 ハッカソン用安全装置：APIエラー(localhost通信不可)が起きても、強制的に進めるか選ばせる
-    showModal({ 
-      type: 'warning', 
-      title: '通信エラー', 
-      message: 'サーバー(localhost)と通信できませんでした。\nデモ用に、このままホーム画面に進みますか？',
-      showCancel: true,
-      confirmText: '進む',
-      onConfirm: () => router.push('/') // 強制的にホームへ
-    });
+    showModal({ type: 'error', title: 'エラー', message: 'イベントの作成に失敗しました。電波状況を確認してください。' });
   } finally {
     loading.value = false;
   }
