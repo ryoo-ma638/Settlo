@@ -15,7 +15,7 @@
           進行中のイベントはありません
         </div>
         
-        <div v-else class="event-item" v-for="event in ongoingEvents" :key="event.id" @click="openDetail(event)">
+        <div v-else class="event-item" v-for="event in ongoingEvents" :key="event.id" @click="goToEventDetail(event.id)">
           <div class="event-tag">{{ event.tag }}</div>
           <div class="event-info">
             <h3 class="event-name">{{ event.name }}</h3>
