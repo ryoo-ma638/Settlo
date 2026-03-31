@@ -157,15 +157,32 @@ onMounted(() => {
 
       const qFriends = collection(db, "users", user.uid, "friends")
       onSnapshot(qFriends, (snapshot) => {
-        friendData.value = snapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data,
-            photo: data.photo || data.photoURL || "" 
+  // まず、今持っている友達リスト（UIDリスト）をそのまま反映する（これで消えません）
+  const currentItems = snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  }));
+  friendData.value = currentItems;
+
+  // 次に、各ユーザーの「本名」を個別に1回だけ取得しにいく
+  currentItems.forEach(async (item) => {
+    if (item.uid) {
+      const userDoc = await getDoc(doc(db, "users", item.uid));
+      if (userDoc.exists()) {
+        const latestData = userDoc.data();
+        // 名前が違っていたら、その人の名前だけを更新する
+        const index = friendData.value.findIndex(u => u.uid === item.uid);
+        if (index !== -1 && friendData.value[index].name !== latestData.name) {
+          friendData.value[index] = {
+            ...friendData.value[index],
+            name: latestData.name || item.name,
+            photo: latestData.photo || item.photo
           };
-        })
-      })
+        }
+      }
+    }
+  });
+});
     }
   })
 })
