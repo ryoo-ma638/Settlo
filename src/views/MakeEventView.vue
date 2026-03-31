@@ -80,7 +80,7 @@
 <script setup>
 import { ref, watch, reactive } from 'vue'; 
 import { useRouter } from 'vue-router';
-// 🌟 apiのインポートはもう使いません！代わりにfirebaseを呼び出します
+// 🌟 APIの代わりにFirebaseを直接呼び出します（エラー回避策）
 import { db, auth } from '@/firebase'; 
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'; 
 import BaseModal from '@/components/BaseModal.vue';
@@ -162,7 +162,6 @@ const joinEvent = async () => {
   showModal({ type: 'info', title: 'お知らせ', message: '現在、イベント参加機能は準備中です。' });
 };
 
-// 🌟 エラー原因1の修正：正しくインポートされた watch がここで動きます
 watch(isJoinMode, () => {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 });
