@@ -374,29 +374,63 @@ const markAsCompleted = async (id) => {
 const addHistory = async (newPayment) => {
   try {
     const eventId = route.params.id || "test-event-1"; 
-    const amountNum = Number(newPayment.amount); // 数値に変換
 
-    // --- (既存のtransactionsへの保存処理などはそのまま) ---
-
-    // 🌟 修正：イベントドキュメントの合計金額をインクリメント（加算）する
-    const eventRef = doc(db, "events", eventId);
-    await updateDoc(eventRef, {
-      totalAmount: admin.firestore.FieldValue.increment(amountNum)
-    });
-
-    // --- (既存のhistoryサブコレクションへの保存) ---
-    const historyRef = collection(db, "events", eventId, "history");
-    await addDoc(historyRef, {
+    // 🌟 1. 履歴画面や精算画面が見ている「共通の箱」に入れるデータ
+    const globalTransactionData = {
       ...newPayment,
-      amount: amountNum,
-      timestamp: serverTimestamp(),
-      status: 'unpaid'
+      
+      // 💡 修正A: 自分が立て替えた ＝ 「自分がお金を受け取る（To）」！
+      paidToId: auth?.currentUser?.uid || "unknown", 
+      paidToName: newPayment.payer || "自分", 
+      
+      // 💡 修正B: グループ全体が 「あなたに支払う義務（By）」がある！
+      paidById: "group_event", 
+      paidByName: "イベントメンバー", 
+      
+      itemName: newPayment.itemName || "支払い",
+      amount: newPayment.amount || 0,
+      
+      // 💡 修正C: 'pending' から 'unpaid' に変更！これでお支払い画面に表示されます！
+      status: 'unpaid', 
+      type: 'receive', 
+      
+      date: newPayment.date || "",
+      createdAt: serverTimestamp(),
+      eventName: eventData.value.name || "イベント代",
+
+      // 履歴画面が indexOf で探してエラーになるのを防ぐ防弾シールド
+      involvedUsers: [auth?.currentUser?.uid || "unknown", "group_event"],
+      participants: [auth?.currentUser?.uid || "unknown", "group_event"],
+      members: [auth?.currentUser?.uid || "unknown", "group_event"],
+      items: newPayment.items || []
+    };
+
+    // 🌟 2. 「transactions」コレクションに保存（これでお支払い画面に出る！）
+    await addDoc(collection(db, "transactions"), globalTransactionData);
+
+    // 🌟 3. 元々あったイベント画面用の保存処理（そのまま維持）
+    const historyRef = collection(db, "events", eventId, "history");
+    const docRef = await addDoc(historyRef, {
+      payer: newPayment.payer, 
+      itemName: newPayment.itemName, 
+      splitType: newPayment.splitType,
+      amount: newPayment.amount, 
+      color: '#fca5a5', 
+      date: newPayment.date, 
+      time: newPayment.time, 
+      status: 'unpaid', 
+      involvesMe: true, 
+      timestamp: serverTimestamp(), 
+      items: newPayment.items || [] 
     });
 
-    console.log("🔥 イベントの合計金額をDBに反映しました");
-    // ...
+    console.log("🔥 Firestoreに保存成功！（全体＆イベントの両方）");
+    eventData.value.total += newPayment.amount;
+    modals.value.addPayment = false;
+    setTimeout(scrollToTimeline, 300);
   } catch (error) {
-    console.error(error);
+    console.error("保存エラー:", error);
+    alert("支払いの追加に失敗しました。");
   }
 };
 
