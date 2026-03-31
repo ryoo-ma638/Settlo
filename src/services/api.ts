@@ -1,20 +1,27 @@
 import axios, { InternalAxiosRequestConfig } from 'axios';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
-// Vite 環境変数 VITE_API_BASE_URL を優先し、未定義ならローカルの server.js (port 3000) を使う
-// TypeScript 環境で import.meta.env の型がない場合があるため any キャストで安全に参照する
-const API_BASE = ((import.meta as any)?.env?.VITE_API_BASE_URL) || 'http://localhost:3001/api';
+// 🌟 Vite 環境変数を使って、本番とローカルで通信先を自動で切り替える
+// ※ 注意: ここには「バックエンド（API）のURL」が入るようにしてください。
+// もし Vercel の /api フォルダでバックエンドを動かしているなら、末尾に /api が必要です。
+const baseURL = import.meta.env.MODE === 'production' 
+  ? 'https://settlo-67zodfg0f-ryoo-ma638s-projects.vercel.app/api' // 🌟 本番用バックエンドURL
+  : 'https://settlo-pay-git-csss-ryoo-ma638s-projects.vercel.app/api'; // 🌟 プレビュー用またはローカル用
+  // もし手元のパソコンで動かすサーバー(localhost:3001)に繋ぐ場合は以下を有効にします
+  // : 'http://localhost:3001/api';
+
 const api = axios.create({
-  baseURL: API_BASE,
+  baseURL: baseURL,
 });
 
+// リクエストの直前に毎回Firebaseのトークンをヘッダーに乗せる処理
 api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   const auth = getAuth();
 
   // 現在のユーザーを取得
   let user = auth.currentUser;
 
-  // もし null なら、少しだけ待機（初期化待ち）
+  // もし null なら、少しだけ待機（Firebaseの初期化待ち）
   if (!user) {
     await new Promise((resolve) => {
       const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -25,14 +32,17 @@ api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
     });
   }
 
+  // ユーザーが取得できたらトークンをセット
   if (user) {
     const token = await user.getIdToken(); 
-    config.headers.Authorization = `Bearer ${token}`;
+    if (config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
   }
   return config;
-}, () => {
-  return Promise.reject(new Error('リクエストの設定に失敗しました'));
+}, (error) => {
+  return Promise.reject(error);
 });
 
-
+// 🌟 最後に1回だけエクスポートする
 export default api;
