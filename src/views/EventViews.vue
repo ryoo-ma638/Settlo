@@ -63,9 +63,9 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { db } from '@/firebase';
-import { doc, getDoc } from 'firebase/firestore';
-import api from '@/services/api';
+// 🌟 apiの代わりに auth と firestore のクエリ機能を追加
+import { db, auth } from '@/firebase';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 const events = ref([]);
 const loading = ref(true);
@@ -97,17 +97,22 @@ const getUserIcon = async (uid) => {
 const fetchEvents = async () => {
   try {
     loading.value = true;
-    await api.post('/users/sync'); 
-    
-    const res = await api.get('/events');
-    
-    // 🌟 全イベントの参加者アイコンを非同期で一斉に取得
-    const formattedEvents = await Promise.all(res.data.map(async (event) => {
-      // 日付の整形
-      const dateObj = event.createdAt ? new Date(event.createdAt) : new Date();
+    const myUid = auth.currentUser?.uid;
+    if (!myUid) return;
+
+    // 🌟 API (404) を使わず、Firestoreから自分が参加しているイベントを直接取得
+    const eventsRef = collection(db, "events");
+    // 自分が participant（参加者）に含まれているイベントだけを探す
+    const q = query(eventsRef, where("participants", "array-contains", myUid));
+    const snapshot = await getDocs(q);
+
+    const rawEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    const formattedEvents = await Promise.all(rawEvents.map(async (event) => {
+      // FirebaseのTimestampを通常の日付に変換
+      const dateObj = event.createdAt?.toDate ? event.createdAt.toDate() : new Date();
       const formattedDate = `${dateObj.getFullYear()}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getDate().toString().padStart(2, '0')}`;
       
-      // 参加者のアイコンを先頭4人分取得
       const uids = event.participants || [];
       const photos = await Promise.all(
         uids.slice(0, 4).map(uid => getUserIcon(uid))
@@ -116,11 +121,12 @@ const fetchEvents = async () => {
       return {
         ...event,
         createdAtDate: formattedDate,
-        participantsPhotos: photos // 🌟 テンプレート側で使うための配列
+        participantsPhotos: photos
       };
     }));
 
-    events.value = formattedEvents;
+    // 新しい順に並び替え
+    events.value = formattedEvents.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
   } catch (error) {
     console.error("イベント一覧の取得に失敗:", error);
   } finally {
