@@ -40,4 +40,4 @@ __screenshots__/
 
 service-account.json
 
-.env
+.env.dev
