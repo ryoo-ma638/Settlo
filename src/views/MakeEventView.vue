@@ -178,7 +178,7 @@ watch(isJoinMode, () => {
   display: flex; justify-content: space-between; align-items: center; 
   padding: 16px 20px; 
   background: linear-gradient(135deg, #cffafe 0%, #bae6fd 100%); 
-  position: sticky; top: 60px; z-index: 100; 
+  position: sticky; z-index: 100; 
   border-radius: 0 0 24px 24px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
   margin-bottom: 15px;
 }
