@@ -1,0 +1,14 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ログイン済みユーザーのみ、全ドキュメントの読み書きを許可する。
+    // - 未認証（一般公開）からのアクセスは遮断される。
+    // - 本アプリは友人・イベント参加者間でデータを横断参照するため、
+    //   まずは「ログイン必須」を基本ルールとする。
+    //   将来、コレクション単位で所有者/参加者限定に厳格化できる。
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
