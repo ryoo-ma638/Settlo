@@ -18,48 +18,119 @@
 
         <p class="question">このユーザーからのフレンド申請を承認しますか？</p>
 
-        <div class="trade-history">
-          <h4 class="history-title">過去の取引履歴</h4>
+        <div class="trade-history" v-if="tradeHistory.length > 0">
+          <h4 class="history-title">この人との取引履歴</h4>
           <ul class="history-list">
-            <li><span class="date">3/11</span> 飲み会代 <strong class="price">¥6,300</strong></li>
-            <li><span class="date">2/20</span> タクシー代 <strong class="price">¥1,500</strong></li>
+            <li v-for="t in tradeHistory" :key="t.id">
+              <span class="date">{{ t.date }}</span> {{ t.itemName }} <strong class="price">¥{{ t.amount.toLocaleString() }}</strong>
+            </li>
           </ul>
         </div>
+        <p v-else-if="historyLoaded" class="no-history">この人との取引履歴はまだありません</p>
 
         <div class="actions">
           <button class="btn execute-btn" @click="approve">承認する</button>
-          <button class="btn cancel-btn" @click="$emit('close')">キャンセル</button>
+          <button class="btn cancel-btn" @click="onCancelClick">キャンセル</button>
         </div>
       </div>
     </div>
     
-    <BaseModal 
+    <BaseModal
       :show="modalState.show"
       :type="modalState.type"
       :title="modalState.title"
       :message="modalState.message"
+      :showCancel="modalState.showCancel"
+      :confirmText="modalState.confirmText"
+      :cancelText="modalState.cancelText"
       @confirm="handleConfirmModal"
+      @cancel="handleCancelModal"
       @close="modalState.show = false"
     />
   </Teleport>
 </template>
 
 <script setup>
-import { reactive } from 'vue';
+import { reactive, ref, watch } from 'vue';
 import BaseModal from '@/components/BaseModal.vue';
+import { db, auth } from '@/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 const props = defineProps({
   isOpen: Boolean,
-  requestUser: Object 
+  requestUser: Object
 });
-const emit = defineEmits(['close', 'approve']);
+const emit = defineEmits(['close', 'approve', 'reject']);
+
+// 🌟 この相手との「本物の取引履歴」を Firestore から取得して表示
+const tradeHistory = ref([]);
+const historyLoaded = ref(false);
+const loadHistory = async () => {
+  tradeHistory.value = [];
+  historyLoaded.value = false;
+  const myUid = auth.currentUser?.uid;
+  // 申請者のUIDは formId（送信者）。フレンド一覧から開いた場合は uid。
+  const theirUid = props.requestUser?.formId || props.requestUser?.uid || props.requestUser?.id;
+  if (myUid && theirUid) {
+    try {
+      const [s1, s2] = await Promise.all([
+        getDocs(query(collection(db, 'transactions'), where('paidById', '==', myUid))),
+        getDocs(query(collection(db, 'transactions'), where('paidToId', '==', myUid))),
+      ]);
+      const results = [];
+      const pushIf = (d) => {
+        const x = d.data();
+        if (x.paidById === theirUid || x.paidToId === theirUid) {
+          results.push({
+            id: d.id,
+            itemName: x.itemName || '取引',
+            amount: x.amount || 0,
+            sec: x.createdAt?.seconds || 0,
+            date: x.createdAt ? new Date(x.createdAt.seconds * 1000).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }) : '',
+          });
+        }
+      };
+      s1.forEach(pushIf);
+      s2.forEach(pushIf);
+      const seen = new Set();
+      tradeHistory.value = results
+        .filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)))
+        .sort((a, b) => b.sec - a.sec);
+    } catch (e) {
+      console.error('取引履歴の取得エラー:', e);
+    }
+  }
+  historyLoaded.value = true;
+};
+// isOpen と requestUser の両方を監視（開いた瞬間に相手が確定しているとは限らないため）
+watch([() => props.isOpen, () => props.requestUser], ([open, ru]) => {
+  if (open && ru) loadHistory();
+});
 
 // 🌟 モーダル状態管理
-const modalState = reactive({ show: false, type: 'info', title: '', message: '', onConfirm: null });
-const showModal = (options) => { Object.assign(modalState, { onConfirm: null, ...options, show: true }); };
+const modalState = reactive({ show: false, type: 'info', title: '', message: '', showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, onCancel: null });
+const showModal = (options) => { Object.assign(modalState, { showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, onCancel: null, ...options, show: true }); };
 const handleConfirmModal = () => {
   if (modalState.onConfirm) modalState.onConfirm();
   modalState.show = false;
+};
+const handleCancelModal = () => {
+  modalState.show = false;
+  if (modalState.onCancel) modalState.onCancel();
+};
+
+// 🌟 キャンセル時：心当たりがあるか確認（誤操作・知らない人の防止）
+const onCancelClick = () => {
+  showModal({
+    type: 'warning',
+    title: '確認',
+    message: 'このフレンドは心当たりのない人ですか？\n「はい」で申請を拒否します。',
+    showCancel: true,
+    confirmText: 'はい',
+    cancelText: 'いいえ',
+    onConfirm: () => { emit('reject', props.requestUser); emit('close'); }, // 知らない人 → 申請を拒否
+    // いいえ → 確認だけ閉じて承認画面に戻る（onCancel なし）
+  });
 };
 
 const approve = () => {
@@ -92,6 +163,7 @@ const approve = () => {
 .history-list li { display: flex; justify-content: space-between; border-bottom: 1px dashed #cbd5e1; padding: 8px 0; }
 .history-list li:last-child { border-bottom: none; }
 .date { color: #94a3b8; font-size: 12px; }
+.no-history { font-size: 12px; color: #94a3b8; font-weight: 700; text-align: center; margin: 0 0 22px; }
 
 .actions { display: flex; flex-direction: column; gap: 10px; }
 .btn { width: 100%; padding: 15px; border-radius: 15px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; }
