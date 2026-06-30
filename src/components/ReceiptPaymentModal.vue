@@ -8,11 +8,21 @@
         </div>
         
         <div class="receipt-body">
-          <div class="r-icon" :style="{ backgroundColor: history.color }"></div>
+          <div class="r-icon"><GenreIcon :type="history.category || 'その他'" /></div>
           <h2>{{ history.itemName }}</h2>
           <p class="r-date">{{ history.date }} {{ history.time }} • {{ history.splitType }}</p>
-          <h1 class="r-amount">¥{{ history.amount.toLocaleString() }}</h1>
-          
+          <h1 class="r-amount">¥{{ (myAmount != null ? myAmount : history.amount).toLocaleString() }}</h1>
+          <p v-if="myRole === 'payer'" class="r-role">あなたが ¥{{ history.amount.toLocaleString() }} を立替（受け取り待ち）</p>
+          <p v-else-if="myRole === 'debtor'" class="r-role">あなたの負担分（全体 ¥{{ history.amount.toLocaleString() }}）</p>
+
+          <div v-if="history.shares && history.shares.length > 0" class="shares-list">
+            <div class="shares-title">負担の内訳（誰がいくら）</div>
+            <div class="share-row" v-for="(s, i) in history.shares" :key="i">
+              <span class="s-name">{{ s.name }}<span v-if="s.name === history.payer" class="s-tag">立替</span></span>
+              <span class="s-amt">¥{{ Number(s.amount).toLocaleString() }}</span>
+            </div>
+          </div>
+
           <div v-if="history.items && history.items.length > 0" class="receipt-paper">
             <div class="receipt-paper-header">購入した内訳</div>
             <div class="receipt-items-list">
@@ -46,7 +56,7 @@
                 :opponentUid="history.paidById || history.paidToId" 
               />
               
-              <button class="method-btn cash" @click="handlePayment('cash')">支払った／受け取った</button>
+              <button class="method-btn cash" @click="handlePayment('cash')">{{ myRole === 'payer' ? '受け取りを記録する' : '支払った／受け取った' }}</button>
             </div>
           </template>
           <button class="action-btn" @click="$emit('close')">閉じる</button>
@@ -58,9 +68,12 @@
 
 <script setup>
 import PayPayAction from '../components/PayPayAction.vue';
+import GenreIcon from '../components/GenreIcon.vue';
 const props = defineProps({
   isOpen: Boolean,
-  history: Object
+  history: Object,
+  myAmount: { type: Number, default: null }, // 閲覧者にとっての金額（払う/受け取る）
+  myRole: { type: String, default: 'none' }   // 'payer' | 'debtor' | 'none'
 });
 const emit = defineEmits(['close', 'complete']);
 
@@ -81,10 +94,20 @@ const handlePayment = (method) => {
 .close-btn { background: #e2e8f0; border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 18px; color: #64748b; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; }
 
 .receipt-style { text-align: center; }
-.r-icon { width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 15px; border: 4px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+.r-icon { width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 15px; border: 4px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.05); background: var(--c-brand-weak, #ecfdf5); color: var(--c-brand, #059669); display: flex; align-items: center; justify-content: center; }
+.r-icon :deep(svg) { width: 30px; height: 30px; }
 .receipt-body h2 { margin: 0 0 5px; font-size: 22px; color: #1e293b; font-weight: 900; }
 .r-date { color: #64748b; font-size: 13px; margin: 0 0 20px; font-weight: 700; }
-.r-amount { font-size: 40px; margin: 0 0 15px; letter-spacing: -1px; font-weight: 900; }
+.r-amount { font-size: 40px; margin: 0 0 6px; letter-spacing: -1px; font-weight: 900; }
+.r-role { font-size: 12px; color: #64748b; font-weight: 800; margin: 0 0 15px; }
+
+.shares-list { background: #fff; border: 1px solid #eef2f7; border-radius: 16px; padding: 14px 16px; margin: 0 0 18px; text-align: left; }
+.shares-title { font-size: 11px; color: #94a3b8; font-weight: 800; margin-bottom: 10px; letter-spacing: 1px; }
+.share-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px dashed #eef2f7; }
+.share-row:last-child { border-bottom: none; }
+.s-name { font-size: 14px; font-weight: 800; color: #334155; display: flex; align-items: center; gap: 6px; }
+.s-tag { font-size: 9px; background: var(--c-brand-weak, #ecfdf5); color: var(--c-brand-strong, #059669); padding: 2px 6px; border-radius: 6px; font-weight: 800; }
+.s-amt { font-size: 15px; font-weight: 900; color: #0f172a; }
 
 /* 🌟 追加：レシート内訳のデザイン */
 .receipt-paper {

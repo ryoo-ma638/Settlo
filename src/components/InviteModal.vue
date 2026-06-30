@@ -38,24 +38,25 @@
             <div class="user-list">
               <div v-if="processedList.length === 0" class="empty-msg">該当するユーザーがいません</div>
               
-              <div class="user-item" v-for="user in processedList" :key="user.id">
+              <div class="user-item" v-for="user in processedList" :key="user.uid">
                 <div class="user-left">
-                  <div class="avatar" :style="{ backgroundColor: user.color }"></div>
+                  <img v-if="user.photo" :src="user.photo" class="avatar-img" />
+                  <div v-else class="avatar" :style="{ backgroundColor: user.color }"></div>
                   <div class="user-info">
                     <span class="user-name">{{ user.name }}</span>
                     <span class="user-id">
-                      ID: {{ user.userId }}
-                      <span v-if="!user.isFriend" class="not-friend-badge">未フレンド</span>
+                      <span v-if="user.isFriend" class="friend-badge">フレンド</span>
+                      <span v-else class="not-friend-badge">未フレンド</span>
                     </span>
                   </div>
                 </div>
-                <button 
-                  class="invite-btn" 
-                  :class="{ 'invited': invitedSet.has(user.id) }"
-                  @click="invite(user.id)"
-                  :disabled="invitedSet.has(user.id)"
+                <button
+                  class="invite-btn"
+                  :class="{ 'invited': isParticipant(user.uid) || invitedSet.has(user.uid) }"
+                  @click="invite(user)"
+                  :disabled="isParticipant(user.uid) || invitedSet.has(user.uid)"
                 >
-                  {{ invitedSet.has(user.id) ? '招待済み' : '招待する' }}
+                  {{ isParticipant(user.uid) ? '参加済み' : (invitedSet.has(user.uid) ? '招待済み' : '招待する') }}
                 </button>
               </div>
             </div>
@@ -76,12 +77,17 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, reactive } from 'vue';
+import { ref, computed, watch, reactive, onUnmounted } from 'vue';
 import BaseModal from '@/components/BaseModal.vue';
+import { db, auth } from '@/firebase';
+import { collection, onSnapshot, doc, getDoc, getDocs, query, where, limit, updateDoc, arrayUnion } from 'firebase/firestore';
 
 const props = defineProps({
   isOpen: Boolean,
-  eventCode: { type: String, default: 'EO2Q2Z' } 
+  eventCode: { type: String, default: '------' },
+  // 🌟 実データ化：招待先イベントのIDと、現在の参加者UID一覧を受け取る
+  eventId: { type: String, default: '' },
+  participantUids: { type: Array, default: () => [] },
 });
 const emit = defineEmits(['close']);
 
@@ -91,61 +97,130 @@ const showModal = (options) => { Object.assign(modalState, { ...options, show: t
 
 const copyCode = () => {
   navigator.clipboard.writeText(props.eventCode);
-  // 🌟 alert を美しいモーダルに
   showModal({ type: 'success', title: 'コピー完了', message: '招待コードをクリップボードにコピーしました！' });
 };
 
 const searchQuery = ref('');
 const currentSort = ref('added_desc');
-const invitedSet = ref(new Set()); 
+const invitedSet = ref(new Set());
 
-const invite = (id) => {
-  invitedSet.value.add(id);
+// 🌟 自分の本物のフレンド一覧（users/{myUid}/friends をリアルタイム購読）
+const friends = ref([]);
+let unsubFriends = null;
+const startFriends = () => {
+  const myUid = auth.currentUser?.uid;
+  if (!myUid) return;
+  if (unsubFriends) unsubFriends();
+  unsubFriends = onSnapshot(collection(db, 'users', myUid, 'friends'), (snap) => {
+    friends.value = snap.docs.map((d) => {
+      const x = d.data();
+      return {
+        uid: x.uid || d.id,
+        name: x.name || '名前なし',
+        photo: x.photo || x.photoURL || '',
+        color: x.color || '#cbd5e1',
+        kana: x.kana || '',
+        isFriend: x.isFriend !== false,
+        tradeCount: x.tradeCount || 0,
+        addedSec: x.addedAt?.seconds || 0,
+      };
+    });
+  });
 };
 
-const friendData = [
-  { id: 1, userId: 'ryousuke123', name: '天野 椋祐', kana: 'アマノ リョウスケ', color: '#ff9980', isFriend: true, tradeCount: 5, addedAt: '2026-03-20' },
-  { id: 2, userId: 'ryouhei_o', name: '小野木 涼平', kana: 'オノギ リョウヘイ', color: '#ffee10', isFriend: true, tradeCount: 12, addedAt: '2025-12-10' },
-  { id: 4, userId: 'fuuka_n', name: '中橋 楓華', kana: 'ナカハシ フウカ', color: '#889900', isFriend: true, tradeCount: 8, addedAt: '2026-01-15' },
-];
-
-const globalData = [
-  { id: 10, userId: 'sato_kenta', name: '佐藤 健太', kana: 'サトウ ケンタ', color: '#8bb4ff', isFriend: false, tradeCount: 0, addedAt: '' },
-  { id: 11, userId: 'suzuki_h', name: '鈴木 花子', kana: 'スズキ ハナコ', color: '#f9a8d4', isFriend: false, tradeCount: 0, addedAt: '' }
-];
+// 🌟 フレンド以外も招待できるように、名前(完全一致)・UIDで全ユーザー検索
+const globalResults = ref([]);
+const runGlobalSearch = async () => {
+  const text = searchQuery.value.trim();
+  globalResults.value = [];
+  if (!text) return;
+  const myUid = auth.currentUser?.uid;
+  const found = [];
+  try {
+    const snap = await getDocs(query(collection(db, 'users'), where('name', '==', text), limit(10)));
+    snap.forEach((d) => {
+      if (d.id !== myUid) {
+        const x = d.data();
+        found.push({ uid: d.id, name: x.name || '名前なし', photo: x.photo || x.photoURL || '', color: '#cbd5e1', kana: x.kana || '', isFriend: false, tradeCount: 0, addedSec: 0 });
+      }
+    });
+    // 名前で見つからなければ、UID直接指定でも引けるように
+    if (found.length === 0) {
+      const ds = await getDoc(doc(db, 'users', text));
+      if (ds.exists() && ds.id !== myUid) {
+        const x = ds.data();
+        found.push({ uid: ds.id, name: x.name || '名前なし', photo: x.photo || x.photoURL || '', color: '#cbd5e1', kana: '', isFriend: false, tradeCount: 0, addedSec: 0 });
+      }
+    }
+  } catch (e) {
+    console.error('ユーザー検索エラー:', e);
+  }
+  // すでにフレンドの人は（下のフレンド一覧に出るので）重複除去
+  const friendUids = new Set(friends.value.map((f) => f.uid));
+  globalResults.value = found.filter((u) => !friendUids.has(u.uid));
+};
+watch(searchQuery, () => runGlobalSearch());
 
 const processedList = computed(() => {
-  let list = [...friendData];
-  const query = searchQuery.value.trim().toLowerCase();
-
-  if (query) {
-    const globalHits = globalData.filter(u => 
-      u.name === query || u.userId.toLowerCase() === query || u.name.replace(/\s+/g, '') === query.replace(/\s+/g, '')
+  const q = searchQuery.value.trim().toLowerCase();
+  let list = friends.value.slice();
+  if (q) {
+    list = list.filter((u) =>
+      (u.name || '').toLowerCase().includes(q) ||
+      (u.kana || '').includes(searchQuery.value.trim()) ||
+      u.uid.toLowerCase() === q
     );
-    list = list.filter(u => 
-      u.name.toLowerCase().includes(query) || 
-      u.userId.toLowerCase().includes(query) ||
-      u.kana.includes(query)
-    );
-    globalHits.forEach(gu => {
-      if (!list.find(u => u.id === gu.id)) list.unshift(gu);
-    });
   }
-
-  return list.sort((a, b) => {
-    if (currentSort.value === 'kana_asc') return a.kana.localeCompare(b.kana, 'ja');
+  // 非フレンドの検索ヒットを先頭に差し込み、UID重複を除去
+  const merged = [...globalResults.value, ...list];
+  const seen = new Set();
+  const uniq = [];
+  for (const u of merged) {
+    if (!seen.has(u.uid)) { seen.add(u.uid); uniq.push(u); }
+  }
+  return uniq.sort((a, b) => {
+    if (currentSort.value === 'kana_asc') return (a.kana || '').localeCompare(b.kana || '', 'ja');
     if (currentSort.value === 'trade_desc') return b.tradeCount - a.tradeCount;
-    if (currentSort.value === 'added_desc') return new Date(b.addedAt || 0) - new Date(a.addedAt || 0);
-    return 0;
+    return b.addedSec - a.addedSec;
   });
 });
 
-watch(() => props.isOpen, (newVal) => {
-  if (newVal) {
+const isParticipant = (uid) => (props.participantUids || []).includes(uid);
+
+// 🌟 招待＝イベントの participants 配列へ相手UIDを実追加（arrayUnion）
+const invite = async (user) => {
+  if (!props.eventId) {
+    showModal({ type: 'error', title: 'エラー', message: 'イベント情報が取得できませんでした。' });
+    return;
+  }
+  if (isParticipant(user.uid)) {
+    showModal({ type: 'info', title: '参加済み', message: `${user.name}さんはすでにこのイベントに参加しています。` });
+    return;
+  }
+  try {
+    await updateDoc(doc(db, 'events', props.eventId), { participants: arrayUnion(user.uid) });
+    invitedSet.value.add(user.uid);
+    showModal({ type: 'success', title: '招待しました', message: `${user.name}さんをイベントに追加しました！` });
+  } catch (e) {
+    console.error('招待エラー:', e);
+    showModal({ type: 'error', title: '招待失敗', message: '招待に失敗しました。電波状況を確認してください。' });
+  }
+};
+
+watch(() => props.isOpen, (open) => {
+  if (open) {
     searchQuery.value = '';
     currentSort.value = 'added_desc';
+    invitedSet.value = new Set();
+    globalResults.value = [];
+    startFriends();
+  } else if (unsubFriends) {
+    unsubFriends();
+    unsubFriends = null;
   }
 });
+
+onUnmounted(() => { if (unsubFriends) unsubFriends(); });
 </script>
 
 <style scoped>
@@ -181,11 +256,13 @@ watch(() => props.isOpen, (newVal) => {
 .user-list { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-bottom: 10px; flex: 1; }
 .user-item { display: flex; justify-content: space-between; align-items: center; background: white; border: 1px solid #f1f5f9; padding: 12px; border-radius: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); }
 .user-left { display: flex; align-items: center; gap: 12px; }
-.avatar { width: 36px; height: 36px; border-radius: 50%; }
+.avatar { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; box-sizing: border-box; aspect-ratio: 1 / 1; }
+.avatar-img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex-shrink: 0; box-sizing: border-box; aspect-ratio: 1 / 1; }
 .user-info { display: flex; flex-direction: column; }
 .user-name { font-size: 15px; font-weight: bold; color: #1e293b; }
 .user-id { font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 6px; margin-top: 2px; }
 .not-friend-badge { background: #fee2e2; color: #ef4444; padding: 2px 6px; border-radius: 6px; font-size: 9px; font-weight: bold; }
+.friend-badge { background: var(--c-brand-weak); color: var(--c-brand-strong); padding: 2px 6px; border-radius: 6px; font-size: 9px; font-weight: bold; }
 
 .invite-btn { background: var(--c-brand); color: white; border: none; padding: 8px 16px; border-radius: 12px; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; }
 .invite-btn:active { transform: scale(0.95); }

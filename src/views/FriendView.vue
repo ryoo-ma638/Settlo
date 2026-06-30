@@ -63,6 +63,7 @@
         :requestUser="selectedRequestUser"
         @close="isApproveModalOpen = false"
         @approve="handleApproveDone"
+        @reject="handleRejectRequest"
       />
 
       <BaseModal
@@ -182,6 +183,20 @@ const selectedRequestUser = ref(null);
 const openApproveModal = (user) => {
   selectedRequestUser.value = user;
   isApproveModalOpen.value = true;
+};
+
+// 🌟 「知らない人」としてフレンド申請を拒否（申請を削除）
+const handleRejectRequest = async (request) => {
+  try {
+    if (request?.id) {
+      await deleteDoc(doc(db, "friendRequests", request.id));
+    }
+    isApproveModalOpen.value = false;
+    showModal({ type: 'info', title: '申請を拒否しました', message: '心当たりのない申請を削除しました。' });
+  } catch (error) {
+    console.error("申請拒否エラー:", error);
+    showModal({ type: 'error', title: 'エラー', message: '申請の拒否に失敗しました。' });
+  }
 };
 
 const handleApproveDone = async (request) => {

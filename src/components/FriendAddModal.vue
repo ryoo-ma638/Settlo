@@ -47,6 +47,16 @@
 
             <p class="confirm__q">このユーザーをフレンドに追加しますか？</p>
 
+            <div class="confirm-history" v-if="tradeHistory.length > 0">
+              <h4 class="ch-title">この人との取引履歴</h4>
+              <ul class="ch-list">
+                <li v-for="t in tradeHistory" :key="t.id">
+                  <span class="ch-date">{{ t.date }}</span> {{ t.itemName }} <strong class="ch-price">¥{{ t.amount.toLocaleString() }}</strong>
+                </li>
+              </ul>
+            </div>
+            <p v-else-if="historyLoaded" class="confirm-no-history">この人との取引履歴はまだありません</p>
+
             <div class="confirm__actions">
               <button class="btn-brand" @click="executeRequest">申請を送る</button>
               <button class="btn-outline" @click="selectedUser = null">検索に戻る</button>
@@ -145,6 +155,50 @@ const performSearch = async () => {
 };
 
 watch(searchQuery, () => performSearch());
+
+// 🌟 申請確認画面で「この人との本物の取引履歴」を表示
+const tradeHistory = ref([]);
+const historyLoaded = ref(false);
+const loadHistory = async (targetUid) => {
+  tradeHistory.value = [];
+  historyLoaded.value = false;
+  const myUid = auth.currentUser?.uid;
+  if (myUid && targetUid) {
+    try {
+      const [s1, s2] = await Promise.all([
+        getDocs(query(collection(db, 'transactions'), where('paidById', '==', myUid))),
+        getDocs(query(collection(db, 'transactions'), where('paidToId', '==', myUid))),
+      ]);
+      const results = [];
+      const pushIf = (d) => {
+        const x = d.data();
+        if (x.paidById === targetUid || x.paidToId === targetUid) {
+          results.push({
+            id: d.id,
+            itemName: x.itemName || '取引',
+            amount: x.amount || 0,
+            sec: x.createdAt?.seconds || 0,
+            date: x.createdAt ? new Date(x.createdAt.seconds * 1000).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }) : '',
+          });
+        }
+      };
+      s1.forEach(pushIf);
+      s2.forEach(pushIf);
+      const seen = new Set();
+      tradeHistory.value = results
+        .filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)))
+        .sort((a, b) => b.sec - a.sec);
+    } catch (e) {
+      console.error('取引履歴の取得エラー:', e);
+    }
+  }
+  historyLoaded.value = true;
+};
+// 相手を選んだ（確認画面に進んだ）瞬間に履歴を取得
+watch(selectedUser, (u) => {
+  if (u) loadHistory(u.uid);
+  else { tradeHistory.value = []; historyLoaded.value = false; }
+});
 
 const close = () => {
   searchQuery.value = '';
@@ -296,7 +350,18 @@ const executeRequest = async () => {
 .confirm__avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 .confirm__ph { width: 100%; height: 100%; border-radius: 50%; }
 .confirm__name { font-size: 20px; font-weight: var(--fw-bold); color: var(--c-ink); }
-.confirm__q { font-size: 14px; font-weight: var(--fw-medium); color: var(--c-text-sub); margin-bottom: 22px; }
+.confirm__q { font-size: 14px; font-weight: var(--fw-medium); color: var(--c-text-sub); margin-bottom: 16px; }
+
+/* 取引履歴 */
+.confirm-history { background: var(--c-surface-2, #f8fafc); border-radius: var(--r-md, 14px); padding: 14px 16px; margin-bottom: 18px; text-align: left; }
+.ch-title { font-size: 11px; color: var(--c-text-faint, #94a3b8); font-weight: 800; margin: 0 0 10px; }
+.ch-list { list-style: none; padding: 0; margin: 0; font-size: 14px; }
+.ch-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; border-bottom: 1px dashed var(--c-line, #e2e8f0); padding: 8px 0; }
+.ch-list li:last-child { border-bottom: none; }
+.ch-date { color: var(--c-text-faint, #94a3b8); font-size: 12px; }
+.ch-price { color: var(--c-ink, #0f172a); }
+.confirm-no-history { font-size: 12px; color: var(--c-text-faint, #94a3b8); font-weight: 700; margin: 0 0 18px; }
+
 .confirm__actions { display: flex; flex-direction: column; gap: 8px; }
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
