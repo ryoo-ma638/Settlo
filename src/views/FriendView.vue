@@ -1,83 +1,71 @@
 <template>
-  <div class="friend-container">
-    <header class="page-header">
-      <button class="back-btn" @click="$router.back()">‹</button>
-      <h1 class="page-title">フレンドリスト</h1>
-      <div class="spacer"></div>
+  <div class="friend">
+    <header class="screen-head">
+      <h1 class="screen-head__title">フレンド</h1>
     </header>
 
-    <main class="content">
-      <div class="fixed-top-items">
-        <button class="add-friend-main-button" @click="isModalOpen = true">
-          <span class="icon">＋</span> 友達を追加する
-        </button>
-        
-        <div class="request-section" v-if="pendingRequests.length > 0">
-          <p class="request-alert">
-            <span class="alert-icon">🔔</span> 友達申請が届いています
-          </p>
-          <div class="request-card" v-for="req in pendingRequests" :key="req.id">
-            <div class="request-avatar-wrapper">
-              <img 
-                v-if="req.formPhoto" 
-                :src="req.formPhoto" 
-                class="request-avatar-img"
-              />
-              <div v-else class="request-avatar-placeholder" :style="{ backgroundColor: req.color || '#8bb4ff' }"></div>
-            </div>
-            <span class="request-name">{{ req.formName }}</span>
-            <button class="approve-button" @click="openApproveModal(req)">確認</button>
-          </div>
-        </div>
+    <main class="friend__body">
+      <button class="btn-brand friend__add" @click="isModalOpen = true">
+        <svg class="friend__add-icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        友達を追加する
+      </button>
 
-        <div class="list-header-row">
-          <h2 class="list-title">友達リスト</h2>
-        </div>
-
-        <div class="control-panel">
-          <div class="select-wrapper">
-            <select v-model="currentFilter" class="custom-select">
-              <option value="all">すべて表示</option>
-              <option value="friend_only">フレンドのみ</option> 
-              <option value="trading">取引中</option>
-              <option value="not_friend">取引あり（未フレンド）</option>
-            </select>
+      <div class="reqs" v-if="pendingRequests.length > 0">
+        <p class="reqs__alert">友達申請が届いています</p>
+        <div class="reqcard" v-for="req in pendingRequests" :key="req.id">
+          <div class="reqcard__avatar">
+            <img v-if="req.formPhoto" :src="req.formPhoto" />
+            <div v-else class="reqcard__ph" :style="{ backgroundColor: req.color || '#8bb4ff' }"></div>
           </div>
-          <div class="select-wrapper">
-            <select v-model="currentSort" class="custom-select">
-              <option value="added_desc">追加順</option>
-              <option value="kana_asc">あいうえお順</option>
-              <option value="trade_desc">取引多い順</option>
-            </select>
-          </div>
+          <span class="reqcard__name">{{ req.formName }}</span>
+          <button class="reqcard__btn" @click="openApproveModal(req)">確認</button>
         </div>
       </div>
-      
-      <div class="friend-scroll-area">
-        <FriendCard 
-          v-for="user in processedList" 
-          :key="user.id" 
-          :user="user" 
-          @click="navigateToDetail(user)" 
+
+      <h2 class="friend__list-title">友達リスト</h2>
+
+      <div class="controls">
+        <div class="select">
+          <select v-model="currentFilter">
+            <option value="all">すべて表示</option>
+            <option value="friend_only">フレンドのみ</option>
+            <option value="trading">取引中</option>
+            <option value="not_friend">取引あり（未フレンド）</option>
+          </select>
+        </div>
+        <div class="select">
+          <select v-model="currentSort">
+            <option value="added_desc">追加順</option>
+            <option value="kana_asc">あいうえお順</option>
+            <option value="trade_desc">取引多い順</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="friend__list">
+        <FriendCard
+          v-for="user in processedList"
+          :key="user.id"
+          :user="user"
+          @click="navigateToDetail(user)"
         />
-        <div v-if="processedList.length === 0" class="empty-msg">
-          <span class="empty-icon">👥</span>
-          <p>該当するユーザーがいません。</p>
+        <div v-if="processedList.length === 0" class="empty-box">
+          該当するユーザーがいません
         </div>
       </div>
     </main>
 
     <Teleport to="body">
       <FriendAddModal :isOpen="isModalOpen" @close="isModalOpen = false" />
-      
-      <FriendApproveModal 
-        :isOpen="isApproveModalOpen" 
-        :requestUser="selectedRequestUser" 
-        @close="isApproveModalOpen = false" 
-        @approve="handleApproveDone" 
+
+      <FriendApproveModal
+        :isOpen="isApproveModalOpen"
+        :requestUser="selectedRequestUser"
+        @close="isApproveModalOpen = false"
+        @approve="handleApproveDone"
       />
 
-      <BaseModal 
+      <BaseModal
         :show="modalState.show"
         :type="modalState.type"
         :title="modalState.title"
@@ -94,20 +82,20 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, reactive } from 'vue'; 
+import { ref, computed, onMounted, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { auth, db } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { 
-  collection,  query,  where,  onSnapshot, 
-  doc,  getDoc,  setDoc,  deleteDoc, addDoc,  serverTimestamp 
+import {
+  collection,  query,  where,  onSnapshot,
+  doc,  getDoc,  setDoc,  deleteDoc, addDoc,  serverTimestamp
 } from 'firebase/firestore';
 
 import FriendAddModal from '@/components/FriendAddModal.vue';
 import FriendCard from '@/components/FriendCard.vue';
 import FriendApproveModal from '@/components/FriendApproveModal.vue';
-import BaseModal from '@/components/BaseModal.vue'; 
+import BaseModal from '@/components/BaseModal.vue';
 
 const router = useRouter();
 const isModalOpen = ref(false);
@@ -117,7 +105,7 @@ const currentSort = ref('added_desc');
 
 // 🌟 モーダル状態管理
 const modalState = reactive({
-  show: false, type: 'info', title: '', message: '', 
+  show: false, type: 'info', title: '', message: '',
   showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null
 });
 const showModal = (options) => {
@@ -158,7 +146,7 @@ onMounted(() => {
   onAuthStateChanged(auth, (user) => {
     if (user) {
       const qReq = query(
-        collection(db, "friendRequests"), 
+        collection(db, "friendRequests"),
         where("toId", "==", user.uid),
         where("status", "==", "pending")
       );
@@ -168,39 +156,22 @@ onMounted(() => {
           return {
             id: doc.id,
             ...data,
-            formPhoto: data.formPhoto || data.photo || data.photoURL || "" 
+            formPhoto: data.formPhoto || data.photo || data.photoURL || ""
           };
         });
       });
 
       const qFriends = collection(db, "users", user.uid, "friends");
       onSnapshot(qFriends, (snapshot) => {
-  // まず、今持っている友達リスト（UIDリスト）をそのまま反映する（これで消えません）
-  const currentItems = snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
-  friendData.value = currentItems;
-
-  // 次に、各ユーザーの「本名」を個別に1回だけ取得しにいく
-  currentItems.forEach(async (item) => {
-    if (item.uid) {
-      const userDoc = await getDoc(doc(db, "users", item.uid));
-      if (userDoc.exists()) {
-        const latestData = userDoc.data();
-        // 名前が違っていたら、その人の名前だけを更新する
-        const index = friendData.value.findIndex(u => u.uid === item.uid);
-        if (index !== -1 && friendData.value[index].name !== latestData.name) {
-          friendData.value[index] = {
-            ...friendData.value[index],
-            name: latestData.name || item.name,
-            photo: latestData.photo || item.photo
+        friendData.value = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            photo: data.photo || data.photoURL || ""
           };
-        }
-      }
-    }
-  });
-});
+        });
+      });
     }
   });
 });
@@ -218,7 +189,7 @@ const handleApproveDone = async (request) => {
     showModal({ type: 'error', title: 'エラー', message: 'この申請データには送信者ID(fromId)が含まれていないため、承認できません。' });
     return;
   }
-  
+
   const myUid = auth.currentUser.uid;
   const friendUid = request.formId;
 
@@ -226,7 +197,7 @@ const handleApproveDone = async (request) => {
     await setDoc(doc(db, "users", myUid, "friends", request.formId), {
       uid: request.formId,
       name: request.formName,
-      photo: request.formPhoto || "", 
+      photo: request.formPhoto || "",
       isFriend: true,
       isTrading: false,
       tradeCount: 0,
@@ -235,12 +206,12 @@ const handleApproveDone = async (request) => {
 
     const myDoc = await getDoc(doc(db, "users", myUid));
     let myName = "名前なし";
-    let myPhoto = ""; 
-    
+    let myPhoto = "";
+
     if (myDoc.exists()) {
       const myData = myDoc.data();
       myName = myData.name || "名前なし";
-      myPhoto = myData.photo || ""; 
+      myPhoto = myData.photo || "";
     }
 
     await setDoc(doc(db, "users", friendUid, "friends", myUid), {
@@ -263,7 +234,7 @@ const handleApproveDone = async (request) => {
     });
 
     await deleteDoc(doc(db, "friendRequests", request.id));
-    
+
     isApproveModalOpen.value = false;
   } catch (error) {
     console.error("承認エラーの詳細:", error);
@@ -280,7 +251,7 @@ const processedList = computed(() => {
   } else if (currentFilter.value === 'not_friend') {
     list = list.filter(u => u.isFriend === false || u.isFriend === undefined);
   }
-  
+
   return [...list].sort((a, b) => {
     if (currentSort.value === 'kana_asc') {
       return (a.kana || "").localeCompare(b.kana || "", 'ja');
@@ -292,7 +263,7 @@ const processedList = computed(() => {
 });
 
 const navigateToDetail = (friend) => {
-  const uid = friend.uid || friend.id; 
+  const uid = friend.uid || friend.id;
 
   if (!uid) {
     console.error("UIDが見つかりません:", friend);
@@ -301,85 +272,83 @@ const navigateToDetail = (friend) => {
 
   router.push({
     path: `/friend/${encodeURIComponent(friend.name)}/${uid}`,
-    query: { uid: uid } 
+    query: { uid: uid }
   });
 };
 </script>
 
 <style scoped>
-.friend-container { 
-  font-family: 'Noto Sans JP', sans-serif;
-  min-height: 100vh; 
-  background-color: #f8fafc; /* 全体の統一背景色 */
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
+.friend__body { padding: 6px var(--pad) 28px; }
+
+.friend__add { margin-bottom: 22px; }
+.friend__add-icon {
+  width: 20px; height: 20px;
+  fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round;
 }
 
-/* 🌟 新しく追加したおしゃれなグラデーションヘッダー */
-.page-header { 
-  display: flex; 
-  justify-content: space-between; 
-  align-items: center; 
-  padding: 16px 20px; 
-  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); /* 🌟 フレンドリーなスカイブルー */
-  position: sticky; 
-  z-index: 100;
-  border-radius: 0 0 24px 24px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-  margin-bottom: 15px;
+/* 友達申請 */
+.reqs { margin-bottom: 22px; }
+.reqs__alert {
+  font-weight: var(--fw-bold);
+  font-size: 13px;
+  color: var(--c-danger);
+  margin-bottom: 10px;
 }
-.back-btn { background: none; border: none; font-size: 32px; color: #0f172a; cursor: pointer; padding: 0; display: flex; align-items: center; transition: 0.2s; }
-.back-btn:active { transform: scale(0.9); }
-.page-title { font-size: 18px; font-weight: 900; margin: 0; color: #0f172a; flex: 1; text-align: center; }
-.spacer { width: 32px; }
-
-.content { padding: 5px 20px 100px 20px; flex: 1; display: flex; flex-direction: column; }
-.fixed-top-items { margin-bottom: 15px; }
-
-/* 🌟 友達追加ボタンをリッチに */
-.add-friend-main-button { 
-  width: 100%; 
-  padding: 18px; 
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  color: white; 
-  border: none; 
-  border-radius: 20px; 
-  font-size: 16px; 
-  font-weight: 900; 
-  margin-bottom: 25px; 
-  cursor: pointer; 
-  box-shadow: 0 8px 20px rgba(59,130,246,0.25); 
-  transition: 0.2s; 
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
+.reqcard {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--c-surface);
+  border-radius: var(--r-lg);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-card);
+  margin-bottom: 10px;
 }
-.add-friend-main-button:active { transform: scale(0.96); }
-.add-friend-main-button .icon { font-size: 20px; }
+.reqcard__avatar {
+  width: 46px; height: 46px; border-radius: 50%;
+  overflow: hidden; flex-shrink: 0; background: var(--c-line-bold);
+}
+.reqcard__avatar img { width: 100%; height: 100%; object-fit: cover; }
+.reqcard__ph { width: 100%; height: 100%; }
+.reqcard__name { flex: 1; font-size: 16px; font-weight: var(--fw-bold); color: var(--c-ink); }
+.reqcard__btn {
+  background: var(--c-brand-weak); color: var(--c-brand-strong);
+  padding: 8px 18px; border-radius: var(--r-pill);
+  font-size: 13px; font-weight: var(--fw-bold);
+}
+.reqcard__btn:active { transform: scale(0.95); }
 
-/* 申請カードの洗練 */
-.request-alert { font-weight: 900; font-size: 14px; margin-bottom: 12px; color: #ef4444; display: flex; align-items: center; gap: 6px; }
-.request-card { background-color: white; display: flex; align-items: center; padding: 16px; border-radius: 20px; margin-bottom: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.04); border: 1px solid #f1f5f9; }
-.request-avatar-wrapper { width: 48px; height: 48px; flex-shrink: 0; margin-right: 15px; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.1); overflow: hidden; background: #e2e8f0; }
-.request-avatar-placeholder { width: 100%; height: 100%; }
-.request-avatar-img { width: 100%; height: 100%; object-fit: cover; }
-.request-name { flex: 1; font-size: 16px; font-weight: 900; color: #1e293b; }
-.approve-button { background-color: #ecfdf5; color: #10b981; border: 1px solid #a7f3d0; padding: 8px 20px; border-radius: 16px; font-size: 13px; font-weight: 900; cursor: pointer; transition: 0.2s; }
-.approve-button:active { transform: scale(0.95); background-color: #d1fae5; }
+.friend__list-title {
+  font-size: 16px;
+  font-weight: var(--fw-bold);
+  color: var(--c-ink);
+  margin-bottom: 12px;
+}
 
-/* リストコントロール */
-.list-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-.list-title { font-size: 18px; font-weight: 900; color: #0f172a; margin: 0; }
+/* フィルター */
+.controls { display: flex; gap: 10px; margin-bottom: 16px; }
+.select { flex: 1; position: relative; }
+.select select {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-line-bold);
+  background: var(--c-surface);
+  font-size: 13px;
+  font-weight: var(--fw-bold);
+  color: var(--c-text);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+.select::after {
+  content: '▾';
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: var(--c-text-faint);
+  pointer-events: none;
+}
 
-.control-panel { display: flex; gap: 10px; margin-bottom: 20px; }
-.select-wrapper { flex: 1; position: relative; }
-.custom-select { width: 100%; padding: 12px 14px; border-radius: 14px; border: 1px solid #cbd5e1; background-color: white; font-size: 13px; font-weight: 800; color: #475569; outline: none; appearance: none; -webkit-appearance: none; cursor: pointer; }
-.select-wrapper::after { content: '▾'; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: 12px; color: #94a3b8; pointer-events: none; }
-
-.friend-scroll-area { display: flex; flex-direction: column; gap: 12px; flex: 1; }
-.empty-msg { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 0; color: #94a3b8; }
-.empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
-.empty-msg p { margin: 0; font-weight: 800; font-size: 14px; }
+.friend__list { display: flex; flex-direction: column; gap: 12px; }
 </style>

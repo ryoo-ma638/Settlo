@@ -1,5 +1,10 @@
 <template>
     <div class="receipt-card">
+      <div class="receipt-amount-row">
+        <span class="receipt-amount-label">金額</span>
+        <span class="receipt-amount tnum">¥{{ (item.amount || 0).toLocaleString() }}</span>
+      </div>
+      <hr class="divider" />
       <div class="receipt-row"><span>イベント</span><strong>{{ item.eventName || '未設定' }}</strong></div>
       <div class="receipt-row"><span>お相手</span><strong>{{ item.name }}</strong></div>
       <div class="receipt-row"><span>立替え内容</span><strong>{{ item.itemName }}</strong></div>
@@ -17,7 +22,10 @@
   </script>
   
   <style scoped>
-  .receipt-card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+  .receipt-card { background: white; border-radius: var(--r-lg); padding: 20px; box-shadow: var(--shadow-card); }
+  .receipt-amount-row { display: flex; justify-content: space-between; align-items: baseline; }
+  .receipt-amount-label { font-size: 13px; color: var(--c-text-sub); font-weight: var(--fw-bold); }
+  .receipt-amount { font-size: 28px; font-weight: var(--fw-black); color: var(--c-ink); }
   .receipt-row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px; }
   .receipt-row span { color: #64748b; }
   .divider { border: none; border-top: 1px dashed #e2e8f0; margin: 15px 0; }

@@ -1,10 +1,6 @@
 <template>
     <div class="action-container">
-      <header class="detail-header">
-        <button class="back-btn" @click="$router.back()">‹</button>
-        <h1 class="title">トータル精算の実行</h1>
-        <div class="spacer"></div>
-      </header>
+      <PageHeader title="トータル精算" />
   
       <main class="content">
         <div class="summary-card" :class="isRemind ? 'blue-mode' : 'orange-mode'">
@@ -23,7 +19,7 @@
         <footer class="footer-actions">
           <h3 class="section-sub">手渡しの場合</h3>
           <button class="method-btn cash" @click="confirmCash">
-            💵 {{ isRemind ? '現金で受け取った (承認リクエスト)' : '現金で支払った (承認リクエスト)' }}
+            {{ isRemind ? '現金で受け取った (承認リクエスト)' : '現金で支払った (承認リクエスト)' }}
           </button>
         </footer>
       </main>
@@ -44,12 +40,16 @@
   
   <script setup>
   import { computed, reactive } from 'vue'; // 🌟 reactiveを追加
-  import { useRoute } from 'vue-router';
+  import { useRoute, useRouter } from 'vue-router';
+  import { db, auth } from '@/firebase';
+  import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
   import PayPayAction from '../components/PayPayAction.vue';
   import BaseModal from '../components/BaseModal.vue';
-  
+  import PageHeader from '../components/PageHeader.vue';
+
 
   const route = useRoute();
+  const router = useRouter();
   const isRemind = computed(() => route.query.type === 'remind');
   const amount = computed(() => route.query.amount);
   const targetUid = computed(() => route.query.uid);
@@ -73,16 +73,40 @@
   const confirmCash = () => {
     showModal({
       type: 'warning',
-      title: '現金のやり取り確認',
-      message: isRemind.value 
-        ? "現金で受け取りましたか？\n「支払い完了の承認リクエスト」を送ります。"
-        : "現金で支払いましたか？\n「受け取り完了の承認リクエスト」を送ります。",
+      title: '現金で精算',
+      message: isRemind.value
+        ? "この相手との貸し借りを現金で受け取って精算しますか？\nこの相手との未決済をすべて「完了」にします。"
+        : "この相手との貸し借りを現金で支払って精算しますか？\nこの相手との未決済をすべて「完了」にします。",
       showCancel: true,
       confirmText: isRemind.value ? '受け取った' : '支払った',
-      onConfirm: () => {
-        setTimeout(() => {
-          showModal({ type: 'success', title: '送信完了', message: '承認リクエストを送信しました！' });
-        }, 300);
+      onConfirm: async () => {
+        try {
+          const myUid = auth.currentUser?.uid;
+          const friendUid = route.query.uid;
+          if (!myUid || !friendUid) {
+            showModal({ type: 'error', title: 'エラー', message: '相手の情報が取得できませんでした。' });
+            return;
+          }
+          // この相手との未決済取引（両方向）をすべて完了にする＝ネット精算
+          const ids = new Set();
+          const s1 = await getDocs(query(collection(db, "transactions"), where("paidToId", "==", myUid)));
+          s1.forEach((d) => { const t = d.data(); if (t.paidById === friendUid && (t.status || 'unpaid') !== 'completed') ids.add(d.id); });
+          const s2 = await getDocs(query(collection(db, "transactions"), where("paidById", "==", myUid)));
+          s2.forEach((d) => { const t = d.data(); if (t.paidToId === friendUid && (t.status || 'unpaid') !== 'completed') ids.add(d.id); });
+
+          for (const id of ids) {
+            await updateDoc(doc(db, "transactions", id), { status: 'completed' });
+          }
+
+          showModal({
+            type: 'success', title: '精算完了',
+            message: `${ids.size}件の取引を完了にしました！`,
+            onConfirm: () => router.push('/')
+          });
+        } catch (e) {
+          console.error("精算エラー:", e);
+          showModal({ type: 'error', title: 'エラー', message: '精算に失敗しました。電波状況を確認してください。' });
+        }
       }
     });
   };
@@ -103,34 +127,29 @@
   
 <style scoped>
 /* 🌟 overflow-x: hidden; を追加して横揺れを完全にブロック */
-.action-container { 
-  background: #f8fafc; 
-  min-height: 100vh; 
-  width: 100%; 
-  box-sizing: border-box; 
-  overflow-x: hidden; 
-}
-
-/* 🌟 width: 100% と box-sizing を追加して、パディングを内側に収める */
-.content { 
-  padding: 20px; 
+.action-container {
+  background: var(--c-bg);
   width: 100%;
-  box-sizing: border-box; 
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
-/* --- 以下はそのまま --- */
-.summary-card { padding: 30px; border-radius: 20px; color: white; text-align: center; margin-bottom: 25px; }
-.blue-mode { background: linear-gradient(135deg, #3b82f6, #2563eb); }
-.orange-mode { background: linear-gradient(135deg, #f59e0b, #d97706); }
-.summary-label { font-size: 14px; margin-bottom: 5px; opacity: 0.9; }
-.total-amount { font-size: 44px; font-weight: bold; margin: 0 0 10px 0; }
-.hint-badge { background: rgba(255,255,255,0.2); display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 11px; }
+.content {
+  padding: 8px var(--pad) 28px;
+  width: 100%;
+  box-sizing: border-box;
+}
 
-.section-sub { font-size: 16px; font-weight: bold; margin: 20px 0 10px; color: #1e293b; }
-.method-btn { width: 100%; padding: 16px; border-radius: 14px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; }
-.cash { background-color: #1e293b; color: white; }
+.summary-card { padding: 24px; border-radius: var(--r-lg); color: white; text-align: center; margin-bottom: 22px; }
+.blue-mode { background: var(--c-receive); }
+.orange-mode { background: var(--c-pay); }
+.summary-label { font-size: 14px; margin-bottom: 5px; opacity: 0.92; font-weight: var(--fw-medium); }
+.total-amount { font-size: 40px; font-weight: var(--fw-black); margin: 0 0 10px 0; }
+.hint-badge { background: rgba(255,255,255,0.22); display: inline-block; padding: 4px 12px; border-radius: var(--r-pill); font-size: 11px; font-weight: var(--fw-bold); }
+
+.section-sub { font-size: 15px; font-weight: var(--fw-bold); margin: 18px 0 10px; color: var(--c-ink); }
+.method-btn { width: 100%; padding: 16px; border-radius: var(--r-md); border: none; font-weight: var(--fw-bold); font-size: 16px; cursor: pointer; }
+.cash { background-color: var(--c-brand); color: white; }
 .paypay { background-color: #ff0033; color: white; }
-.footer-actions { margin-top: 30px; }
-.detail-header { display: flex; align-items: center; padding: 10px 15px; background: white; }
-.back-btn { background: none; border: none; font-size: 32px; color: #64748b; }
+.footer-actions { margin-top: 26px; }
 </style>

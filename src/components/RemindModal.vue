@@ -15,7 +15,7 @@
             <label class="radio-card" :class="{ active: remindType === 'asap' }">
               <input type="radio" value="asap" v-model="remindType" class="hidden-radio">
               <div class="card-content">
-                <span class="icon">🚨</span>
+                <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg></span>
                 <div class="text">
                   <h4>至急</h4>
                   <p>なるべく早く支払うよう伝えます</p>
@@ -26,7 +26,7 @@
             <label class="radio-card" :class="{ active: remindType === 'days' }">
               <input type="radio" value="days" v-model="remindType" class="hidden-radio">
               <div class="card-content">
-                <span class="icon">⏳</span>
+                <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></span>
                 <div class="text">
                   <h4>日数で指定</h4>
                   <p>指定した日数以内のお支払いを求めます</p>
@@ -40,7 +40,7 @@
             <label class="radio-card" :class="{ active: remindType === 'date' }">
               <input type="radio" value="date" v-model="remindType" class="hidden-radio">
               <div class="card-content">
-                <span class="icon">📅</span>
+                <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg></span>
                 <div class="text">
                   <h4>日付で指定</h4>
                   <p>指定した期日までのお支払いを求めます</p>
@@ -88,20 +88,11 @@ const handleConfirmModal = () => {
 };
 
 const handleSend = () => {
-  let message = '至急の';
-  if (remindType.value === 'days') message = `${days.value}日以内の`;
-  if (remindType.value === 'date') message = `${date.value}までの`;
-  
-  // 🌟 alert を美しいモーダルに
-  showModal({
-    type: 'success',
-    title: '送信完了',
-    message: `${message}支払い催促を相手に送信しました！`,
-    onConfirm: () => {
-      emit('close');
-      emit('send'); 
-    }
-  });
+  let deadline = '至急';
+  if (remindType.value === 'days') deadline = `${days.value || '数'}日以内`;
+  if (remindType.value === 'date') deadline = `${date.value || ''}まで`;
+  // 実際の通知送信は親（呼び出し元）が行う
+  emit('send', { deadline });
 };
 </script>
 
@@ -118,7 +109,9 @@ const handleSend = () => {
 .radio-card { display: block; background: white; border: 2px solid #e2e8f0; border-radius: 20px; padding: 16px; cursor: pointer; transition: 0.2s; }
 .radio-card.active { border-color: #ef4444; background: #fef2f2; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.1); }
 .card-content { display: flex; align-items: center; gap: 15px; }
-.icon { font-size: 24px; }
+.icon { color: var(--c-text-sub); display: flex; flex-shrink: 0; }
+.icon svg { width: 24px; height: 24px; }
+.radio-card.active .icon { color: var(--c-danger); }
 .text h4 { margin: 0 0 4px 0; font-size: 15px; font-weight: 900; color: #1e293b; }
 .text p { margin: 0; font-size: 11px; color: #64748b; font-weight: bold; }
 .radio-card.active .text h4 { color: #ef4444; }
