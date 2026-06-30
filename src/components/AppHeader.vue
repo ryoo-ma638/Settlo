@@ -1,118 +1,96 @@
 <template>
-  <AppSidebar 
-    :isOpen="isSidebarOpen" 
-    @close="isSidebarOpen = false" 
-    @open-notification="handleOpenNotification"
-  />
+  <header class="topbar">
+    <button class="topbar__avatar" @click="navigate('/mypage')" aria-label="マイページ">
+      <img v-if="userPhoto" :src="userPhoto" alt="" />
+      <span v-else class="topbar__avatar-fallback">{{ initial }}</span>
+    </button>
 
-  <header class="header">
-    
-    <div class="header-left">
-      <div class="user-icon-container" @click="navigate('/mypage')">
-        <img :src="userPhoto" class="user-circle" />
-        <span class="user-name">{{ userName || '名前' }}</span>
-      </div>
-    </div>
+    <h1 class="topbar__brand" @click="navigate('/')">Settlo</h1>
 
-    <div class="header-center">
-      <h1 class="app-title" @click="navigate('/')">Settlo</h1>
-    </div>
-
-    <div class="header-right">
+    <div class="topbar__right">
       <NotificationIcon ref="notifRef" />
-      
-      <button class="icon-btn" @click="isSidebarOpen = true" aria-label="メニューを開く">
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="3" y1="12" x2="21" y2="12"></line>
-          <line x1="3" y1="6" x2="21" y2="6"></line>
-          <line x1="3" y1="18" x2="21" y2="18"></line>
-        </svg>
-      </button>
     </div>
-
   </header>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import AppSidebar from './AppSidebar.vue';
 import NotificationIcon from './NotificationIcon.vue';
 import { auth, db } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore"; // 🌟 追加
+import { doc, onSnapshot } from "firebase/firestore";
 
 const router = useRouter();
-const isSidebarOpen = ref(false);
-const notifRef = ref(null); // お知らせコンポーネントを操作するための参照
-
+const notifRef = ref(null);
 const userName = ref("");
 const userPhoto = ref("");
 
-const navigate = (path) => {
-router.push(path);
-};
+const initial = computed(() => (userName.value || "U").trim().charAt(0).toUpperCase());
+
+const navigate = (path) => { router.push(path); };
 
 onMounted(() => {
   onAuthStateChanged(auth, (user) => {
     if (user) {
-      // 🌟 Firestoreのユーザー情報をリアルタイム監視
       const userDocRef = doc(db, "users", user.uid);
       onSnapshot(userDocRef, (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
-          userName.value = data.name || user.displayName || "名前";
-          userPhoto.value = data.photo || user.photoURL || "https://via.placeholder.com/150";
+          userName.value = data.name || user.displayName || "";
+          userPhoto.value = data.photo || user.photoURL || "";
         }
       });
     }
   });
 });
-// 🌟 サイドバーで「お知らせ」が押された時の処理
-const handleOpenNotification = () => {
-isSidebarOpen.value = false; // 先にメニューを閉じる
-// メニューが閉じるアニメーションを待ってからお知らせを開く
-setTimeout(() => {
-  notifRef.value?.open();
-}, 200);
-};
 </script>
 
 <style scoped>
-/* ヘッダー全体（スクロール追従・ぼかし効果） */
-.header {
-position: sticky; top: 0; z-index: 1000; display: flex; justify-content: space-between; align-items: center;
-padding: 10px 20px; background-color: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px);
-box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); height: 75px; box-sizing: border-box;
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  height: var(--header-h);
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0 16px;
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-line);
 }
 
-.header-left, .header-right { flex: 1; display: flex; align-items: center; }
-.header-left { justify-content: flex-start; }
-.header-right { justify-content: flex-end; gap: 15px; }
-.header-center { flex: 2; text-align: center; }
-
-.user-icon-container { display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: opacity 0.2s; }
-.user-icon-container:active { opacity: 0.5; }
-.user-circle { 
-  width: 40px; 
-  height: 40px; 
-  background-color: #e3a8a8; 
-  border-radius: 50%; 
-  object-fit: cover; /* 🌟 画像が縦横に伸びないように追加 */
+.topbar__avatar {
+  justify-self: start;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--c-brand-tint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.12s ease;
+}
+.topbar__avatar:active { transform: scale(0.92); }
+.topbar__avatar img { width: 100%; height: 100%; object-fit: cover; }
+.topbar__avatar-fallback {
+  font-size: 15px;
+  font-weight: var(--fw-bold);
+  color: var(--c-brand-strong);
 }
 
-.user-name { font-size: 11px; color: #333; margin-top: 4px; font-weight: bold; }
-.app-title { 
-  font-size: 26px; font-weight: 900; color: #059669; margin: 0; letter-spacing: 1px; 
-  cursor: pointer; transition: opacity 0.2s; 
-}
-.app-title:active {
-  opacity: 0.5; 
+.topbar__brand {
+  font-size: 22px;
+  font-weight: var(--fw-black);
+  letter-spacing: 0.03em;
+  color: var(--c-brand-strong);
+  cursor: pointer;
 }
 
-.icon-btn {
-background: none; border: none; padding: 5px; cursor: pointer; color: #334155; position: relative;
-display: flex; align-items: center; justify-content: center; transition: transform 0.2s, color 0.2s;
+.topbar__right {
+  justify-self: end;
+  display: flex;
+  align-items: center;
 }
-.icon-btn:active { transform: scale(0.9); color: #059669; }
 </style>

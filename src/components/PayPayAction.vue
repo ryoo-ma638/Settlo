@@ -13,7 +13,7 @@
         </div>
         <div v-else class="link-display-area">
           <button @click="copyMyLink" class="method-btn paypay">
-            📱 自分の請求リンクをコピー
+            自分の請求リンクをコピー
           </button>
           <button class="edit-text-btn" @click="startEdit">リンクを再登録する</button>
         </div>
@@ -26,7 +26,7 @@
           :class="{ 'disabled': !opponentPayPayLink }"
           :disabled="!opponentPayPayLink"
         >
-          📱 PayPayで支払う {{ !opponentPayPayLink ? '(相手がリンク未登録)' : '' }}
+          PayPayで支払う {{ !opponentPayPayLink ? '(相手がリンク未登録)' : '' }}
         </button>
       </template>
   
@@ -153,7 +153,7 @@
   .link-input-area { display: flex; gap: 8px; align-items: center; }
   .paypay-input { flex: 1; padding: 14px 12px; border: 1px solid #cbd5e1; border-radius: 12px; font-size: 14px; outline: none; }
   .paypay-input:focus { border-color: #ff0033; }
-  .save-btn { background: #1e293b; color: white; border: none; padding: 0 16px; height: 46px; border-radius: 12px; font-weight: bold; cursor: pointer; }
+  .save-btn { background: var(--c-brand); color: white; border: none; padding: 0 16px; height: 46px; border-radius: 12px; font-weight: bold; cursor: pointer; }
   .cancel-btn { background: #e2e8f0; color: #64748b; border: none; width: 46px; height: 46px; border-radius: 12px; font-weight: bold; cursor: pointer; }
   .link-display-area { display: flex; flex-direction: column; align-items: center; }
   .edit-text-btn { background: none; border: none; color: #64748b; font-size: 12px; margin-top: 10px; text-decoration: underline; cursor: pointer; }

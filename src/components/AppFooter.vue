@@ -1,57 +1,103 @@
 <template>
-  <nav class="bottom-nav">
-    <div class="nav-item" :class="{ active: $route.path === '/' }" @click="$router.push('/')">
-      <span class="icon">🏠</span>
-      <span class="text">ホーム</span>
-    </div>
-    <div class="nav-item" :class="{ active: $route.path === '/payment' }" @click="$router.push('/payment')">
-      <span class="icon">💳</span>
-      <span class="text">支払い</span>
-    </div>
-    <div class="nav-item" :class="{ active: $route.path === '/friend' }" @click="$router.push('/friend')">
-      <span class="icon">👥</span>
-      <span class="text">フレンド＆精算</span>
-    </div>
+  <nav class="botnav">
+    <button class="botnav__tab" :class="{ 'is-active': isActive('/') }" @click="go('/')">
+      <svg viewBox="0 0 24 24" class="botnav__icon"><path d="M3 9.5 12 3l9 6.5"/><path d="M5 8.8V21h14V8.8"/></svg>
+      <span>ホーム</span>
+    </button>
+
+    <button class="botnav__tab" :class="{ 'is-active': isActive('/event') }" @click="go('/event')">
+      <svg viewBox="0 0 24 24" class="botnav__icon"><rect x="3.5" y="5" width="17" height="16" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>
+      <span>イベント</span>
+    </button>
+
+    <button class="botnav__fab" @click="go('/make-event')" aria-label="新規イベント作成">
+      <svg viewBox="0 0 24 24" class="botnav__fab-icon"><path d="M12 6v12M6 12h12"/></svg>
+    </button>
+
+    <button class="botnav__tab" :class="{ 'is-active': isActive('/payment') }" @click="go('/payment')">
+      <svg viewBox="0 0 24 24" class="botnav__icon"><rect x="2.5" y="5.5" width="19" height="13" rx="3"/><path d="M2.5 10h19"/></svg>
+      <span>支払い</span>
+    </button>
+
+    <button class="botnav__tab" :class="{ 'is-active': isActive('/friend') }" @click="go('/friend')">
+      <svg viewBox="0 0 24 24" class="botnav__icon"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20v-1.2A4.3 4.3 0 0 1 7.8 14.5h2.4a4.3 4.3 0 0 1 4.3 4.3V20"/><path d="M16.5 5.2a3.4 3.4 0 0 1 0 6.4M17.4 14.6a4.3 4.3 0 0 1 3.1 4.2V20"/></svg>
+      <span>フレンド</span>
+    </button>
   </nav>
 </template>
 
+<script setup>
+import { useRoute, useRouter } from 'vue-router';
+
+const route = useRoute();
+const router = useRouter();
+
+const go = (path) => { if (route.path !== path) router.push(path); };
+
+const isActive = (path) => {
+  if (path === '/') return route.path === '/';
+  return route.path.startsWith(path);
+};
+</script>
+
 <style scoped>
-.bottom-nav { 
-  position: fixed; 
-  bottom: 0; 
-  width: 100%; 
-  max-width: inherit; /* 🌟 PC版の時にカラムからはみ出さないようにする */
-  height: 85px; 
-  background-color: white; 
-  display: flex; /* 🌟 space-around は削除 */
-  align-items: center; 
-  border-top: 1px solid #e2e8f0; 
-  border-radius: 25px 25px 0 0; 
-  z-index: 100; 
+.botnav {
+  flex-shrink: 0;
+  height: var(--nav-h);
+  display: flex;
+  align-items: stretch;
+  background: var(--c-surface);
+  border-top: 1px solid var(--c-line);
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
-.nav-item { 
-  flex: 1; /* 🌟 ここが一番重要！画面を完全に3等分します */
+.botnav__tab {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  text-align: center; 
-  color: #94a3b8; /* 非アクティブ時は少し薄い色に */
-  cursor: pointer; 
-  font-weight: bold; 
-  gap: 4px; /* アイコンと文字の隙間 */
+  gap: 3px;
+  color: var(--c-text-faint);
+  font-size: 10.5px;
+  font-weight: var(--fw-medium);
+  transition: color 0.15s ease;
+}
+.botnav__tab.is-active { color: var(--c-brand); font-weight: var(--fw-bold); }
+
+.botnav__icon {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.icon {
-  font-size: 24px;
+/* 中央の新規作成ボタン（FAB） */
+.botnav__fab {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 54px;
+  height: 54px;
+  margin: 0 6px;
+  border-radius: 50%;
+  background: var(--c-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-14px);
+  box-shadow: 0 8px 18px rgba(5, 150, 105, 0.4);
+  transition: transform 0.12s ease, background-color 0.2s ease;
 }
-
-.text {
-  font-size: 10px; /* 長い文字でも改行されないように少し小さく */
-}
-
-.nav-item.active { 
-  color: #2169a3; /* Settloのテーマカラーに変更 */
+.botnav__fab:active { transform: translateY(-14px) scale(0.93); background: var(--c-brand-strong); }
+.botnav__fab-icon {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.4;
+  stroke-linecap: round;
 }
 </style>

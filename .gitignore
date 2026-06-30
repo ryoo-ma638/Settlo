@@ -41,3 +41,6 @@ __screenshots__/
 service-account.json
 
 .env.dev
+
+# Playwright/MCP のテスト残骸（スクショ・ログ）
+.playwright-mcp/

@@ -1,104 +1,102 @@
 <template>
-    <div class="edit-profile-container">
-      <header class="detail-header">
-        <button class="back-btn" @click="$router.back()">‹</button>
-        <h1 class="title">プロフィール編集</h1>
-        <div class="spacer"></div>
-      </header>
-  
-      <main class="content">
-        <div class="avatar-edit-section">
-          <img :src="previewPhoto || userPhoto" class="user-circle-large" />
-          
-          <button class="upload-btn" @click="showPhotoOptions = true">
-            📷 画像を変更する
-          </button>
+  <div class="edit">
+    <PageHeader title="プロフィール編集" fallback="/mypage" />
+
+    <main class="edit__body">
+      <div class="edit__avatar-area">
+        <div class="edit__avatar">
+          <img :src="previewPhoto || userPhoto" alt="" />
         </div>
-  
-        <div class="input-group">
-          <label class="input-label">名前</label>
-          <input type="text" v-model="newName" class="custom-input" placeholder="新しい名前を入力" />
-        </div>
-  
-        <button class="save-btn" @click="saveProfile">保存する</button>
-      </main>
-  
-      <Teleport to="body">
+        <button class="edit__upload" @click="showPhotoOptions = true">
+          <svg viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.2"/></svg>
+          画像を変更
+        </button>
+      </div>
+
+      <div class="field">
+        <label class="field__label">名前</label>
+        <input type="text" v-model="newName" class="input" placeholder="新しい名前を入力" />
+      </div>
+
+      <button class="btn-brand edit__save" @click="saveProfile">保存する</button>
+    </main>
+
+    <Teleport to="body">
+      <transition name="sheet">
         <div v-if="showPhotoOptions" class="overlay" @click.self="showPhotoOptions = false">
-          <div class="action-sheet">
-            <button class="sheet-btn" @click="triggerCamera">📷 カメラで写真を撮る</button>
-            <button class="sheet-btn" @click="triggerLibrary">🖼 アルバムから選ぶ</button>
-            <button class="sheet-btn cancel" @click="showPhotoOptions = false">キャンセル</button>
+          <div class="sheet">
+            <button class="sheet__btn" @click="triggerCamera">
+              <svg viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.2"/></svg>
+              カメラで撮影
+            </button>
+            <button class="sheet__btn" @click="triggerLibrary">
+              <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="M21 16l-5-5-9 8"/></svg>
+              アルバムから選ぶ
+            </button>
+            <button class="sheet__btn sheet__btn--cancel" @click="showPhotoOptions = false">キャンセル</button>
           </div>
         </div>
-      </Teleport>
-  
-      <input ref="fileInputLibrary" type="file" accept="image/*" style="display: none;" @change="onFileChange" />
-      <input ref="fileInputCamera" type="file" accept="image/*" capture="environment" style="display: none;" @change="onFileChange" />
-    </div>
-  </template>
-  
-  <script setup>
-  import { ref, onMounted } from 'vue';
-  import { auth, db } from "../firebase"; // 🌟 db を追加
-  import { doc, getDoc, updateDoc } from "firebase/firestore"; // 🌟 Firestore用関数を追加
-  import { useRouter } from "vue-router"; // 🌟 ルーターを追加
-  
-  const router = useRouter();
-  const newName = ref("");
-  const userPhoto = ref("");
-  const previewPhoto = ref(null);
-  
-  // UI制御用の変数
-  const showPhotoOptions = ref(false);
-  const fileInputLibrary = ref(null);
-  const fileInputCamera = ref(null);
-  
+      </transition>
+    </Teleport>
+
+    <input ref="fileInputLibrary" type="file" accept="image/*" style="display: none;" @change="onFileChange" />
+    <input ref="fileInputCamera" type="file" accept="image/*" capture="environment" style="display: none;" @change="onFileChange" />
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted } from 'vue';
+import { auth, db } from "../firebase";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { useRouter } from "vue-router";
+import PageHeader from "../components/PageHeader.vue";
+
+const router = useRouter();
+const newName = ref("");
+const userPhoto = ref("");
+const previewPhoto = ref(null);
+
+const showPhotoOptions = ref(false);
+const fileInputLibrary = ref(null);
+const fileInputCamera = ref(null);
+
 onMounted(async () => {
   const user = auth.currentUser;
   if (user) {
-    // 🌟 Firestore から最新のデータを直接取得
     const userDocRef = doc(db, "users", user.uid);
     const userSnap = await getDoc(userDocRef);
-    
+
     if (userSnap.exists()) {
       const data = userSnap.data();
-      // 🌟 フィールド名を 'photo' に修正
       newName.value = data.name || "";
-      userPhoto.value = data.photo || "https://via.placeholder.com/150";
+      userPhoto.value = data.photo || "";
     } else {
-      // 予備として Auth の情報を使う
       newName.value = user.displayName || "";
-      userPhoto.value = user.photoURL || "https://via.placeholder.com/150";
+      userPhoto.value = user.photoURL || "";
     }
   }
 });
-  
-  // 🌟 アルバムを開く処理
-  const triggerLibrary = () => {
-    showPhotoOptions.value = false;
-    fileInputLibrary.value.click();
-  };
-  
-  // 🌟 カメラを起動する処理（許可ダイアログ付き）
-  const triggerCamera = () => {
-    showPhotoOptions.value = false;
-    // 擬似的な許可ダイアログを出して確認する
-    if (confirm("Settlo がカメラへのアクセスを求めています。\n許可しますか？")) {
-      fileInputCamera.value.click();
-    }
-  };
-  
-  // 画像が選択された時にプレビューを表示する処理
-  const onFileChange = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      previewPhoto.value = URL.createObjectURL(file);
-      // TODO: 後でここにFirebaseへのアップロード処理を書く
-    }
-  };
-  
-  // 🌟 プロフィール保存処理
+
+const triggerLibrary = () => {
+  showPhotoOptions.value = false;
+  fileInputLibrary.value.click();
+};
+
+const triggerCamera = () => {
+  showPhotoOptions.value = false;
+  if (confirm("Settlo がカメラへのアクセスを求めています。\n許可しますか？")) {
+    fileInputCamera.value.click();
+  }
+};
+
+const onFileChange = (event) => {
+  const file = event.target.files[0];
+  if (file) {
+    previewPhoto.value = URL.createObjectURL(file);
+    // TODO: 後でここにFirebaseへのアップロード処理を書く
+  }
+};
+
 const saveProfile = async () => {
   const user = auth.currentUser;
   const nameToSave = newName.value.trim();
@@ -111,71 +109,105 @@ const saveProfile = async () => {
   try {
     if (user) {
       const userDocRef = doc(db, "users", user.uid);
-      
-      // 🌟 Firestore を更新
       await updateDoc(userDocRef, {
         name: nameToSave,
-        // photo フィールドも更新対象ならここに入れる
       });
 
       alert("プロフィールを保存しました！");
-      // 🌟 確実に保存が終わってから戻る
-      router.replace("/mypage"); 
+      router.replace("/mypage");
     }
   } catch (error) {
     console.error("❌ 保存エラー:", error);
     alert("保存に失敗しました。サーバーが起動しているか確認してください。");
   }
 };
-  </script>
-  
-  <style scoped>
-  /* 🌟 全体のコンテナ */
-  .edit-profile-container { 
-    background: #f8fafc; 
+</script>
 
+<style scoped>
+.edit__body { padding: 12px var(--pad) 28px; }
 
-    box-sizing: border-box; 
-    display: flex;
-    flex-direction: column;
-  }
-  
-  /* ヘッダー */
-  .detail-header { display: flex; align-items: center; padding: 10px 15px; background: white; }
-  .back-btn { background: none; border: none; font-size: 32px; color: #64748b; cursor: pointer; }
-  .title { flex: 1; text-align: center; font-size: 18px; font-weight: bold; margin: 0; padding-right: 32px; }
-  .spacer { display: none; }
-  
-  /* 🌟 コンテンツの中央配置の要 */
-  .content { 
-    flex: 1; 
-    padding: 30px 20px 5px 20px; /* 下部にフッター分の余白（100px）を空ける */
-    width: 100%;
-    max-width: 500px; /* PC画面でも横に広がりすぎないように制限 */
-    margin: 0 auto; /* 左右の余白を均等にして中央揃え */
-    box-sizing: border-box; 
-    display: flex; 
-    flex-direction: column; 
-    align-items: center; /* 中身の要素を中央に揃える */
-  }
-  
-  /* アバター部分 */
-  .avatar-edit-section { display: flex; flex-direction: column; align-items: center; margin-bottom: 5px; }
-  .user-circle-large { width: 120px; height: 120px; background-color: #e2e8f0; border-radius: 50%; object-fit: cover; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-  .upload-btn { background: white; border: 1px solid #cbd5e1; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: bold; color: #1e293b; cursor: pointer; transition: 0.2s; }
-  
-  /* 🌟 入力フォーム（幅100%にして、親要素のmax-widthに従わせる） */
-  .input-group { width: 100%; margin-bottom: 15px; }
-  .input-label { display: block; font-size: 14px; font-weight: bold; color: #64748b; margin-bottom: 8px; text-align: left; }
-  .custom-input { width: 100%; padding: 15px; border-radius: 12px; border: 1px solid #cbd5e1; font-size: 16px; box-sizing: border-box; }
-  .custom-input:focus { outline: none; border-color: #2169a3; box-shadow: 0 0 0 2px rgba(33, 105, 163, 0.2); }
-  
-  /* 🌟 保存ボタン（幅100%） */
-  .save-btn { width: 100%; padding: 16px; border-radius: 16px; border: none; background: #2169a3; color: white; font-size: 16px; font-weight: bold; cursor: pointer; }
-  
-  /* 🌟 アクションシート（画面下から出てくるメニュー） */
-  .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: flex-end; z-index: 3000; }
-  .action-sheet { background: #f8fafc; width: 100%; padding: 20px; border-radius: 20px 20px 0 0; box-sizing: border-box; }
-  .sheet-btn { width: 100%; padding: 18px; background: white; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; margin-bottom: 10px; cursor: pointer; color: #1e293b; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
-  .sheet-btn.cancel { background: #e2e8f0; color: #64748b; margin-top: 10px; }
-  </style>
+.edit__avatar-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 8px 0 26px;
+}
+.edit__avatar {
+  width: 110px; height: 110px; border-radius: 50%;
+  overflow: hidden; background: var(--c-brand-tint);
+  box-shadow: var(--shadow-card); margin-bottom: 14px;
+}
+.edit__avatar img { width: 100%; height: 100%; object-fit: cover; }
+.edit__upload {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--c-surface); border: 1px solid var(--c-line-bold);
+  padding: 9px 16px; border-radius: var(--r-pill);
+  font-size: 14px; font-weight: var(--fw-bold); color: var(--c-text);
+  box-shadow: var(--shadow-sm);
+}
+.edit__upload:active { transform: scale(0.97); }
+.edit__upload svg {
+  width: 17px; height: 17px;
+  fill: none; stroke: var(--c-brand); stroke-width: 1.8; stroke-linejoin: round;
+}
+
+.field { margin-bottom: 22px; }
+.field__label {
+  display: block; font-size: 13px; font-weight: var(--fw-bold);
+  color: var(--c-text-sub); margin-bottom: 8px;
+}
+.input {
+  width: 100%;
+  background: var(--c-surface);
+  border: 1px solid var(--c-line-bold);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  font-size: 15px;
+  font-weight: var(--fw-medium);
+  color: var(--c-ink);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.input::placeholder { color: var(--c-text-faint); font-weight: var(--fw-regular); }
+.input:focus {
+  outline: none;
+  border-color: var(--c-brand);
+  box-shadow: 0 0 0 3px var(--c-brand-weak);
+}
+
+.edit__save { margin-top: 6px; }
+
+/* アクションシート */
+.overlay {
+  position: fixed; inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex; align-items: flex-end;
+  z-index: 3000;
+}
+.sheet {
+  background: var(--c-bg);
+  width: 100%;
+  max-width: var(--app-max);
+  margin: 0 auto;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0));
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+}
+.sheet__btn {
+  width: 100%;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 16px;
+  background: var(--c-surface);
+  border-radius: var(--r-md);
+  font-size: 15px; font-weight: var(--fw-bold); color: var(--c-ink);
+  margin-bottom: 10px;
+  box-shadow: var(--shadow-sm);
+}
+.sheet__btn:active { transform: scale(0.98); }
+.sheet__btn svg {
+  width: 19px; height: 19px;
+  fill: none; stroke: var(--c-brand); stroke-width: 1.8; stroke-linejoin: round;
+}
+.sheet__btn--cancel { background: var(--c-surface-2); color: var(--c-text-sub); margin-top: 6px; margin-bottom: 0; }
+
+.sheet-enter-active, .sheet-leave-active { transition: opacity 0.2s ease; }
+.sheet-enter-from, .sheet-leave-to { opacity: 0; }
+</style>

@@ -1,10 +1,6 @@
 <template>
   <div class="event-detail-container">
-    <header class="detail-header">
-      <button class="back-btn" @click="$router.back()">‹</button>
-      <h1 class="title">イベント詳細</h1>
-      <div class="spacer"></div>
-    </header>
+    <PageHeader title="イベント詳細" />
 
     <main class="content">
       <div class="summary-card">
@@ -215,7 +211,7 @@
             
             <section v-if="selectedSummary.status === 'completed'" class="completed-section">
               <div class="completed-card">
-                <span class="completed-icon">✅</span>
+                <span class="completed-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>
                 <h3 class="completed-title">この取引は完了しています</h3>
               </div>
             </section>
@@ -231,7 +227,7 @@
 
       <div v-if="modals.unpaidWarning" class="modal-overlay" style="z-index: 2000;" @click.self="modals.unpaidWarning = false">
         <div class="modal-content slide-up warning-modal">
-          <div class="modal-header"><h3 class="warning-title">⚠️ 未完済の取引があります</h3></div>
+          <div class="modal-header"><h3 class="warning-title">未完済の取引があります</h3></div>
           <p class="warning-desc">以下の取引がまだ精算されていません。本当に終了しますか？</p>
           <div class="warning-actions">
             <button class="danger-btn" @click="forceEndEvent">終了リクエストを送る</button>
@@ -279,6 +275,7 @@ import AddPaymentModal from '@/components/AddPaymentModal.vue';
 import ReceiptPaymentModal from '@/components/ReceiptPaymentModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
 import BaseModal from '@/components/BaseModal.vue'; // 🌟 統一モーダルを追加！
+import PageHeader from '@/components/PageHeader.vue';
 
 // 🌟 どこからでも呼べる美しいアラートの準備
 const alertState = reactive({ show: false, type: 'info', title: '', message: '' });
@@ -294,7 +291,7 @@ import { httpsCallable } from "firebase/functions";
 import { functions } from "@/firebase";
 // 🌟 修正：auth（ユーザー情報）を使えるように追加しました！
 import { db, auth } from '../firebase'; 
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, updateDoc, increment } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, updateDoc, increment, deleteDoc, getDocs, where } from 'firebase/firestore';
 
 // 🌟 あなたが作った最強の計算ツールを読み込む！
 import { useSettlement } from '../composables/useSettlement';
@@ -359,11 +356,17 @@ const openSummaryDetail = (s) => { selectedSummary.value = s; modals.value.summa
 // ==========================================
 const markAsCompleted = async (id) => {
   try {
-    const eventId = route.params.id || "test-event-1"; 
-    const docRef = doc(db, "events", eventId, "history", id);
-    await updateDoc(docRef, { status: 'completed' });
-    console.log("✅ 決済完了！Firestoreを更新しました");
-    modals.value.historyDetail = false; 
+    const eventId = route.params.id || "test-event-1";
+    const hist = eventData.value.history.find(h => h.id === id);
+    const txIds = hist?.transactionIds || [];
+    // 🌟 紐づく取引(transactions)を完了にする（履歴/サマリーのstatusはここから導出される）
+    for (const tid of txIds) {
+      await updateDoc(doc(db, "transactions", tid), { status: 'completed' });
+    }
+    // 履歴ドキュメントのstatusもキャッシュとして更新
+    await updateDoc(doc(db, "events", eventId, "history", id), { status: 'completed' });
+    if (hist) hist.status = 'completed'; // ローカルにも即反映
+    modals.value.historyDetail = false;
   } catch (error) {
     console.error("更新エラー:", error);
     showAlert('error', '更新エラー', '決済の更新に失敗しました。電波状況を確認してください。');
@@ -378,17 +381,41 @@ const addHistory = async (newPayment) => {
     const myUid = auth.currentUser?.uid;
     if (!myUid) throw new Error("ログインセッションが切れています");
 
-    // 🌟 1. 全体取引履歴への保存 (PaymentHistoryView用)
-    await addDoc(collection(db, "transactions"), {
-      paidById: myUid,
-      paidByName: newPayment.payer,
-      itemName: newPayment.itemName,
-      amount: Number(newPayment.amount),
-      date: newPayment.date,
-      createdAt: serverTimestamp(),
-      involvedUsers: [myUid, "group_event"],
-      eventId: eventId
-    });
+    const totalAmount = Number(newPayment.amount);
+
+    // 🌟 割り勘の対象者 = イベント本体の participants（UIDの配列）
+    const participantUids = eventData.value.participants.map(p => p.id);
+    if (participantUids.length === 0) {
+      throw new Error("参加者情報がまだ読み込まれていません");
+    }
+
+    // 立替者（債権者）は操作者自身に固定（A-4でモーダルから立替者UIDを受け取るまでの暫定仕様）
+    const creditorUid = myUid;
+    const debtorUids = participantUids.filter((uid) => uid !== creditorUid);
+
+    // 1人あたりの負担額は切り捨て。端数は立替者の自己負担に吸収する（案a）
+    const splitAmount = Math.floor(totalAmount / participantUids.length);
+
+    // ⚠️ A-4で正式対応するまでの暫定処理：
+    // 'item'（商品ごと）/'custom'（金額指定）も現時点では均等割りとして生成する。
+    // 暫定生成分は isProvisional: true を付け、A-4実装時に特定して作り直せるようにする。
+    const isProvisional = newPayment.splitType !== 'all';
+
+    // 🌟 1. 債務者1人につき1件、transactions を生成（HomeView/MoneyPage が読む正データ）
+    const transactionIds = [];
+    for (const debtorUid of debtorUids) {
+      const txRef = await addDoc(collection(db, "transactions"), {
+        paidById: debtorUid,        // 債務者（払う人）
+        paidToId: creditorUid,      // 債権者（立て替えた人）
+        amount: splitAmount,
+        status: "unpaid",
+        eventId: eventId,
+        itemName: newPayment.itemName,
+        createdAt: serverTimestamp(),
+        isProvisional: isProvisional
+      });
+      transactionIds.push(txRef.id);
+    }
 
     // 🌟 2. このイベント内の「立て替え履歴」サブコレクションへ保存
     const historyRef = collection(db, "events", eventId, "history");
@@ -401,7 +428,8 @@ const addHistory = async (newPayment) => {
       time: newPayment.time,
       status: 'unpaid',
       timestamp: serverTimestamp(), // 並び替えに使用
-      items: newPayment.items || []
+      items: newPayment.items || [],
+      transactionIds: transactionIds // 🌟 決済完了時に transactions 側も更新するための紐付け（A-7で使用）
     });
 
     // 🌟 3. イベント本体の合計金額(totalAmount)を更新
@@ -448,12 +476,30 @@ onMounted(() => {
   // 🌟 timestamp（作成日時）の降順（新しい順）で取得
   const q = query(historyRef, orderBy("timestamp", "desc"));
 
-  onSnapshot(q, (snapshot) => {
+  onSnapshot(q, async (snapshot) => {
+    // 🌟 このイベントの取引(transactions)のstatusマップを作り、履歴のstatusを導出する
+    //    （transactionsを唯一の正データとし、決済完了を履歴/サマリーに反映）
+    const txStatus = {};
+    try {
+      const txSnap = await getDocs(query(collection(db, "transactions"), where("eventId", "==", eventId)));
+      txSnap.forEach((d) => { txStatus[d.id] = d.data().status || 'unpaid'; });
+    } catch (e) { console.error("取引status取得エラー:", e); }
+
     const fetchedHistory = [];
-    snapshot.forEach((doc) => {
-      const data = doc.data();
+    snapshot.forEach((docu) => {
+      const data = docu.data();
+      const txIds = data.transactionIds || [];
+      // イベント表示は「未払い / 完了」の二値（承認待ちは未払い側に含める）。
+      // useSettlement が unpaid/completed のみ扱うため、ここも二値に揃える。
+      let derivedStatus;
+      if (txIds.length === 0) {
+        derivedStatus = 'completed'; // 債務者なし＝精算対象なし＝完了扱い
+      } else {
+        const allDone = txIds.every((tid) => txStatus[tid] === 'completed');
+        derivedStatus = allDone ? 'completed' : 'unpaid';
+      }
       fetchedHistory.push({
-        id: doc.id,
+        id: docu.id,
         payer: data.payer,
         itemName: data.itemName,
         splitType: data.splitType,
@@ -461,7 +507,8 @@ onMounted(() => {
         color: data.color || '#fca5a5',
         date: data.date,
         time: data.time,
-        status: data.status,
+        status: derivedStatus,
+        transactionIds: txIds,
         timestamp: data.timestamp ? data.timestamp.toMillis() : Date.now(),
         items: data.items || []
       });
@@ -469,7 +516,7 @@ onMounted(() => {
 
     // 🌟 これで画面の「立て替え履歴」リストが自動更新される
     eventData.value.history = fetchedHistory;
-    
+
     // 🌟 合計金額も履歴から再計算して反映
     eventData.value.total = fetchedHistory.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
   });
@@ -486,8 +533,29 @@ const goToBatchPayment = (summary) => {
   }
 };
 
-const handleEndEvent = () => unpaidItems.value.length > 0 ? modals.value.unpaidWarning = true : router.push('/');
-const forceEndEvent = () => { modals.value.unpaidWarning = false; router.push('/'); };
+const deleteEventCompletely = async () => {
+  const eventId = route.params.id;
+  if (!eventId) { router.push('/'); return; }
+  try {
+    // 1. このイベントに紐づく取引(transactions)を削除
+    const txSnap = await getDocs(query(collection(db, "transactions"), where("eventId", "==", eventId)));
+    for (const d of txSnap.docs) await deleteDoc(d.ref);
+    // 2. 立て替え履歴サブコレクションを削除
+    const histSnap = await getDocs(collection(db, "events", eventId, "history"));
+    for (const d of histSnap.docs) await deleteDoc(d.ref);
+    // 3. イベント本体を削除
+    await deleteDoc(doc(db, "events", eventId));
+  } catch (e) {
+    console.error("イベント削除エラー:", e);
+  }
+  router.push('/');
+};
+
+const handleEndEvent = () => {
+  if (unpaidItems.value.length > 0) { modals.value.unpaidWarning = true; return; }
+  deleteEventCompletely();
+};
+const forceEndEvent = () => { modals.value.unpaidWarning = false; deleteEventCompletely(); };
 
 // ==========================================
 // 🌟 5. お友達（Friend）のクラウド精算呼び出し！
@@ -515,11 +583,10 @@ onMounted(() => {
 
 <style scoped>
 .event-detail-container { 
-  min-height: 100vh; 
-  background-color: #f4f7f9; 
-  display: flex; 
-  flex-direction: column; 
-  font-family: 'Helvetica Neue', Arial, sans-serif; 
+  background-color: var(--c-bg);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-sans);
   box-sizing: border-box;
 }
 
@@ -548,7 +615,7 @@ onMounted(() => {
 .summary-card { background: white; border-radius: 28px; padding: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); margin-bottom: 32px; border: 1px solid #f1f5f9; }
 .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .event-name { font-size: 22px; font-weight: 900; margin: 0; color: #0f172a; letter-spacing: -0.5px; }
-.event-date { font-size: 12px; color: #3b82f6; font-weight: 800; background: #eff6ff; padding: 6px 12px; border-radius: 12px; }
+.event-date { font-size: 12px; color: var(--c-brand); font-weight: 800; background: #eff6ff; padding: 6px 12px; border-radius: 12px; }
 
 .total-section { text-align: center; margin-bottom: 24px; background: #f8fafc; padding: 20px; border-radius: 20px; }
 .label { font-size: 13px; color: #64748b; font-weight: 800; display: flex; justify-content: center; align-items: center; margin-bottom: 8px; }
@@ -565,12 +632,12 @@ onMounted(() => {
 .avatar-stack { display: flex; align-items: center; padding-left: 8px; }
 .avatar { width: 36px; height: 36px; border-radius: 50%; border: 3px solid #f8fafc; margin-left: -12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
 .avatar-more { width: 36px; height: 36px; border-radius: 50%; border: 3px solid #f8fafc; margin-left: -12px; background: #e2e8f0; color: #64748b; font-size: 11px; font-weight: bold; display: flex; align-items: center; justify-content: center; z-index: 0; }
-.invite-pill-btn { background: #eff6ff; color: #3b82f6; border: none; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 800; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 8px rgba(59,130,246,0.15); }
+.invite-pill-btn { background: #eff6ff; color: var(--c-brand); border: none; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 800; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 8px rgba(59,130,246,0.15); }
 .invite-pill-btn:active { transform: scale(0.95); background: #dbeafe; }
 
 .section-title { font-size: 18px; font-weight: 900; color: #0f172a; margin: 0 0 16px 0; }
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.add-payment-btn { background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px rgba(59,130,246,0.25); transition: 0.2s; }
+.add-payment-btn { background: var(--c-brand); color: white; border: none; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px rgba(59,130,246,0.25); transition: 0.2s; }
 .add-payment-btn:active { transform: scale(0.95); }
 .settlement-summary-section, .history-section { margin-bottom: 36px; }
 
@@ -585,15 +652,15 @@ onMounted(() => {
 
 .summary-list, .timeline { display: flex; flex-direction: column; gap: 12px; }
 .empty-state { text-align: center; font-size: 13px; color: #94a3b8; font-weight: 800; padding: 30px; background: white; border-radius: 20px; border: 2px dashed #e2e8f0; }
-.summary-card-item { background: white; border-radius: 20px; padding: 18px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.03); cursor: pointer; transition: 0.2s; border: 1px solid transparent; }
-.summary-card-item:active { transform: scale(0.98); border-color: #e2e8f0; }
-.flow { display: flex; align-items: center; gap: 8px; }
-.avatar-small { width: 24px; height: 24px; border-radius: 50%; }
-.name { font-size: 14px; font-weight: 800; color: #334155; }
-.arrow-right { color: #cbd5e1; font-size: 12px; font-weight: bold; }
-.amount-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.summary-card-item { background: white; border-radius: 20px; padding: 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; box-shadow: var(--shadow-card); cursor: pointer; transition: 0.2s; border: 1px solid transparent; }
+.summary-card-item:active { transform: scale(0.98); border-color: var(--c-line); }
+.flow { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; }
+.avatar-small { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; }
+.name { font-size: 14px; font-weight: var(--fw-bold); color: var(--c-text); max-width: 64px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arrow-right { color: var(--c-text-faint); font-size: 12px; font-weight: bold; flex-shrink: 0; }
+.amount-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
 .amount { font-size: 18px; font-weight: 900; display: flex; align-items: center; gap: 6px; }
-.blue-text { color: #3b82f6; } .orange-text { color: #f59e0b; }
+.blue-text { color: var(--c-receive); } .orange-text { color: var(--c-pay); }
 .arrow-icon { font-size: 16px; color: #cbd5e1; }
 
 .timeline { position: relative; padding-left: 12px; }
@@ -680,7 +747,7 @@ onMounted(() => {
 .list-item { display: flex; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid #f1f5f9; }
 .avatar-medium { width: 44px; height: 44px; border-radius: 50%; }
 .item-name { font-size: 16px; font-weight: 800; color: #334155; display: flex; align-items: center; gap: 10px; }
-.me-badge { font-size: 10px; background: #3b82f6; color: white; padding: 2px 8px; border-radius: 10px; font-weight: 800; }
+.me-badge { font-size: 10px; background: var(--c-brand); color: white; padding: 2px 8px; border-radius: 10px; font-weight: 800; }
 
 .summary-detail-body { text-align: center; padding: 10px 0; }
 .flow-large { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 20px; }
@@ -690,7 +757,7 @@ onMounted(() => {
 .s-amount { font-size: 48px; font-weight: 900; margin: 0 0 10px; letter-spacing: -1.5px; }
 .s-hint { font-size: 14px; color: #94a3b8; margin-bottom: 32px; font-weight: 700; }
 .action-btn { width: 100%; padding: 18px; border-radius: 20px; border: none; font-weight: 900; font-size: 16px; cursor: pointer; transition: 0.2s; }
-.action-btn.main { background: #3b82f6; color: white; box-shadow: 0 8px 20px rgba(59,130,246,0.25); }
+.action-btn.main { background: var(--c-brand); color: white; box-shadow: 0 8px 20px rgba(59,130,246,0.25); }
 .action-btn.main:active { transform: scale(0.96); }
 
 .warning-modal { background: #fef2f2; }

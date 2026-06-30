@@ -1,17 +1,12 @@
 <template>
   <div v-if="friend" class="friend-detail-container">
-      <header class="detail-header">
-        <button class="back-btn" @click="$router.back()">‹</button>
-        
-        <div class="user-info-block">
-          <div class="main-avatar-wrapper">
-            <img v-if="friend.photo" :src="friend.photo" class="main-avatar-img" />
-            <div v-else class="default-avatar" :style="{ backgroundColor: friend.color }"></div>
-          </div>
-          <h1 class="user-name">{{ friend.name }}</h1>
-        </div>
-        <button class="delete-link-btn" @click="handleDeleteFriend">削除する</button>
-      </header>
+      <PageHeader :title="friend.name" fallback="/friend">
+        <template #right>
+          <button class="btn-trash" @click="handleDeleteFriend" aria-label="削除">
+            <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M10 11v6M14 11v6"/></svg>
+          </button>
+        </template>
+      </PageHeader>
 
     <main class="scroll-content">
       <section class="total-balance-card" 
@@ -34,73 +29,57 @@
   </section> 
   <h2 class="section-title">{{ friend.name }} さんとのお支払い状況</h2>
 
-      <section class="status-section">
-        <div class="status-header">
-          <span class="status-badge blue-badge">お支払い待ち</span>
-          <span class="total-amount blue-text">¥0</span>
-          <button 
-  class="action-btn red-btn pay-all-btn" 
-  @click="$router.push('/payment-detail/batch-waiting')"
->
-  まとめて催促する
-</button>
+      <section class="tx-section" v-if="receivableItems.length">
+        <div class="tx-section__head">
+          <span class="chip chip--recv">お支払い待ち（受け取る）</span>
+          <span class="tx-section__total blue-text tnum">¥{{ waitingTotal.toLocaleString() }}</span>
         </div>
-        <div class="event-list">
-          <div v-for="n in 2" :key="'w'+n" class="event-card blue-card">
-            <div class="event-info"><span class="event-date">日付</span><span class="event-name">イベント名</span></div>
-            <div class="event-action"><span class="event-amount">¥0</span><button 
-  class="action-btn red-btn" 
-  @click="$router.push('/payment-detail/waiting-' + n)"
->
-  催促する
-</button></div>
+        <div class="tx-list">
+          <div v-for="t in receivableItems" :key="t.id" class="tx" @click="$router.push('/payment-detail/waiting-' + t.id)">
+            <div class="tx__info">
+              <span class="tx__name">{{ t.itemName }}</span>
+              <span class="tx__status" :class="'st-' + t.status">{{ t.statusLabel }}</span>
+            </div>
+            <div class="tx__right">
+              <span class="tx__amount tnum">¥{{ t.amount.toLocaleString() }}</span>
+              <svg class="tx__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+            </div>
           </div>
         </div>
       </section>
       
-      <section class="status-section">
-        <div class="status-header">
-          <span class="status-badge orange-badge">未払い</span>
-          <span class="total-amount orange-text">¥0</span>
-          <button 
-  class="action-btn green-btn pay-all-btn" 
-  @click="$router.push('/payment-detail/all')"
->
-  まとめて支払う
-</button>
+      <section class="tx-section" v-if="payableItems.length">
+        <div class="tx-section__head">
+          <span class="chip chip--pay">未払い（支払う）</span>
+          <span class="tx-section__total orange-text tnum">¥{{ unpaidTotal.toLocaleString() }}</span>
         </div>
-        <div class="event-list">
-          <div v-for="n in 2" :key="'u'+n" class="event-card orange-card">
-            <div class="event-info"><span class="event-date">日付</span><span class="event-name">イベント名</span></div>
-            <div class="event-action"><span class="event-amount">¥0</span><button 
-  class="action-btn green-btn" 
-  @click="$router.push('/payment-detail/unpaid-' + n)"
->
-  支払いを完了させる
-</button></div>
+        <div class="tx-list">
+          <div v-for="t in payableItems" :key="t.id" class="tx" @click="$router.push('/payment-detail/unpaid-' + t.id)">
+            <div class="tx__info">
+              <span class="tx__name">{{ t.itemName }}</span>
+              <span class="tx__status" :class="'st-' + t.status">{{ t.statusLabel }}</span>
+            </div>
+            <div class="tx__right">
+              <span class="tx__amount tnum">¥{{ t.amount.toLocaleString() }}</span>
+              <svg class="tx__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+            </div>
           </div>
         </div>
       </section>
 
-      <section class="history-section">
-        <button class="history-toggle-btn">{{ $route.params.name }} さんとの過去の履歴</button>
-        <div class="history-list">
-          <div v-for="n in 5" :key="'h'+n" class="history-card">
-            <span class="history-event-name">イベント名{{n}}</span>
-            <div class="history-flow">
-              <div class="avatar history-me">
-                <img v-if="myPhoto" :src="myPhoto" class="avatar-img" alt="me" />
-                <div v-else class="avatar-placeholder" style="background-color: #d9a0a0;"></div>
-              </div>
-              <span class="arrow">→</span>
-              <div class="avatar history-friend">
-                <img v-if="friendPhoto" :src="friendPhoto" class="avatar-img" alt="friend" />
-                <div v-else class="avatar-placeholder" style="background-color: #8bb4ff;"></div>
-              </div>
-            </div>
-            <span class="history-amount">¥0</span>
-            <span class="check-icon">✅</span>
+      <div v-if="!receivableItems.length && !payableItems.length" class="empty-box">未決済の取引はありません</div>
+
+      <section class="hist-section">
+        <h3 class="hist-section__title">{{ friend.name }} さんとの履歴</h3>
+        <div v-if="historyItems.length === 0" class="empty-box">履歴はありません</div>
+        <div v-for="h in historyItems" :key="h.id" class="histrow">
+          <div class="histrow__info">
+            <span class="histrow__name">{{ h.itemName }}</span>
+            <span class="histrow__status" :class="'st-' + h.status">{{ h.statusLabel }}</span>
           </div>
+          <span class="histrow__amount tnum" :class="h.type === 'pay' ? 'orange-text' : 'blue-text'">
+            {{ h.type === 'pay' ? '−' : '+' }}¥{{ h.amount.toLocaleString() }}
+          </span>
         </div>
       </section>
     </main>
@@ -128,11 +107,15 @@
 import { ref, computed, onMounted, reactive } from 'vue'; // 🌟 reactive追加
 import { useRoute, useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
-import { doc, deleteDoc, getDoc } from 'firebase/firestore';
+import { doc, deleteDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import BaseModal from '@/components/BaseModal.vue'; // 🌟 統一モーダル追加
+import PageHeader from '@/components/PageHeader.vue';
 
-const waitingTotal = ref(3500); 
-const unpaidTotal = ref(4800);  
+const waitingTotal = ref(0); // この相手から受け取る未決済合計
+const unpaidTotal = ref(0);  // この相手へ支払う未決済合計
+const receivableItems = ref([]); // 受け取り（相手→自分・未完了）
+const payableItems = ref([]);    // 支払い（自分→相手・未完了）
+const historyItems = ref([]);    // 全履歴（完了含む）
 const route = useRoute();
 const router = useRouter();
 
@@ -168,9 +151,41 @@ onMounted(async () => {
     const userDoc = await getDoc(doc(db, "users", uid));
     if (userDoc.exists()) {
       const data = userDoc.data();
-      friend.value = data; 
+      friend.value = data;
       friendPhoto.value = data.photo || data.photoURL || "";
     }
+
+    // 🌟 この相手との取引を実データから取得し、各リスト・履歴・残高を構築（複合index回避）
+    const statusLabel = (s) => s === 'completed' ? '完了' : (s === 'awaiting_approval' ? '承認待ち' : '未決済');
+    const recvList = [], payList = [], histList = [];
+    let recvSum = 0, paySum = 0;
+
+    const recvSnap = await getDocs(query(collection(db, "transactions"), where("paidToId", "==", myUid)));
+    recvSnap.forEach((d) => {
+      const t = d.data();
+      if (t.paidById !== uid) return;
+      const s = t.status || 'unpaid';
+      const item = { id: d.id, amount: t.amount || 0, itemName: t.itemName || 'イベント代', status: s, statusLabel: statusLabel(s), type: 'receive', createdAt: t.createdAt };
+      histList.push(item);
+      if (s !== 'completed') { recvList.push(item); recvSum += item.amount; }
+    });
+
+    const paySnap = await getDocs(query(collection(db, "transactions"), where("paidById", "==", myUid)));
+    paySnap.forEach((d) => {
+      const t = d.data();
+      if (t.paidToId !== uid) return;
+      const s = t.status || 'unpaid';
+      const item = { id: d.id, amount: t.amount || 0, itemName: t.itemName || 'イベント代', status: s, statusLabel: statusLabel(s), type: 'pay', createdAt: t.createdAt };
+      histList.push(item);
+      if (s !== 'completed') { payList.push(item); paySum += item.amount; }
+    });
+
+    histList.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    receivableItems.value = recvList;
+    payableItems.value = payList;
+    historyItems.value = histList;
+    waitingTotal.value = recvSum;
+    unpaidTotal.value = paySum;
   } catch (error) {
     console.error("データ取得中にエラーが発生しました:", error);
   }
@@ -269,8 +284,8 @@ const handleDeleteFriend = async () => {
 .blue-badge { background-color: #3b82f6; }
 .orange-badge { background-color: #f59e0b; }
 .total-amount { font-size: 28px; font-weight: bold; }
-.blue-text { color: #3b82f6; }
-.orange-text { color: #f59e0b; }
+.blue-text { color: var(--c-receive); }
+.orange-text { color: var(--c-pay); }
 .pay-all-btn { position: absolute; right: 0; }
 
 .event-list { display: flex; flex-direction: column; gap: 10px; }
@@ -294,5 +309,36 @@ const handleDeleteFriend = async () => {
 .avatar-img { width: 100%; height: 100%; object-fit: cover; }
 .avatar-placeholder { width: 100%; height: 100%; }
 .history-amount { font-size: 18px; font-weight: bold; }
-.check-icon { color: #22c55e; }
+.check-icon { color: var(--c-brand); display: flex; align-items: center; }
+.check-icon svg { width: 20px; height: 20px; }
+
+/* --- 取引リスト（実データ） --- */
+.tx-section { margin: 0 16px 16px; }
+.tx-section__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.tx-section__total { font-size: 17px; font-weight: var(--fw-black); }
+.chip { display: inline-block; font-size: 11px; font-weight: var(--fw-bold); padding: 4px 11px; border-radius: var(--r-pill); }
+.chip--recv { background: var(--c-receive-weak); color: var(--c-receive); }
+.chip--pay { background: var(--c-pay-weak); color: var(--c-pay-strong); }
+.tx-list { display: flex; flex-direction: column; gap: 8px; }
+.tx { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--c-surface); border-radius: var(--r-md); padding: 13px 14px; box-shadow: var(--shadow-card); cursor: pointer; transition: transform 0.15s ease; }
+.tx:active { transform: scale(0.985); }
+.tx__info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tx__name { font-size: 14px; font-weight: var(--fw-bold); color: var(--c-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tx__status { font-size: 11px; font-weight: var(--fw-bold); }
+.tx__right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.tx__amount { font-size: 16px; font-weight: var(--fw-black); color: var(--c-ink); }
+.tx__chevron { width: 18px; height: 18px; fill: none; stroke: var(--c-text-faint); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.st-unpaid { color: var(--c-text-faint); }
+.st-awaiting_approval { color: var(--c-pay-strong); }
+.st-completed { color: var(--c-receive); }
+
+/* --- 履歴（実データ） --- */
+.hist-section { margin: 22px 16px 0; }
+.hist-section__title { font-size: 15px; font-weight: var(--fw-bold); color: var(--c-ink); margin-bottom: 12px; }
+.histrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--c-surface); border-radius: var(--r-md); padding: 13px 14px; box-shadow: var(--shadow-card); margin-bottom: 8px; }
+.histrow__info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.histrow__name { font-size: 14px; font-weight: var(--fw-bold); color: var(--c-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.histrow__status { font-size: 11px; font-weight: var(--fw-bold); }
+.histrow__amount { font-size: 16px; font-weight: var(--fw-black); flex-shrink: 0; }
 </style>

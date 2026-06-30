@@ -1,17 +1,13 @@
 <template>
     <div class="history-page-container">
-      <header class="detail-header">
-        <button class="back-btn" @click="$router.back()">‹</button>
-        <h1 class="title">お支払い履歴</h1>
-        <div class="spacer"></div>
-      </header>
+      <PageHeader title="お支払い履歴" fallback="/mypage" />
   
       <main class="content">
-        <div class="filter-tabs">
-          <button class="filter-btn" :class="{ active: currentFilter === 'all' }" @click="currentFilter = 'all'">すべて</button>
-          <button class="filter-btn" :class="{ active: currentFilter === 'pay' }" @click="currentFilter = 'pay'">支払い</button>
-          <button class="filter-btn" :class="{ active: currentFilter === 'receive' }" @click="currentFilter = 'receive'">受け取り</button>
-          <button class="filter-btn" :class="{ active: currentFilter === 'completed' }" @click="currentFilter = 'completed'">決済完了</button>
+        <div class="seg">
+          <button class="seg__item" :class="{ 'is-active': currentFilter === 'all' }" @click="currentFilter = 'all'">すべて</button>
+          <button class="seg__item" :class="{ 'is-active': currentFilter === 'pay' }" @click="currentFilter = 'pay'">支払い</button>
+          <button class="seg__item" :class="{ 'is-active': currentFilter === 'receive' }" @click="currentFilter = 'receive'">受取</button>
+          <button class="seg__item" :class="{ 'is-active': currentFilter === 'completed' }" @click="currentFilter = 'completed'">完了</button>
         </div>
   
         <div class="history-list-area">
@@ -35,14 +31,15 @@
               <p class="amount" :class="item.type === 'pay' ? 'orange-text' : 'blue-text'">
                 {{ item.type === 'pay' ? '-' : '+' }} ¥{{ item.amount.toLocaleString() }}
               </p>
-              <span v-if="item.status === 'completed'" class="status-badge">決済完了</span>
-              <span v-else class="status-badge pending">未完了</span>
+              <span
+                class="status-badge"
+                :class="{ pending: item.status === 'unpaid', awaiting: item.status === 'awaiting_approval' }"
+              >{{ statusLabel(item.status) }}</span>
             </div>
           </div>
           
-          <div v-if="filteredHistory.length === 0" class="empty-msg">
-            <div class="empty-icon">📂</div>
-            <p>該当する履歴がありません</p>
+          <div v-if="filteredHistory.length === 0" class="empty-box">
+            該当する履歴がありません
           </div>
         </div>
       </main>
@@ -54,7 +51,8 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, onSnapshot, doc, getDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import PageHeader from '@/components/PageHeader.vue';
 
 const router = useRouter(); // ルーターを準備
 const currentFilter = ref('all');
@@ -69,57 +67,69 @@ const formatFullDate = (timestamp) => {
   return `${date.getFullYear()}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')}`;
 };
 
+// 相手の名前・写真をキャッシュ付きで取得
+const userCache = {};
+const getUser = async (uid) => {
+  if (!uid) return { name: '相手', photo: '' };
+  if (userCache[uid]) return userCache[uid];
+  try {
+    const d = await getDoc(doc(db, "users", uid));
+    const info = d.exists()
+      ? { name: d.data().name || '相手', photo: d.data().photo || d.data().photoURL || '' }
+      : { name: '相手', photo: '' };
+    userCache[uid] = info;
+    return info;
+  } catch { return { name: '相手', photo: '' }; }
+};
+
+const statusLabel = (s) => s === 'completed' ? '決済完了' : (s === 'awaiting_approval' ? '承認待ち' : '未払い');
+
 onMounted(() => {
   onAuthStateChanged(auth, (user) => {
-    if (user) {
-      const myUid = user.uid;
+    if (!user) return;
+    const myUid = user.uid;
+    // 🌟 複合インデックス不要・確実に「自分関連の全取引」をリアルタイム取得（払う側＋受け取る側）
+    const payMap = {};   // 自分が払う側
+    const recvMap = {};  // 自分が受け取る側
 
-      // 🌟 自分が「払う側」または「受け取る側」である取引をすべて監視
-      const q = query(
-        collection(db, "transactions"),
-        orderBy("createdAt", "desc") // 新しい順に並べる
-      );
+    const rebuild = () => {
+      historyData.value = [...Object.values(payMap), ...Object.values(recvMap)]
+        .sort((a, b) => (b._ts || 0) - (a._ts || 0));
+    };
 
-      onSnapshot(q, async (snapshot) => {
-        const list = [];
-        
-        for (const transactionDoc of snapshot.docs) {
-          const data = transactionDoc.data();
-          
-          // 自分に関係ないデータはスキップ
-          if (data.paidById !== myUid && data.paidToId !== myUid) continue;
+    onSnapshot(query(collection(db, "transactions"), where("paidById", "==", myUid)), async (snap) => {
+      const ids = new Set();
+      for (const d of snap.docs) {
+        ids.add(d.id);
+        const data = d.data();
+        const info = await getUser(data.paidToId);
+        payMap[d.id] = {
+          id: d.id, date: formatFullDate(data.createdAt), name: info.name, photo: info.photo,
+          eventName: data.itemName || 'イベント代', amount: data.amount || 0,
+          type: 'pay', status: data.status || 'unpaid', color: '#fca5a5',
+          _ts: data.createdAt?.seconds || 0
+        };
+      }
+      Object.keys(payMap).forEach((id) => { if (!ids.has(id)) delete payMap[id]; });
+      rebuild();
+    });
 
-          // 相手のUIDを特定
-          const isPay = data.paidById === myUid;
-          const otherUid = isPay ? data.paidToId : data.paidById;
-
-          // 相手の情報を取得
-          let otherName = isPay ? (data.paidToName || "相手") : (data.paidByName || "相手");
-          let otherPhoto = "";
-          let otherColor = isPay ? "#fca5a5" : "#93c5fd";
-
-          const userDoc = await getDoc(doc(db, "users", otherUid));
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            otherName = userData.name || otherName;
-            otherPhoto = userData.photo || userData.photoURL || "";
-          }
-
-          list.push({
-            id: transactionDoc.id,
-            date: formatFullDate(data.createdAt),
-            name: otherName,
-            eventName: data.itemName || "イベント代",
-            amount: data.amount || 0,
-            type: isPay ? 'pay' : 'receive', // 自分が払うなら 'pay'
-            status: data.status || 'pending',
-            photo: otherPhoto,
-            color: otherColor
-          });
-        }
-        historyData.value = list;
-      });
-    }
+    onSnapshot(query(collection(db, "transactions"), where("paidToId", "==", myUid)), async (snap) => {
+      const ids = new Set();
+      for (const d of snap.docs) {
+        ids.add(d.id);
+        const data = d.data();
+        const info = await getUser(data.paidById);
+        recvMap[d.id] = {
+          id: d.id, date: formatFullDate(data.createdAt), name: info.name, photo: info.photo,
+          eventName: data.itemName || 'イベント代', amount: data.amount || 0,
+          type: 'receive', status: data.status || 'unpaid', color: '#93c5fd',
+          _ts: data.createdAt?.seconds || 0
+        };
+      }
+      Object.keys(recvMap).forEach((id) => { if (!ids.has(id)) delete recvMap[id]; });
+      rebuild();
+    });
   });
 });
 
@@ -141,13 +151,12 @@ const goToDetail = (item) => {
   
   <style scoped>
 /* PaymentHistoryView.vue の <style scoped> 一番上を上書き */
-.history-page-container { 
-  background-color: #f8fafc; 
-  min-height: 100vh; 
-  width: 100%; 
-  overflow-x: hidden; 
-  display: flex; 
-  flex-direction: column; 
+.history-page-container {
+  background-color: var(--c-bg);
+  width: 100%;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
 }
 
@@ -166,7 +175,7 @@ const goToDetail = (item) => {
 .title { font-size: 18px; font-weight: 900; margin: 0; color: #0f172a; flex: 1; text-align: center; }
 .spacer { width: 32px; }
 
-.content { flex: 1; width: 100%; max-width: 600px; margin: 0 auto; padding: 20px 20px 100px 20px; box-sizing: border-box; display: flex; flex-direction: column; }
+.content { flex: 1; width: 100%; margin: 0 auto; padding: 8px var(--pad) 28px; box-sizing: border-box; display: flex; flex-direction: column; }
 /* ↑ここまで上書き。以降は既存の .filter-tabs などが続きます */
   
   /* 🌟 iOS風のモダンな切り替えタブ */
@@ -209,16 +218,19 @@ const goToDetail = (item) => {
   
   .card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
   .amount { font-size: 18px; font-weight: 900; margin: 0; letter-spacing: -0.5px; }
-  .blue-text { color: #3b82f6; } 
-  .orange-text { color: #f59e0b; }
+  .blue-text { color: var(--c-receive); }
+  .orange-text { color: var(--c-pay); }
   
   /* 🌟 ステータスバッジ（完了 / 未完了） */
   .status-badge { 
     font-size: 10px; background-color: #dcfce7; color: #16a34a; 
     padding: 4px 10px; border-radius: 12px; font-weight: bold; 
   }
-  .status-badge.pending { 
-    background-color: #f1f5f9; color: #64748b; 
+  .status-badge.pending {
+    background-color: #f1f5f9; color: #64748b;
+  }
+  .status-badge.awaiting {
+    background-color: var(--c-pay-weak); color: var(--c-pay-strong);
   }
   
   /* 🌟 データが空の時の表示 */
