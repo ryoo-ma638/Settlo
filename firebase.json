@@ -3,6 +3,7 @@
     "rules": "firestore.rules"
   },
   "hosting": {
+    "site": "settlo-app",
     "public": "dist",
     "ignore": [
       "firebase.json",
