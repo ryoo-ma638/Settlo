@@ -1,86 +1,126 @@
-/* color palette from <https://github.com/vuejs/theme> */
+/* =========================================================
+   Settlo Design System — デザイントークン & ベース
+   モバイルファースト / 一貫したブランド緑 / 非AI・絵文字レス
+   ========================================================= */
+
 :root {
-  --vt-c-white: #ffffff;
-  --vt-c-white-soft: #f8f8f8;
-  --vt-c-white-mute: #f2f2f2;
+  /* --- ブランド（Settlo グリーン） --- */
+  --c-brand:        #059669;
+  --c-brand-strong: #047857;
+  --c-brand-deep:   #065f46;
+  --c-brand-weak:   #ecfdf5;
+  --c-brand-tint:   #d1fae5;
 
-  --vt-c-black: #181818;
-  --vt-c-black-soft: #222222;
-  --vt-c-black-mute: #282828;
+  /* --- ニュートラル --- */
+  --c-ink:        #0f172a; /* 見出し・強調テキスト */
+  --c-text:       #1f2937; /* 本文 */
+  --c-text-sub:   #64748b; /* 補助テキスト */
+  --c-text-faint: #9aa6b4; /* 最も淡い */
+  --c-line:       #eaeef3; /* 罫線・区切り */
+  --c-line-bold:  #dbe2ea;
+  --c-surface:    #ffffff; /* カード面 */
+  --c-surface-2:  #f5f7fa; /* 一段沈んだ面 */
+  --c-bg:         #eaf1fa; /* アプリ背景（薄い水色） */
 
-  --vt-c-indigo: #2c3e50;
+  /* --- セマンティック（金額・状態） ---
+     入金/受け取り＝ブルー、支払い/未払い＝アンバー、で意味を色分け。
+     ブランド緑(--c-brand)は主要操作・ロゴ・ナビ等の「アクセント」に限定して使う。 */
+  --c-receive:      #2563eb; /* 入金待ち / 受け取る（ブルー） */
+  --c-receive-strong: #1d4ed8;
+  --c-receive-weak: #eaf1ff;
+  --c-pay:          #f59e0b; /* 未払い / 支払う（アンバー） */
+  --c-pay-strong:   #d97706;
+  --c-pay-weak:     #fff7ea;
+  --c-danger:       #ef4444;
+  --c-info:         #2563eb;
 
-  --vt-c-divider-light-1: rgba(60, 60, 60, 0.29);
-  --vt-c-divider-light-2: rgba(60, 60, 60, 0.12);
-  --vt-c-divider-dark-1: rgba(84, 84, 84, 0.65);
-  --vt-c-divider-dark-2: rgba(84, 84, 84, 0.48);
+  /* --- タイポグラフィ --- */
+  --font-sans: "Noto Sans JP", system-ui, -apple-system, "Hiragino Sans",
+               "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-bold:    700;
+  --fw-black:   900;
 
-  --vt-c-text-light-1: var(--vt-c-indigo);
-  --vt-c-text-light-2: rgba(60, 60, 60, 0.66);
-  --vt-c-text-dark-1: var(--vt-c-white);
-  --vt-c-text-dark-2: rgba(235, 235, 235, 0.64);
+  /* --- 角丸 --- */
+  --r-sm:   10px;
+  --r-md:   14px;
+  --r-lg:   20px;
+  --r-xl:   28px;
+  --r-pill: 999px;
+
+  /* --- 影（控えめに、AI的な強い影は避ける） --- */
+  --shadow-sm:   0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-card: 0 2px 10px rgba(15, 23, 42, 0.05), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-pop:  0 14px 40px rgba(15, 23, 42, 0.18);
+
+  /* --- レイアウト --- */
+  --app-max:  480px;
+  --header-h: 58px;
+  --nav-h:    66px;
+  --pad:      16px;
 }
 
-/* semantic color variables for this project */
-:root {
-  --color-background: var(--vt-c-white);
-  --color-background-soft: var(--vt-c-white-soft);
-  --color-background-mute: var(--vt-c-white-mute);
-
-  --color-border: var(--vt-c-divider-light-2);
-  --color-border-hover: var(--vt-c-divider-light-1);
-
-  --color-heading: var(--vt-c-text-light-1);
-  --color-text: var(--vt-c-text-light-1);
-
-  --section-gap: 160px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-background: var(--vt-c-black);
-    --color-background-soft: var(--vt-c-black-soft);
-    --color-background-mute: var(--vt-c-black-mute);
-
-    --color-border: var(--vt-c-divider-dark-2);
-    --color-border-hover: var(--vt-c-divider-dark-1);
-
-    --color-heading: var(--vt-c-text-dark-1);
-    --color-text: var(--vt-c-text-dark-2);
-  }
-}
-
+/* --- リセット --- */
 *,
 *::before,
 *::after {
   box-sizing: border-box;
   margin: 0;
-  font-weight: normal;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
-  min-height: 100vh;
-  color: var(--color-text);
-  background: var(--color-background);
-  transition:
-    color 0.5s,
-    background-color 0.5s;
+  font-family: var(--font-sans);
+  font-weight: var(--fw-regular);
+  color: var(--c-text);
+  background-color: var(--c-bg);
   line-height: 1.6;
-  font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    Oxygen,
-    Ubuntu,
-    Cantarell,
-    'Fira Sans',
-    'Droid Sans',
-    'Helvetica Neue',
-    sans-serif;
-  font-size: 15px;
-  text-rendering: optimizeLegibility;
+  letter-spacing: 0.01em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5 {
+  color: var(--c-ink);
+  font-weight: var(--fw-bold);
+  line-height: 1.35;
+}
+
+p { margin: 0; }
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: 16px; /* iOSの自動ズームを防ぐ */
+  color: var(--c-text);
+}
+
+a { color: inherit; text-decoration: none; }
+
+img { display: block; max-width: 100%; }
+
+ul, ol { list-style: none; }
+
+/* 金額など数字を整える等幅数字ユーティリティ */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }

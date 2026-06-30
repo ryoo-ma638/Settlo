@@ -12,7 +12,7 @@
         <p class="amount" :class="item.type === 'pay' ? 'orange-text' : 'blue-text'">
           {{ item.type === 'pay' ? '-' : '+' }} ¥{{ item.amount.toLocaleString() }}
         </p>
-        <span v-if="item.status === 'completed'" class="status-badge">決済完了 ✅</span>
+        <span v-if="item.status === 'completed'" class="status-badge">決済完了</span>
       </div>
     </div>
   </template>
@@ -39,8 +39,8 @@
   
   .card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
   .amount { font-size: 18px; font-weight: bold; margin: 0; }
-  .blue-text { color: #3b82f6; } /* 受け取りは青 */
-  .orange-text { color: #f59e0b; } /* 支払いはオレンジ */
+  .blue-text { color: var(--c-receive); } /* 受け取りは緑 */
+  .orange-text { color: var(--c-pay); } /* 支払いはアンバー */
   
   .status-badge { font-size: 10px; background-color: #f1f5f9; color: #64748b; padding: 4px 8px; border-radius: 12px; font-weight: bold; }
   </style>

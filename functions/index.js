@@ -12,7 +12,13 @@ const db = admin.firestore();
 // 1. レシート解析AI機能 (今まで通り！)
 // =================================================================
 exports.analyzeReceipt = onCall(
-  { region: "asia-northeast1", cors: ['http://localhost:5173', 'https://pairpay-4c17a.web.app'] }, 
+  {
+    region: "asia-northeast1",
+    cors: ['http://localhost:5173', 'https://pairpay-4c17a.web.app'],
+    // 🔐 Gemini APIキーは Secret Manager から注入（コード/リポジトリには絶対に置かない）
+    //   事前に: firebase functions:secrets:set GEMINI_API_KEY
+    secrets: ["GEMINI_API_KEY"],
+  },
   async (request) => {
     try {
       // 🌟 AIライブラリの読み込み自体を「関数の中」に移動！（タイムアウト対策の最終奥義）

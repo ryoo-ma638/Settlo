@@ -1,60 +1,59 @@
 <template>
-    <div class="friend-card" @click="$emit('click', user)">
-      <div class="friend-avatar-wrapper">
-      <img 
-        v-if="user.photo" 
-        :src="user.photo" 
-        class="friend-avatar-img"
-      />
-      <div v-else class="friend-avatar-placeholder" :style="{ backgroundColor: user.color }"></div>
+  <div class="fcard" @click="$emit('click', user)">
+    <div class="fcard__avatar">
+      <img v-if="user.photo" :src="user.photo" class="fcard__img" />
+      <div v-else class="fcard__ph" :style="{ backgroundColor: user.color || '#cbd5e1' }"></div>
     </div>
-      
-      <div class="friend-info">
-        <span class="friend-name-text">{{ user.name }}</span>
-        <div class="status-tags">
-          <span v-if="!user.isFriend" class="tag not-friend">未フレンド</span>
-          <span v-if="user.isTrading" class="tag trading">取引中</span>
-          <span class="tag count">取引: {{ user.tradeCount }}回</span>
-        </div>
+
+    <div class="fcard__info">
+      <span class="fcard__name">{{ user.name }}</span>
+      <div class="fcard__tags">
+        <span v-if="!user.isFriend" class="chip chip--alert">未フレンド</span>
+        <span v-if="user.isTrading" class="chip chip--brand">取引中</span>
+        <span class="chip chip--muted">取引 {{ user.tradeCount }}回</span>
       </div>
     </div>
-  </template>
-  
-  <script setup>
-  defineProps({ user: Object });
-  defineEmits(['click']);
-  </script>
-  
-  <style scoped>
-  .friend-card { background-color: white; display: flex; align-items: center; padding: 15px 25px; border-radius: 30px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); cursor: pointer; transition: 0.2s; }
-  .friend-card:active { transform: scale(0.98); }
-  .friend-avatar { width: 50px; height: 50px; border-radius: 50%; margin-right: 15px; flex-shrink: 0; }
-  .friend-info { display: flex; flex-direction: column; gap: 5px; }
-  .friend-name-text { font-size: 18px; font-weight: bold; color: #1e293b; }
-  .status-tags { display: flex; gap: 8px; }
-  .tag { font-size: 10px; padding: 3px 8px; border-radius: 12px; font-weight: bold; }
-  .not-friend { background: #fee2e2; color: #ef4444; }
-  .trading { background: #e0f2fe; color: #3b82f6; }
-  .count { background: #f1f5f9; color: #64748b; }
 
-  .user-avatar-wrapper {
-  width: 50px; /* カードに合わせたサイズ */  height: 50px;  flex-shrink: 0;  margin-right: 15px; /* 名前との間隔 */
-}
-.user-avatar-img {
-  width: 100%;  height: 100%;  border-radius: 50%; /* 丸くする */  object-fit: cover; /* 画像を枠に合わせる */
-}
-.user-avatar-placeholder {
-  width: 100%;  height: 100%;  border-radius: 50%;  background-color: #cbd5e1; /* グレーの塗りつぶし */
-}
+    <svg class="fcard__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+  </div>
+</template>
 
-/* 🌟 スタイルの追加・修正 */
-.friend-avatar-wrapper {
-  width: 50px;  height: 50px;  margin-right: 15px;  flex-shrink: 0;
+<script setup>
+defineProps({ user: Object });
+defineEmits(['click']);
+</script>
+
+<style scoped>
+.fcard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--c-surface);
+  border-radius: var(--r-lg);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  transition: transform 0.15s ease;
 }
-.friend-avatar-img {
-  width: 100%;  height: 100%;  border-radius: 50%;  object-fit: cover;
+.fcard:active { transform: scale(0.985); }
+
+.fcard__avatar { width: 48px; height: 48px; flex-shrink: 0; }
+.fcard__img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.fcard__ph { width: 100%; height: 100%; border-radius: 50%; background: var(--c-line-bold); }
+
+.fcard__info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.fcard__name {
+  font-size: 16px; font-weight: var(--fw-bold); color: var(--c-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.friend-avatar-placeholder {
-  width: 100%;  height: 100%;  border-radius: 50%;
+.fcard__tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { font-size: 10.5px; padding: 3px 9px; border-radius: var(--r-pill); font-weight: var(--fw-bold); }
+.chip--alert { background: #fee2e2; color: var(--c-danger); }
+.chip--brand { background: var(--c-brand-weak); color: var(--c-brand-strong); }
+.chip--muted { background: var(--c-surface-2); color: var(--c-text-sub); }
+
+.fcard__chevron {
+  width: 20px; height: 20px; flex-shrink: 0;
+  fill: none; stroke: var(--c-text-faint); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
 }
 </style>

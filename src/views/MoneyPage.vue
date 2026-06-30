@@ -1,88 +1,120 @@
 <template>
-  <div class="money-page-container">
-    <header class="page-header">
-      <button class="back-btn" @click="$router.back()">‹</button>
-      <h1 class="page-title">お支払い・精算</h1>
-      <div class="spacer"></div>
+  <div class="money">
+    <header class="screen-head">
+      <h1 class="screen-head__title">お支払い・精算</h1>
     </header>
 
-    <div class="money-content">
-      <div class="tab-container">
-        <button class="tab-btn" :class="{ active: currentTab === 'waiting' }" @click="currentTab = 'waiting'">入金待ち</button>
-        <button class="tab-btn" :class="{ active: currentTab === 'unpaid' }" @click="currentTab = 'unpaid'">未払い</button>
+    <div class="money__body">
+      <div class="seg">
+        <button class="seg__item" :class="{ 'is-active': currentTab === 'waiting' }" @click="currentTab = 'waiting'">入金待ち</button>
+        <button class="seg__item" :class="{ 'is-active': currentTab === 'unpaid' }" @click="currentTab = 'unpaid'">未払い</button>
       </div>
 
-      <div v-if="currentTab === 'waiting'" class="tab-content">
-        <div class="card summary-card blue-bg">
-          <p class="summary-title">現在の入金待ち</p>
-          <h1 class="summary-amount">¥ {{ totalReceivable.toLocaleString() }}</h1>
-          <div class="badge">△ {{ receivableList.length }}件の入金待ち</div>
+      <!-- 入金待ち -->
+      <div v-if="currentTab === 'waiting'">
+        <div class="summary summary--receive">
+          <p class="summary__label">現在の入金待ち</p>
+          <div class="summary__amount tnum">¥{{ totalReceivable.toLocaleString() }}</div>
+          <span class="summary__badge">{{ receivableList.length }}件</span>
         </div>
 
-        <h2 class="section-title">入金待ち詳細</h2>
-
-        <div v-for="item in receivableList" :key="item.id" class="card list-card">
-          <div class="list-left">
-            <p class="date">{{ item.date }}</p>
-            <div class="circle avatar-wrapper">
-              <img v-if="item.photo" :src="item.photo" class="avatar-img" />
-              <div v-else class="avatar-placeholder" :style="{ backgroundColor: item.color }"></div>
-            </div>
-            <div class="info">
-              <p class="name">{{ item.name }}</p>
-              <p class="event">{{ item.itemName }}</p>
-            </div>
-          </div>
-          <div class="list-right">
-            <p class="amount red-text">¥{{ item.amount.toLocaleString() }}</p>
-            <button class="btn btn-green" @click="$router.push('/payment-detail/waiting-' + item.id)">催促する</button>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="currentTab === 'unpaid'" class="tab-content">
-        <div class="card summary-card orange-bg">
-          <p class="summary-title">現在の未払い</p>
-          <h1 class="summary-amount">¥ {{ totalPayable.toLocaleString() }}</h1>
-          <div class="badge">△ {{ payableList.length }}件の未支払い</div>
-        </div>
-
-        <h2 class="section-title">支払い詳細</h2>
-
-        <div v-if="payableList.length === 0" style="text-align: center; padding: 30px; color: #64748b;">
-          現在、未払いの情報はありません。
-        </div>
-
-        <div v-for="item in payableList" :key="item.id" class="card list-card">
-          <div class="list-left">
-            <p class="date">{{ item.date }}</p>
-            <div class="circle avatar-wrapper">
-              <img v-if="item.photo" :src="item.photo" class="avatar-img" />
-              <div v-else class="avatar-placeholder" :style="{ backgroundColor: item.color }"></div>
-            </div>
-            <div class="info">
-              <p class="name">{{ item.name }}</p>
-              <p class="event">{{ item.itemName }}</p>
+        <!-- 🌟 あなたの承認が必要（相手が支払い済みでリクエスト中） -->
+        <template v-if="receivableAwaiting.length">
+          <h2 class="money__section money__section--action">承認待ち・あなたの承認が必要（{{ receivableAwaiting.length }}件）</h2>
+          <div class="stack">
+            <div v-for="item in receivableAwaiting" :key="item.id" class="trow trow--action" @click="$router.push('/payment-detail/waiting-' + item.id)">
+              <div class="trow__avatar">
+                <img v-if="item.photo" :src="item.photo" />
+                <div v-else class="trow__ph" :style="{ backgroundColor: item.color }"></div>
+              </div>
+              <div class="trow__info">
+                <p class="trow__name">{{ item.name }}</p>
+                <p class="trow__sub">{{ item.date }}・{{ item.itemName }}<span class="trow__badge trow__badge--action">あなたが承認</span></p>
+              </div>
+              <div class="trow__right">
+                <span class="trow__amount tnum">¥{{ item.amount.toLocaleString() }}</span>
+                <svg class="trow__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+              </div>
             </div>
           </div>
-          <div class="list-right">
-            <p class="amount red-text">¥{{ item.amount.toLocaleString() }}</p>
-            <button class="btn btn-red" @click="$router.push('/payment-detail/unpaid-' + item.id)">支払いを完了させる</button>
+        </template>
+
+        <h2 class="money__section">入金待ち詳細</h2>
+        <div class="stack">
+          <div v-if="receivableUnpaid.length === 0" class="empty-box">入金待ちはありません</div>
+          <div v-for="item in receivableUnpaid" :key="item.id" class="trow" @click="$router.push('/payment-detail/waiting-' + item.id)">
+            <div class="trow__avatar">
+              <img v-if="item.photo" :src="item.photo" />
+              <div v-else class="trow__ph" :style="{ backgroundColor: item.color }"></div>
+            </div>
+            <div class="trow__info">
+              <p class="trow__name">{{ item.name }}</p>
+              <p class="trow__sub">{{ item.date }}・{{ item.itemName }}<span v-if="item.remindCount" class="trow__badge trow__badge--remind">催促 {{ item.remindCount }}回</span></p>
+            </div>
+            <div class="trow__right">
+              <span class="trow__amount tnum">¥{{ item.amount.toLocaleString() }}</span>
+              <svg class="trow__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+            </div>
           </div>
         </div>
       </div>
-      
-      <div class="all-history-action">
-        <router-link to="/payment-history" class="bg-white border border-gray-200 px-6 py-3 rounded-full shadow-sm text-sm font-bold flex items-center justify-center gap-2 mx-auto w-fit mt-8 active:scale-95 transition-transform">
-          📜 全ての履歴を見る
-        </router-link>
+
+      <!-- 未払い -->
+      <div v-else>
+        <div class="summary summary--pay">
+          <p class="summary__label">現在の未払い</p>
+          <div class="summary__amount tnum">¥{{ totalPayable.toLocaleString() }}</div>
+          <span class="summary__badge">{{ payableList.length }}件</span>
+        </div>
+
+        <!-- 🌟 リクエスト済み（自分が支払い済み・相手の承認待ち） -->
+        <template v-if="payableAwaiting.length">
+          <h2 class="money__section">リクエスト済み・相手の承認待ち（{{ payableAwaiting.length }}件）</h2>
+          <div class="stack">
+            <div v-for="item in payableAwaiting" :key="item.id" class="trow trow--muted" @click="$router.push('/payment-detail/unpaid-' + item.id)">
+              <div class="trow__avatar">
+                <img v-if="item.photo" :src="item.photo" />
+                <div v-else class="trow__ph" :style="{ backgroundColor: item.color }"></div>
+              </div>
+              <div class="trow__info">
+                <p class="trow__name">{{ item.name }}</p>
+                <p class="trow__sub">{{ item.date }}・{{ item.itemName }}<span class="trow__badge">リクエスト済み</span></p>
+              </div>
+              <div class="trow__right">
+                <span class="trow__amount tnum">¥{{ item.amount.toLocaleString() }}</span>
+                <svg class="trow__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <h2 class="money__section">支払い詳細</h2>
+        <div class="stack">
+          <div v-if="payableUnpaid.length === 0" class="empty-box">未払いはありません</div>
+          <div v-for="item in payableUnpaid" :key="item.id" class="trow" @click="$router.push('/payment-detail/unpaid-' + item.id)">
+            <div class="trow__avatar">
+              <img v-if="item.photo" :src="item.photo" />
+              <div v-else class="trow__ph" :style="{ backgroundColor: item.color }"></div>
+            </div>
+            <div class="trow__info">
+              <p class="trow__name">{{ item.name }}</p>
+              <p class="trow__sub">{{ item.date }}・{{ item.itemName }}</p>
+            </div>
+            <div class="trow__right">
+              <span class="trow__amount tnum">¥{{ item.amount.toLocaleString() }}</span>
+              <svg class="trow__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+            </div>
+          </div>
+        </div>
       </div>
+
+      <button class="money__history" @click="$router.push('/payment-history')">すべての履歴を見る</button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { db, auth } from '@/firebase' // 🌟 追加
 import { onAuthStateChanged } from 'firebase/auth' // 🌟 追加
@@ -98,6 +130,12 @@ const payableList = ref([])    // 未払い（自分が支払う）
 // 🌟 合計金額などを表示するための変数
 const totalReceivable = ref(0)
 const totalPayable = ref(0)
+
+// 🌟 承認待ちと通常分を分けて表示するための算出プロパティ
+const receivableAwaiting = computed(() => receivableList.value.filter(i => i.status === 'awaiting_approval'))
+const receivableUnpaid = computed(() => receivableList.value.filter(i => i.status !== 'awaiting_approval'))
+const payableAwaiting = computed(() => payableList.value.filter(i => i.status === 'awaiting_approval'))
+const payableUnpaid = computed(() => payableList.value.filter(i => i.status !== 'awaiting_approval'))
 
 const saveTransaction = async (selectedFriend, amount, itemName, isMePaying) => {
   try {
@@ -135,82 +173,34 @@ onMounted(() => {
       // ==========================================
       // A. 「入金待ち」（自分が受け取る側）の取得
       // ==========================================
-      // 【前提】transactionsコレクションで、paidById != 自分 かつ status == 'unpaid'
       const qReceivable = query(
-        collection(db, "transactions"), 
-        where("paidToId", "==", myUid), // 自分が受け取る人
-        where("status", "==", "unpaid") // まだ未払い
+        collection(db, "transactions"),
+        where("paidToId", "==", myUid) // 自分が受け取る人
       );
 
       onSnapshot(qReceivable, async (snapshot) => {
         const list = [];
         let total = 0;
-        
+
         for (const transactionDoc of snapshot.docs) {
           const data = transactionDoc.data();
-          total += data.amount || 0;
-          
-          // 🌟 重要：支払う相手（中橋梨心さんなど）のアイコンと名前を取得
+          const s = data.status || 'unpaid';
+          if (s === 'completed') continue; // 完了済みは未決済リストに出さない
+
           const otherUid = data.paidById; // 支払う人のID
+          if (!otherUid) continue; // 🛡️ 相手UIDが無い不正データはスキップ（クラッシュ防止）
+          total += data.amount || 0;
+
           let otherName = data.paidByName || "不明なユーザー";
           let otherPhoto = "";
-          
-          // 相手がFirestoreにユーザー登録していれば、大元から画像を取得
-          const userDoc = await getDoc(doc(db, "users", otherUid));
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            otherName = userData.name || otherName;
-            otherPhoto = userData.photo || userData.photoURL || "";
-          }
-
-          list.push({
-            id: transactionDoc.id,
-            date: formatTimestamp(data.createdAt), // 日付フォーマット関数（下に記述）
-            name: otherName, // 相手の名前
-            itemName: data.itemName || "イベント代",
-            amount: data.amount || 0,
-            photo: otherPhoto, // 🌟 取得したアイコンURL
-            color: data.color || "#93c5fd" // 画像がない時の予備色
-          });
-        }
-        
-        receivableList.value = list;
-        totalReceivable.value = total;
-      });
-
-      // ==========================================
-      // B. 「未払い」（自分が支払う側）の取得（省略）
-      // 【前提】transactionsコレクションで、paidById == 自分 かつ status == 'unpaid'
-      // ここに同様のonSnapshot処理を実装してください
-      // ==========================================
-// ==========================================
-      // B. 🌟「未払い」（自分が支払う側）の取得
-      // ==========================================
-      const qPayable = query(
-        collection(db, "transactions"), 
-        where("paidById", "==", myUid), // 🌟 支払う人が「自分」
-        where("status", "==", "unpaid") // まだ払っていない
-      );
-
-      onSnapshot(qPayable, async (snapshot) => {
-        const list = [];
-        let total = 0;
-        
-        for (const transactionDoc of snapshot.docs) {
-          const data = transactionDoc.data();
-          total += data.amount || 0;
-          
-          // 🌟 相手（受け取る人 = paidToId）の情報を取得
-          const otherUid = data.paidToId; 
-          let otherName = data.paidToName || "不明なユーザー";
-          let otherPhoto = "";
-          
-          const userDoc = await getDoc(doc(db, "users", otherUid));
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            otherName = userData.name || otherName;
-            otherPhoto = userData.photo || userData.photoURL || "";
-          }
+          try {
+            const userDoc = await getDoc(doc(db, "users", otherUid));
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              otherName = userData.name || otherName;
+              otherPhoto = userData.photo || userData.photoURL || "";
+            }
+          } catch (e) { console.error("ユーザー取得失敗:", e); }
 
           list.push({
             id: transactionDoc.id,
@@ -219,18 +209,68 @@ onMounted(() => {
             itemName: data.itemName || "イベント代",
             amount: data.amount || 0,
             photo: otherPhoto,
-            color: data.color || "#fca5a5" // 未払いは赤系の予備色
+            color: data.color || "#93c5fd",
+            status: s,
+            statusLabel: txStatusLabel(s),
+            remindCount: data.remindCount || 0
           });
         }
-        
-        payableList.value = list;
-        totalPayable.value = total; // 🌟 合計金額を更新
+
+        receivableList.value = list;
+        totalReceivable.value = total;
       });
 
+      // ==========================================
+      // B. 🌟「未払い」（自分が支払う側）の取得
+      // ==========================================
+      const qPayable = query(
+        collection(db, "transactions"),
+        where("paidById", "==", myUid) // 🌟 支払う人が「自分」
+      );
+
+      onSnapshot(qPayable, async (snapshot) => {
+        const list = [];
+        let total = 0;
+
+        for (const transactionDoc of snapshot.docs) {
+          const data = transactionDoc.data();
+          const s = data.status || 'unpaid';
+          if (s === 'completed') continue;
+
+          const otherUid = data.paidToId;
+          if (!otherUid) continue; // 🛡️ 相手UIDが無い不正データはスキップ（クラッシュ防止）
+          total += data.amount || 0;
+
+          let otherName = data.paidToName || "不明なユーザー";
+          let otherPhoto = "";
+          try {
+            const userDoc = await getDoc(doc(db, "users", otherUid));
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              otherName = userData.name || otherName;
+              otherPhoto = userData.photo || userData.photoURL || "";
+            }
+          } catch (e) { console.error("ユーザー取得失敗:", e); }
+
+          list.push({
+            id: transactionDoc.id,
+            date: formatTimestamp(data.createdAt),
+            name: otherName,
+            itemName: data.itemName || "イベント代",
+            amount: data.amount || 0,
+            photo: otherPhoto,
+            color: data.color || "#fca5a5",
+            status: s,
+            statusLabel: txStatusLabel(s)
+          });
+        }
+
+        payableList.value = list;
+        totalPayable.value = total;
+      });
 
     } else {
       console.log("ログインしていません");
-      // 必要ならログイン画面へリダイレクト
     }
   });
 })
@@ -240,19 +280,9 @@ watch(() => route.query.tab, (newTab) => {
   if (newTab) currentTab.value = newTab
 })
 
-/*
-// --- ダミーデータ ---
-const payableList = ref([
-  { id: 1, date: '3/10', name: '小野木涼平', itemName: 'レンタカー代', amount: 2000, color: '#fca5a5' },
-  { id: 2, date: '3/11', name: '大崎稜馬', itemName: '飲み会代', amount: 6300, color: '#93c5fd' },
-])
+// 取引ステータスの表示ラベル
+const txStatusLabel = (s) => s === 'awaiting_approval' ? '承認待ち' : (s === 'completed' ? '完了' : '未決済');
 
-const receivableList = ref([
-  { id: 1, date: '3/12', name: '天野椋祐', itemName: 'カフェ代', amount: 800, color: '#93c5fd' },
-  { id: 2, date: '3/14', name: '中橋楓華', itemName: 'ランチ代', amount: 1200, color: '#bbf7d0' },
-  { id: 3, date: '3/15', name: '松岡暖來', itemName: 'タクシー代', amount: 1500, color: '#f9a8d4' },
-])
-  */
 // 🌟 補助関数：FirestoreのTimestampを「3/12」形式に変換
 const formatTimestamp = (timestamp) => {
   if (!timestamp) return "";
@@ -261,94 +291,104 @@ const formatTimestamp = (timestamp) => {
   const day = date.getDate();
   return `${month}/${day}`;
 }
-
 </script>
 
 <style scoped>
-/* MoneyPage.vue の <style scoped> 一番上を上書き */
-.money-page-container { 
-  font-family: 'Noto Sans JP', sans-serif; 
-  background-color: #f8fafc; 
-  min-height: 100vh; 
-  display: flex; 
-  flex-direction: column;
-  box-sizing: border-box;
+.money__body { padding: 6px var(--pad) 28px; }
+
+/* セグメント */
+.seg { margin-bottom: 18px; }
+
+/* サマリー */
+.summary {
+  border-radius: var(--r-lg);
+  padding: 20px;
+  color: #fff;
+  margin-bottom: 8px;
+}
+.summary--receive { background: var(--c-receive); }
+.summary--pay { background: var(--c-pay); }
+.summary__label { font-size: 13px; opacity: 0.92; font-weight: var(--fw-medium); }
+.summary__amount {
+  font-size: 34px;
+  font-weight: var(--fw-black);
+  letter-spacing: -0.01em;
+  margin: 4px 0 10px;
+}
+.summary__badge {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.22);
+  padding: 4px 12px;
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  font-weight: var(--fw-bold);
 }
 
-.page-header { 
-  display: flex; 
-  justify-content: space-between; 
-  align-items: center; 
-  padding: 16px 20px; 
-  background: linear-gradient(135deg, #dcfce7 0%, #d1fae5 100%); /* 🌟 爽やかなグリーン */
-  position: sticky; 
-  z-index: 100;
-  border-radius: 0 0 24px 24px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-  margin-bottom: 15px;
+.money__section {
+  font-size: 15px;
+  font-weight: var(--fw-bold);
+  color: var(--c-ink);
+  margin: 22px 0 12px;
 }
-.back-btn { background: none; border: none; font-size: 32px; color: #0f172a; cursor: pointer; padding: 0; display: flex; align-items: center; transition: 0.2s; }
-.back-btn:active { transform: scale(0.9); }
-.page-title { font-size: 18px; font-weight: 900; margin: 0; color: #0f172a; flex: 1; text-align: center; }
-.spacer { width: 32px; }
+.money__section--action { color: var(--c-brand-strong); }
+.trow--action { border: 1.5px solid var(--c-brand); }
+.trow--muted { opacity: 0.82; }
 
-.money-content { padding: 15px 20px 100px; flex: 1; }
-/* ↑ここまで上書き。以降は既存の .tab-container などが続きます */
-
-.tab-container { display: flex; background-color: #e2e8f0; border-radius: 8px; padding: 4px; margin-bottom: 20px; }
-.tab-btn { flex: 1; padding: 10px; border: none; background: transparent; font-weight: bold; color: #64748b; border-radius: 6px; cursor: pointer; transition: all 0.3s ease; }
-.tab-btn.active { background-color: #fff; color: #0f172a; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); }
-
-.card { background-color: #fff; border-radius: 16px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02); }
-.summary-card { text-align: left; }
-.blue-bg { background-color: #2563eb; color: #fff; }
-.orange-bg { background-color: #f59e0b; color: #fff; }
-
-.summary-title { margin: 0; font-size: 14px; opacity: 0.9; }
-.summary-amount { margin: 10px 0; font-size: 36px; font-weight: bold; }
-.badge { display: inline-block; background-color: rgba(255, 255, 255, 0.2); padding: 4px 12px; border-radius: 20px; font-size: 12px; }
-
-.section-title { font-size: 18px; font-weight: bold; margin: 25px 0 15px 0; color: #1e293b; }
-
-.list-card { display: flex; justify-content: space-between; align-items: center; padding: 15px; }
-.list-left { display: flex; align-items: center; gap: 15px; }
-.date { font-size: 14px; font-weight: bold; color: #000; margin: 0; }
-.circle { width: 30px; height: 30px; border-radius: 50%; }
-.info p { margin: 0; }
-.name { font-size: 12px; font-weight: bold; color: #000; }
-.event { font-size: 10px; color: #64748b; }
-.list-right { text-align: center; }
-.amount { margin: 0 0 5px 0; font-size: 16px; font-weight: bold; }
-.red-text { color: #b91c1c; }
-
-.btn { padding: 6px 16px; border-radius: 20px; border: none; font-size: 12px; font-weight: bold; color: #fff; cursor: pointer; }
-.btn-red { background-color: #ef4444; }
-.btn-green { background-color: #4ade80; }
-
-.all-history-action { margin-top: 30px; text-align: center; padding-bottom: 20px; }
-.all-history-btn { background-color: white; border: 1px solid #cbd5e1; color: #1e293b; padding: 14px 30px; border-radius: 25px; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
-.all-history-btn:active { background-color: #f8fafc; transform: scale(0.95); }
-
-/* moneypage.vue の <style scoped> に追加・修正 */
-
-.list-left { display: flex; align-items: center; gap: 10px; } /* gapを少し調整 */
-
-/* 🌟 アバター枠のスタイルを追加 */
-.circle.avatar-wrapper {
-  width: 35px; /* 元の30pxから少し大きく */  height: 35px;  border-radius: 50%;
-  overflow: hidden; /* はみ出し防止 */  display: flex;  align-items: center;
-  justify-content: center;  box-shadow: 0 2px 4px rgba(0,0,0,0.05); /* 軽い影 */
+/* 取引行 */
+.trow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--c-surface);
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  transition: transform 0.15s ease;
 }
-
-/* 🌟 追加：画像自体のスタイル（共通） */
-.avatar-img {
-  width: 100%;  height: 100%;  object-fit: cover; /* 🌟 アスペクト比を維持して埋める */
+.trow:active { transform: scale(0.985); }
+.trow__avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  overflow: hidden; flex-shrink: 0; background: var(--c-line-bold);
 }
-
-/* 🌟 追加：画像がない時のプレースホルダー */
-.avatar-placeholder {
-  width: 100%;  height: 100%;
+.trow__avatar img { width: 100%; height: 100%; object-fit: cover; }
+.trow__ph { width: 100%; height: 100%; }
+.trow__info { flex: 1; min-width: 0; }
+.trow__name {
+  font-size: 15px; font-weight: var(--fw-bold); color: var(--c-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.trow__sub { font-size: 12px; color: var(--c-text-sub); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.trow__badge { background: var(--c-pay-weak); color: var(--c-pay-strong); font-size: 10px; font-weight: var(--fw-bold); padding: 2px 8px; border-radius: var(--r-pill); }
+.trow__badge--action { background: var(--c-brand-weak); color: var(--c-brand-strong); }
+.trow__badge--remind { background: var(--c-receive-weak, #eaf1ff); color: var(--c-receive); }
+.trow__right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.trow__amount { font-size: 16px; font-weight: var(--fw-black); color: var(--c-ink); }
+.trow__chevron { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: var(--c-text-faint); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.trow__btn {
+  background: var(--c-brand-weak);
+  color: var(--c-brand-strong);
+  padding: 6px 14px;
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  font-weight: var(--fw-bold);
+}
+.trow__btn:active { transform: scale(0.95); }
+.trow__btn--primary { background: var(--c-brand); color: #fff; }
 
-/* 元の .circle クラスは不要なら削除、または.avatar-placeholderへ継承 */
+/* 履歴へ */
+.money__history {
+  display: block;
+  width: fit-content;
+  margin: 26px auto 0;
+  padding: 12px 24px;
+  border-radius: var(--r-pill);
+  background: var(--c-surface);
+  border: 1px solid var(--c-line-bold);
+  color: var(--c-text);
+  font-size: 14px;
+  font-weight: var(--fw-bold);
+  box-shadow: var(--shadow-sm);
+}
+.money__history:active { transform: scale(0.97); background: var(--c-surface-2); }
 </style>

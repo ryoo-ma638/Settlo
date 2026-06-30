@@ -160,9 +160,9 @@ watch(() => props.isOpen, (newVal) => {
 
 .code-section { margin-bottom: 20px; flex-shrink: 0; }
 .code-section label { display: block; font-size: 13px; font-weight: bold; color: #64748b; margin-bottom: 8px; }
-.code-box { display: flex; justify-content: space-between; align-items: center; background: #1e293b; padding: 12px 16px; border-radius: 12px; }
-.code { color: white; font-family: monospace; font-size: 24px; font-weight: bold; letter-spacing: 4px; }
-.copy-btn { background: white; color: #1e293b; border: none; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+.code-box { display: flex; justify-content: space-between; align-items: center; background: var(--c-brand-deep); padding: 12px 16px; border-radius: 12px; }
+.code { color: white; font-size: 24px; font-weight: bold; letter-spacing: 4px; }
+.copy-btn { background: white; color: var(--c-brand-deep); border: none; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; }
 .copy-btn:active { transform: scale(0.95); }
 .hint { font-size: 11px; color: #94a3b8; margin-top: 8px; margin-bottom: 0; }
 
@@ -173,7 +173,7 @@ watch(() => props.isOpen, (newVal) => {
 
 .search-box { margin-bottom: 10px; flex-shrink: 0; }
 .search-input { width: 100%; padding: 12px 15px; border-radius: 12px; border: 1px solid #cbd5e1; background: white; font-size: 14px; font-weight: bold; color: #1e293b; outline: none; box-sizing: border-box; transition: 0.2s; }
-.search-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+.search-input:focus { border-color: var(--c-brand); box-shadow: 0 0 0 3px var(--c-brand-weak); }
 
 .filter-controls { display: flex; justify-content: flex-end; margin-bottom: 15px; flex-shrink: 0; }
 .custom-select { padding: 8px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: white; font-size: 12px; font-weight: bold; color: #64748b; outline: none; }
@@ -187,7 +187,7 @@ watch(() => props.isOpen, (newVal) => {
 .user-id { font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 6px; margin-top: 2px; }
 .not-friend-badge { background: #fee2e2; color: #ef4444; padding: 2px 6px; border-radius: 6px; font-size: 9px; font-weight: bold; }
 
-.invite-btn { background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 12px; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+.invite-btn { background: var(--c-brand); color: white; border: none; padding: 8px 16px; border-radius: 12px; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; }
 .invite-btn:active { transform: scale(0.95); }
 .invite-btn.invited { background: #e2e8f0; color: #94a3b8; cursor: default; }
 .invite-btn.invited:active { transform: none; }

@@ -1,67 +1,63 @@
 <template>
   <Teleport to="body">
-    <div v-if="isOpen" class="modal-overlay" @click.self="close">
-      <div class="add-modal">
-        
-        <div v-if="!selectedUser">
-          <div class="tab-container">
-            <button class="tab-btn" :class="{ active: searchMode === 'name' }" @click="searchMode = 'name'">名前検索</button>
-            <button class="tab-btn" :class="{ active: searchMode === 'id' }" @click="searchMode = 'id'">ID検索</button>
-          </div>
+    <transition name="fade">
+      <div v-if="isOpen" class="modal-overlay" @click.self="close">
+        <div class="add-modal">
 
-          <div class="search-input-wrapper">
-            <span class="search-icon">🔍</span>
-            <input v-model="searchQuery" type="text" :placeholder="searchMode === 'name' ? '名前を入力' : 'IDを入力'" class="search-input" />
-          </div>
+          <div v-if="!selectedUser">
+            <h2 class="add-modal__title">フレンドを追加</h2>
 
-          <div class="result-scroll-area">
-            <div v-for="user in searchResults" :key="user.uid" class="result-card">
-              <div class="user-avatar-wrapper-mini">
-                <img v-if="user.photo" :src="user.photo" class="user-avatar-img" />
-                <div v-else class="user-avatar" :style="{ backgroundColor: user.color || '#cbd5e1' }"></div>
+            <div class="seg">
+              <button class="seg__item" :class="{ 'is-active': searchMode === 'name' }" @click="searchMode = 'name'">名前検索</button>
+              <button class="seg__item" :class="{ 'is-active': searchMode === 'id' }" @click="searchMode = 'id'">ID検索</button>
+            </div>
+
+            <div class="search">
+              <svg class="search__icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
+              <input v-model="searchQuery" type="text" :placeholder="searchMode === 'name' ? '名前を入力' : 'IDを入力'" class="search__input" />
+            </div>
+
+            <div class="results">
+              <div v-for="user in searchResults" :key="user.uid" class="rescard">
+                <div class="rescard__avatar">
+                  <img v-if="user.photo" :src="user.photo" />
+                  <div v-else class="rescard__ph" :style="{ backgroundColor: user.color || '#cbd5e1' }"></div>
+                </div>
+                <span class="rescard__name">{{ user.name }}</span>
+                <button class="rescard__add" @click="selectedUser = user">追加</button>
               </div>
-              <span class="user-name">{{ user.name }}</span>
-              <button class="add-btn" @click="selectedUser = user">追加</button>
+              <div v-if="searchQuery && searchResults.length === 0" class="empty-msg">
+                ユーザーが見つかりません
+              </div>
+            </div>
+
+            <button class="modal-close" @click="close">閉じる</button>
+          </div>
+
+          <div v-else class="confirm">
+            <h2 class="add-modal__title">フレンド追加</h2>
+
+            <div class="confirm__user">
+              <div class="confirm__avatar">
+                <img v-if="selectedUser.photo" :src="selectedUser.photo" />
+                <div v-else class="confirm__ph" :style="{ backgroundColor: selectedUser.color || '#cbd5e1' }"></div>
+              </div>
+              <h3 class="confirm__name">{{ selectedUser.name }}</h3>
+            </div>
+
+            <p class="confirm__q">このユーザーをフレンドに追加しますか？</p>
+
+            <div class="confirm__actions">
+              <button class="btn-brand" @click="executeRequest">申請を送る</button>
+              <button class="btn-outline" @click="selectedUser = null">検索に戻る</button>
             </div>
           </div>
-          <div v-if="searchQuery && searchResults.length === 0" class="empty-msg">
-            ユーザーが見つかりません
-          </div>
 
-          <button class="close-modal-btn" @click="close">閉じる</button>
         </div>
-
-        <div v-else class="confirm-view">
-          <h2 class="modal-title">フレンド追加</h2>
-          
-          <div class="target-user">
-            <div class="avatar-wrapper-large">
-              <img v-if="selectedUser.photo" :src="selectedUser.photo" class="user-avatar-img-large" />
-              <div v-else class="avatar" :style="{ backgroundColor: selectedUser.color || '#cbd5e1' }"></div>
-            </div>
-            <h3 class="name">{{ selectedUser.name }}</h3>
-          </div>
-
-          <p class="question">このユーザーをフレンドに追加しますか？</p>
-
-          <div class="trade-history">
-            <h4 class="history-title">過去の取引履歴</h4>
-            <ul class="history-list">
-              <li><span class="date">3/11</span> 飲み会代 <strong class="price">¥6,300</strong></li>
-              <li><span class="date">2/20</span> タクシー代 <strong class="price">¥1,500</strong></li>
-            </ul>
-          </div>
-
-          <div class="actions">
-            <button class="btn execute-btn" @click="executeRequest">申請を送る</button>
-            <button class="btn cancel-btn" @click="selectedUser = null">検索に戻る</button>
-          </div>
-        </div>
-
       </div>
-    </div>
-    
-    <BaseModal 
+    </transition>
+
+    <BaseModal
       :show="modalState.show"
       :type="modalState.type"
       :title="modalState.title"
@@ -77,11 +73,11 @@
 </template>
 
 <script setup>
-import { ref, watch, reactive } from 'vue'; 
+import { ref, watch, reactive } from 'vue';
 import BaseModal from './BaseModal.vue'; // 🌟 統一モーダルをインポート
 import { db, auth } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, limit } from 'firebase/firestore';
-import { doc, getDoc } from 'firebase/firestore'; 
+import { doc, getDoc } from 'firebase/firestore';
 
 const props = defineProps({ isOpen: Boolean });
 const emit = defineEmits(['close']);
@@ -93,7 +89,7 @@ const selectedUser = ref(null);
 
 // 🌟 統一モーダルの状態管理
 const modalState = reactive({
-  show: false, type: 'info', title: '', message: '', 
+  show: false, type: 'info', title: '', message: '',
   showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null
 });
 
@@ -110,7 +106,7 @@ const handleConfirmModal = () => {
 const performSearch = async () => {
   const text = searchQuery.value.trim();
   if (text.length === 0) { searchResults.value = []; return; }
-  
+
   try {
     const results = [];
 
@@ -120,7 +116,7 @@ const performSearch = async () => {
       const querySnapshot = await getDocs(q);
       querySnapshot.forEach((doc) => {
         if (doc.id !== auth.currentUser?.uid) {
-          const data = doc.data(); 
+          const data = doc.data();
           results.push({
             uid: doc.id,
             name: data.name,
@@ -134,10 +130,10 @@ const performSearch = async () => {
 
       if (userSnap.exists() && userSnap.id !== auth.currentUser?.uid) {
         const data = userSnap.data();
-        results.push({ 
-          uid: userSnap.id, 
+        results.push({
+          uid: userSnap.id,
           name: data.name,
-          photo: data.photo || "" 
+          photo: data.photo || ""
         });
       }
     }
@@ -152,15 +148,15 @@ watch(searchQuery, () => performSearch());
 
 const close = () => {
   searchQuery.value = '';
-  selectedUser.value = null; 
+  selectedUser.value = null;
   emit('close');
 };
 
 // 🌟 申請を送る処理（alertをモーダルに変更）
 const executeRequest = async () => {
-  if (!auth.currentUser) { 
+  if (!auth.currentUser) {
     showModal({ type: 'error', title: 'エラー', message: 'ログインが必要です。' });
-    return; 
+    return;
   }
   const targetUser = selectedUser.value;
 
@@ -182,70 +178,127 @@ const executeRequest = async () => {
       toName: targetUser.name,
       formId: auth.currentUser.uid,
       formName: myName,
-      formPhoto: myPhoto, 
+      formPhoto: myPhoto,
       status: "pending",
       createdAt: serverTimestamp()
     });
 
-    // 🌟 alert("申請を送りました！"); を美しいモーダルに！
-    showModal({ 
-      type: 'success', 
-      title: '申請完了', 
+    showModal({
+      type: 'success',
+      title: '申請完了',
       message: `${targetUser.name}さんにフレンド申請を送りました！`,
       onConfirm: () => {
-        emit('close'); // OKボタンを押したらモーダルも閉じる
+        emit('close');
       }
     });
 
   } catch (error) {
     console.error("エラー内容:", error);
-    // 🌟 alert("申請に失敗しました。"); を美しいモーダルに！
-    showModal({ 
-      type: 'error', 
-      title: '送信失敗', 
-      message: '申請に失敗しました。もう一度試してください。' 
+    showModal({
+      type: 'error',
+      title: '送信失敗',
+      message: '申請に失敗しました。もう一度試してください。'
     });
   }
 };
 </script>
 
 <style scoped>
-/* 既存のCSSはそのまま */
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0, 0, 0, 0.5); z-index: 2000; display: flex; justify-content: center; align-items: center; padding: 20px; }
-.add-modal { width: 100%; max-width: 350px; background-color: #eef7ff; border-radius: 30px; padding: 25px 20px; display: flex; flex-direction: column; gap: 15px; }
-.tab-container { display: flex; background-color: #fff; border-radius: 15px; padding: 3px; margin-bottom: 10px;}
-.tab-btn { flex: 1; padding: 10px; border: none; background: none; border-radius: 12px; font-weight: bold; color: #666; cursor: pointer; }
-.tab-btn.active { background-color: #ffedb3; color: #333; }
-.search-input-wrapper { position: relative; background-color: #fff; border: 1px solid #333; border-radius: 5px; height: 35px; display: flex; align-items: center; margin-bottom: 10px; }
-.search-icon { position: absolute; left: 10px; }
-.search-input { width: 100%; border: none; background: none; padding-left: 35px; outline: none; }
-.result-scroll-area { height: 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-.result-card { background-color: #fff; display: flex; align-items: center; gap: 10px; padding: 8px 15px; border-radius: 30px; }
-.user-avatar { width: 35px; height: 35px; border-radius: 50%; }
-.user-name { flex: 1; font-weight: bold; text-align: left; }
-.add-btn { background-color: #ffedb3; border: none; padding: 6px 20px; border-radius: 15px; font-weight: bold; cursor: pointer; }
-.empty-msg { text-align: center; color: #999; margin-top: 20px; }
-.close-modal-btn { background-color: #fff; border: none; border-radius: 20px; padding: 10px 40px; font-weight: bold; align-self: center; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-top: 15px; }
+.modal-overlay {
+  position: fixed; inset: 0;
+  background-color: rgba(15, 23, 42, 0.5);
+  z-index: 2000;
+  display: flex; justify-content: center; align-items: center;
+  padding: 20px;
+}
+.add-modal {
+  width: 100%;
+  max-width: 360px;
+  background: var(--c-surface);
+  border-radius: var(--r-xl);
+  padding: 22px;
+  box-shadow: var(--shadow-pop);
+}
+.add-modal__title {
+  font-size: 18px; font-weight: var(--fw-bold); color: var(--c-ink);
+  text-align: center; margin-bottom: 16px;
+}
 
-/* 🌟 確認画面用のCSS */
-.confirm-view { text-align: center; }
-.modal-title { font-size: 20px; font-weight: bold; margin-bottom: 20px; color: #1e293b; }
-.target-user { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 20px; }
-.avatar { width: 80px; height: 80px; border-radius: 50%; }
-.name { font-size: 22px; margin: 0; font-weight: bold; }
-.question { font-size: 14px; font-weight: bold; color: #1e293b; margin-bottom: 20px; }
-.trade-history { background: #fff; padding: 15px; border-radius: 15px; text-align: left; margin-bottom: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
-.history-title { font-size: 12px; color: #64748b; margin: 0 0 10px 0; }
-.history-list { list-style: none; padding: 0; margin: 0; font-size: 14px; }
-.history-list li { display: flex; justify-content: space-between; border-bottom: 1px dashed #cbd5e1; padding: 8px 0; }
-.history-list li:last-child { border-bottom: none; }
-.date { color: #94a3b8; font-size: 12px; }
-.actions { display: flex; flex-direction: column; gap: 10px; }
-.btn { width: 100%; padding: 15px; border-radius: 15px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; }
-.execute-btn { background: #2169a3; color: white; }
-.cancel-btn { background: #e2e8f0; color: #64748b; }
+.seg { margin-bottom: 12px; }
 
-.user-avatar-wrapper-mini { width: 35px; height: 35px; flex-shrink: 0; }
-.avatar-wrapper-large { width: 80px; height: 80px; flex-shrink: 0; }
-.user-avatar-img, .user-avatar-img-large { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+/* 検索 */
+.search {
+  position: relative;
+  margin-bottom: 14px;
+}
+.search__icon {
+  position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+  width: 18px; height: 18px;
+  fill: none; stroke: var(--c-text-faint); stroke-width: 1.9; stroke-linecap: round;
+}
+.search__input {
+  width: 100%;
+  padding: 12px 14px 12px 40px;
+  border: 1px solid var(--c-line-bold);
+  border-radius: var(--r-md);
+  background: var(--c-surface);
+  font-size: 15px;
+}
+.search__input:focus {
+  outline: none; border-color: var(--c-brand);
+  box-shadow: 0 0 0 3px var(--c-brand-weak);
+}
+
+/* 検索結果 */
+.results {
+  min-height: 120px;
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rescard {
+  display: flex; align-items: center; gap: 11px;
+  background: var(--c-surface-2);
+  padding: 9px 12px;
+  border-radius: var(--r-pill);
+}
+.rescard__avatar { width: 36px; height: 36px; flex-shrink: 0; }
+.rescard__avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.rescard__ph { width: 100%; height: 100%; border-radius: 50%; }
+.rescard__name { flex: 1; font-weight: var(--fw-bold); font-size: 14px; color: var(--c-ink); }
+.rescard__add {
+  background: var(--c-brand); color: #fff;
+  padding: 6px 16px; border-radius: var(--r-pill);
+  font-size: 13px; font-weight: var(--fw-bold);
+}
+.rescard__add:active { transform: scale(0.95); }
+
+.empty-msg { text-align: center; color: var(--c-text-faint); font-size: 14px; padding: 28px 0; }
+
+.modal-close {
+  display: block;
+  margin: 16px auto 0;
+  padding: 11px 36px;
+  background: var(--c-surface-2);
+  color: var(--c-text-sub);
+  border-radius: var(--r-pill);
+  font-weight: var(--fw-bold);
+  font-size: 14px;
+}
+.modal-close:active { transform: scale(0.97); }
+
+/* 確認画面 */
+.confirm { text-align: center; }
+.confirm__user { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 16px; }
+.confirm__avatar { width: 84px; height: 84px; }
+.confirm__avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.confirm__ph { width: 100%; height: 100%; border-radius: 50%; }
+.confirm__name { font-size: 20px; font-weight: var(--fw-bold); color: var(--c-ink); }
+.confirm__q { font-size: 14px; font-weight: var(--fw-medium); color: var(--c-text-sub); margin-bottom: 22px; }
+.confirm__actions { display: flex; flex-direction: column; gap: 8px; }
+
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>
