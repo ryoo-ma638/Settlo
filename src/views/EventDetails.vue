@@ -5,13 +5,22 @@
     <main class="content">
       <div class="summary-card">
         <div class="card-top">
-          <h2 class="event-name">{{ eventData.name }}</h2>
-          <span class="event-date">{{ eventData.date }}</span>
+          <div class="event-title-wrap">
+            <span class="event-genre"><GenreIcon :type="eventData.tag" /></span>
+            <h2 class="event-name">{{ eventData.name }}</h2>
+          </div>
+          <button class="event-edit-btn" @click="openEditEvent">編集</button>
         </div>
         
         <div class="total-section clickable" @click="scrollToTimeline">
-          <span class="label">合計金額 <span class="arrow-down">履歴を見る ↓</span></span>
-          <h1 class="total-amount">¥{{ eventData.total.toLocaleString() }}</h1>
+          <span class="label">未精算の残り <span class="arrow-down">履歴を見る ↓</span></span>
+          <h1 class="total-amount">¥{{ outstandingTotal.toLocaleString() }}</h1>
+          <span class="total-sub">立替の合計 ¥{{ eventData.total.toLocaleString() }}</span>
+
+          <div class="progress-wrap" v-if="settlementProgress.total > 0">
+            <div class="progress-bar"><div class="progress-fill" :style="{ width: settlementProgress.percent + '%' }"></div></div>
+            <span class="progress-text">{{ settlementProgress.done }}/{{ settlementProgress.total }}件 精算済み（{{ settlementProgress.percent }}%）</span>
+          </div>
         </div>
 
         <div class="participants-section" @click="modals.participants = true">
@@ -22,17 +31,18 @@
           <div class="participants-row">
             <div class="avatar-stack">
               <template v-for="(p, i) in eventData.participants.slice(0, 5)" :key="i">
-                <img 
-                  v-if="p.color && p.color.startsWith('http')" 
-                  :src="p.color" 
-                  class="avatar" 
-                  :style="{ zIndex: 10 - i }" 
-                />
-                <div 
-                  v-else 
-                  class="avatar" 
-                  :style="{ backgroundColor: p.color || '#cbd5e1', zIndex: 10 - i }"
-                ></div>
+                <div class="avatar" :style="{ zIndex: 10 - i }">
+                  <img
+                    v-if="p.color && p.color.startsWith('http')"
+                    :src="p.color"
+                    class="avatar__img"
+                  />
+                  <div
+                    v-else
+                    class="avatar__ph"
+                    :style="{ backgroundColor: p.color || '#cbd5e1' }"
+                  ></div>
+                </div>
               </template>
               <div v-if="eventData.participants.length > 5" class="avatar-more">
                 +{{ eventData.participants.length - 5 }}
@@ -42,6 +52,12 @@
               <span class="icon">＋</span> 招待
             </button>
           </div>
+        </div>
+
+        <div class="invite-code-bar">
+          <span class="icb-label">招待コード</span>
+          <span class="icb-code">{{ eventData.invitationCode }}</span>
+          <button class="icb-copy" @click="copyInviteCode">コピー</button>
         </div>
       </div>
 
@@ -65,10 +81,12 @@
           <div v-if="filteredSummary.length === 0" class="empty-state">該当する精算はありません</div>
           <div class="summary-card-item" v-for="sum in filteredSummary" :key="sum.id" @click="openSummaryDetail(sum)">
             <div class="flow">
-              <div class="avatar-small" :style="{ backgroundColor: sum.fromColor }"></div>
+              <img v-if="sum.fromPhoto" :src="sum.fromPhoto" class="avatar-small" />
+              <div v-else class="avatar-small" :style="{ backgroundColor: sum.fromColor }"></div>
               <span class="name">{{ sum.from }}</span>
               <span class="arrow-right">→</span>
-              <div class="avatar-small" :style="{ backgroundColor: sum.toColor }"></div>
+              <img v-if="sum.toPhoto" :src="sum.toPhoto" class="avatar-small" />
+              <div v-else class="avatar-small" :style="{ backgroundColor: sum.toColor }"></div>
               <span class="name">{{ sum.to }}</span>
             </div>
             <div class="amount-right">
@@ -117,17 +135,10 @@
             <div class="timeline-content">
               <div class="history-card" :class="{ 'unpaid-card': history.status === 'unpaid' }">
                 <div class="history-main">
-                  <img 
-                    v-if="history.color && history.color.startsWith('http')" 
-                    :src="history.color" 
-                    class="history-avatar" 
-                  />
-                  <div 
-                    v-else 
-                    class="history-avatar" 
-                    :style="{ backgroundColor: history.color || '#cbd5e1' }"
-                  ></div>
-                  
+                  <div class="history-avatar history-avatar--cat">
+                    <GenreIcon :type="history.category" />
+                  </div>
+
                   <div class="history-text">
                     <span class="history-item-name">{{ history.itemName }} <span class="split-type">{{ history.splitType }}</span></span>
                     <span class="history-payer">{{ history.date }} {{ history.time }} • {{ history.payer }} が立替</span>
@@ -135,10 +146,10 @@
                 </div>
                 <div class="history-right">
                   <span class="history-price">¥{{ history.amount.toLocaleString() }}</span>
-                  <button v-if="history.status === 'unpaid'" class="pay-now-btn" @click.stop="openHistoryDetail(history)">
-                    決済に進む ›
-                  </button>
-                  <span v-else class="badge paid">精算済</span>
+                  <span v-if="history.status !== 'unpaid'" class="badge paid">精算済</span>
+                  <span v-else-if="isMyPayment(history)" class="badge receive">受取待ち ¥{{ myReceivableOf(history).toLocaleString() }}</span>
+                  <span v-else-if="myShareOf(history) > 0" class="badge owe">あなた ¥{{ myShareOf(history).toLocaleString() }}</span>
+                  <span v-else class="badge pending">未精算</span>
                 </div>
               </div>
             </div>
@@ -151,7 +162,19 @@
     </main>
 
     <Teleport to="body">
-      <BaseModal 
+      <BaseModal
+        :show="alertState.show"
+        :type="alertState.type"
+        :title="alertState.title"
+        :message="alertState.message"
+        :showCancel="alertState.showCancel"
+        :confirmText="alertState.confirmText"
+        :cancelText="alertState.cancelText"
+        @confirm="handleAlertConfirm"
+        @cancel="alertState.show = false"
+        @close="alertState.show = false"
+      />
+      <BaseModal
         :show="modals.unpaidWarning"
         type="warning"
         title="未完済の取引があります"
@@ -168,32 +191,59 @@
           <div class="modal-header"><h3>参加者一覧</h3><button class="close-btn" @click="modals.participants = false">×</button></div>
           <div class="modal-list">
             <div class="list-item" v-for="p in eventData.participants" :key="p.id">
-              <img 
-                v-if="p.color && p.color.startsWith('http')" 
-                :src="p.color" 
-                class="avatar-medium" 
+              <img
+                v-if="p.color && p.color.startsWith('http')"
+                :src="p.color"
+                class="avatar-medium"
               />
-              <div 
-                v-else 
-                class="avatar-medium" 
+              <div
+                v-else
+                class="avatar-medium"
                 :style="{ backgroundColor: p.color || '#cbd5e1' }"
               ></div>
               <span class="item-name">{{ p.name }} <span v-if="p.isMe" class="me-badge">自分</span></span>
+              <button v-if="!p.isMe" class="p-remove-btn" @click="removeParticipant(p)" aria-label="外す">
+                <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>
+              </button>
             </div>
           </div>
         </div>
       </div>
 
-      <ReceiptPaymentModal :isOpen="modals.historyDetail" :history="selectedHistory" @close="modals.historyDetail = false" @complete="markAsCompleted" />
+      <div v-if="modals.editEvent" class="modal-overlay" @click.self="modals.editEvent = false">
+        <div class="modal-content slide-up">
+          <div class="modal-header"><h3>イベントを編集</h3><button class="close-btn" @click="modals.editEvent = false">×</button></div>
+          <div class="edit-body">
+            <label class="edit-label">イベント名</label>
+            <input v-model="editName" class="edit-input" placeholder="イベント名" />
+            <label class="edit-label">ジャンル</label>
+            <div class="edit-genre-grid">
+              <button
+                v-for="g in eventGenres" :key="g" type="button"
+                class="edit-genre" :class="{ active: editTag === g }"
+                @click="editTag = g"
+              >
+                <span class="edit-genre-icon"><GenreIcon :type="g" /></span>
+                <span class="edit-genre-label">{{ g }}</span>
+              </button>
+            </div>
+            <button class="edit-save-btn" @click="saveEventEdit">保存する</button>
+          </div>
+        </div>
+      </div>
+
+      <ReceiptPaymentModal :isOpen="modals.historyDetail" :history="selectedHistory" :myAmount="selectedMyAmount" :myRole="selectedMyRole" @close="modals.historyDetail = false" @complete="markAsCompleted" />
 
       <div v-if="modals.summaryDetail && selectedSummary" class="modal-overlay" @click.self="modals.summaryDetail = false">
         <div class="modal-content slide-up">
           <div class="modal-header"><h3>精算の詳細</h3><button class="close-btn" @click="modals.summaryDetail = false">×</button></div>
           <div class="summary-detail-body">
             <div class="flow-large">
-              <div class="avatar-large" :style="{ backgroundColor: selectedSummary.fromColor }"></div>
+              <img v-if="selectedSummary.fromPhoto" :src="selectedSummary.fromPhoto" class="avatar-large" />
+              <div v-else class="avatar-large" :style="{ backgroundColor: selectedSummary.fromColor }"></div>
               <span class="arrow-large">→</span>
-              <div class="avatar-large" :style="{ backgroundColor: selectedSummary.toColor }"></div>
+              <img v-if="selectedSummary.toPhoto" :src="selectedSummary.toPhoto" class="avatar-large" />
+              <div v-else class="avatar-large" :style="{ backgroundColor: selectedSummary.toColor }"></div>
             </div>
             <p class="s-text"><strong>{{ selectedSummary.from }}</strong> さんから<br><strong>{{ selectedSummary.to }}</strong> さんへ</p>
             <h1 class="s-amount" :class="selectedSummary.isMePayer ? 'orange-text' : 'blue-text'">¥{{ selectedSummary.amount.toLocaleString() }}</h1>
@@ -236,12 +286,25 @@
         </div>
       </div>
 
-      <InviteModal 
-        :isOpen="modals.invite" 
-        :eventCode="eventData.invitationCode" 
-        @close="modals.invite = false" 
+      <InviteModal
+        :isOpen="modals.invite"
+        :eventCode="eventData.invitationCode"
+        :eventId="route.params.id"
+        :participantUids="eventData.participants.map(p => p.id)"
+        @close="modals.invite = false"
       />
-      <AddPaymentModal :isOpen="modals.addPayment" @close="modals.addPayment = false" @submit="addHistory" />
+      <AddPaymentModal
+        :isOpen="modals.addPayment"
+        :participants="eventData.participants"
+        :myName="myName"
+        :myUid="auth.currentUser?.uid || ''"
+        @close="modals.addPayment = false"
+        @submit="addHistory"
+      />
+
+      <transition name="toast-fade">
+        <div v-if="toastMsg" class="settlo-toast">{{ toastMsg }}</div>
+      </transition>
     </Teleport>
   </div>
 </template>
@@ -265,6 +328,26 @@ const getUserIcon = async (uid) => {
   return "#cbd5e1";
 };
 
+// 🌟 参加者の「名前＋アイコン」を実データから取得（"メンバー" 固定表示を解消）
+const userInfoCache = {};
+const getUserInfo = async (uid) => {
+  if (!uid) return { name: "メンバー", icon: "#cbd5e1" };
+  if (userInfoCache[uid]) return userInfoCache[uid];
+  try {
+    const userDoc = await getDoc(doc(db, "users", uid));
+    if (userDoc.exists()) {
+      const data = userDoc.data();
+      const info = {
+        name: data.name || "メンバー",
+        icon: data.photoURL || data.photo || data.color || "#cbd5e1",
+      };
+      userInfoCache[uid] = info;
+      return info;
+    }
+  } catch (e) { console.error(e); }
+  return { name: "メンバー", icon: "#cbd5e1" };
+};
+
 // ==========================================
 // 🌟 1. 2人の import を綺麗に合体！
 // ==========================================
@@ -276,14 +359,49 @@ import ReceiptPaymentModal from '@/components/ReceiptPaymentModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
 import BaseModal from '@/components/BaseModal.vue'; // 🌟 統一モーダルを追加！
 import PageHeader from '@/components/PageHeader.vue';
+import GenreIcon from '@/components/GenreIcon.vue'; // 🌟 イベントのジャンルアイコン
 
 // 🌟 どこからでも呼べる美しいアラートの準備
-const alertState = reactive({ show: false, type: 'info', title: '', message: '' });
+const alertState = reactive({ show: false, type: 'info', title: '', message: '', showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null });
 const showAlert = (type, title, message) => {
-  alertState.type = type;
-  alertState.title = title;
-  alertState.message = message;
-  alertState.show = true;
+  Object.assign(alertState, { type, title, message, showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, show: true });
+};
+// 🌟 はい／いいえ の確認ダイアログ（誤操作防止）
+const showConfirm = (title, message, onConfirm, opts = {}) => {
+  Object.assign(alertState, {
+    type: opts.type || 'warning', title, message,
+    showCancel: true, confirmText: opts.confirmText || 'はい', cancelText: opts.cancelText || 'いいえ',
+    onConfirm, show: true,
+  });
+};
+const handleAlertConfirm = () => {
+  const cb = alertState.onConfirm;
+  alertState.show = false;
+  if (cb) cb();
+};
+
+// 🌟 自動で消えるトースト（コピー完了などの軽い通知用・モーダルより邪魔にならない）
+const toastMsg = ref('');
+let toastTimer = null;
+const showToast = (msg) => {
+  toastMsg.value = msg;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toastMsg.value = ''; }, 1800);
+};
+
+// 🌟 イベント作成後でも招待コードをコピーできるように
+const copyInviteCode = async () => {
+  const code = eventData.value.invitationCode;
+  if (!code || code === '------') {
+    showToast('コードを読み込み中です');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(code);
+    showToast('招待コードをコピーしました');
+  } catch (e) {
+    showToast('コピーに失敗しました');
+  }
 };
 
 // 🌟 サーバー(Friend)と データベース(Main)の道具を合体！
@@ -291,7 +409,7 @@ import { httpsCallable } from "firebase/functions";
 import { functions } from "@/firebase";
 // 🌟 修正：auth（ユーザー情報）を使えるように追加しました！
 import { db, auth } from '../firebase'; 
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, updateDoc, increment, deleteDoc, getDocs, where } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, updateDoc, increment, deleteDoc, getDocs, where, arrayRemove } from 'firebase/firestore';
 
 // 🌟 あなたが作った最強の計算ツールを読み込む！
 import { useSettlement } from '../composables/useSettlement';
@@ -302,20 +420,58 @@ import { useSettlement } from '../composables/useSettlement';
 const route = useRoute();
 const router = useRouter();
 const timelineSection = ref(null);
-const myName = '大崎 稜馬';
+// 🌟 自分の表示名は実データ（users/{uid}.name）から取得する
+const myName = ref('');
 
-const modals = ref({ participants: false, historyDetail: false, summaryDetail: false, unpaidWarning: false, addPayment: false, invite: false });
+const modals = ref({ participants: false, historyDetail: false, summaryDetail: false, unpaidWarning: false, addPayment: false, invite: false, editEvent: false });
 const inviteUser = () => { modals.value.invite = true; };
+
+// 🌟 イベント編集（名前・ジャンル）
+const eventGenres = ['食事', '旅行', '遊び', '買い物', '飲み会', 'その他'];
+const editName = ref('');
+const editTag = ref('その他');
+const openEditEvent = () => {
+  editName.value = eventData.value.name === '読み込み中...' ? '' : eventData.value.name;
+  editTag.value = eventData.value.tag || 'その他';
+  modals.value.editEvent = true;
+};
+const saveEventEdit = async () => {
+  const name = editName.value.trim();
+  if (!name) { showAlert('error', '入力エラー', 'イベント名を入力してください。'); return; }
+  try {
+    await updateDoc(doc(db, 'events', route.params.id), { name, tag: editTag.value });
+    modals.value.editEvent = false;
+    showToast('イベントを更新しました');
+  } catch (e) {
+    console.error('イベント更新エラー:', e);
+    showAlert('error', 'エラー', '更新に失敗しました。電波状況を確認してください。');
+  }
+};
+
+// 🌟 参加者をイベントから外す（確認つき）
+const removeParticipant = (p) => {
+  if (p.isMe) { showAlert('info', '外せません', '自分はイベントから外せません。'); return; }
+  showConfirm('参加者を外す', `${p.name} さんをこのイベントから外しますか？`, async () => {
+    try {
+      await updateDoc(doc(db, 'events', route.params.id), { participants: arrayRemove(p.id) });
+      showToast(`${p.name} さんを外しました`);
+    } catch (e) {
+      console.error('参加者削除エラー:', e);
+      showAlert('error', 'エラー', '参加者を外せませんでした。');
+    }
+  }, { confirmText: '外す', cancelText: 'やめる' });
+};
 const selectedHistory = ref(null);
 const selectedSummary = ref(null);
 
 const eventData = ref({
   name: '読み込み中...',
-  date: '---', 
+  date: '---',
   total: 0, // 🌟 最初は 0
   invitationCode: '------',
-  participants: [], 
-  history: [] 
+  tag: 'その他', // 🌟 イベントのジャンル
+  participants: [],
+  history: []
 });
 
 const sumFilterScope = ref('all'); 
@@ -330,7 +486,7 @@ const { calculatedSummary } = useSettlement(eventData, myName);
 
 const filteredSummary = computed(() => {
   return calculatedSummary.value.filter(s => {
-    const scopeMatch = sumFilterScope.value === 'all' || (s.from === myName || s.to === myName);
+    const scopeMatch = sumFilterScope.value === 'all' || (s.from === myName.value || s.to === myName.value);
     const statusMatch = sharedFilterStatus.value === 'all' || s.status === sharedFilterStatus.value;
     return scopeMatch && statusMatch;
   });
@@ -338,7 +494,7 @@ const filteredSummary = computed(() => {
 
 const filteredHistory = computed(() => {
   let result = eventData.value.history.filter(h => {
-    const scopeMatch = histFilterScope.value === 'all' || h.involvesMe || h.payer === myName;
+    const scopeMatch = histFilterScope.value === 'all' || h.involvesMe || h.payer === myName.value;
     const statusMatch = sharedFilterStatus.value === 'all' || h.status === sharedFilterStatus.value;
     return scopeMatch && statusMatch;
   });
@@ -347,8 +503,56 @@ const filteredHistory = computed(() => {
 
 const unpaidItems = computed(() => eventData.value.history.filter(h => h.status === 'unpaid'));
 
+// 🌟 未精算（まだ決済されていない）立替の合計
+const outstandingTotal = computed(() =>
+  eventData.value.history
+    .filter(h => h.status === 'unpaid')
+    .reduce((sum, h) => sum + (Number(h.amount) || 0), 0)
+);
+
+// 🌟 精算の進捗（何件中何件・何%）
+const settlementProgress = computed(() => {
+  const total = eventData.value.history.length;
+  const done = eventData.value.history.filter(h => h.status === 'completed').length;
+  const percent = total ? Math.round((done / total) * 100) : 0;
+  return { done, total, percent };
+});
+
 const scrollToTimeline = () => timelineSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-const openHistoryDetail = (h) => { selectedHistory.value = h; modals.value.historyDetail = true; };
+// 🌟 立替履歴の役割判定は「UID」で行う（名前一致のブレを避ける）
+const isMyPayment = (h) => {
+  const myUid = auth.currentUser?.uid;
+  if (h.payerUid) return h.payerUid === myUid;
+  return h.payer === myName.value; // 後方互換（payerUid 無しの古い履歴）
+};
+const myShareOf = (h) => {
+  const myUid = auth.currentUser?.uid;
+  let s = (h.shares || []).find((x) => x.uid === myUid);
+  if (!s) s = (h.shares || []).find((x) => x.name === myName.value); // 後方互換
+  return s ? (Number(s.amount) || 0) : 0;
+};
+// 🌟 立替者が受け取り待ちの額（全体 − 自分の取り分）
+const myReceivableOf = (h) => (Number(h.amount) || 0) - myShareOf(h);
+
+// 🌟 取引詳細を開くとき、閲覧者にとっての「金額・立場」を計算して渡す
+const selectedMyAmount = ref(0);
+const selectedMyRole = ref('none'); // 'payer'（受け取る側）/ 'debtor'（払う側）/ 'none'
+const openHistoryDetail = (h) => {
+  selectedHistory.value = h;
+  const total = Number(h.amount) || 0;
+  const myShare = myShareOf(h);
+  if (isMyPayment(h)) {
+    selectedMyRole.value = 'payer';
+    selectedMyAmount.value = total - myShare; // 自分の取り分を除いた「受け取る額」
+  } else if (myShare > 0) {
+    selectedMyRole.value = 'debtor';
+    selectedMyAmount.value = myShare;          // 自分が払う額
+  } else {
+    selectedMyRole.value = 'none';
+    selectedMyAmount.value = total;
+  }
+  modals.value.historyDetail = true;
+};
 const openSummaryDetail = (s) => { selectedSummary.value = s; modals.value.summaryDetail = true; };
 
 // ==========================================
@@ -389,30 +593,34 @@ const addHistory = async (newPayment) => {
       throw new Error("参加者情報がまだ読み込まれていません");
     }
 
-    // 立替者（債権者）は操作者自身に固定（A-4でモーダルから立替者UIDを受け取るまでの暫定仕様）
-    const creditorUid = myUid;
-    const debtorUids = participantUids.filter((uid) => uid !== creditorUid);
+    // 🌟 立替者（債権者）＝モーダルで選ばれた人のUID（無ければ自分）
+    const creditorUid = (newPayment.payerUid && participantUids.includes(newPayment.payerUid))
+      ? newPayment.payerUid
+      : myUid;
 
-    // 1人あたりの負担額は切り捨て。端数は立替者の自己負担に吸収する（案a）
-    const splitAmount = Math.floor(totalAmount / participantUids.length);
+    // 🌟 割り勘方法に応じた「各メンバーの負担額」（モーダルが算出して渡す）
+    //    後方互換：shares が無い古い呼び出しは均等割りにフォールバック
+    let shares = Array.isArray(newPayment.shares) ? newPayment.shares : null;
+    if (!shares) {
+      const per = Math.floor(totalAmount / (participantUids.length || 1));
+      shares = participantUids.map((uid) => ({ uid, name: '', amount: per }));
+    }
 
-    // ⚠️ A-4で正式対応するまでの暫定処理：
-    // 'item'（商品ごと）/'custom'（金額指定）も現時点では均等割りとして生成する。
-    // 暫定生成分は isProvisional: true を付け、A-4実装時に特定して作り直せるようにする。
-    const isProvisional = newPayment.splitType !== 'all';
-
-    // 🌟 1. 債務者1人につき1件、transactions を生成（HomeView/MoneyPage が読む正データ）
+    // 🌟 1. 立替者以外の「負担した人」ごとに、指定額どおりの transactions を生成
+    //       （HomeView/MoneyPage が読む正データ。均等割りはしない）
     const transactionIds = [];
-    for (const debtorUid of debtorUids) {
+    for (const s of shares) {
+      if (!s || s.uid === creditorUid) continue;   // 立替者自身は自己負担なので作らない
+      const amt = Number(s.amount) || 0;
+      if (amt <= 0) continue;                       // 0円・未入力はスキップ
       const txRef = await addDoc(collection(db, "transactions"), {
-        paidById: debtorUid,        // 債務者（払う人）
+        paidById: s.uid,            // 債務者（払う人）
         paidToId: creditorUid,      // 債権者（立て替えた人）
-        amount: splitAmount,
+        amount: amt,
         status: "unpaid",
         eventId: eventId,
         itemName: newPayment.itemName,
         createdAt: serverTimestamp(),
-        isProvisional: isProvisional
       });
       transactionIds.push(txRef.id);
     }
@@ -421,13 +629,16 @@ const addHistory = async (newPayment) => {
     const historyRef = collection(db, "events", eventId, "history");
     const docRef = await addDoc(historyRef, {
       payer: newPayment.payer,
+      payerUid: creditorUid, // 🌟 立替者のUID（役割判定を名前でなくUIDで行う）
       itemName: newPayment.itemName,
+      category: newPayment.category || 'その他', // 🌟 支払いジャンル
       splitType: newPayment.splitType,
       amount: Number(newPayment.amount),
       date: newPayment.date,
       time: newPayment.time,
       status: 'unpaid',
       timestamp: serverTimestamp(), // 並び替えに使用
+      shares: newPayment.shares || [], // 🌟 各メンバーの負担額（精算サマリーの正データ）
       items: newPayment.items || [],
       transactionIds: transactionIds // 🌟 決済完了時に transactions 側も更新するための紐付け（A-7で使用）
     });
@@ -450,7 +661,16 @@ const addHistory = async (newPayment) => {
 };
 
 // リアルタイム監視
-onMounted(() => {
+onMounted(async () => {
+  // 🌟 自分の表示名を取得（精算サマリーの「自分」判定・フィルタに使用）
+  const me = auth.currentUser;
+  if (me) {
+    try {
+      const md = await getDoc(doc(db, "users", me.uid));
+      myName.value = (md.exists() && md.data().name) ? md.data().name : (me.displayName || '自分');
+    } catch (e) { myName.value = me.displayName || '自分'; }
+  }
+
   const eventId = route.params.id;
   if (!eventId) return;
 
@@ -459,13 +679,14 @@ onMounted(() => {
     if (docSnap.exists()) {
       const data = docSnap.data();
       eventData.value.name = data.name;
+      eventData.value.tag = data.tag || 'その他';
       eventData.value.invitationCode = data.invitationCode || "------";
       
-      // 参加者情報の取得（キャッシュ利用）
+      // 参加者情報の取得（名前＋アイコンを実データから）
       const uids = data.participants || [];
       const detailed = await Promise.all(uids.map(async (uid) => {
-        const icon = await getUserIcon(uid);
-        return { id: uid, name: 'メンバー', color: icon, isMe: uid === auth.currentUser?.uid };
+        const info = await getUserInfo(uid);
+        return { id: uid, name: info.name, color: info.icon, isMe: uid === auth.currentUser?.uid };
       }));
       eventData.value.participants = detailed;
     }
@@ -510,6 +731,9 @@ onMounted(() => {
         status: derivedStatus,
         transactionIds: txIds,
         timestamp: data.timestamp ? data.timestamp.toMillis() : Date.now(),
+        shares: data.shares || [],
+        payerUid: data.payerUid || null,
+        category: data.category || 'その他',
         items: data.items || []
       });
     });
@@ -613,13 +837,23 @@ onMounted(() => {
 .content { padding: 15px 20px 20px; flex: 1; padding-bottom: 120px; }
 
 .summary-card { background: white; border-radius: 28px; padding: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); margin-bottom: 32px; border: 1px solid #f1f5f9; }
-.card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-.event-name { font-size: 22px; font-weight: 900; margin: 0; color: #0f172a; letter-spacing: -0.5px; }
+.card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; gap: 12px; }
+.event-title-wrap { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.event-genre { width: 38px; height: 38px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--c-brand-weak, #ecfdf5); border-radius: 12px; color: var(--c-brand, #059669); }
+.event-genre :deep(svg) { width: 22px; height: 22px; }
+.event-name { font-size: 22px; font-weight: 900; margin: 0; color: #0f172a; letter-spacing: -0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .event-date { font-size: 12px; color: var(--c-brand); font-weight: 800; background: #eff6ff; padding: 6px 12px; border-radius: 12px; }
+.event-edit-btn { flex-shrink: 0; font-size: 12px; font-weight: 800; color: var(--c-brand-strong, #059669); background: var(--c-brand-weak, #ecfdf5); border: none; padding: 8px 16px; border-radius: 12px; cursor: pointer; transition: 0.2s; }
+.event-edit-btn:active { transform: scale(0.95); }
 
 .total-section { text-align: center; margin-bottom: 24px; background: #f8fafc; padding: 20px; border-radius: 20px; }
 .label { font-size: 13px; color: #64748b; font-weight: 800; display: flex; justify-content: center; align-items: center; margin-bottom: 8px; }
 .total-amount { font-size: 48px; font-weight: 900; margin: 0; color: #0f172a; letter-spacing: -1.5px; }
+.total-sub { display: block; font-size: 12px; font-weight: 800; color: #94a3b8; margin-top: 6px; }
+.progress-wrap { margin-top: 14px; }
+.progress-bar { height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--c-brand, #059669); border-radius: 999px; transition: width 0.4s ease; }
+.progress-text { display: block; font-size: 11px; font-weight: 800; color: #64748b; margin-top: 6px; }
 
 /* （これ以降のCSSは既存のままでOKです） */
 
@@ -629,11 +863,48 @@ onMounted(() => {
 .participants-header .label { margin: 0; color: #475569; }
 .participants-header .arrow { color: #cbd5e1; font-weight: bold; font-size: 16px; }
 .participants-row { display: flex; justify-content: space-between; align-items: center; }
-.avatar-stack { display: flex; align-items: center; padding-left: 8px; }
-.avatar { width: 36px; height: 36px; border-radius: 50%; border: 3px solid #f8fafc; margin-left: -12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
-.avatar-more { width: 36px; height: 36px; border-radius: 50%; border: 3px solid #f8fafc; margin-left: -12px; background: #e2e8f0; color: #64748b; font-size: 11px; font-weight: bold; display: flex; align-items: center; justify-content: center; z-index: 0; }
+.avatar-stack { display: flex; align-items: center; padding-left: 14px; }
+/* 🌟 丸い枠＋overflow:hidden で画像を切り抜く（縦長に歪まない）。少し大きく＆重ねる */
+.avatar {
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  margin-left: -14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  overflow: hidden;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  background: #e2e8f0;
+}
+.avatar__img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.avatar__ph { width: 100%; height: 100%; }
+.avatar-more {
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  margin-left: -14px;
+  background: #e2e8f0; color: #64748b;
+  font-size: 13px; font-weight: bold;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; box-sizing: border-box;
+  z-index: 0;
+}
 .invite-pill-btn { background: #eff6ff; color: var(--c-brand); border: none; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 800; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 8px rgba(59,130,246,0.15); }
 .invite-pill-btn:active { transform: scale(0.95); background: #dbeafe; }
+
+/* 🌟 招待コード（作成後もいつでも表示・コピー可能） */
+.invite-code-bar {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 14px;
+  background: var(--c-brand-weak, #ecfdf5);
+  border: 1px solid var(--c-brand-weak, #d1fae5);
+  border-radius: 16px;
+  padding: 12px 14px;
+}
+.icb-label { font-size: 12px; font-weight: 800; color: var(--c-brand-strong, #059669); white-space: nowrap; }
+.icb-code { flex: 1; font-size: 20px; font-weight: 900; letter-spacing: 3px; color: #0f172a; text-align: center; font-variant-numeric: tabular-nums; }
+.icb-copy { background: var(--c-brand); color: #fff; border: none; padding: 8px 16px; border-radius: 12px; font-size: 12px; font-weight: 800; cursor: pointer; transition: 0.2s; white-space: nowrap; }
+.icb-copy:active { transform: scale(0.95); }
 
 .section-title { font-size: 18px; font-weight: 900; color: #0f172a; margin: 0 0 16px 0; }
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
@@ -682,13 +953,23 @@ onMounted(() => {
   flex: 1; /* 右側の余白をしっかり確保する */
   min-width: 0; /* 子要素がはみ出すのを防ぐ魔法のコード */
 }
-.history-avatar { 
-  width: 36px; 
-  height: 36px; 
-  border-radius: 50%; 
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1); 
+.history-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
   flex-shrink: 0; /* アバターが潰れないようにする */
 }
+/* 🌟 ジャンルアイコン表示用 */
+.history-avatar--cat {
+  background: var(--c-brand-weak, #ecfdf5);
+  color: var(--c-brand, #059669);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+}
+.history-avatar--cat :deep(svg) { width: 20px; height: 20px; }
 .history-text { 
   display: flex; 
   flex-direction: column; 
@@ -733,6 +1014,9 @@ onMounted(() => {
 
 .badge { font-size: 10px; padding: 4px 10px; border-radius: 12px; font-weight: 800; }
 .paid { background: #f1f5f9; color: #64748b; }
+.badge.receive { background: var(--c-brand-weak, #ecfdf5); color: var(--c-brand-strong, #059669); }
+.badge.owe { background: #fff7ed; color: #ea580c; }
+.badge.pending { background: #f1f5f9; color: #94a3b8; }
 
 .end-event-btn { width: 100%; background-color: #0f172a; color: white; border: none; padding: 18px; border-radius: 20px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,0.15); transition: 0.2s; margin-bottom: 12px; }
 .end-event-btn:active { transform: scale(0.96); }
@@ -746,8 +1030,26 @@ onMounted(() => {
 
 .list-item { display: flex; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid #f1f5f9; }
 .avatar-medium { width: 44px; height: 44px; border-radius: 50%; }
-.item-name { font-size: 16px; font-weight: 800; color: #334155; display: flex; align-items: center; gap: 10px; }
+.item-name { flex: 1; font-size: 16px; font-weight: 800; color: #334155; display: flex; align-items: center; gap: 10px; }
 .me-badge { font-size: 10px; background: var(--c-brand); color: white; padding: 2px 8px; border-radius: 10px; font-weight: 800; }
+.p-remove-btn { flex-shrink: 0; width: 34px; height: 34px; border: none; background: #fef2f2; color: var(--c-danger, #ef4444); border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.p-remove-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.p-remove-btn:active { transform: scale(0.92); }
+
+/* 🌟 イベント編集モーダル */
+.edit-body { display: flex; flex-direction: column; }
+.edit-label { font-size: 12px; font-weight: 800; color: #64748b; margin-bottom: 8px; }
+.edit-input { width: 100%; padding: 14px 16px; border-radius: 14px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 15px; font-weight: 800; color: #0f172a; outline: none; box-sizing: border-box; margin-bottom: 20px; }
+.edit-input:focus { border-color: var(--c-brand); background: #fff; }
+.edit-genre-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 24px; }
+.edit-genre { background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 16px; padding: 14px 4px 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; color: #64748b; cursor: pointer; transition: 0.15s; }
+.edit-genre:active { transform: scale(0.96); }
+.edit-genre-icon { width: 24px; height: 24px; color: #64748b; }
+.edit-genre-label { font-size: 12px; font-weight: 800; }
+.edit-genre.active { border-color: var(--c-brand); background: var(--c-brand-weak); color: var(--c-brand-strong); }
+.edit-genre.active .edit-genre-icon { color: var(--c-brand); }
+.edit-save-btn { width: 100%; background: var(--c-brand); color: #fff; border: none; padding: 16px; border-radius: 16px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 8px 20px rgba(5,150,105,0.25); transition: 0.2s; }
+.edit-save-btn:active { transform: scale(0.97); }
 
 .summary-detail-body { text-align: center; padding: 10px 0; }
 .flow-large { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 20px; }
@@ -774,6 +1076,25 @@ onMounted(() => {
 
 .slide-up { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
 @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+/* 🌟 自動で消えるトースト */
+.settlo-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 96px;
+  transform: translate(-50%, 0);
+  background: rgba(15, 23, 42, 0.92);
+  color: #fff;
+  padding: 12px 22px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 800;
+  z-index: 3000;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
+}
+.toast-fade-enter-active, .toast-fade-leave-active { transition: opacity 0.25s ease, transform 0.25s ease; }
+.toast-fade-enter-from, .toast-fade-leave-to { opacity: 0; transform: translate(-50%, 12px); }
 
 /* 🌟 追加：サマリー内訳のスタイル */
 .breakdown-list {
@@ -825,12 +1146,15 @@ onMounted(() => {
   font-weight: 900;
   color: #0f172a;
 }
-.avatar, 
-.avatar-medium, 
-.avatar-large, 
-.history-avatar, 
+.avatar,
+.avatar-medium,
+.avatar-large,
+.history-avatar,
 .avatar-small {
-  object-fit: cover; /* 🌟 画像を枠に合わせて切り抜く */
-  border-radius: 50%; /* 確実に円形にする */
+  object-fit: cover;       /* 🌟 画像を枠に合わせて切り抜く（縦横比を保つ） */
+  border-radius: 50%;      /* 確実に円形にする */
+  flex-shrink: 0;          /* 🌟 flex内で潰れて楕円になるのを防ぐ */
+  box-sizing: border-box;  /* borderで寸法が狂わないように */
+  aspect-ratio: 1 / 1;     /* 🌟 常に正円を維持 */
 }
 </style>
