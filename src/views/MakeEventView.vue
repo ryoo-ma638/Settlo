@@ -1,67 +1,64 @@
 <template>
-  <div class="make-event-container">
-    <header class="detail-header">
-      <button class="back-btn" @click="$router.back()">‹</button>
-      <h1 class="title">{{ isJoinMode ? 'イベントに参加する' : '新規イベント作成' }}</h1>
-      <div class="spacer"></div>
-    </header>
+  <div class="make-event">
+    <PageHeader :title="isJoinMode ? 'イベントに参加' : '新規イベント作成'" />
 
-    <main class="content">
+    <main class="body">
       <div v-if="!isJoinMode">
-        <div class="input-section">
-          <label class="input-label">イベント名</label>
-          <input v-model="eventName" type="text" placeholder="例：キャンプ、飲み会" class="input-field shadow-box" />
+        <div class="field">
+          <label class="field__label">イベント名</label>
+          <input v-model="eventName" type="text" placeholder="例：キャンプ、飲み会" class="input" />
         </div>
 
-        <div class="input-section">
-          <label class="input-label">メモ</label>
-          <textarea v-model="eventMemo" placeholder="予算やルールなど" class="textarea-field shadow-box"></textarea>
+        <div class="field">
+          <label class="field__label">メモ</label>
+          <textarea v-model="eventMemo" placeholder="予算やルールなど" class="input textarea"></textarea>
         </div>
 
-        <div class="input-section">
-          <label class="input-label">イベントのジャンル</label>
-          <div class="icon-grid">
-            <div 
-              v-for="icon in icons" :key="icon.label"
-              class="icon-item" :class="{ active: selectedIcon === icon.label }"
-              @click="selectedIcon = icon.label"
+        <div class="field">
+          <label class="field__label">イベントのジャンル</label>
+          <div class="genre-grid">
+            <button
+              v-for="g in genres" :key="g"
+              class="genre" :class="{ 'is-active': selectedIcon === g }"
+              @click="selectedIcon = g"
             >
-              <span class="emoji">{{ icon.emoji }}</span><br>{{ icon.label }}
-            </div>
+              <span class="genre__icon"><GenreIcon :type="g" /></span>
+              <span class="genre__label">{{ g }}</span>
+            </button>
           </div>
         </div>
 
-        <div class="input-section">
-          <label class="input-label">招待コード</label>
-          <p class="sub-text">友人に共有してメンバーを増やせます</p>
-          <div class="copy-box shadow-box">
-            <span class="code">{{ invitationCode }}</span>
-            <span class="copy-btn" @click="copyToClipboard">コピー</span>
+        <div class="field">
+          <label class="field__label">招待コード</label>
+          <p class="field__hint">友人に共有してメンバーを増やせます</p>
+          <div class="invite">
+            <span class="invite__code">{{ invitationCode }}</span>
+            <button class="invite__copy" @click="copyToClipboard">コピー</button>
           </div>
         </div>
 
-        <div class="action-buttons">
-          <button class="main-btn create" :disabled="loading" @click="createEvent">
-            {{ loading ? '作成中...' : '作成する' }}
+        <div class="actions">
+          <button class="btn-brand" :disabled="loading" @click="createEvent">
+            {{ loading ? '作成中…' : '作成する' }}
           </button>
-          <button class="sub-btn" @click="isJoinMode = true">既存のイベントに参加する</button>
+          <button class="btn-text" @click="isJoinMode = true">既存のイベントに参加する</button>
         </div>
       </div>
 
-      <div v-else class="join-mode">
-        <div class="input-section">
-          <label class="input-label">招待コードを入力</label>
-          <input v-model="joinCode" type="text" placeholder="例：A1B2C3" class="input-field shadow-box join-input" maxlength="6" />
+      <div v-else>
+        <div class="field">
+          <label class="field__label">招待コードを入力</label>
+          <input v-model="joinCode" type="text" placeholder="例：A1B2C3" class="input input--code" maxlength="6" />
         </div>
-        <div class="action-buttons">
-          <button class="main-btn join" @click="joinEvent">参加する</button>
-          <button class="sub-btn" @click="isJoinMode = false">新しくイベントを作る</button>
+        <div class="actions">
+          <button class="btn-brand" @click="joinEvent">参加する</button>
+          <button class="btn-text" @click="isJoinMode = false">新しくイベントを作る</button>
         </div>
       </div>
     </main>
 
     <Teleport to="body">
-      <BaseModal 
+      <BaseModal
         :show="modalState.show"
         :type="modalState.type"
         :title="modalState.title"
@@ -78,12 +75,13 @@
 </template>
 
 <script setup>
-import { ref, watch, reactive } from 'vue'; 
+import { ref, watch, reactive } from 'vue';
 import { useRouter } from 'vue-router';
-import api from '@/services/api'; // 🌟 パスに注意
-import { db, auth } from '@/firebase'; 
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore'; 
+import { db, auth } from '@/firebase';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import BaseModal from '@/components/BaseModal.vue';
+import PageHeader from '@/components/PageHeader.vue';
+import GenreIcon from '@/components/GenreIcon.vue';
 
 const router = useRouter();
 const isJoinMode = ref(false);
@@ -95,14 +93,10 @@ const loading = ref(false);
 
 const invitationCode = ref(Math.random().toString(36).substring(2, 8).toUpperCase());
 
-const icons = [
-  { label: '食事', emoji: '🍴' }, { label: '旅行', emoji: '✈️' },
-  { label: '遊び', emoji: '🎡' }, { label: '買い物', emoji: '🛒' },
-  { label: '飲み会', emoji: '🍺' }, { label: 'その他', emoji: '✨' }
-];
+const genres = ['食事', '旅行', '遊び', '買い物', '飲み会', 'その他'];
 
 const modalState = reactive({
-  show: false, type: 'info', title: '', message: '', 
+  show: false, type: 'info', title: '', message: '',
   showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null
 });
 const showModal = (options) => {
@@ -128,7 +122,7 @@ const createEvent = async () => {
     showModal({ type: 'error', title: '入力エラー', message: 'イベント名を入力してください' });
     return;
   }
-  
+
   loading.value = true;
   try {
     const myUid = auth.currentUser?.uid;
@@ -137,19 +131,18 @@ const createEvent = async () => {
       return;
     }
 
-    // 🌟 API (404) を使わず、直接Firestoreに保存する最強の回避策！
     const docRef = await addDoc(collection(db, "events"), {
       name: eventName.value,
       memo: eventMemo.value,
       tag: selectedIcon.value,
       invitationCode: invitationCode.value,
-      participants: [myUid], // 作成者（自分）を参加者に追加
+      participants: [myUid],
       totalAmount: 0,
       createdAt: serverTimestamp()
     });
 
     console.log('✅ Firestoreに直接保存完了:', docRef.id);
-    router.push('/'); 
+    router.push('/');
   } catch (error) {
     console.error('❌ 作成失敗:', error);
     showModal({ type: 'error', title: 'エラー', message: 'イベントの作成に失敗しました。電波状況を確認してください。' });
@@ -159,7 +152,34 @@ const createEvent = async () => {
 };
 
 const joinEvent = async () => {
-  showModal({ type: 'info', title: 'お知らせ', message: '現在、イベント参加機能は準備中です。' });
+  const code = joinCode.value.trim().toUpperCase();
+  if (!code) {
+    showModal({ type: 'error', title: '入力エラー', message: '招待コードを入力してください' });
+    return;
+  }
+  const myUid = auth.currentUser?.uid;
+  if (!myUid) {
+    showModal({ type: 'error', title: 'エラー', message: 'ログイン状態が確認できません。' });
+    return;
+  }
+  try {
+    const snap = await getDocs(query(collection(db, "events"), where("invitationCode", "==", code)));
+    if (snap.empty) {
+      showModal({ type: 'error', title: '見つかりません', message: 'その招待コードのイベントが見つかりませんでした。' });
+      return;
+    }
+    const evDoc = snap.docs[0];
+    const data = evDoc.data();
+    if ((data.participants || []).includes(myUid)) {
+      showModal({ type: 'info', title: '参加済み', message: 'すでにこのイベントに参加しています。', onConfirm: () => router.push(`/event/${evDoc.id}`) });
+      return;
+    }
+    await updateDoc(doc(db, "events", evDoc.id), { participants: arrayUnion(myUid) });
+    showModal({ type: 'success', title: '参加完了', message: `「${data.name}」に参加しました！`, onConfirm: () => router.push(`/event/${evDoc.id}`) });
+  } catch (e) {
+    console.error("参加エラー:", e);
+    showModal({ type: 'error', title: 'エラー', message: '参加に失敗しました。電波状況を確認してください。' });
+  }
 };
 
 watch(isJoinMode, () => {
@@ -168,63 +188,114 @@ watch(isJoinMode, () => {
 </script>
 
 <style scoped>
-.event-page-container { min-height: 100vh; background-color: #f0f4f8; padding-bottom: 80px; }
-.page-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; background: rgba(255,255,255,0.8); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 10; }
-.page-title { font-size: 20px; font-weight: bold; margin: 0; color: #1e293b; }
-.check-settle-btn { background-color: #2169a3; color: white; border: none; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 6px rgba(33,105,163,0.3); transition: 0.2s; }
-.check-settle-btn:active { transform: scale(0.95); }
-/* ヘッダーデザイン: フレッシュなシアン系グラデーション */
-.detail-header { 
-  display: flex; justify-content: space-between; align-items: center; 
-  padding: 16px 20px; 
-  background: linear-gradient(135deg, #cffafe 0%, #bae6fd 100%); 
-  position: sticky; z-index: 100; 
-  border-radius: 0 0 24px 24px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
-  margin-bottom: 15px;
-}
-.back-btn { background: none; border: none; font-size: 32px; color: #0f172a; cursor: pointer; padding: 0; display: flex; align-items: center; transition: 0.2s; }
-.back-btn:active { transform: scale(0.9); }
-.title { font-size: 18px; font-weight: 900; margin: 0; color: #0f172a; flex: 1; text-align: center; }
-.spacer { display: block; width: 32px; }
+.body { padding: 8px var(--pad) 28px; }
 
-.content { 
-  flex: 1; 
-  padding: 15px 25px 100px; 
-  width: 100%; 
-  max-width: 600px; 
-  margin: 0 auto; 
-  box-sizing: border-box; 
+.field { margin-bottom: 22px; }
+.field__label {
+  display: block;
+  font-size: 13px;
+  font-weight: var(--fw-bold);
+  color: var(--c-text-sub);
+  margin-bottom: 8px;
+}
+.field__hint {
+  font-size: 11px;
+  font-weight: var(--fw-medium);
+  color: var(--c-text-faint);
+  margin: -4px 0 8px;
 }
 
-.join-mode {
+.input {
   width: 100%;
+  background: var(--c-surface);
+  border: 1px solid var(--c-line-bold);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  font-size: 15px;
+  font-weight: var(--fw-medium);
+  color: var(--c-ink);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.input::placeholder { color: var(--c-text-faint); font-weight: var(--fw-regular); }
+.input:focus {
+  outline: none;
+  border-color: var(--c-brand);
+  box-shadow: 0 0 0 3px var(--c-brand-weak);
+}
+.textarea { height: 104px; resize: none; line-height: 1.6; }
+.input--code {
+  text-align: center;
+  font-size: 24px;
+  font-weight: var(--fw-black);
+  letter-spacing: 8px;
+}
+
+/* ジャンル選択 */
+.genre-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.genre {
+  background: var(--c-surface);
+  border: 1.5px solid var(--c-line-bold);
+  border-radius: var(--r-md);
+  padding: 16px 6px 12px;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--c-text-sub);
+  transition: all 0.15s ease;
 }
+.genre__icon { width: 26px; height: 26px; color: var(--c-text-sub); }
+.genre__label { font-size: 12px; font-weight: var(--fw-bold); }
+.genre.is-active {
+  border-color: var(--c-brand);
+  background: var(--c-brand-weak);
+  color: var(--c-brand-strong);
+}
+.genre.is-active .genre__icon { color: var(--c-brand); }
 
-.input-section { margin-bottom: 25px; }
-.input-label { display: block; font-weight: 800; font-size: 13px; margin-bottom: 8px; color: #64748b; }
-.shadow-box { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; width: 100%; box-sizing: border-box; font-size: 15px; font-weight: 800; color: #1e293b; transition: 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
-.shadow-box:focus { border-color: #3b82f6; outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
-.shadow-box::placeholder { color: #cbd5e1; font-weight: normal; }
+/* 招待コード */
+.invite {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--c-surface);
+  border: 1px solid var(--c-line-bold);
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+}
+.invite__code {
+  color: var(--c-brand-strong);
+  font-weight: var(--fw-black);
+  font-size: 22px;
+  letter-spacing: 5px;
+}
+.invite__copy {
+  background: var(--c-brand-weak);
+  color: var(--c-brand-strong);
+  padding: 8px 14px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  font-weight: var(--fw-bold);
+}
+.invite__copy:active { transform: scale(0.96); }
 
-.textarea-field { height: 100px; resize: none; }
-.icon-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.icon-item { background-color: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 16px; padding: 14px 5px; text-align: center; cursor: pointer; transition: 0.2s; font-weight: 800; font-size: 12px; color: #64748b; box-shadow: 0 2px 6px rgba(0,0,0,0.02); }
-.icon-item .emoji { font-size: 24px; margin-bottom: 4px; display: inline-block; }
-.icon-item.active { background-color: #eff6ff; border-color: #3b82f6; color: #1e40af; }
-
-.sub-text { font-size: 11px; font-weight: 700; color: #94a3b8; margin: -4px 0 8px 0; }
-.copy-box { display: flex; justify-content: space-between; align-items: center; background-color: #f8fafc !important; }
-.code { color: #3b82f6; font-weight: 900; font-size: 24px; font-family: monospace; letter-spacing: 4px; }
-.copy-btn { background: white; color: #3b82f6; padding: 6px 12px; border-radius: 10px; font-size: 12px; font-weight: 900; cursor: pointer; border: 1px solid #cbd5e1; transition: 0.2s; }
-.copy-btn:active { transform: scale(0.95); background: #f1f5f9; }
-
-.main-btn { width: 100%; padding: 18px; border-radius: 20px; border: none; font-size: 16px; font-weight: 900; color: white; margin-bottom: 15px; cursor: pointer; box-shadow: 0 8px 20px rgba(59,130,246,0.25); transition: 0.2s; }
-.main-btn:active { transform: scale(0.96); }
-.create { background-color: #3b82f6; }
-.create:disabled { opacity: 0.6; cursor: not-allowed; }
-.join { background-color: #10b981; box-shadow: 0 8px 20px rgba(16,185,129,0.25); }
-.sub-btn { width: 100%; background: none; border: none; color: #64748b; font-size: 14px; font-weight: 800; cursor: pointer; padding: 10px; transition: 0.2s; }
-.sub-btn:active { opacity: 0.7; }
+/* アクション */
+.actions {
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.btn-text {
+  width: 100%;
+  color: var(--c-text-sub);
+  font-size: 14px;
+  font-weight: var(--fw-bold);
+  padding: 12px;
+}
+.btn-text:active { opacity: 0.6; }
 </style>

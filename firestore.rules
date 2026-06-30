@@ -1,0 +1,95 @@
+rules_version = '2';
+
+// =============================================================
+// Settlo Firestore セキュリティルール（厳格版）
+//   方針：ログインだけで全データ読み書き可、をやめる。
+//   - users: プロフィールは相互参照が必要なので「読み=全ログインユーザー / 書き=本人のみ」
+//   - transactions（金額・債権債務）: 当事者 or イベント参加者のみ
+//   - events: 参加（招待コード検索）が必要なので読みは全ログインユーザー / 変更は参加者
+//   - notifications: 受信者のみ読める / 作成は誰でも（承認・催促・拒否を送るため）
+//   - friendRequests: 当事者（送信者/受信者）のみ
+//   一致しないコレクションは既定で拒否（catch-all なし）。
+// =============================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isUser(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+    // 取引の当事者（債務者 paidById / 債権者 paidToId）か
+    function isParty(data) {
+      return isSignedIn()
+        && (request.auth.uid == data.paidById || request.auth.uid == data.paidToId);
+    }
+    // 指定イベントの参加者か（eventId が無い取引では false）
+    function isEventParticipant(eventId) {
+      return isSignedIn()
+        && eventId != null
+        && exists(/databases/$(database)/documents/events/$(eventId))
+        && request.auth.uid in get(/databases/$(database)/documents/events/$(eventId)).data.participants;
+    }
+
+    // ---- ユーザープロフィール ----
+    match /users/{uid} {
+      allow read: if isSignedIn();          // 名前/写真/PayPayリンクは他人も参照する
+      allow write: if isUser(uid);          // 自分のドキュメントのみ作成/更新/削除
+
+      // フレンド一覧（承認時に相手側にも書くので、当事者2人なら可）
+      match /friends/{friendUid} {
+        allow read: if isUser(uid);
+        allow write: if isUser(uid) || isUser(friendUid);
+      }
+    }
+
+    // ---- 取引（金額・貸し借り）----
+    match /transactions/{txId} {
+      allow read:   if isParty(resource.data)
+                      || isEventParticipant(resource.data.get('eventId', null));
+      allow create: if isSignedIn()
+                      && (request.auth.uid == request.resource.data.paidById
+                          || request.auth.uid == request.resource.data.paidToId
+                          || isEventParticipant(request.resource.data.get('eventId', null)));
+      allow update, delete: if isParty(resource.data)
+                      || isEventParticipant(resource.data.get('eventId', null));
+    }
+
+    // ---- イベント ----
+    match /events/{eventId} {
+      allow read: if isSignedIn();          // 招待コード検索でjoinするため
+      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants;
+      // 既存参加者の編集 or「自分を参加者に追加する更新（join）」を許可
+      allow update: if isSignedIn()
+                      && (request.auth.uid in resource.data.participants
+                          || request.auth.uid in request.resource.data.participants);
+      allow delete: if isSignedIn() && request.auth.uid in resource.data.participants;
+
+      // 立替履歴：そのイベントの参加者のみ
+      match /history/{historyId} {
+        allow read, write: if isSignedIn()
+          && exists(/databases/$(database)/documents/events/$(eventId))
+          && request.auth.uid in get(/databases/$(database)/documents/events/$(eventId)).data.participants;
+      }
+    }
+
+    // ---- 通知 ----
+    match /notifications/{notifId} {
+      allow read:           if isSignedIn() && resource.data.toUserId == request.auth.uid;
+      allow create:         if isSignedIn();   // 承認/催促/拒否を相手へ送るため
+      allow update, delete: if isSignedIn() && resource.data.toUserId == request.auth.uid;
+    }
+
+    // ---- フレンド申請 ----
+    match /friendRequests/{reqId} {
+      allow read:           if isSignedIn()
+                              && (resource.data.toId == request.auth.uid
+                                  || resource.data.formId == request.auth.uid);
+      allow create:         if isSignedIn();
+      allow update, delete: if isSignedIn()
+                              && (resource.data.toId == request.auth.uid
+                                  || resource.data.formId == request.auth.uid);
+    }
+  }
+}

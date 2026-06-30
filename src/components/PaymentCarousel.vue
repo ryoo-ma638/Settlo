@@ -20,15 +20,24 @@
             </div>
             <div class="recent-list">
               <p class="recent-title">直近の未受け取り</p>
-              <div 
-                class="recent-item" 
-                v-for="(item, index) in summary.receivableList" 
+              <div
+                class="recent-item"
+                v-for="(item, index) in summary.receivableList.slice(0, 2)"
                 :key="index"
                 @click.stop="item.id ? navigateIfActive(0, '/payment-detail/waiting-' + item.id) : null"
               >
-                <span class="recent-name">{{ item.name }}（{{ item.itemName }}）</span>
+                <span class="recent-name">
+                  {{ item.name }}（{{ item.itemName }}）
+                  <span v-if="item.status === 'awaiting_approval'" class="recent-badge">要承認</span>
+                </span>
                 <span class="recent-amount">¥{{ item.amount.toLocaleString() }}</span>
               </div>
+              <p v-if="summary.receivableList.length === 0" class="recent-empty">未受け取りはありません</p>
+              <button
+                v-if="summary.receivableList.length > 2"
+                class="recent-more"
+                @click.stop="navigateIfActive(0, '/payment?tab=waiting')"
+              >他 {{ summary.receivableList.length - 2 }} 件をすべて見る</button>
             </div>
           </div>
   
@@ -64,14 +73,24 @@
             </div>
             <div class="recent-list">
               <p class="recent-title">直近のお支払い</p>
-              <div 
-                class="recent-item" 
-                v-for="(item, index) in summary.payableList.slice(0, 2)" 
-              :key="'p'+index"
+              <div
+                class="recent-item"
+                v-for="(item, index) in summary.payableList.slice(0, 2)"
+                :key="'p'+index"
+                @click.stop="item.id ? navigateIfActive(2, '/payment-detail/unpaid-' + item.id) : null"
               >
-                <span class="recent-name">{{ item.name }}（{{ item.itemName }}）</span>
+                <span class="recent-name">
+                  {{ item.name }}（{{ item.itemName }}）
+                  <span v-if="item.status === 'awaiting_approval'" class="recent-badge">リクエスト済み</span>
+                </span>
                 <span class="recent-amount">¥{{ item.amount.toLocaleString() }}</span>
               </div>
+              <p v-if="summary.payableList.length === 0" class="recent-empty">お支払いはありません</p>
+              <button
+                v-if="summary.payableList.length > 2"
+                class="recent-more"
+                @click.stop="navigateIfActive(2, '/payment?tab=unpaid')"
+              >他 {{ summary.payableList.length - 2 }} 件をすべて見る</button>
             </div>
           </div>
   
@@ -126,7 +145,7 @@ const props = defineProps({
   const monthlyBalance = computed(() => {
   const balance = props.summary.receivableTotal - props.summary.payableTotal;
   const sign = balance >= 0 ? '+' : '-';
-  return `${sign} ¥ ${Math.abs(balance).toLocaleString()}`;
+  return `${sign}¥${Math.abs(balance).toLocaleString()}`;
 });
   
   // ------------------------------
@@ -193,21 +212,21 @@ const props = defineProps({
   
   <style scoped>
   /* 既存のレイアウトCSSはそのまま継承します */
-  .payment-status-carousel { margin-bottom: 30px; }
-  .section-title { font-size: 18px; margin: 20px 20px 15px; font-weight: bold; color: #1e293b; }
+  .payment-status-carousel { margin-bottom: 16px; }
+  .section-title { font-size: 16px; margin: 10px 16px 10px; font-weight: var(--fw-bold); color: var(--c-ink); }
   
   .carousel-outer { position: relative; display: flex; align-items: center; }
   .carousel-wrapper { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; padding: 0 5%; gap: 4vw; scrollbar-width: none; -webkit-overflow-scrolling: touch; width: 100%; box-sizing: border-box; }
   .carousel-wrapper::-webkit-scrollbar { display: none; }
   
-  .status-card { flex: 0 0 90%; border-radius: 24px; padding: 24px; box-shadow: 0 8px 20px rgba(0,0,0,0.06); scroll-snap-align: center; display: flex; flex-direction: column; justify-content: center; box-sizing: border-box; transition: transform 0.3s ease; min-height: 180px; }
+  .status-card { flex: 0 0 90%; border-radius: var(--r-lg); padding: 20px; box-shadow: var(--shadow-card); scroll-snap-align: center; display: flex; flex-direction: column; justify-content: center; box-sizing: border-box; transition: transform 0.3s ease; min-height: 156px; }
   
   /* 🌟 追加：タップできることを示すカーソルとエフェクト */
   .clickable-card { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .clickable-card:active { transform: scale(0.98); }
   
-  .blue-bg { background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; }
-  .orange-bg { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; }
+  .blue-bg { background: var(--c-receive); color: #fff; }
+  .orange-bg { background: var(--c-pay); color: #fff; }
   .white-bg { background: #ffffff; border: 1px solid #f1f5f9; }
   
   .card-main { text-align: center; margin-bottom: 15px; }
@@ -226,20 +245,29 @@ const props = defineProps({
   }
   .recent-item:active { background: rgba(255,255,255,0.3); transform: scale(0.98); }
   .recent-item:last-child { margin-bottom: 0; }
+  .recent-name { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .recent-badge { flex-shrink: 0; background: rgba(255,255,255,0.30); padding: 1px 7px; border-radius: 8px; font-size: 9px; font-weight: bold; }
+  .recent-empty { font-size: 11px; opacity: 0.85; text-align: center; padding: 8px 0 2px; margin: 0; }
+  .recent-more {
+    display: block; width: 100%; text-align: center; margin-top: 8px; padding: 8px;
+    background: rgba(255,255,255,0.18); border-radius: 10px;
+    color: #fff; font-size: 11px; font-weight: bold; cursor: pointer; transition: 0.2s;
+  }
+  .recent-more:active { background: rgba(255,255,255,0.32); transform: scale(0.98); }
   
   .summary-top { display: flex; justify-content: space-between; width: 100%; }
   .status-box { text-align: center; flex: 1; cursor: pointer; transition: 0.2s; border-radius: 12px; padding: 8px 0; }
   .status-box:active { background: #f8fafc; transform: scale(0.95); } /* 🌟 押した時のフィードバック */
   .badge { display: inline-block; color: white; padding: 4px 14px; border-radius: 20px; font-size: 11px; font-weight: bold; margin-bottom: 8px; }
-  .blue { background-color: #3b82f6; }
+  .blue { background-color: var(--c-receive); }
   .orange { background-color: #f59e0b; }
   .price { font-size: 24px; font-weight: bold; }
-  .blue-text { color: #3b82f6; }
+  .blue-text { color: var(--c-receive); }
   .orange-text { color: #f59e0b; }
   .divider { width: 1px; height: 60px; background-color: #f1f5f9; margin: 0 15px; }
   .progress-bar { width: 85%; height: 6px; background-color: #f1f5f9; border-radius: 10px; margin: 8px auto 0; overflow: hidden; }
   .bar { height: 100%; border-radius: 10px; }
-  .blue-bar { background-color: #3b82f6; transition: width 0.3s ease; }
+  .blue-bar { background-color: var(--c-receive); transition: width 0.3s ease; }
   .orange-bar { background-color: #f59e0b; transition: width 0.3s ease; }
   
   .monthly-balance { margin-top: 20px; text-align: center; font-size: 13px; font-weight: bold; color: #94a3b8; background: #f8fafc; padding: 10px; border-radius: 12px; }
@@ -260,5 +288,5 @@ const props = defineProps({
   .carousel-dots { display: flex; justify-content: center; gap: 8px; margin-top: 15px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background-color: #cbd5e1; transition: all 0.3s ease; cursor: pointer; }
   .dot:active { transform: scale(1.5); }
-  .dot.active { background-color: #2169a3; width: 24px; border-radius: 10px; }
+  .dot.active { background-color: var(--c-brand); width: 24px; border-radius: 10px; }
   </style>

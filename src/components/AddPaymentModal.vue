@@ -25,10 +25,12 @@
                 <p class="upload-hint">レシートを読み取って自動入力</p>
                 <div class="upload-actions">
                   <button class="upload-action-btn" @click="$refs.cameraInput.click()">
-                    <span class="icon">📸</span> カメラで撮影
+                    <svg class="upload-action-btn__icon" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.2"/></svg>
+                    カメラで撮影
                   </button>
                   <button class="upload-action-btn" @click="$refs.fileInput.click()">
-                    <span class="icon">🖼️</span> アルバムから
+                    <svg class="upload-action-btn__icon" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="M21 16l-5-5-9 8"/></svg>
+                    アルバムから
                   </button>
                 </div>
               </div>
@@ -43,8 +45,8 @@
 
               <div v-else class="upload-preview">
                 <img :src="uploadedImage" alt="レシート画像" class="preview-img">
-                <div class="success-badge">✅ 読み取り完了</div>
-                <button class="re-upload-btn" @click.stop="resetUpload">✕ やり直す</button>
+                <div class="success-badge">読み取り完了</div>
+                <button class="re-upload-btn" @click.stop="resetUpload">やり直す</button>
               </div>
             </div>
           </div>
@@ -127,7 +129,7 @@
                 </div>
               </div>
             </div>
-            <p class="ai-hint">💡 最後の1人は、残りの金額が自動で入力されます！</p>
+            <p class="ai-hint">最後の1人は、残りの金額が自動で入力されます</p>
           </div>
 
           <div v-if="formData.splitType === 'item'" class="dynamic-section slide-in">
@@ -154,7 +156,9 @@
               <div class="receipt-item-card" v-for="(item, index) in receiptItems" :key="index">
                 <div class="item-main-row">
                   <input v-model="item.name" class="item-name-input" placeholder="商品名">
-                  <button class="remove-item-btn" @click="receiptItems.splice(index, 1)">✕</button>
+                  <button class="remove-item-btn" @click="receiptItems.splice(index, 1)" aria-label="削除">
+                    <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>
+                  </button>
                 </div>
                 
                 <div class="item-math-row">
@@ -465,7 +469,7 @@ const executeSubmit = () => {
 .upload-section { margin-bottom: 24px; }
 .hidden-input { display: none; }
 .drop-zone { border: 2px dashed #cbd5e1; border-radius: 20px; background: white; padding: 20px; text-align: center; transition: 0.2s; position: relative; overflow: hidden; min-height: 140px; display: flex; align-items: center; justify-content: center; }
-.drop-zone.is-dragover { border-color: #3b82f6; background: #eff6ff; }
+.drop-zone.is-dragover { border-color: var(--c-brand); background: var(--c-brand-weak); }
 .drop-zone.is-analyzing { border-color: #f59e0b; background: #fffbeb; }
 
 .upload-placeholder { width: 100%; }
@@ -473,12 +477,12 @@ const executeSubmit = () => {
 .upload-actions { display: flex; gap: 10px; justify-content: center; }
 .upload-action-btn { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 16px; font-size: 12px; font-weight: 900; color: #1e293b; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
 .upload-action-btn:active { transform: scale(0.96); background: #e2e8f0; }
-.upload-action-btn .icon { font-size: 24px; }
+.upload-action-btn__icon { width: 26px; height: 26px; fill: none; stroke: var(--c-brand); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
 /* AI解析中のアニメーション */
 .analyzing-view { width: 100%; height: 100%; position: absolute; top: 0; left: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.7); z-index: 10; }
 .scanning-img { width: 100%; height: 100%; object-fit: cover; opacity: 0.4; position: absolute; top: 0; left: 0; }
-.scan-line { position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: #3b82f6; box-shadow: 0 0 15px #3b82f6; animation: scan 1.5s infinite linear; z-index: 11; }
+.scan-line { position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: var(--c-brand); box-shadow: 0 0 15px var(--c-brand); animation: scan 1.5s infinite linear; z-index: 11; }
 @keyframes scan { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
 .analyzing-text { position: relative; z-index: 12; color: white; font-weight: 900; font-size: 14px; display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.6); padding: 8px 16px; border-radius: 20px; backdrop-filter: blur(4px); }
 .spinner { width: 16px; height: 16px; border: 3px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s infinite linear; }
@@ -505,7 +509,7 @@ const executeSubmit = () => {
 .currency-unit { font-size: 16px; font-weight: 800; color: #64748b; }
 
 .standard-input { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 14px; font-weight: 800; color: #1e293b; outline: none; box-sizing: border-box; transition: 0.2s; }
-.standard-input:focus { border-color: #3b82f6; background: white; }
+.standard-input:focus { border-color: var(--c-brand); background: white; }
 .select-style { appearance: none; cursor: pointer; }
 .payer-hint { font-size: 11px; color: #059669; background: #ecfdf5; padding: 8px 12px; border-radius: 10px; margin: 0; font-weight: 700; }
 
@@ -520,13 +524,13 @@ const executeSubmit = () => {
 .dynamic-section { margin-bottom: 24px; }
 .section-desc { font-size: 12px; color: #64748b; font-weight: 700; margin: 0 0 12px 0; }
 
-.split-result-box { background: white; border: 2px solid #3b82f6; border-radius: 20px; padding: 20px; text-align: center; }
-.split-desc { font-size: 12px; color: #3b82f6; font-weight: 800; }
+.split-result-box { background: white; border: 2px solid var(--c-brand); border-radius: 20px; padding: 20px; text-align: center; }
+.split-desc { font-size: 12px; color: var(--c-brand); font-weight: 800; }
 .split-calc-amount { font-size: 28px; font-weight: 900; color: #1e293b; margin: 8px 0 0 0; }
 
 /* カスタム（金額指定） */
 .custom-split-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
-.remaining-text { font-size: 13px; font-weight: 900; color: #3b82f6; background: #eff6ff; padding: 4px 10px; border-radius: 12px; transition: 0.2s; }
+.remaining-text { font-size: 13px; font-weight: 900; color: var(--c-brand); background: var(--c-brand-weak); padding: 4px 10px; border-radius: 12px; transition: 0.2s; }
 .remaining-text.error { color: #ef4444; background: #fef2f2; }
 .ai-hint { font-size: 11px; font-weight: 800; color: #10b981; text-align: center; margin-top: 12px; }
 
@@ -540,7 +544,7 @@ const executeSubmit = () => {
 
 /* 商品ごとに指定 */
 .item-split-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px; }
-.add-item-btn { background: #eff6ff; color: #3b82f6; border: none; padding: 6px 12px; border-radius: 12px; font-size: 11px; font-weight: 800; cursor: pointer; }
+.add-item-btn { background: var(--c-brand-weak); color: var(--c-brand); border: none; padding: 6px 12px; border-radius: 12px; font-size: 11px; font-weight: 800; cursor: pointer; }
 .receipt-items-list { display: flex; flex-direction: column; gap: 12px; }
 .empty-items { background: white; padding: 30px; text-align: center; border-radius: 20px; border: 2px dashed #cbd5e1; font-size: 12px; font-weight: 800; color: #94a3b8; }
 .receipt-item-card { background: white; border-radius: 20px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); border: 1px solid #f1f5f9; }
@@ -548,17 +552,18 @@ const executeSubmit = () => {
 .item-name-input { flex: 1; border: none; border-bottom: 2px solid #e2e8f0; font-size: 15px; font-weight: 900; color: #1e293b; padding-bottom: 4px; outline: none; }
 .item-price-box { display: flex; align-items: baseline; gap: 2px; font-weight: 800; color: #64748b; }
 .item-price-input { width: 60px; text-align: right; border: none; border-bottom: 2px solid #e2e8f0; font-size: 16px; font-weight: 900; color: #f59e0b; outline: none; }
-.remove-item-btn { background: #f1f5f9; color: #94a3b8; border: none; width: 24px; height: 24px; border-radius: 50%; font-size: 12px; font-weight: bold; cursor: pointer; }
+.remove-item-btn { background: #fef2f2; color: var(--c-danger); border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.remove-item-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
 .item-assignees { background: #f8fafc; padding: 12px; border-radius: 12px; }
 .assign-label { font-size: 11px; color: #64748b; font-weight: 800; display: block; margin-bottom: 8px; }
 .assign-chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip { background: white; border: 1px solid #cbd5e1; color: #64748b; padding: 6px 12px; border-radius: 16px; font-size: 11px; font-weight: 800; cursor: pointer; transition: 0.2s; }
-.chip.selected { background: #3b82f6; border-color: #3b82f6; color: white; box-shadow: 0 2px 6px rgba(59,130,246,0.3); }
+.chip.selected { background: var(--c-brand); border-color: var(--c-brand); color: white; box-shadow: 0 2px 6px rgba(59,130,246,0.3); }
 
 /* 🌟 フッター（固定） */
 .modal-footer { padding: 16px 24px 30px; background: white; border-top: 1px solid rgba(0,0,0,0.05); }
-.submit-btn { width: 100%; background-color: #0f172a; color: white; border: none; padding: 18px; border-radius: 20px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,0.15); transition: 0.2s; }
+.submit-btn { width: 100%; background-color: var(--c-brand); color: white; border: none; padding: 18px; border-radius: var(--r-pill); font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 8px 20px rgba(5,150,105,0.25); transition: 0.2s; }
 .submit-btn:active { transform: scale(0.96); }
 
 .slide-in { animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1); }

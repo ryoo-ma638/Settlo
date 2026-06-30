@@ -1,10 +1,6 @@
 <template>
     <div class="combined-container">
-      <header class="detail-header">
-        <button class="back-btn" @click="$router.back()">‹</button>
-        <h1 class="title">トータル精算</h1>
-        <div class="spacer"></div>
-      </header>
+      <PageHeader title="トータル精算" />
   
       <main class="content">
         <div class="final-card" :class="netBalance >= 0 ? 'receive-bg' : 'pay-bg'">
@@ -51,8 +47,9 @@
               :class="{ 'excluded-item': !item.included }"
               @click="openDetailOverlay(item)"
             >
-              <button class="toggle-btn" @click.stop="toggleInclude(item)">
-                {{ item.included ? '➖' : '➕' }}
+              <button class="toggle-btn" @click.stop="toggleInclude(item)" :aria-label="item.included ? '除外' : '追加'">
+                <svg v-if="item.included" viewBox="0 0 24 24"><path d="M6 12h12"/></svg>
+                <svg v-else viewBox="0 0 24 24"><path d="M12 6v12M6 12h12"/></svg>
               </button>
               <div class="item-info">
                 <span class="badge" :class="item.type">{{ item.type === 'waiting' ? '受' : '払' }}</span>
@@ -89,27 +86,12 @@
   import { ref, computed, onMounted } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
   import { auth, db } from '@/firebase'; // firebase のインポートを追加
-  import { doc, getDoc } from 'firebase/firestore'; // Firestore 用
+  import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore'; // Firestore 用
   import PaymentReceipt from '../components/PaymentReceipt.vue'; // 🌟 コンポーネントをインポート
+  import PageHeader from '../components/PageHeader.vue';
   
   const route = useRoute();
   const router = useRouter();
-
-  const friendDoc = await getDoc(doc(db, "users", uid)); // 🌟 users直下を探す
-
-  if (friendDoc.exists()) {
-  const data = friendDoc.data();
-  // ユーザーは見つかった！
-  friend.value = data; 
-  
-  // 🌟 画像は「あれば入れる、なければ空」にするだけ（これでエラーは出ない）
-  friendPhoto.value = data.photo || data.photoURL || "";
-  
-  console.log("ユーザー発見！名前:", data.name);
-} else {
-  // 🌟 ここを通るなら「IDそのものがFirestoreにない」ということ
-  console.error("ユーザーが見つかりません。UID:", uid);
-}
 
   // 🌟 アイコン保持用の変数
 const myPhoto = ref("");
@@ -141,15 +123,31 @@ onMounted(async () => {
     } else {
       console.error("❌ 相手のUIDがURLパラメータに含まれていません");
     }
+
+    // 🌟 この相手との未決済取引を実データから集計してリスト化（複合インデックス回避）
+    if (friendUid) {
+      const list = [];
+      const recvSnap = await getDocs(query(collection(db, "transactions"), where("paidToId", "==", myUid)));
+      recvSnap.forEach((d) => {
+        const t = d.data();
+        if (t.paidById === friendUid && (t.status || 'unpaid') !== 'completed') {
+          list.push({ id: d.id, type: 'waiting', eventName: t.itemName || 'イベント代', date: '', name: route.params.name, itemName: t.itemName || '立て替え', amount: t.amount || 0, itemsDetail: t.itemsDetail || [t.itemName], included: true });
+        }
+      });
+      const paySnap = await getDocs(query(collection(db, "transactions"), where("paidById", "==", myUid)));
+      paySnap.forEach((d) => {
+        const t = d.data();
+        if (t.paidToId === friendUid && (t.status || 'unpaid') !== 'completed') {
+          list.push({ id: d.id, type: 'pay', eventName: t.itemName || 'イベント代', date: '', name: route.params.name, itemName: t.itemName || '支払い', amount: t.amount || 0, itemsDetail: t.itemsDetail || [t.itemName], included: true });
+        }
+      });
+      allEvents.value = list;
+    }
   }
 });
   
-  // 🌟 データの構造化 (included: true で計算対象にする)
-  const allEvents = ref([
-    { id: 1, type: 'waiting', eventName: 'ランチ代', date: '3/10', name: route.params.name, itemName: '立て替え', amount: 1500, itemsDetail: ['パスタ', 'コーヒー'], included: true },
-    { id: 2, type: 'waiting', eventName: 'カフェ代', date: '3/11', name: route.params.name, itemName: '立て替え', amount: 2000, itemsDetail: ['ケーキ', '紅茶'], included: true },
-    { id: 3, type: 'pay', eventName: '飲み会代', date: '3/12', name: route.params.name, itemName: '飲み代', amount: 4800, itemsDetail: ['コース', '飲み放題'], included: true },
-  ]);
+  // 🌟 実データを onMounted で投入する（初期は空）
+  const allEvents = ref([]);
   
   // 🌟 動的計算（included が true のものだけ合算）
   const waitingTotal = computed(() => allEvents.value.filter(e => e.type === 'waiting' && e.included).reduce((sum, e) => sum + e.amount, 0));
@@ -178,17 +176,17 @@ onMounted(async () => {
   // 🌟 新設した「相殺専用のアクションページ」へ遷移
   const goToActionPage = (actionType) => {
     // 本来はIDや金額をパラメータで渡しますが、今回はシンプルに名前とタイプを渡します
-    router.push(`/combined-action/${route.params.name}?type=${actionType}&amount=${Math.abs(netBalance.value)}`);
+    router.push(`/combined-action/${route.params.name}?type=${actionType}&amount=${Math.abs(netBalance.value)}&uid=${route.query.uid || ''}`);
   };
   </script>
   
   <style scoped>
-  .combined-container { background: #f8fafc; min-height: 100vh; width: 100%; box-sizing: border-box; }
-  .content { padding: 20px; box-sizing: border-box; }
-  
-  .final-card { border-radius: 25px; padding: 30px; color: white; text-align: center; box-shadow: 0 10px 20px rgba(0,0,0,0.1); margin-bottom: 25px; transition: all 0.3s; }
-  .receive-bg { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
-  .pay-bg { background: linear-gradient(135deg, #f59e0b, #d97706); }
+  .combined-container { background: var(--c-bg); width: 100%; box-sizing: border-box; }
+  .content { padding: 8px var(--pad) 28px; box-sizing: border-box; }
+
+  .final-card { border-radius: var(--r-lg); padding: 26px; color: white; text-align: center; box-shadow: var(--shadow-card); margin-bottom: 22px; transition: all 0.3s; }
+  .receive-bg { background: var(--c-receive); }
+  .pay-bg { background: var(--c-pay); }
   .amount { font-size: 44px; font-weight: bold; margin: 15px 0; }
   .settle-route { display: flex; align-items: center; justify-content: center; gap: 20px; margin-top: 10px; }
   .avatar-me, .avatar-friend { width: 50px; height: 50px; border-radius: 50%; background: #dcdcdc; border: 3px solid white; }
@@ -201,7 +199,7 @@ onMounted(async () => {
   .comparison-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
   .comp-box { flex: 1; background: white; padding: 15px; border-radius: 15px; display: flex; flex-direction: column; border-bottom: 4px solid; cursor: pointer; transition: 0.2s; opacity: 0.6; }
   .active-box { opacity: 1; box-shadow: 0 4px 10px rgba(0,0,0,0.1); transform: translateY(-2px); }
-  .blue-border { border-color: #3b82f6; }
+  .blue-border { border-color: var(--c-receive); }
   .orange-border { border-color: #f59e0b; }
   .comp-operator { padding: 0 10px; font-weight: bold; color: #94a3b8; }
   
@@ -210,17 +208,18 @@ onMounted(async () => {
   .history-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: 0.3s; }
   .excluded-item { opacity: 0.4; text-decoration: line-through; } /* 🌟 除外された項目のスタイル */
   
-  .toggle-btn { background: #f1f5f9; border: none; border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; margin-right: 10px; cursor: pointer; font-size: 10px; }
+  .toggle-btn { background: var(--c-surface-2); border: none; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; margin-right: 10px; cursor: pointer; flex-shrink: 0; }
+  .toggle-btn svg { width: 15px; height: 15px; fill: none; stroke: var(--c-text-sub); stroke-width: 2.2; stroke-linecap: round; }
   .item-info { display: flex; align-items: center; gap: 10px; flex: 1; }
   .badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; color: white; }
-  .waiting { background: #3b82f6; }
+  .waiting { background: var(--c-receive); }
   .pay { background: #f59e0b; }
   .price { font-weight: bold; }
   
   .main-btn { width: 100%; padding: 18px; border-radius: 18px; border: none; font-weight: bold; font-size: 16px; color: white; cursor: pointer; margin-top: 20px; }
-  .blue-btn { background: #2169a3; }
-  .orange-btn { background: #f59e0b; }
-  .close-btn { background: #1e293b; }
+  .blue-btn { background: var(--c-receive); }
+  .orange-btn { background: var(--c-pay); }
+  .close-btn { background: var(--c-surface-2); color: var(--c-text-sub); }
   
   /* オーバーレイ */
   .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: flex-end; z-index: 3000; }

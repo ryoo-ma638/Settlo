@@ -30,7 +30,7 @@
           
           <section v-if="history.status === 'completed'" class="completed-section">
             <div class="completed-card">
-              <span class="completed-icon">✅</span>
+              <span class="completed-icon"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#059669" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>
               <h3 class="completed-title">この取引は完了しています</h3>
               <p class="completed-date">支払い完了日: {{ history.date }} {{ history.time }}</p>
             </div>
@@ -46,7 +46,7 @@
                 :opponentUid="history.paidById || history.paidToId" 
               />
               
-              <button class="method-btn cash" @click="handlePayment('cash')">💵 支払った/受け取った</button>
+              <button class="method-btn cash" @click="handlePayment('cash')">支払った／受け取った</button>
             </div>
           </template>
           <button class="action-btn" @click="$emit('close')">閉じる</button>
@@ -155,7 +155,7 @@ const handlePayment = (method) => {
 .method-btn { width: 100%; padding: 16px; border-radius: 16px; border: none; font-weight: 900; font-size: 14px; margin-bottom: 10px; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
 .method-btn:active { transform: scale(0.96); box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
 .paypay { background-color: #ff0033; color: white; }
-.cash { background-color: #1e293b; color: white; }
+.cash { background-color: var(--c-brand); color: white; }
 .action-btn { width: 100%; padding: 16px; border-radius: 16px; border: none; font-weight: 900; font-size: 15px; cursor: pointer; background: #e2e8f0; color: #475569; margin-top: 10px; transition: 0.2s; }
 .action-btn:active { transform: scale(0.96); }
 

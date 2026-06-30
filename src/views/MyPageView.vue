@@ -1,42 +1,50 @@
 <template>
-  <div class="mypage-container">
-    
-    <section class="profile-section">
-      <img :src="userPhoto" class="user-circle-large" />
-      <h1 class="user-name">{{ userName }}</h1>
+  <div class="mypage">
+    <PageHeader title="マイページ" />
 
-      <div class="id-copy-box" @click="copyMyId">
-        <span class="id-label">ID:</span>
-        <span class="id-value">{{ userUid }}</span>
-        <span class="copy-icon">📋</span>
-      </div>
+    <main class="mypage__body">
+      <section class="profile">
+        <div class="profile__avatar">
+          <img v-if="userPhoto" :src="userPhoto" alt="" />
+          <div v-else class="profile__ph"></div>
+        </div>
+        <h1 class="profile__name">{{ userName }}</h1>
 
-      <p class="account-type">Google アカウント</p>
-    </section>
+        <button class="profile__id" @click="copyMyId" :title="userUid">
+          <span class="profile__id-label">ID</span>
+          <span class="profile__id-value">{{ userUid }}</span>
+          <svg class="profile__id-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>
+        </button>
 
-    <section class="menu-section">
-      <ul class="menu-list">
-        <li class="menu-item" @click="$router.push('/edit-profile')">
-          <span>✏️ プロフィールを変更する</span>
-          <span class="arrow">›</span>
-        </li>
-        
-        <li class="menu-item hide-on-pc" @click="$router.push('/friend')">
-          <span>👥 フレンド管理</span>
-          <span class="arrow">›</span>
-        </li>
-        <li class="menu-item hide-on-pc" @click="$router.push('/payment-history')">
-          <span>📜 お支払い履歴</span>
-          <span class="arrow">›</span>
-        </li>
-        
-        <li class="menu-item logout" @click="logout">
-          <span>🚪 ログアウト</span>
-          <span class="arrow">›</span>
-        </li>
-      </ul>
-    </section>
+        <p class="profile__type">Google アカウント</p>
+      </section>
 
+      <section class="menu">
+        <button class="menu__item" @click="$router.push('/edit-profile')">
+          <svg class="menu__icon" viewBox="0 0 24 24"><path d="M4 20h4L18 10l-4-4L4 16z"/><path d="M13 7l4 4"/></svg>
+          <span class="menu__label">プロフィールを変更</span>
+          <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+
+        <button class="menu__item" @click="$router.push('/friend')">
+          <svg class="menu__icon" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19v-1a4 4 0 0 1 4-4h3a4 4 0 0 1 4 4v1"/><path d="M16.5 5.4a3.2 3.2 0 0 1 0 6.1M17.4 14.2A4 4 0 0 1 20.5 18v1"/></svg>
+          <span class="menu__label">フレンド管理</span>
+          <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+
+        <button class="menu__item" @click="$router.push('/payment-history')">
+          <svg class="menu__icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+          <span class="menu__label">お支払い履歴</span>
+          <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+
+        <button class="menu__item menu__item--danger" @click="logout">
+          <svg class="menu__icon" viewBox="0 0 24 24"><path d="M15 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3"/><path d="M10 8l-4 4 4 4"/><path d="M6 12h10"/></svg>
+          <span class="menu__label">ログアウト</span>
+          <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+      </section>
+    </main>
   </div>
 </template>
 
@@ -47,13 +55,13 @@ import { useRouter } from "vue-router";
 import { ref, onMounted } from "vue";
 import { doc, getDoc } from "firebase/firestore";
 import api from "../services/api";
+import PageHeader from "../components/PageHeader.vue";
 
 const router = useRouter();
 const userName = ref("読み込み中...");
 const userPhoto = ref("");
 const userUid = ref("");
 
-// 🌟 追加：IDをコピーする関数
 const copyMyId = async () => {
   if (!userUid.value) return;
   try {
@@ -78,7 +86,6 @@ onMounted(async () => {
   const user = auth.currentUser;
   if (user) {
     userUid.value = user.uid;
-    // ...以下、既存のFirestore取得ロジック（そのまま）
     try {
       const userDocRef = doc(db, "users", user.uid);
       let userSnap = await getDoc(userDocRef);
@@ -89,7 +96,7 @@ onMounted(async () => {
       if (userSnap.exists()) {
         const data = userSnap.data();
         userName.value = data.name || user.displayName || "名無し";
-        userPhoto.value = data.photo || user.photoURL || "https://via.placeholder.com/150";
+        userPhoto.value = data.photo || user.photoURL || "";
       }
     } catch (error) {
       console.error("❌ データ取得または同期に失敗:", error);
@@ -101,69 +108,79 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.mypage__body { padding: 8px var(--pad) 28px; }
 
+/* プロフィール */
+.profile {
+  text-align: center;
+  padding: 16px 0 28px;
+}
+.profile__avatar {
+  width: 96px; height: 96px; margin: 0 auto 14px;
+  border-radius: 50%; overflow: hidden;
+  background: var(--c-brand-tint);
+  box-shadow: var(--shadow-card);
+}
+.profile__avatar img { width: 100%; height: 100%; object-fit: cover; }
+.profile__ph { width: 100%; height: 100%; background: var(--c-brand-tint); }
+.profile__name { font-size: 22px; font-weight: var(--fw-black); color: var(--c-ink); }
 
-/* 1. プロフィールエリア */
-.profile-section { text-align: center; margin-bottom: 40px; }
-.user-circle-large {
-  width: 120px; height: 120px; background-color: #e3a8a8; 
-  border-radius: 50%; margin: 0 auto 15px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-  object-fit: cover; /* 🌟 画像が歪まないように追加 */
+.profile__id {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 80%;
+  margin: 12px auto 0;
+  padding: 7px 14px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-line-bold);
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-sm);
 }
-.user-name { font-size: 24px; font-weight: bold; margin: 0 0 5px 0; color: #000; }
-.account-type { font-size: 14px; color: #64748b; margin: 0; }
-.id-copy-box {
-  display: inline-flex;  align-items: center;  gap: 5px;  background-color: #fff;
-  padding: 4px 12px;  border-radius: 15px;  margin: 10px 0;  cursor: pointer;
-  border: 1px solid #e2e8f0;  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+.profile__id:active { transform: scale(0.97); }
+.profile__id-label {
+  font-size: 10px; font-weight: var(--fw-bold);
+  color: #fff; background: var(--c-text-faint);
+  padding: 1px 7px; border-radius: var(--r-pill); flex-shrink: 0;
 }
-.id-label {
-  font-size: 10px;  color: #94a3b8;  font-weight: bold;
+.profile__id-value {
+  font-size: 12px; color: var(--c-text-sub); font-weight: var(--fw-medium);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.id-value {
-  font-size: 12px;  font-family: monospace;  color: #475569;
+.profile__id-copy {
+  width: 15px; height: 15px; flex-shrink: 0;
+  fill: none; stroke: var(--c-brand); stroke-width: 1.8; stroke-linejoin: round;
 }
-.copy-icon {
-  font-size: 12px;  color: #2169a3;
-}
-.account-type {
-  margin-top: 5px; /* 少し隙間を調整 */
-}
+.profile__type { margin-top: 10px; font-size: 13px; color: var(--c-text-sub); }
 
-/* 2. メニューセクション */
-.menu-section { background-color: #fff; border-radius: 20px; padding: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-.menu-list { list-style: none; padding: 0; margin: 0; }
-.menu-item {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 20px 15px; border-bottom: 1px solid #eee; font-size: 16px;
-  font-weight: bold; color: #1e293b; cursor: pointer; transition: background-color 0.2s;
+/* メニュー */
+.menu {
+  background: var(--c-surface);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
 }
-.menu-item:last-child { border-bottom: none; }
-.menu-item:active { background-color: #f8fafc; }
-.arrow { font-size: 24px; color: #cbd5e1; font-family: serif; }
-
-/* ログアウト用の特別なスタイル */
-.menu-item.logout { color: #ef4444; }
-.menu-item.logout .arrow { color: #fca5a5; }
-
-/* 🌟 追加：PCサイズ（例：1024px以上）になったら非表示にする */
-@media (min-width: 1024px) {
-  .hide-on-pc {
-    display: none !important;
-  }
-}
-
-/* MyPageView.vue の <style scoped> に追加・上書き */
-.mypage-container {
-  min-height: calc(100vh - 60px); /* 🌟 画面の高さ - 共通ヘッダーの高さ */
-  background-color: #ffffff; /* 下まで真っ白にする */
+.menu__item {
+  width: 100%;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border-bottom: 1px solid var(--c-line);
+  color: var(--c-ink);
+  transition: background-color 0.15s ease;
 }
-
-/* 3カラムの中央エリア（もし個別のラッパーがあれば） */
-.content-wrapper {
-  flex: 1;
-  background-color: #ffffff;
+.menu__item:last-child { border-bottom: none; }
+.menu__item:active { background: var(--c-surface-2); }
+.menu__icon {
+  width: 22px; height: 22px; flex-shrink: 0;
+  fill: none; stroke: var(--c-brand); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
 }
+.menu__label { flex: 1; text-align: left; font-size: 15px; font-weight: var(--fw-bold); }
+.menu__chevron {
+  width: 20px; height: 20px; flex-shrink: 0;
+  fill: none; stroke: var(--c-text-faint); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.menu__item--danger { color: var(--c-danger); }
+.menu__item--danger .menu__icon { stroke: var(--c-danger); }
 </style>
