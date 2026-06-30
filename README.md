@@ -1,38 +1,75 @@
-# pair-pay
+# Settlo（セトロ）
 
-This template should help get you started developing with Vue 3 in Vite.
+> レシートを撮るだけ。グループの「割り勘」と「精算」を、もう迷わせない。
 
-## Recommended IDE Setup
+**Settlo** は、旅行・飲み会・イベントなど、グループでの支払いを
+**記録 → 自動精算 → 支払い** までシームレスにこなせる割り勘アプリです。
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+🔗 **公開URL： https://settlo-app.web.app**
 
-## Recommended Browser Setup
+---
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+## ✨ 主な機能
 
-## Customize configuration
+- 🧾 **レシートAI読み取り** — 撮影するだけで店名・金額・品目を自動入力（Gemini OCR）
+- 🍽️ **柔軟な割り勘** — 「全員で均等」「金額を指定」「商品ごとに支払う人を選ぶ」の3方式
+- 🏷️ **支払いジャンル** — 食事・カフェ・コンビニ・交通など、支払いごとにアイコンで分類
+- 🧮 **自動精算** — 「誰が誰にいくら払うか」を最小回数の送金で計算
+- 👥 **イベント & 参加者管理** — 招待コードで参加、参加者やイベント内容の編集も可能
+- 🤝 **フレンド & 取引履歴** — 申請・承認、相手との過去の取引を確認できる
+- 🔔 **通知** — 承認リクエスト・催促・拒否をアプリ内で通知
+- 📊 **精算の進捗表示** — イベントごとに「未精算の残り」と完了率を可視化
 
-See [Vite Configuration Reference](https://vite.dev/config/).
+---
 
-## Project Setup
+## 🛠️ 技術スタック
+
+| 領域 | 使用技術 |
+|---|---|
+| フロントエンド | Vue 3（`<script setup>`） / Vite |
+| ルーティング | Vue Router（ハッシュルーティング） |
+| バックエンド | Firebase（Authentication / Firestore / Cloud Functions / Hosting / FCM） |
+| AI | Gemini 2.5 Flash（レシートOCR） |
+| ホスティング | Firebase Hosting |
+
+---
+
+## 🚀 セットアップ（ローカル開発）
 
 ```sh
+# 1. 依存関係をインストール
 npm install
-```
 
-### Compile and Hot-Reload for Development
+# 2. プロジェクト直下に .env.local を作成し、Firebase の設定（VITE_FIREBASE_*）を記述
+#    ※ ファイル名が .env.dev だと Vite が読み込まないので注意（.env.local を使う）
 
-```sh
-npm run dev
-```
+# 3. 開発サーバーを起動
+npm run dev          # → http://localhost:5173
 
-### Compile and Minify for Production
-
-```sh
+# 本番ビルド
 npm run build
 ```
+
+> 設計・データモデル・開発メモは [CLAUDE.md](./CLAUDE.md)、
+> やることリストは [TASKS.md](./TASKS.md) を参照してください。
+
+---
+
+## 📁 ディレクトリ構成（抜粋）
+
+```
+src/
+├─ views/        # 画面（Home / Event / Money / Friend / Login など）
+├─ components/   # UI部品（モーダル・カード・アイコン）
+├─ composables/  # useSettlement（精算ロジック）など
+├─ assets/       # base.css（デザイントークン）/ main.css
+└─ firebase.js   # Firebase 初期化
+functions/        # Cloud Functions（レシートOCR・精算API）
+```
+
+---
+
+## 👥 開発
+
+愛知工業大学の学生チームによる開発（**技育博2026 Vol.2** エントリー作品）。
+サークル内ハッカソン「SysHack」での制作をきっかけに開発を継続中です。
