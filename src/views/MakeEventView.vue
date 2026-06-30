@@ -3,6 +3,12 @@
     <PageHeader :title="isJoinMode ? 'イベントに参加' : '新規イベント作成'" />
 
     <main class="body">
+      <!-- 🌟 作成／参加をひと目で切り替えられるタブ -->
+      <div class="seg mode-seg">
+        <button class="seg__item" :class="{ 'is-active': !isJoinMode }" @click="isJoinMode = false">イベントを作る</button>
+        <button class="seg__item" :class="{ 'is-active': isJoinMode }" @click="isJoinMode = true">参加する</button>
+      </div>
+
       <div v-if="!isJoinMode">
         <div class="field">
           <label class="field__label">イベント名</label>
@@ -41,7 +47,6 @@
           <button class="btn-brand" :disabled="loading" @click="createEvent">
             {{ loading ? '作成中…' : '作成する' }}
           </button>
-          <button class="btn-text" @click="isJoinMode = true">既存のイベントに参加する</button>
         </div>
       </div>
 
@@ -52,7 +57,6 @@
         </div>
         <div class="actions">
           <button class="btn-brand" @click="joinEvent">参加する</button>
-          <button class="btn-text" @click="isJoinMode = false">新しくイベントを作る</button>
         </div>
       </div>
     </main>
@@ -189,6 +193,8 @@ watch(isJoinMode, () => {
 
 <style scoped>
 .body { padding: 8px var(--pad) 28px; }
+
+.mode-seg { margin-bottom: 20px; }
 
 .field { margin-bottom: 22px; }
 .field__label {

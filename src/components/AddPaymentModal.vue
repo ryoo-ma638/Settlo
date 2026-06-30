@@ -80,10 +80,25 @@
             <div class="input-row">
               <label>立替えた人</label>
               <select v-model="formData.payer" class="standard-input select-style">
-                <option value="大崎 稜馬">自分</option>
-                <option value="小野木 涼平">小野木 涼平</option>
-                <option value="天野 椋祐">天野 椋祐</option>
+                <option v-if="participants.length === 0" disabled value="">参加者がいません</option>
+                <option v-for="p in participants" :key="p.id || p.name" :value="p.name">
+                  {{ p.isMe ? p.name + '（自分）' : p.name }}
+                </option>
               </select>
+            </div>
+          </div>
+
+          <div class="category-section">
+            <h3 class="section-sub-title">ジャンル</h3>
+            <div class="category-row">
+              <button
+                v-for="c in categories" :key="c" type="button"
+                class="cat-chip" :class="{ active: formData.category === c }"
+                @click="formData.category = c"
+              >
+                <span class="cat-icon"><GenreIcon :type="c" /></span>
+                <span class="cat-label">{{ c }}</span>
+              </button>
             </div>
           </div>
 
@@ -209,10 +224,14 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive } from 'vue';
+import { ref, computed, reactive, watch } from 'vue';
 import BaseModal from '../components/BaseModal.vue';
+import GenreIcon from '../components/GenreIcon.vue'; // 🌟 支払いジャンルのアイコン
 import { app } from "../firebase";
 import { getFunctions, httpsCallable } from "firebase/functions"; // ← AI通信に必要なこれらが抜けていました！
+
+// 🌟 支払いのジャンル候補
+const categories = ['食事', 'カフェ', 'コンビニ', 'スーパー', '買い物', '交通', '旅行', '遊び', '飲み会', 'その他'];
 
 // 🌟 統一モーダルの状態管理
 const modalState = reactive({
@@ -227,7 +246,13 @@ const handleConfirmModal = () => {
   modalState.show = false;
 };
 
-const props = defineProps({ isOpen: Boolean });
+// 🌟 実データ化：イベントの参加者（{ id, name, color/photo, isMe }）を親から受け取る
+const props = defineProps({
+  isOpen: Boolean,
+  participants: { type: Array, default: () => [] },
+  myName: { type: String, default: '' },
+  myUid: { type: String, default: '' },
+});
 const emit = defineEmits(['close', 'submit']);
 
 // --- 状態管理 ---
@@ -241,29 +266,47 @@ const formData = ref({
   amount: '',
   itemName: '',
   date: new Date().toISOString().split('T')[0],
-  time: '', 
-  payer: '大崎 稜馬',
+  time: '',
+  payer: '',
+  category: '食事', // 🌟 支払いジャンル
   splitType: 'all'
 });
 
-const participants = [
-  { name: '大崎 稜馬', color: '#fca5a5' },
-  { name: '小野木 涼平', color: '#93c5fd' },
-  { name: '天野 椋祐', color: '#86efac' },
-];
+// 🌟 参加者は親（イベント）から渡された実データを使う
+const participants = computed(() => props.participants || []);
 
 const receiptItems = ref([]);
 
 const customSplitAmounts = ref({});
-participants.forEach(p => {
-  customSplitAmounts.value[p.name] = '';
+
+// 🌟 参加者が変わるたびに、金額指定の入力欄と「立替えた人」の初期値を作り直す
+watch(participants, (list) => {
+  const arr = list || [];
+  const next = {};
+  arr.forEach(p => { next[p.name] = customSplitAmounts.value[p.name] ?? ''; });
+  customSplitAmounts.value = next;
+  // 立替えた人の初期値：自分 → 先頭参加者の順で決める
+  if (!formData.value.payer || !arr.find(p => p.name === formData.value.payer)) {
+    const me = arr.find(p => p.isMe);
+    formData.value.payer = me ? me.name : (arr[0]?.name || props.myName || '');
+  }
+}, { immediate: true, deep: true });
+
+// 🌟 モーダルを開くたび、立替えた人を自分に戻す
+watch(() => props.isOpen, (open) => {
+  if (open) {
+    const arr = props.participants || [];
+    const me = arr.find(p => p.isMe);
+    formData.value.payer = me ? me.name : (props.myName || arr[0]?.name || '');
+  }
 });
 
 // --- 計算ロジック ---
 const calculatedSplitAmount = computed(() => {
   const amt = Number(formData.value.amount);
+  const count = participants.value.length || 1;
   if (!amt || isNaN(amt)) return 0;
-  return Math.floor(amt / participants.length).toLocaleString();
+  return Math.floor(amt / count).toLocaleString();
 });
 
 
@@ -309,7 +352,7 @@ const resetUpload = () => {
   uploadedImage.value = null;
   isAnalyzing.value = false;
   receiptItems.value = [];
-  participants.forEach(p => customSplitAmounts.value[p.name] = '');
+  participants.value.forEach(p => customSplitAmounts.value[p.name] = '');
 };
 
 // --- 🌟 本物のAIを呼び出す処理に書き換え！ ---
@@ -405,7 +448,7 @@ const handleSubmit = () => {
       showModal({ type: 'error', title: '選択モレ', message: `「${unassignedItem.name}」を支払う人が選択されていません！` });
       return;
     }
-    
+
     // 金額がズレている場合の confirm を美しいモーダルに！
     if (itemsTotal.value !== Number(formData.value.amount)) {
       showModal({
@@ -416,12 +459,64 @@ const handleSubmit = () => {
         confirmText: 'このまま追加する',
         onConfirm: () => executeSubmit() // 確認OKなら実際の送信処理へ
       });
-      return; 
+      return;
+    }
+  }
+
+  // 🌟 金額指定（custom）の整合チェック
+  if (formData.value.splitType === 'custom') {
+    let sum = 0;
+    (props.participants || []).forEach(p => { sum += Number(customSplitAmounts.value[p.name]) || 0; });
+    if (sum <= 0) {
+      showModal({ type: 'error', title: '入力エラー', message: '各メンバーの金額を入力してください。' });
+      return;
+    }
+    if (sum !== Number(formData.value.amount)) {
+      showModal({
+        type: 'warning',
+        title: '金額が一致しません',
+        message: `指定の合計（¥${sum.toLocaleString()}）が全体（¥${Number(formData.value.amount).toLocaleString()}）と一致していません。\nこのまま追加しますか？`,
+        showCancel: true,
+        confirmText: 'このまま追加する',
+        onConfirm: () => executeSubmit()
+      });
+      return;
     }
   }
 
   // 金額が合っている場合はそのまま送信
   executeSubmit();
+};
+
+// 🌟 各メンバーの「負担額」を割り勘方法に応じて算出（uid基準・立替者の自己負担も含む）
+const computeShares = () => {
+  const arr = props.participants || [];
+  const shares = {};
+  const nameToUid = {};
+  arr.forEach(p => { shares[p.id] = 0; nameToUid[p.name] = p.id; });
+
+  if (formData.value.splitType === 'custom') {
+    // 金額指定：各人が入力した額がそのまま負担額
+    arr.forEach(p => { shares[p.id] = Number(customSplitAmounts.value[p.name]) || 0; });
+  } else if (formData.value.splitType === 'item') {
+    // 商品ごと：各商品を支払う人で均等割りし、合算
+    receiptItems.value.forEach(item => {
+      const price = calcItemTotal(item);
+      const assignees = item.assignees || [];
+      if (assignees.length === 0) return;
+      const per = Math.floor(price / assignees.length);
+      assignees.forEach(name => {
+        const uid = nameToUid[name];
+        if (uid != null) shares[uid] += per;
+      });
+    });
+  } else {
+    // 全員で均等
+    const per = Math.floor(Number(formData.value.amount) / (arr.length || 1));
+    arr.forEach(p => { shares[p.id] = per; });
+  }
+
+  return arr.map(p => ({ uid: p.id, name: p.name, amount: shares[p.id] || 0 }));
 };
 
 // 🌟 実際の送信処理（モーダルのOKボタンからも呼べるように分けたもの）
@@ -434,13 +529,19 @@ const executeSubmit = () => {
   const currentTime = formData.value.time || 
                      `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
+  // 🌟 立替えた人（債権者）のUIDを名前から解決して一緒に渡す
+  const payerObj = (props.participants || []).find(p => p.name === formData.value.payer);
   const payload = {
     payer: formData.value.payer,
+    payerUid: payerObj ? payerObj.id : (props.myUid || null),
     itemName: formData.value.itemName,
+    category: formData.value.category, // 🌟 支払いジャンル
     splitType: formData.value.splitType,
     amount: Number(formData.value.amount),
     date: formData.value.date ? formData.value.date.replace(/-/g, '/') : "",
     time: currentTime,
+    // 🌟 各メンバーの負担額（割り勘の正データ）
+    shares: computeShares(),
     items: receiptItems.value.map(item => ({
       name: item.name,
       price: calcItemTotal(item),
@@ -459,8 +560,8 @@ const executeSubmit = () => {
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.6); display: flex; align-items: flex-end; justify-content: center; z-index: 2000; backdrop-filter: blur(4px); }
 .modal-content { background: #f4f7f9; width: 100%; max-width: 600px; border-radius: 32px 32px 0 0; display: flex; flex-direction: column; max-height: 90vh; }
 
-.modal-header { padding: 24px 24px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.05); background: white; border-radius: 32px 32px 0 0; }
-.modal-title { margin: 0; font-size: 18px; color: #0f172a; font-weight: 900; }
+.modal-header { padding: 26px 22px 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px solid rgba(0,0,0,0.06); background: white; border-radius: 28px 28px 0 0; flex-shrink: 0; }
+.modal-title { margin: 0; font-size: 20px; color: #0f172a; font-weight: 900; line-height: 1.3; }
 .close-btn { background: #f1f5f9; border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 18px; color: #64748b; cursor: pointer; font-weight: bold; }
 
 .scroll-area { overflow-y: auto; padding: 20px 24px; flex: 1; }
@@ -498,8 +599,10 @@ const executeSubmit = () => {
 .basic-info-card { background: white; border-radius: 24px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 24px; display: flex; flex-direction: column; gap: 16px; }
 .input-row label { display: block; font-size: 12px; font-weight: 800; color: #64748b; margin-bottom: 6px; }
 .hint-text { font-weight: normal; font-size: 10px; color: #94a3b8; } 
-.half-row { display: flex; gap: 12px; }
-.half { flex: 1; }
+/* 🌟 日付と時間は「縦並び」にする（横並びだと密着して見えるため確実に分離） */
+.half-row { display: flex; flex-direction: column; gap: 18px; }
+.half { width: 100%; min-width: 0; }
+.half .standard-input { width: 100%; min-width: 0; }
 
 .amount-input-wrapper { display: flex; align-items: baseline; gap: 4px; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px; transition: 0.2s; }
 .amount-input-wrapper:focus-within { border-color: #f59e0b; }
@@ -512,6 +615,17 @@ const executeSubmit = () => {
 .standard-input:focus { border-color: var(--c-brand); background: white; }
 .select-style { appearance: none; cursor: pointer; }
 .payer-hint { font-size: 11px; color: #059669; background: #ecfdf5; padding: 8px 12px; border-radius: 10px; margin: 0; font-weight: 700; }
+
+/* 🌟 支払いジャンル選択 */
+.category-section { margin-bottom: 20px; }
+.category-row { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 6px; -webkit-overflow-scrolling: touch; }
+.category-row::-webkit-scrollbar { height: 0; }
+.cat-chip { flex: 0 0 auto; width: 64px; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 16px; padding: 10px 4px 8px; display: flex; flex-direction: column; align-items: center; gap: 6px; color: #64748b; cursor: pointer; transition: 0.15s; }
+.cat-chip:active { transform: scale(0.96); }
+.cat-icon { width: 24px; height: 24px; color: #64748b; }
+.cat-label { font-size: 10px; font-weight: 800; }
+.cat-chip.active { border-color: var(--c-brand); background: var(--c-brand-weak); color: var(--c-brand-strong); }
+.cat-chip.active .cat-icon { color: var(--c-brand); }
 
 /* 🌟 3. 割り勘タイプ選択 */
 .split-type-section { margin-bottom: 16px; }
