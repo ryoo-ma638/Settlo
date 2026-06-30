@@ -50,7 +50,7 @@ npm run dev          # → http://localhost:5173
 npm run build
 ```
 
-> 設計・データモデル・開発メモは [CLAUDE.md](./CLAUDE.md)、
+> 設計・データモデル・開発メモは [開発メモ.md](./開発メモ.md)、
 > やることリストは [TASKS.md](./TASKS.md) を参照してください。
 
 ---
