@@ -44,3 +44,5 @@ service-account.json
 
 # Playwright/MCP のテスト残骸（スクショ・ログ）
 .playwright-mcp/
+# Firebase デプロイキャッシュ（追跡しない）
+.firebase/
