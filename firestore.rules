@@ -42,6 +42,11 @@ service cloud.firestore {
         allow read: if isUser(uid);
         allow write: if isUser(uid) || isUser(friendUid);
       }
+
+      // ゴミ箱（削除したイベント・完了した決済の復元用・本人のみ）
+      match /trash/{trashId} {
+        allow read, write: if isUser(uid);
+      }
     }
 
     // ---- 取引（金額・貸し借り）----

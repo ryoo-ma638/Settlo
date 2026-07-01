@@ -175,7 +175,9 @@ const fetchEvents = async () => {
     const q = query(eventsRef, where("participants", "array-contains", myUid));
     const snapshot = await getDocs(q);
 
-    const rawEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const rawEvents = snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter(event => !(event.hiddenBy || []).includes(myUid)); // 自分がゴミ箱に入れたイベントは非表示
 
     const formattedEvents = await Promise.all(rawEvents.map(async (event) => {
       const uids = event.participants || [];

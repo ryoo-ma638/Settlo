@@ -34,6 +34,7 @@ const router = createRouter({
     { path: '/edit-profile', name: 'EditProfile', component: EditProfileView },
 
     { path: '/payment-history', name: 'PaymentHistory', component: PaymentHistoryView },
+    { path: '/trash', name: 'Trash', component: () => import('../views/TrashView.vue') },
     { path: '/event/:id', name: 'EventDetails', component: () => import('../views/EventDetails.vue') }
   ]
 })
