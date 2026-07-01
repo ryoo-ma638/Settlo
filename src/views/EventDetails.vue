@@ -102,7 +102,7 @@
       <div class="history-section" ref="timelineSection">
         <div class="section-header">
           <h3 class="section-title">立て替え履歴</h3>
-          <button class="add-payment-btn" @click="modals.addPayment = true">＋ 支払いを追加</button>
+          <button class="add-payment-btn" @click="openNewPayment">＋ 支払いを追加</button>
         </div>
 
         <div class="filter-wrapper">
@@ -232,7 +232,7 @@
         </div>
       </div>
 
-      <ReceiptPaymentModal :isOpen="modals.historyDetail" :history="selectedHistory" :myAmount="selectedMyAmount" :myRole="selectedMyRole" @close="modals.historyDetail = false" @complete="markAsCompleted" />
+      <ReceiptPaymentModal :isOpen="modals.historyDetail" :history="selectedHistory" :myAmount="selectedMyAmount" :myRole="selectedMyRole" @close="modals.historyDetail = false" @complete="markAsCompleted" @edit="openEditPayment" @delete="deletePayment" />
 
       <div v-if="modals.summaryDetail && selectedSummary" class="modal-overlay" @click.self="modals.summaryDetail = false">
         <div class="modal-content slide-up">
@@ -298,7 +298,8 @@
         :participants="eventData.participants"
         :myName="myName"
         :myUid="auth.currentUser?.uid || ''"
-        @close="modals.addPayment = false"
+        :editData="editingHistory"
+        @close="modals.addPayment = false; editingHistory = null"
         @submit="addHistory"
       />
 
@@ -438,8 +439,18 @@ const openEditEvent = () => {
 const saveEventEdit = async () => {
   const name = editName.value.trim();
   if (!name) { showAlert('error', '入力エラー', 'イベント名を入力してください。'); return; }
+  const oldName = eventData.value.name;
+  const oldTag = eventData.value.tag;
   try {
     await updateDoc(doc(db, 'events', route.params.id), { name, tag: editTag.value });
+    // 🌟 変更を参加者へ通知（差分つき）
+    const changes = [];
+    if (oldName !== name) changes.push(`イベント名: ${oldName} → ${name}`);
+    if ((oldTag || '') !== (editTag.value || '')) changes.push(`ジャンル: ${oldTag || 'なし'} → ${editTag.value}`);
+    if (changes.length) {
+      const uids = eventData.value.participants.map(p => p.id);
+      await notifyParticipants(uids, { type: 'event_edited', eventName: name, changes: changes.join(' / ') });
+    }
     modals.value.editEvent = false;
     showToast('イベントを更新しました');
   } catch (e) {
@@ -555,6 +566,63 @@ const openHistoryDetail = (h) => {
 };
 const openSummaryDetail = (s) => { selectedSummary.value = s; modals.value.summaryDetail = true; };
 
+// 🌟 支払いの編集：詳細を閉じて、編集モードで支払いモーダルを開く
+const editingHistory = ref(null);
+const openNewPayment = () => { editingHistory.value = null; modals.value.addPayment = true; };
+const openEditPayment = (h) => {
+  editingHistory.value = h;
+  modals.value.historyDetail = false;
+  modals.value.addPayment = true;
+};
+
+// 🌟 支払いの変更を関係者（立替者＋負担者）へ通知（自分以外）
+// 割り勘方法の表示ラベル（差分表示用）
+const splitLabel = (t) => ({ all: '全員で均等', custom: '金額指定', item: '商品ごと' }[t] || t || 'なし');
+
+// 🌟 変更を参加者（自分以外）へ通知する汎用ヘルパー
+const notifyParticipants = async (uids, notifData) => {
+  const myUid = auth.currentUser?.uid;
+  const fromName = myName.value || auth.currentUser?.displayName || 'メンバー';
+  const seen = new Set();
+  for (const uid of uids) {
+    if (!uid || uid === myUid || seen.has(uid)) continue;
+    seen.add(uid);
+    try {
+      await addDoc(collection(db, "notifications"), {
+        toUserId: uid,
+        fromUserId: myUid || 'unknown',
+        fromUserName: fromName,
+        eventId: route.params.id,
+        isRead: false,
+        createdAt: serverTimestamp(),
+        ...notifData, // type / itemName / amount / changes / eventName など
+      });
+    } catch (e) { console.error('通知作成エラー:', e); }
+  }
+};
+
+// 🌟 支払いの削除（transactions・履歴・合計を消す／確認つき／関係者へ通知）
+const deletePayment = (h) => {
+  showConfirm('支払いを削除', `「${h.itemName}」（¥${(Number(h.amount) || 0).toLocaleString()}）を削除しますか？\nこの支払いに紐づく精算も消えます。`, async () => {
+    try {
+      const eventId = route.params.id;
+      // 通知先＝イベント参加者全員（自分は sendPaymentNotifications 内で除外）
+      const involved = eventData.value.participants.map(p => p.id);
+      for (const tid of (h.transactionIds || [])) {
+        try { await deleteDoc(doc(db, "transactions", tid)); } catch (e) { console.error(e); }
+      }
+      await deleteDoc(doc(db, "events", eventId, "history", h.id));
+      await updateDoc(doc(db, "events", eventId), { totalAmount: increment(-(Number(h.amount) || 0)) });
+      await notifyParticipants(involved, { type: 'payment_deleted', itemName: h.itemName, amount: Number(h.amount) || 0 });
+      modals.value.historyDetail = false;
+      showToast('支払いを削除しました');
+    } catch (e) {
+      console.error('支払い削除エラー:', e);
+      showAlert('error', 'エラー', '支払いの削除に失敗しました。');
+    }
+  }, { confirmText: '削除', cancelText: 'やめる' });
+};
+
 // ==========================================
 // 🌟 4. Firestore データベース操作
 // ==========================================
@@ -591,6 +659,21 @@ const addHistory = async (newPayment) => {
     const participantUids = eventData.value.participants.map(p => p.id);
     if (participantUids.length === 0) {
       throw new Error("参加者情報がまだ読み込まれていません");
+    }
+
+    // 🌟 編集モード：先に古い支払い（transactions/history/合計）を消してから作り直す
+    let oldPay = null;
+    if (newPayment.editId) {
+      const old = eventData.value.history.find(h => h.id === newPayment.editId);
+      if (old) {
+        // 差分表示のために編集前の値を控えておく
+        oldPay = { amount: old.amount, itemName: old.itemName, category: old.category, payer: old.payer, splitType: old.splitType };
+        for (const tid of (old.transactionIds || [])) {
+          try { await deleteDoc(doc(db, "transactions", tid)); } catch (e) { console.error(e); }
+        }
+        try { await deleteDoc(doc(db, "events", eventId, "history", old.id)); } catch (e) { console.error(e); }
+        try { await updateDoc(doc(db, "events", eventId), { totalAmount: increment(-(Number(old.amount) || 0)) }); } catch (e) { console.error(e); }
+      }
     }
 
     // 🌟 立替者（債権者）＝モーダルで選ばれた人のUID（無ければ自分）
@@ -648,6 +731,25 @@ const addHistory = async (newPayment) => {
     await updateDoc(eventDocRef, {
       totalAmount: increment(Number(newPayment.amount))
     });
+
+    // 🌟 編集なら参加者全員（自分以外）に「編集された」通知を送る（変更内容の差分つき）
+    if (newPayment.editId) {
+      const changes = [];
+      if (oldPay) {
+        const yen = (v) => `¥${(Number(v) || 0).toLocaleString()}`;
+        if (Number(oldPay.amount) !== Number(newPayment.amount)) changes.push(`金額: ${yen(oldPay.amount)} → ${yen(newPayment.amount)}`);
+        if ((oldPay.itemName || '') !== (newPayment.itemName || '')) changes.push(`内容: ${oldPay.itemName || 'なし'} → ${newPayment.itemName || 'なし'}`);
+        if ((oldPay.category || '') !== (newPayment.category || '')) changes.push(`ジャンル: ${oldPay.category || 'なし'} → ${newPayment.category || 'なし'}`);
+        if ((oldPay.payer || '') !== (newPayment.payer || '')) changes.push(`立替者: ${oldPay.payer || 'なし'} → ${newPayment.payer || 'なし'}`);
+        if ((oldPay.splitType || '') !== (newPayment.splitType || '')) changes.push(`割り勘: ${splitLabel(oldPay.splitType)} → ${splitLabel(newPayment.splitType)}`);
+      }
+      await notifyParticipants(participantUids, {
+        type: 'payment_edited',
+        itemName: newPayment.itemName || '',
+        amount: Number(newPayment.amount) || 0,
+        changes: changes.length ? changes.join(' / ') : '内容を更新しました',
+      });
+    }
 
     console.log("✅ 全ての保存が完了しました ID:", docRef.id);
     modals.value.addPayment = false;

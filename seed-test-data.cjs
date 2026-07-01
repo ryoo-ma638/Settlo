@@ -151,8 +151,43 @@ async function cleanup() {
   console.log('（テストユーザーの paypayLink は必要に応じて手動で消してください）');
 }
 
+// 直近の通知を一覧（編集/削除通知が作られているか診断用）
+async function listNotifs() {
+  let snap;
+  try {
+    snap = await db.collection('notifications').orderBy('createdAt', 'desc').limit(20).get();
+  } catch (e) {
+    // createdAt が無い古いデータ等でエラーになる場合は全件から
+    snap = await db.collection('notifications').limit(50).get();
+  }
+  console.log(`=== 直近の通知 ${snap.size} 件 ===`);
+  for (const d of snap.docs) {
+    const x = d.data();
+    let toName = x.toUserId;
+    try { const u = await db.collection('users').doc(x.toUserId).get(); if (u.exists) toName = u.data().name || x.toUserId; } catch (e) {}
+    console.log(`- type=${x.type || '(なし)'}  to=${toName}(${x.toUserId})  from=${x.fromUserName || '?'}  isRead=${x.isRead}  [${x.itemName || ''} ¥${x.amount ?? ''}]  id=${d.id}`);
+  }
+}
+
+// イベントと参加者を一覧（通知が「自分だけの参加」で飛ばない件の診断用）
+async function listEvents() {
+  const snap = await db.collection('events').get();
+  console.log(`=== イベント ${snap.size} 件 ===`);
+  for (const d of snap.docs) {
+    const x = d.data();
+    const uids = x.participants || [];
+    const names = [];
+    for (const uid of uids) {
+      try { const u = await db.collection('users').doc(uid).get(); names.push(u.exists ? (u.data().name || uid) : uid); } catch (e) { names.push(uid); }
+    }
+    console.log(`- 「${x.name || '(名前なし)'}」 参加者${uids.length}人: ${names.join(', ') || '(なし)'}  id=${d.id}`);
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
+  if (args[0] === 'notifs') { await listNotifs(); return; }
+  if (args[0] === 'events') { await listEvents(); return; }
   if (args[0] === 'cleanup') { await cleanup(); return; }
   if (args[0] === 'cleanbad') { await cleanBad(); return; }
   if (args[0] === 'tx') {

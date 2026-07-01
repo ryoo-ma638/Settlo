@@ -59,6 +59,18 @@
               <button class="method-btn cash" @click="handlePayment('cash')">{{ myRole === 'payer' ? '受け取りを記録する' : '支払った／受け取った' }}</button>
             </div>
           </template>
+
+          <div class="edit-delete-row">
+            <button class="ed-btn ed-edit" @click="$emit('edit', history)">
+              <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+              編集
+            </button>
+            <button class="ed-btn ed-delete" @click="$emit('delete', history)">
+              <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>
+              削除
+            </button>
+          </div>
+
           <button class="action-btn" @click="$emit('close')">閉じる</button>
         </div>
       </div>
@@ -75,7 +87,7 @@ const props = defineProps({
   myAmount: { type: Number, default: null }, // 閲覧者にとっての金額（払う/受け取る）
   myRole: { type: String, default: 'none' }   // 'payer' | 'debtor' | 'none'
 });
-const emit = defineEmits(['close', 'complete']);
+const emit = defineEmits(['close', 'complete', 'edit', 'delete']);
 
 const handlePayment = (method) => {
   const methodText = method === 'paypay' ? 'PayPayアプリを起動して決済しますか？' : '精算を完了しますか？\n（相手に承認リクエストが送信されます）';
@@ -181,6 +193,14 @@ const handlePayment = (method) => {
 .cash { background-color: var(--c-brand); color: white; }
 .action-btn { width: 100%; padding: 16px; border-radius: 16px; border: none; font-weight: 900; font-size: 15px; cursor: pointer; background: #e2e8f0; color: #475569; margin-top: 10px; transition: 0.2s; }
 .action-btn:active { transform: scale(0.96); }
+
+/* 🌟 編集・削除 */
+.edit-delete-row { display: flex; gap: 10px; margin-top: 16px; }
+.ed-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 13px; border-radius: 14px; border: 1.5px solid; background: #fff; font-size: 14px; font-weight: 800; cursor: pointer; transition: 0.2s; }
+.ed-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.ed-btn:active { transform: scale(0.96); }
+.ed-edit { color: #475569; border-color: #cbd5e1; }
+.ed-delete { color: var(--c-danger, #ef4444); border-color: #fecaca; background: #fef2f2; }
 
 .slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
 @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }

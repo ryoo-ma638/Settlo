@@ -4,7 +4,7 @@
       <div class="modal-content slide-up">
         
         <div class="modal-header">
-          <h2 class="modal-title">新しく支払いを追加</h2>
+          <h2 class="modal-title">{{ editData ? '支払いを編集' : '新しく支払いを追加' }}</h2>
           <button class="close-btn" @click="closeModal">×</button>
         </div>
 
@@ -215,7 +215,7 @@
         </div>
 
         <div class="modal-footer">
-          <button class="submit-btn" @click="handleSubmit">この内容で追加する</button>
+          <button class="submit-btn" @click="handleSubmit">{{ editData ? 'この内容で保存する' : 'この内容で追加する' }}</button>
         </div>
 
       </div>
@@ -252,6 +252,7 @@ const props = defineProps({
   participants: { type: Array, default: () => [] },
   myName: { type: String, default: '' },
   myUid: { type: String, default: '' },
+  editData: { type: Object, default: null }, // 🌟 編集対象（nullなら新規追加）
 });
 const emit = defineEmits(['close', 'submit']);
 
@@ -292,13 +293,49 @@ watch(participants, (list) => {
   }
 }, { immediate: true, deep: true });
 
-// 🌟 モーダルを開くたび、立替えた人を自分に戻す
+// 🌟 フォームを新規状態にリセット
+const resetForm = () => {
+  formData.value.amount = '';
+  formData.value.itemName = '';
+  formData.value.date = new Date().toISOString().split('T')[0];
+  formData.value.time = '';
+  formData.value.category = '食事';
+  formData.value.splitType = 'all';
+  receiptItems.value = [];
+  uploadedImage.value = null;
+  isAnalyzing.value = false;
+  const next = {};
+  (props.participants || []).forEach(p => { next[p.name] = ''; });
+  customSplitAmounts.value = next;
+  const me = (props.participants || []).find(p => p.isMe);
+  formData.value.payer = me ? me.name : (props.myName || (props.participants || [])[0]?.name || '');
+};
+
+// 🌟 編集対象の内容をフォームに流し込む
+const prefillFromEdit = (d) => {
+  formData.value.amount = String(d.amount ?? '');
+  formData.value.itemName = d.itemName || '';
+  formData.value.date = d.date ? String(d.date).replace(/\//g, '-') : new Date().toISOString().split('T')[0];
+  formData.value.time = d.time || '';
+  formData.value.category = d.category || 'その他';
+  formData.value.splitType = d.splitType || 'all';
+  formData.value.payer = d.payer || '';
+  const next = {};
+  (props.participants || []).forEach(p => { next[p.name] = ''; });
+  (d.shares || []).forEach(s => { if (s && s.name != null) next[s.name] = Number(s.amount) || ''; });
+  customSplitAmounts.value = next;
+  receiptItems.value = (d.items || []).map(it => ({
+    name: it.name || '', price: it.price || 0, qty: 1, taxRate: 0, assignees: it.assignees || [],
+  }));
+  uploadedImage.value = null;
+  isAnalyzing.value = false;
+};
+
+// 🌟 モーダルを開くたび、編集ならその内容を、新規なら初期状態に
 watch(() => props.isOpen, (open) => {
-  if (open) {
-    const arr = props.participants || [];
-    const me = arr.find(p => p.isMe);
-    formData.value.payer = me ? me.name : (props.myName || arr[0]?.name || '');
-  }
+  if (!open) return;
+  if (props.editData) prefillFromEdit(props.editData);
+  else resetForm();
 });
 
 // --- 計算ロジック ---
@@ -532,6 +569,7 @@ const executeSubmit = () => {
   // 🌟 立替えた人（債権者）のUIDを名前から解決して一緒に渡す
   const payerObj = (props.participants || []).find(p => p.name === formData.value.payer);
   const payload = {
+    editId: props.editData ? props.editData.id : null, // 🌟 編集なら対象ID
     payer: formData.value.payer,
     payerUid: payerObj ? payerObj.id : (props.myUid || null),
     itemName: formData.value.itemName,
