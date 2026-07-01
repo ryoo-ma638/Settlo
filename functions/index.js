@@ -14,7 +14,7 @@ const db = admin.firestore();
 exports.analyzeReceipt = onCall(
   {
     region: "asia-northeast1",
-    cors: ['http://localhost:5173', 'https://pairpay-4c17a.web.app'],
+    cors: ['http://localhost:5173', 'https://pairpay-4c17a.web.app', 'https://settlo-app.web.app', 'https://settlo-app.firebaseapp.com'],
     // 🔐 Gemini APIキーは Secret Manager から注入（コード/リポジトリには絶対に置かない）
     //   事前に: firebase functions:secrets:set GEMINI_API_KEY
     secrets: ["GEMINI_API_KEY"],
@@ -120,7 +120,7 @@ function calculateMinimalTransfers(balances) {
 
 // フロントエンドから呼ばれる「精算実行API」
 exports.calculateSettlement = onCall(
-  { region: "asia-northeast1", cors: ['http://localhost:5173', 'https://pairpay-4c17a.web.app'] }, 
+  { region: "asia-northeast1", cors: ['http://localhost:5173', 'https://pairpay-4c17a.web.app', 'https://settlo-app.web.app', 'https://settlo-app.firebaseapp.com'] }, 
   async (request) => {
     // ログインチェック
     if (!request.auth) {

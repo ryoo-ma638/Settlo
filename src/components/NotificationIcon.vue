@@ -19,6 +19,7 @@
                 <div class="notif-body">
                   <p><strong>{{ req.fromUserName }}</strong>{{ notifText(req) }}</p>
                   <p v-if="req.message" class="notif-sub">{{ req.message }}</p>
+                  <p v-if="req.changes" class="notif-changes">{{ req.changes }}</p>
                   <div class="notif-actions">
                     <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
                     <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
@@ -54,6 +55,7 @@
           <div class="notif-body">
             <p><strong>{{ req.fromUserName }}</strong>{{ notifText(req) }}</p>
             <p v-if="req.message" class="notif-sub">{{ req.message }}</p>
+            <p v-if="req.changes" class="notif-changes">{{ req.changes }}</p>
             <div class="notif-actions">
               <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
               <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
@@ -105,15 +107,23 @@ const paymentReqs = ref([]);
 const notifText = (req) => {
   if (req.type === 'approval_rejected') return 'さんがあなたの承認リクエストを拒否しました';
   if (req.type === 'payment_reminder') return 'さんから支払いの催促が届いています';
+  if (req.type === 'payment_edited') return `さんが「${req.itemName || '支払い'}」（¥${(req.amount || 0).toLocaleString()}）を編集しました`;
+  if (req.type === 'payment_deleted') return `さんが「${req.itemName || '支払い'}」（¥${(req.amount || 0).toLocaleString()}）を削除しました`;
+  if (req.type === 'event_edited') return `さんがイベント「${req.eventName || ''}」を編集しました`;
   return 'さんから支払いの承認リクエストが届いています';
 };
 const notifAction = (req) => {
   if (req.type === 'approval_rejected') return 'もう一度支払う';
   if (req.type === 'payment_reminder') return '支払う';
+  if (req.type === 'payment_edited' || req.type === 'event_edited') return 'イベントを見る';
+  if (req.type === 'payment_deleted') return '確認';
   return '詳細を確認する';
 };
-const notifClass = (req) =>
-  req.type === 'approval_rejected' ? 'notif-item--reject' : 'notif-item--pay';
+const notifClass = (req) => {
+  if (req.type === 'approval_rejected') return 'notif-item--reject';
+  if (['payment_edited', 'payment_deleted', 'event_edited'].includes(req.type)) return 'notif-item--info';
+  return 'notif-item--pay';
+};
 
 const totalNotifs = computed(() => friendReqs.value.length + paymentReqs.value.length);
 
@@ -151,6 +161,16 @@ const goToPaymentDetail = async (req) => {
   try {
     await updateDoc(doc(db, "notifications", req.id), { isRead: true });
     showModal.value = false;
+    // 編集/削除通知は該当イベントへ（対象の取引はもう無い/変わっているため）
+    if (req.type === 'payment_edited' || req.type === 'payment_deleted') {
+      if (req.eventId) router.push(`/event/${req.eventId}`);
+      return;
+    }
+    // 編集/削除/イベント編集通知は該当イベントへ（対象の取引はもう無い/変わっているため）
+    if (['payment_edited', 'payment_deleted', 'event_edited'].includes(req.type)) {
+      if (req.eventId) router.push(`/event/${req.eventId}`);
+      return;
+    }
     // 承認リクエストだけ受け取る側（waiting-）。拒否・催促は支払う側（unpaid-）へ。
     const prefix = req.type === 'approval_request' || !req.type ? 'waiting' : 'unpaid';
     router.push(`/payment-detail/${prefix}-${req.transactionId}`);
@@ -292,10 +312,12 @@ defineExpose({ open });
 .notif-item--pay { border-left-color: var(--c-pay); }
 .notif-item--friend { border-left-color: var(--c-brand); }
 .notif-item--reject { border-left-color: var(--c-danger); }
+.notif-item--info { border-left-color: var(--c-brand, #059669); }
 
 .notif-body { display: flex; flex-direction: column; gap: 8px; }
 .notif-body p { font-weight: var(--fw-medium); color: var(--c-ink); }
 .notif-sub { font-size: 12px; color: var(--c-text-sub) !important; font-weight: var(--fw-medium); }
+.notif-changes { font-size: 12px; color: var(--c-brand-strong, #059669) !important; font-weight: var(--fw-bold, 700); background: var(--c-brand-weak, #ecfdf5); border-radius: 8px; padding: 6px 10px; line-height: 1.5; }
 .notif-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
 .mini-btn {
