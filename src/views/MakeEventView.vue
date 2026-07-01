@@ -82,7 +82,7 @@
 import { ref, watch, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, getDoc, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import BaseModal from '@/components/BaseModal.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import GenreIcon from '@/components/GenreIcon.vue';
@@ -179,6 +179,20 @@ const joinEvent = async () => {
       return;
     }
     await updateDoc(doc(db, "events", evDoc.id), { participants: arrayUnion(myUid) });
+    // 既存メンバーへ「参加しました」お知らせ
+    let myName = auth.currentUser?.displayName || 'メンバー';
+    try { const md = await getDoc(doc(db, "users", myUid)); if (md.exists() && md.data().name) myName = md.data().name; } catch (e) {}
+    for (const uid of (data.participants || [])) {
+      if (uid === myUid) continue;
+      try {
+        await addDoc(collection(db, "notifications"), {
+          toUserId: uid, type: 'event_joined',
+          eventId: evDoc.id, eventName: data.name || '',
+          fromUserId: myUid, fromUserName: myName,
+          isRead: false, createdAt: serverTimestamp(),
+        });
+      } catch (e) {}
+    }
     showModal({ type: 'success', title: '参加完了', message: `「${data.name}」に参加しました！`, onConfirm: () => router.push(`/event/${evDoc.id}`) });
   } catch (e) {
     console.error("参加エラー:", e);

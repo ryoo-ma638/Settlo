@@ -209,3 +209,41 @@ exports.calculateSettlement = onCall(
       throw new HttpsError("internal", "精算計算中にエラーが発生しました。");
     }
 });
+// =================================================================
+// 3. ゴミ箱の自動お掃除（毎日1回・7日超を本削除）
+//    - users/{uid}/trash に入って7日たった項目を自動で消す。
+//    - イベント: 復元権が消える（events.hiddenBy は残す＝本人には非表示のまま）。
+//    - 決済: 完了で確定（transactions は completed のまま・履歴に残る）。
+//    - 承認待ち(pending)で7日たったものも失効させて掃除する。
+// =================================================================
+const { onSchedule } = require("firebase-functions/v2/scheduler");
+
+exports.purgeTrash = onSchedule(
+  {
+    schedule: "every day 04:00",
+    timeZone: "Asia/Tokyo",
+    region: "asia-northeast1",
+  },
+  async () => {
+    const cutoff = admin.firestore.Timestamp.fromMillis(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    // 全ユーザーのゴミ箱を横断（collectionGroup）
+    const snap = await db.collectionGroup("trash").where("trashedAt", "<", cutoff).get();
+    if (snap.empty) {
+      console.log("ゴミ箱: 削除対象なし");
+      return;
+    }
+    let count = 0;
+    // 500件ごとにバッチコミット
+    let batch = db.batch();
+    for (const d of snap.docs) {
+      batch.delete(d.ref);
+      count++;
+      if (count % 400 === 0) {
+        await batch.commit();
+        batch = db.batch();
+      }
+    }
+    await batch.commit();
+    console.log(`ゴミ箱: ${count}件を自動削除しました`);
+  }
+);

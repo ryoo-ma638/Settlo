@@ -401,7 +401,7 @@ import { httpsCallable } from "firebase/functions";
 import { functions } from "@/firebase";
 // 🌟 修正：auth（ユーザー情報）を使えるように追加しました！
 import { db, auth } from '../firebase'; 
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, updateDoc, increment, deleteDoc, getDocs, where, arrayRemove } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, updateDoc, increment, deleteDoc, getDocs, where, arrayRemove, arrayUnion } from 'firebase/firestore';
 
 // 🌟 あなたが作った最強の計算ツールを読み込む！
 import { useSettlement } from '../composables/useSettlement';
@@ -620,6 +620,7 @@ const deletePayment = (h) => {
 const markAsCompleted = async (id) => {
   try {
     const eventId = route.params.id || "test-event-1";
+    const myUid = auth.currentUser?.uid;
     const hist = eventData.value.history.find(h => h.id === id);
     const txIds = hist?.transactionIds || [];
     // 🌟 紐づく取引(transactions)を完了にする（履歴/サマリーのstatusはここから導出される）
@@ -629,7 +630,33 @@ const markAsCompleted = async (id) => {
     // 履歴ドキュメントのstatusもキャッシュとして更新
     await updateDoc(doc(db, "events", eventId, "history", id), { status: 'completed' });
     if (hist) hist.status = 'completed'; // ローカルにも即反映
+
+    // 🗑️ 間違えて完了した時のために、7日間はゴミ箱から「未精算に戻す」ことができるようにする
+    if (myUid && hist) {
+      const others = [];
+      const seen = new Set();
+      const addOther = (uid, name) => {
+        if (uid && uid !== myUid && !seen.has(uid)) { seen.add(uid); others.push({ uid, name: name || 'メンバー' }); }
+      };
+      if (hist.payerUid) addOther(hist.payerUid, hist.payer);
+      (hist.shares || []).forEach(s => addOther(s.uid, s.name));
+      try {
+        await addDoc(collection(db, "users", myUid, "trash"), {
+          type: 'settlement',
+          trashedAt: serverTimestamp(),
+          status: 'trashed',
+          eventId,
+          eventName: eventData.value.name || 'イベント',
+          historyId: id,
+          itemName: hist.itemName || '決済',
+          amount: Number(hist.amount) || 0,
+          transactionIds: txIds,
+          counterparties: others,
+        });
+      } catch (e) { console.error('ゴミ箱への記録に失敗:', e); }
+    }
     modals.value.historyDetail = false;
+    showToast('決済を完了しました（ゴミ箱から7日以内なら戻せます）');
   } catch (error) {
     console.error("更新エラー:", error);
     showAlert('error', '更新エラー', '決済の更新に失敗しました。電波状況を確認してください。');
@@ -869,18 +896,22 @@ const goToBatchPayment = (summary) => {
 
 const deleteEventCompletely = async () => {
   const eventId = route.params.id;
-  if (!eventId) { router.push('/'); return; }
-  // 削除中にリスナーが「消えたイベント」を読んで permission-denied を出すのを防ぐため先に解除
+  const myUid = auth.currentUser?.uid;
+  if (!eventId || !myUid) { router.push('/'); return; }
+  // 画面を離れるのでリスナーを解除
   unsubscribeAll();
   try {
-    // 1. このイベントに紐づく取引(transactions)を削除
-    const txSnap = await getDocs(query(collection(db, "transactions"), where("eventId", "==", eventId)));
-    for (const d of txSnap.docs) await deleteDoc(d.ref);
-    // 2. 立て替え履歴サブコレクションを削除
-    const histSnap = await getDocs(collection(db, "events", eventId, "history"));
-    for (const d of histSnap.docs) await deleteDoc(d.ref);
-    // 3. イベント本体を削除
-    await deleteDoc(doc(db, "events", eventId));
+    // 相手のイベントは消さず、自分の画面からだけ隠す（hiddenBy に自分を追加）
+    await updateDoc(doc(db, "events", eventId), { hiddenBy: arrayUnion(myUid) });
+    // ゴミ箱に入れる（7日以内なら復元できる）
+    await addDoc(collection(db, "users", myUid, "trash"), {
+      type: 'event',
+      eventId,
+      eventName: eventData.value.name || 'イベント',
+      eventTag: eventData.value.tag || 'その他',
+      trashedAt: serverTimestamp(),
+      status: 'trashed',
+    });
   } catch (e) {
     console.error("イベント削除エラー:", e);
   }
@@ -889,22 +920,21 @@ const deleteEventCompletely = async () => {
 
 const handleEndEvent = () => {
   if (unpaidItems.value.length > 0) { modals.value.unpaidWarning = true; return; }
-  // 未精算が無くても、削除は元に戻せないので一度確認
   showConfirm(
     'イベントを終了しますか？',
-    'このイベントと決済履歴はすべて削除され、元に戻せません。',
+    'このイベントを自分の画面から削除します。ゴミ箱に入り、7日以内なら復元できます（相手の画面には残ります）。',
     () => deleteEventCompletely(),
     { type: 'warning', confirmText: '終了する', cancelText: 'やめる' }
   );
 };
 const forceEndEvent = () => {
   modals.value.unpaidWarning = false;
-  // 未精算が残っているので、削除前にもう一度確認
+  // 未精算が残っているので、終了前にもう一度確認
   showConfirm(
-    '本当に消していいですか？',
-    '未精算の決済が残っています。イベントを終了すると、残っている決済も履歴もすべて削除され、元に戻せません。',
+    '本当に終了していいですか？',
+    '未精算の決済が残っています。自分の画面からは非表示になります（ゴミ箱から7日以内なら復元可・相手の画面と貸し借りは残ります）。',
     () => deleteEventCompletely(),
-    { type: 'error', confirmText: '削除して終了', cancelText: '戻って精算する' }
+    { type: 'warning', confirmText: '終了する', cancelText: '戻って精算する' }
   );
 };
 

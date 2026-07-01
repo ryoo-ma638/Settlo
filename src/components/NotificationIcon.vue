@@ -25,6 +25,10 @@
                       <button class="mini-btn" @click="acceptInvite(req)">参加する</button>
                       <button class="mini-btn mini-btn--ghost" @click="rejectInvite(req)">心当たりがない</button>
                     </template>
+                    <template v-else-if="req.type === 'settlement_restore_request'">
+                      <button class="mini-btn" @click="approveRestore(req)">承認する</button>
+                      <button class="mini-btn mini-btn--ghost" @click="rejectRestore(req)">拒否する</button>
+                    </template>
                     <template v-else>
                       <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
                       <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
@@ -66,6 +70,10 @@
               <template v-if="req.type === 'event_invite'">
                 <button class="mini-btn" @click="acceptInvite(req)">参加する</button>
                 <button class="mini-btn mini-btn--ghost" @click="rejectInvite(req)">心当たりがない</button>
+              </template>
+              <template v-else-if="req.type === 'settlement_restore_request'">
+                <button class="mini-btn" @click="approveRestore(req)">承認する</button>
+                <button class="mini-btn mini-btn--ghost" @click="rejectRestore(req)">拒否する</button>
               </template>
               <template v-else>
                 <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
@@ -137,18 +145,23 @@ const notifText = (req) => {
   if (req.type === 'event_edited') return `さんがイベント「${req.eventName || ''}」を編集しました`;
   if (req.type === 'event_invite') return `さんがイベント「${req.eventName || ''}」に招待しています。心当たりはありますか？`;
   if (req.type === 'invite_rejected') return `さんがイベント「${req.eventName || ''}」への招待を拒否しました。内容が正しいか再確認してください`;
+  if (req.type === 'event_joined') return `さんがイベント「${req.eventName || ''}」に参加しました`;
+  if (req.type === 'event_restored') return `さんがイベント「${req.eventName || ''}」を復元しました`;
+  if (req.type === 'settlement_restore_request') return `さんが決済「${req.itemName || ''}」（¥${(req.amount || 0).toLocaleString()}）を未精算に戻したいそうです。承認しますか？`;
+  if (req.type === 'settlement_restore_approved') return `さんが「${req.itemName || ''}」を未精算に戻すことを承認しました`;
+  if (req.type === 'settlement_restore_rejected') return `さんが「${req.itemName || ''}」を未精算に戻すことを拒否しました`;
   return 'さんから支払いの承認リクエストが届いています';
 };
 const notifAction = (req) => {
   if (req.type === 'approval_rejected') return 'もう一度支払う';
   if (req.type === 'payment_reminder') return '支払う';
-  if (req.type === 'payment_edited' || req.type === 'event_edited' || req.type === 'invite_rejected') return 'イベントを見る';
+  if (['payment_edited', 'event_edited', 'invite_rejected', 'event_joined', 'event_restored', 'settlement_restore_approved', 'settlement_restore_rejected'].includes(req.type)) return 'イベントを見る';
   if (req.type === 'payment_deleted') return '確認';
   return '詳細を確認する';
 };
 const notifClass = (req) => {
-  if (req.type === 'approval_rejected' || req.type === 'invite_rejected') return 'notif-item--reject';
-  if (['payment_edited', 'payment_deleted', 'event_edited'].includes(req.type)) return 'notif-item--info';
+  if (['approval_rejected', 'invite_rejected', 'settlement_restore_rejected'].includes(req.type)) return 'notif-item--reject';
+  if (['payment_edited', 'payment_deleted', 'event_edited', 'event_joined', 'event_restored', 'settlement_restore_approved'].includes(req.type)) return 'notif-item--info';
   return 'notif-item--pay';
 };
 
@@ -193,8 +206,8 @@ const goToPaymentDetail = async (req) => {
       if (req.eventId) router.push(`/event/${req.eventId}`);
       return;
     }
-    // 編集/削除/イベント編集/招待拒否は該当イベントへ（対象の取引はもう無い/変わっているため）
-    if (['payment_edited', 'payment_deleted', 'event_edited', 'invite_rejected'].includes(req.type)) {
+    // 編集/削除/イベント編集/招待拒否/参加/復元/決済戻し結果は該当イベントへ（対象の取引はもう無い/変わっているため）
+    if (['payment_edited', 'payment_deleted', 'event_edited', 'invite_rejected', 'event_joined', 'event_restored', 'settlement_restore_approved', 'settlement_restore_rejected'].includes(req.type)) {
       if (req.eventId) router.push(`/event/${req.eventId}`);
       return;
     }
@@ -224,12 +237,34 @@ const confirmState = reactive({ show: false, title: '', message: '', onConfirm: 
 const askConfirm = (title, message, onConfirm) => { Object.assign(confirmState, { title, message, onConfirm, show: true }); };
 const doConfirm = () => { const cb = confirmState.onConfirm; confirmState.show = false; if (cb) cb(); };
 
-// 🌟 招待を承認＝自分をイベント参加者に追加
+// 🌟 招待を承認＝自分をイベント参加者に追加＋既存メンバーへ「参加しました」通知
 const acceptInvite = async (req) => {
   try {
     const myUid = auth.currentUser?.uid;
     if (req.eventId && myUid) {
+      // 追加前の参加者を取得（この人たちに参加をお知らせする）
+      let existing = [];
+      let evName = req.eventName || '';
+      try {
+        const ev = await getDoc(doc(db, "events", req.eventId));
+        if (ev.exists()) { existing = ev.data().participants || []; evName = ev.data().name || evName; }
+      } catch (e) {}
       await updateDoc(doc(db, "events", req.eventId), { participants: arrayUnion(myUid) });
+      // 自分の表示名
+      let myName = auth.currentUser?.displayName || 'メンバー';
+      try { const md = await getDoc(doc(db, "users", myUid)); if (md.exists() && md.data().name) myName = md.data().name; } catch (e) {}
+      // 既存メンバーへ通知
+      for (const uid of existing) {
+        if (uid === myUid) continue;
+        try {
+          await addDoc(collection(db, "notifications"), {
+            toUserId: uid, type: 'event_joined',
+            eventId: req.eventId, eventName: evName,
+            fromUserId: myUid, fromUserName: myName,
+            isRead: false, createdAt: serverTimestamp(),
+          });
+        } catch (e) {}
+      }
     }
     await updateDoc(doc(db, "notifications", req.id), { isRead: true });
     showModal.value = false;
@@ -256,6 +291,49 @@ const rejectInvite = (req) => {
       });
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
     } catch (e) { console.error("招待拒否エラー:", e); }
+  });
+};
+
+// 🌟 「決済を未精算に戻す」リクエストを承認＝自分が当事者の取引を未精算へ戻す
+const approveRestore = async (req) => {
+  try {
+    const myUid = auth.currentUser?.uid;
+    for (const tid of (req.transactionIds || [])) {
+      try {
+        const t = await getDoc(doc(db, "transactions", tid));
+        if (t.exists()) {
+          const d = t.data();
+          if (d.paidById === myUid || d.paidToId === myUid) {
+            await updateDoc(doc(db, "transactions", tid), { status: 'unpaid' });
+          }
+        }
+      } catch (e) {}
+    }
+    let myName = auth.currentUser?.displayName || 'メンバー';
+    try { const md = await getDoc(doc(db, "users", myUid)); if (md.exists() && md.data().name) myName = md.data().name; } catch (e) {}
+    await addDoc(collection(db, "notifications"), {
+      toUserId: req.fromUserId, type: 'settlement_restore_approved',
+      eventId: req.eventId || null, eventName: req.eventName || '', itemName: req.itemName || '',
+      fromUserId: myUid, fromUserName: myName, isRead: false, createdAt: serverTimestamp(),
+    });
+    await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+  } catch (e) { console.error("復元承認エラー:", e); }
+};
+
+// 🌟 「決済を未精算に戻す」リクエストを拒否＝完了のまま・依頼者へ通知
+const rejectRestore = (req) => {
+  askConfirm('未精算に戻すのを拒否しますか？', `「${req.itemName || ''}」は完了のままになります。`, async () => {
+    try {
+      const myUid = auth.currentUser?.uid;
+      let myName = auth.currentUser?.displayName || 'メンバー';
+      try { const md = await getDoc(doc(db, "users", myUid)); if (md.exists() && md.data().name) myName = md.data().name; } catch (e) {}
+      await addDoc(collection(db, "notifications"), {
+        toUserId: req.fromUserId, type: 'settlement_restore_rejected',
+        eventId: req.eventId || null, eventName: req.eventName || '', itemName: req.itemName || '',
+        fromUserId: myUid, fromUserName: myName, isRead: false, createdAt: serverTimestamp(),
+      });
+      await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+    } catch (e) { console.error("復元拒否エラー:", e); }
   });
 };
 

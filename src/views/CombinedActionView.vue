@@ -42,7 +42,7 @@
   import { computed, reactive } from 'vue'; // 🌟 reactiveを追加
   import { useRoute, useRouter } from 'vue-router';
   import { db, auth } from '@/firebase';
-  import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+  import { collection, query, where, getDocs, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
   import PayPayAction from '../components/PayPayAction.vue';
   import BaseModal from '../components/BaseModal.vue';
   import PageHeader from '../components/PageHeader.vue';
@@ -94,13 +94,33 @@
           const s2 = await getDocs(query(collection(db, "transactions"), where("paidById", "==", myUid)));
           s2.forEach((d) => { const t = d.data(); if (t.paidToId === friendUid && (t.status || 'unpaid') !== 'completed') ids.add(d.id); });
 
-          for (const id of ids) {
+          const txIds = [...ids];
+          for (const id of txIds) {
             await updateDoc(doc(db, "transactions", id), { status: 'completed' });
+          }
+
+          // 🗑️ 間違えて精算した時のために、7日間はゴミ箱から「未精算に戻す」ことができるように
+          if (txIds.length > 0) {
+            try {
+              const friendName = route.params.name || '相手';
+              await addDoc(collection(db, "users", myUid, "trash"), {
+                type: 'settlement',
+                trashedAt: serverTimestamp(),
+                status: 'trashed',
+                eventId: null,
+                eventName: `${friendName}との精算`,
+                historyId: null,
+                itemName: `${friendName}との精算`,
+                amount: Number(route.query.amount) || 0,
+                transactionIds: txIds,
+                counterparties: [{ uid: friendUid, name: friendName }],
+              });
+            } catch (e) { console.error('ゴミ箱への記録に失敗:', e); }
           }
 
           showModal({
             type: 'success', title: '精算完了',
-            message: `${ids.size}件の取引を完了にしました！`,
+            message: `${ids.size}件の取引を完了にしました！（ゴミ箱から7日以内なら戻せます）`,
             onConfirm: () => router.push('/')
           });
         } catch (e) {
