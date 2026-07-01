@@ -25,10 +25,11 @@
 
 ## 🟡 中（UX・機能追加）
 
-- [ ] **イベント招待を「承認制」にする（無断追加の防止）**
-  - 今は招待で相手の `participants` に即追加できてしまう。
-  - 望ましい: 招待 → 相手に「心当たりのあるイベントですか？」確認 → 「はい」でも「本当に心当たりがない？」と再確認 → 拒否されたら追加した側に「拒否されたので正しいか再確認を」通知。
-  - 関連: `notifications` / `src/components/InviteModal.vue` / `src/views/EventDetails.vue`
+- [x] **イベント招待を「承認制」にする（無断追加の防止）**（2026-07-01 実装）
+  - 済：招待は即追加をやめ、相手に `event_invite` 通知を送るだけに（`InviteModal.vue`）。
+  - 済：受け取った人は通知の「参加する／心当たりがない」で選択（`NotificationIcon.vue`）。「参加する」で初めて自分を `participants` に追加。
+  - 済：「心当たりがない」→「本当に心当たりがないですか？」と再確認 → 拒否で招待した人へ `invite_rejected` 通知（正しいか再確認を促す）。
+  - 関連: `notifications` / `src/components/InviteModal.vue` / `src/components/NotificationIcon.vue` / `src/views/EventDetails.vue`
 
 - [ ] **参加者一覧から各参加者をタップ → フレンド申請へ**
   - 参加者モーダルの各人から、フレンド申請などのアクションに遷移できるように。
@@ -65,6 +66,7 @@
 - [ ] `src/components/AppSidebar.vue` 削除（デッドコード・どこからも未参照を確認）。
 - [ ] 旧バックエンド残骸削除（`src/index.ts` `src/routes/` `src/services/` `src/middleware/`）。直Firestore移行で不要。※削除は要合意。
 - [ ] バンドル分割（本番JSが単一チャンク ~600KB・`manualChunks`）。
+- [ ] **READMEの仕上げ**（バッジ・スクリーンショット・ソーシャルプレビュー画像・LICENSE）＝**アプリ完成後**に。※GitHubのAbout（説明・Website・Topics）は設定済み。
 
 ---
 
