@@ -290,6 +290,8 @@
         :isOpen="modals.invite"
         :eventCode="eventData.invitationCode"
         :eventId="route.params.id"
+        :eventName="eventData.name"
+        :myName="myName"
         :participantUids="eventData.participants.map(p => p.id)"
         @close="modals.invite = false"
       />

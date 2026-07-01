@@ -21,8 +21,14 @@
                   <p v-if="req.message" class="notif-sub">{{ req.message }}</p>
                   <p v-if="req.changes" class="notif-changes">{{ req.changes }}</p>
                   <div class="notif-actions">
-                    <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
-                    <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
+                    <template v-if="req.type === 'event_invite'">
+                      <button class="mini-btn" @click="acceptInvite(req)">参加する</button>
+                      <button class="mini-btn mini-btn--ghost" @click="rejectInvite(req)">心当たりがない</button>
+                    </template>
+                    <template v-else>
+                      <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
+                      <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
+                    </template>
                   </div>
                 </div>
               </div>
@@ -57,8 +63,14 @@
             <p v-if="req.message" class="notif-sub">{{ req.message }}</p>
             <p v-if="req.changes" class="notif-changes">{{ req.changes }}</p>
             <div class="notif-actions">
-              <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
-              <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
+              <template v-if="req.type === 'event_invite'">
+                <button class="mini-btn" @click="acceptInvite(req)">参加する</button>
+                <button class="mini-btn mini-btn--ghost" @click="rejectInvite(req)">心当たりがない</button>
+              </template>
+              <template v-else>
+                <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
+                <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
+              </template>
             </div>
           </div>
         </div>
@@ -87,6 +99,19 @@
     @confirm="modalState.show = false"
     @close="modalState.show = false"
   />
+
+  <BaseModal
+    :show="confirmState.show"
+    type="warning"
+    :title="confirmState.title"
+    :message="confirmState.message"
+    :showCancel="true"
+    confirmText="はい"
+    cancelText="いいえ"
+    @confirm="doConfirm"
+    @cancel="confirmState.show = false"
+    @close="confirmState.show = false"
+  />
 </template>
 
 <script setup>
@@ -96,7 +121,7 @@ import BaseModal from './BaseModal.vue';
 import { db, auth } from '@/firebase';
 import {
   collection, query, where, onSnapshot,
-  doc, getDoc, setDoc, deleteDoc, updateDoc, addDoc, serverTimestamp
+  doc, getDoc, setDoc, deleteDoc, updateDoc, addDoc, serverTimestamp, arrayUnion
 } from 'firebase/firestore';
 
 const router = useRouter();
@@ -110,17 +135,19 @@ const notifText = (req) => {
   if (req.type === 'payment_edited') return `さんが「${req.itemName || '支払い'}」（¥${(req.amount || 0).toLocaleString()}）を編集しました`;
   if (req.type === 'payment_deleted') return `さんが「${req.itemName || '支払い'}」（¥${(req.amount || 0).toLocaleString()}）を削除しました`;
   if (req.type === 'event_edited') return `さんがイベント「${req.eventName || ''}」を編集しました`;
+  if (req.type === 'event_invite') return `さんがイベント「${req.eventName || ''}」に招待しています。心当たりはありますか？`;
+  if (req.type === 'invite_rejected') return `さんがイベント「${req.eventName || ''}」への招待を拒否しました。内容が正しいか再確認してください`;
   return 'さんから支払いの承認リクエストが届いています';
 };
 const notifAction = (req) => {
   if (req.type === 'approval_rejected') return 'もう一度支払う';
   if (req.type === 'payment_reminder') return '支払う';
-  if (req.type === 'payment_edited' || req.type === 'event_edited') return 'イベントを見る';
+  if (req.type === 'payment_edited' || req.type === 'event_edited' || req.type === 'invite_rejected') return 'イベントを見る';
   if (req.type === 'payment_deleted') return '確認';
   return '詳細を確認する';
 };
 const notifClass = (req) => {
-  if (req.type === 'approval_rejected') return 'notif-item--reject';
+  if (req.type === 'approval_rejected' || req.type === 'invite_rejected') return 'notif-item--reject';
   if (['payment_edited', 'payment_deleted', 'event_edited'].includes(req.type)) return 'notif-item--info';
   return 'notif-item--pay';
 };
@@ -166,8 +193,8 @@ const goToPaymentDetail = async (req) => {
       if (req.eventId) router.push(`/event/${req.eventId}`);
       return;
     }
-    // 編集/削除/イベント編集通知は該当イベントへ（対象の取引はもう無い/変わっているため）
-    if (['payment_edited', 'payment_deleted', 'event_edited'].includes(req.type)) {
+    // 編集/削除/イベント編集/招待拒否は該当イベントへ（対象の取引はもう無い/変わっているため）
+    if (['payment_edited', 'payment_deleted', 'event_edited', 'invite_rejected'].includes(req.type)) {
       if (req.eventId) router.push(`/event/${req.eventId}`);
       return;
     }
@@ -191,6 +218,46 @@ const dismissNotif = async (req) => {
 };
 
 const modalState = reactive({ show: false, type: 'success', title: '', message: '' });
+
+// 招待の拒否時の二段階確認ダイアログ
+const confirmState = reactive({ show: false, title: '', message: '', onConfirm: null });
+const askConfirm = (title, message, onConfirm) => { Object.assign(confirmState, { title, message, onConfirm, show: true }); };
+const doConfirm = () => { const cb = confirmState.onConfirm; confirmState.show = false; if (cb) cb(); };
+
+// 🌟 招待を承認＝自分をイベント参加者に追加
+const acceptInvite = async (req) => {
+  try {
+    const myUid = auth.currentUser?.uid;
+    if (req.eventId && myUid) {
+      await updateDoc(doc(db, "events", req.eventId), { participants: arrayUnion(myUid) });
+    }
+    await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+    showModal.value = false;
+    if (req.eventId) router.push(`/event/${req.eventId}`);
+  } catch (e) { console.error("招待承認エラー:", e); }
+};
+
+// 🌟 招待を拒否＝二段階確認 → 招待した人へ「拒否された」通知
+const rejectInvite = (req) => {
+  askConfirm('本当に心当たりがないですか？', `イベント「${req.eventName || ''}」への招待を拒否します。招待した人に通知されます。`, async () => {
+    try {
+      const myUid = auth.currentUser?.uid;
+      let myName = auth.currentUser?.displayName || 'メンバー';
+      try { const md = await getDoc(doc(db, "users", myUid)); if (md.exists() && md.data().name) myName = md.data().name; } catch (e) {}
+      await addDoc(collection(db, "notifications"), {
+        toUserId: req.fromUserId,
+        type: 'invite_rejected',
+        eventId: req.eventId,
+        eventName: req.eventName || '',
+        fromUserId: myUid || 'unknown',
+        fromUserName: myName,
+        isRead: false,
+        createdAt: serverTimestamp(),
+      });
+      await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+    } catch (e) { console.error("招待拒否エラー:", e); }
+  });
+};
 
 const acceptRequest = async (request) => {
   if (!request.id || !request.formId) return;

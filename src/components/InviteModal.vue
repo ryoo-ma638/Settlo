@@ -80,13 +80,15 @@
 import { ref, computed, watch, reactive, onUnmounted } from 'vue';
 import BaseModal from '@/components/BaseModal.vue';
 import { db, auth } from '@/firebase';
-import { collection, onSnapshot, doc, getDoc, getDocs, query, where, limit, updateDoc, arrayUnion } from 'firebase/firestore';
+import { collection, onSnapshot, doc, getDoc, getDocs, query, where, limit, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const props = defineProps({
   isOpen: Boolean,
   eventCode: { type: String, default: '------' },
   // 🌟 実データ化：招待先イベントのIDと、現在の参加者UID一覧を受け取る
   eventId: { type: String, default: '' },
+  eventName: { type: String, default: '' },
+  myName: { type: String, default: '' },
   participantUids: { type: Array, default: () => [] },
 });
 const emit = defineEmits(['close']);
@@ -187,7 +189,7 @@ const processedList = computed(() => {
 
 const isParticipant = (uid) => (props.participantUids || []).includes(uid);
 
-// 🌟 招待＝イベントの participants 配列へ相手UIDを実追加（arrayUnion）
+// 🌟 承認制：即追加せず「招待通知」を送る（相手が承認するとイベントに参加）
 const invite = async (user) => {
   if (!props.eventId) {
     showModal({ type: 'error', title: 'エラー', message: 'イベント情報が取得できませんでした。' });
@@ -198,9 +200,18 @@ const invite = async (user) => {
     return;
   }
   try {
-    await updateDoc(doc(db, 'events', props.eventId), { participants: arrayUnion(user.uid) });
+    await addDoc(collection(db, 'notifications'), {
+      toUserId: user.uid,
+      type: 'event_invite',
+      eventId: props.eventId,
+      eventName: props.eventName || '',
+      fromUserId: auth.currentUser?.uid || 'unknown',
+      fromUserName: props.myName || auth.currentUser?.displayName || 'メンバー',
+      isRead: false,
+      createdAt: serverTimestamp(),
+    });
     invitedSet.value.add(user.uid);
-    showModal({ type: 'success', title: '招待しました', message: `${user.name}さんをイベントに追加しました！` });
+    showModal({ type: 'success', title: '招待を送りました', message: `${user.name}さんに招待を送りました。相手が承認するとイベントに参加します。` });
   } catch (e) {
     console.error('招待エラー:', e);
     showModal({ type: 'error', title: '招待失敗', message: '招待に失敗しました。電波状況を確認してください。' });
