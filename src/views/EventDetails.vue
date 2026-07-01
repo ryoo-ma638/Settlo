@@ -275,17 +275,6 @@
         </div>
       </div>
 
-      <div v-if="modals.unpaidWarning" class="modal-overlay" style="z-index: 2000;" @click.self="modals.unpaidWarning = false">
-        <div class="modal-content slide-up warning-modal">
-          <div class="modal-header"><h3 class="warning-title">未完済の取引があります</h3></div>
-          <p class="warning-desc">以下の取引がまだ精算されていません。本当に終了しますか？</p>
-          <div class="warning-actions">
-            <button class="danger-btn" @click="forceEndEvent">終了リクエストを送る</button>
-            <button class="safe-btn" @click="modals.unpaidWarning = false">戻って精算する</button>
-          </div>
-        </div>
-      </div>
-
       <InviteModal
         :isOpen="modals.invite"
         :eventCode="eventData.invitationCode"
@@ -354,7 +343,7 @@ const getUserInfo = async (uid) => {
 // ==========================================
 // 🌟 1. 2人の import を綺麗に合体！
 // ==========================================
-import { ref, computed, onMounted, reactive } from 'vue'; // 🌟 reactiveを追加
+import { ref, computed, onMounted, onUnmounted, reactive } from 'vue'; // 🌟 reactiveを追加
 import { useRoute, useRouter } from 'vue-router'; 
 
 import AddPaymentModal from '@/components/AddPaymentModal.vue';
@@ -765,6 +754,10 @@ const addHistory = async (newPayment) => {
 };
 
 // リアルタイム監視
+// Firestore リスナーの購読解除用（onUnmounted / 削除時に解除）
+let unsubEvent = null;
+let unsubHistory = null;
+
 onMounted(async () => {
   // 🌟 自分の表示名を取得（精算サマリーの「自分」判定・フィルタに使用）
   const me = auth.currentUser;
@@ -779,13 +772,13 @@ onMounted(async () => {
   if (!eventId) return;
 
   // --- A. イベント本体の情報を監視 (名前や招待コード) ---
-  onSnapshot(doc(db, "events", eventId), async (docSnap) => {
+  unsubEvent = onSnapshot(doc(db, "events", eventId), async (docSnap) => {
     if (docSnap.exists()) {
       const data = docSnap.data();
       eventData.value.name = data.name;
       eventData.value.tag = data.tag || 'その他';
       eventData.value.invitationCode = data.invitationCode || "------";
-      
+
       // 参加者情報の取得（名前＋アイコンを実データから）
       const uids = data.participants || [];
       const detailed = await Promise.all(uids.map(async (uid) => {
@@ -794,6 +787,9 @@ onMounted(async () => {
       }));
       eventData.value.participants = detailed;
     }
+  }, (err) => {
+    // イベント削除後や参加者でない場合は静かに無視（未購読解除の残骸対策）
+    if (err?.code !== 'permission-denied') console.error("イベント監視エラー:", err);
   });
 
   // --- B. 立て替え履歴(history)サブコレクションを監視 ---
@@ -801,7 +797,7 @@ onMounted(async () => {
   // 🌟 timestamp（作成日時）の降順（新しい順）で取得
   const q = query(historyRef, orderBy("timestamp", "desc"));
 
-  onSnapshot(q, async (snapshot) => {
+  unsubHistory = onSnapshot(q, async (snapshot) => {
     // 🌟 このイベントの取引(transactions)のstatusマップを作り、履歴のstatusを導出する
     //    （transactionsを唯一の正データとし、決済完了を履歴/サマリーに反映）
     const txStatus = {};
@@ -847,8 +843,18 @@ onMounted(async () => {
 
     // 🌟 合計金額も履歴から再計算して反映
     eventData.value.total = fetchedHistory.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  }, (err) => {
+    // イベント削除後や参加者でない場合は静かに無視（未購読解除の残骸対策）
+    if (err?.code !== 'permission-denied') console.error("履歴監視エラー:", err);
   });
 });
+
+// リスナーの購読解除（画面離脱・イベント削除時のリーク／権限エラー防止）
+const unsubscribeAll = () => {
+  if (unsubEvent) { unsubEvent(); unsubEvent = null; }
+  if (unsubHistory) { unsubHistory(); unsubHistory = null; }
+};
+onUnmounted(unsubscribeAll);
 
 const goToBatchPayment = (summary) => {
   modals.value.summaryDetail = false;
@@ -864,6 +870,8 @@ const goToBatchPayment = (summary) => {
 const deleteEventCompletely = async () => {
   const eventId = route.params.id;
   if (!eventId) { router.push('/'); return; }
+  // 削除中にリスナーが「消えたイベント」を読んで permission-denied を出すのを防ぐため先に解除
+  unsubscribeAll();
   try {
     // 1. このイベントに紐づく取引(transactions)を削除
     const txSnap = await getDocs(query(collection(db, "transactions"), where("eventId", "==", eventId)));
@@ -881,9 +889,24 @@ const deleteEventCompletely = async () => {
 
 const handleEndEvent = () => {
   if (unpaidItems.value.length > 0) { modals.value.unpaidWarning = true; return; }
-  deleteEventCompletely();
+  // 未精算が無くても、削除は元に戻せないので一度確認
+  showConfirm(
+    'イベントを終了しますか？',
+    'このイベントと決済履歴はすべて削除され、元に戻せません。',
+    () => deleteEventCompletely(),
+    { type: 'warning', confirmText: '終了する', cancelText: 'やめる' }
+  );
 };
-const forceEndEvent = () => { modals.value.unpaidWarning = false; deleteEventCompletely(); };
+const forceEndEvent = () => {
+  modals.value.unpaidWarning = false;
+  // 未精算が残っているので、削除前にもう一度確認
+  showConfirm(
+    '本当に消していいですか？',
+    '未精算の決済が残っています。イベントを終了すると、残っている決済も履歴もすべて削除され、元に戻せません。',
+    () => deleteEventCompletely(),
+    { type: 'error', confirmText: '削除して終了', cancelText: '戻って精算する' }
+  );
+};
 
 // ==========================================
 // 🌟 5. お友達（Friend）のクラウド精算呼び出し！
