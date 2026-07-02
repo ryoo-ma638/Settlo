@@ -226,6 +226,27 @@
             </div>
           </div>
 
+          <!-- 🌟 合計チェック＆不明な残金の処理（内訳を使う割り勘のとき常に表示） -->
+          <div v-if="(formData.splitType === 'item' || formData.splitType === 'custom') && Number(formData.amount) > 0" class="total-summary">
+            <div class="ts-row"><span>内訳の合計</span><b>¥{{ breakdownTotal.toLocaleString() }}</b></div>
+            <div class="ts-row"><span>会計総額</span><b>¥{{ Number(formData.amount).toLocaleString() }}</b></div>
+
+            <div v-if="remainderDiff !== 0" class="remainder-box">
+              <p class="rb-title">{{ remainderText }}</p>
+              <div class="rb-field">
+                <label>差額（不明な残金）を負担する人</label>
+                <select v-model="remainderBearer" class="standard-input select-style">
+                  <option value="">{{ formData.payer || '立替者' }}（立替者）</option>
+                  <option v-for="p in participants" :key="p.id || p.name" :value="p.name">{{ p.name }}</option>
+                </select>
+              </div>
+              <div class="rb-field">
+                <label>理由 <span class="hint-text">(任意)</span></label>
+                <input v-model="remainderReason" type="text" class="standard-input" placeholder="例: お店の端数処理・レジの誤差">
+              </div>
+            </div>
+            <div v-else class="ts-ok">金額が一致しています</div>
+          </div>
         </div>
 
         <div class="modal-footer">
@@ -331,6 +352,8 @@ const resetForm = () => {
   formData.value.splitType = 'all';
   formData.value.registrationNumber = '';
   taxMode.value = 'included';
+  remainderBearer.value = '';
+  remainderReason.value = '';
   receiptItems.value = [];
   uploadedImage.value = null;
   isAnalyzing.value = false;
@@ -352,6 +375,8 @@ const prefillFromEdit = (d) => {
   formData.value.registrationNumber = d.registrationNumber || '';
   formData.value.payer = d.payer || '';
   taxMode.value = d.taxMode || 'included';
+  remainderBearer.value = d.remainder?.name || '';
+  remainderReason.value = d.remainder?.reason || '';
   const next = {};
   (props.participants || []).forEach(p => { next[p.name] = ''; });
   (d.shares || []).forEach(s => { if (s && s.name != null) next[s.name] = Number(s.amount) || ''; });
@@ -539,6 +564,34 @@ const itemsTotal = computed(() => {
   return receiptItems.value.reduce((sum, item) => sum + calcItemTotal(item), 0);
 });
 
+// ==========================================
+// 🌟 不明な残金（内訳と会計総額の差額）の処理
+// ==========================================
+const remainderBearer = ref(''); // 差額を負担する人の名前（空＝立替者）
+const remainderReason = ref(''); // 差額の理由（任意メモ）
+
+// 内訳の合計（割り勘方法に応じて）
+const breakdownTotal = computed(() => {
+  if (formData.value.splitType === 'item') return itemsTotal.value;
+  if (formData.value.splitType === 'custom') {
+    let sum = 0;
+    (props.participants || []).forEach(p => { sum += Number(customSplitAmounts.value[p.name]) || 0; });
+    return sum;
+  }
+  return Number(formData.value.amount) || 0;
+});
+
+// 会計総額 − 内訳合計（プラス＝足りない／マイナス＝多い）
+const remainderDiff = computed(() => {
+  if (formData.value.splitType !== 'item' && formData.value.splitType !== 'custom') return 0;
+  return (Number(formData.value.amount) || 0) - breakdownTotal.value;
+});
+const remainderText = computed(() => {
+  const d = remainderDiff.value;
+  if (d > 0) return `¥${d.toLocaleString()} 足りません。どうしますか？`;
+  return `¥${Math.abs(d).toLocaleString()} 多いです。どうしますか？`;
+});
+
 // 🌟 税率の切り替え機能（8% → 10% → 0%（非課税） → 8%…）
 const toggleTax = (item) => {
   if (item.taxRate === 8) item.taxRate = 10;
@@ -562,25 +615,8 @@ const handleSubmit = () => {
       showModal({ type: 'error', title: '選択モレ', message: `「${unassignedItem.name}」を支払う人が選択されていません！` });
       return;
     }
-
-    // 金額がズレている場合は差額を表示。直すか、立替者が差額を負担して保存かを選べる
-    if (itemsTotal.value !== Number(formData.value.amount)) {
-      const diff = Number(formData.value.amount) - itemsTotal.value;
-      const diffText = diff > 0 ? `¥${diff.toLocaleString()} 足りません` : `¥${Math.abs(diff).toLocaleString()} 多いです`;
-      showModal({
-        type: 'warning',
-        title: '不明な残金があります',
-        message: `内訳の合計（¥${itemsTotal.value.toLocaleString()}）が会計総額（¥${Number(formData.value.amount).toLocaleString()}）と${diffText}。\n\nお店の端数処理などで起きることがあります。商品の金額や担当を直すか、この「不明な残金」を立替者（${formData.value.payer || '立替者'}）の負担として精算するなら、このまま保存できます。`,
-        showCancel: true,
-        confirmText: 'このまま保存',
-        cancelText: '戻って直す',
-        onConfirm: () => executeSubmit(),
-      });
-      return;
-    }
   }
 
-  // 🌟 金額指定（custom）の整合チェック
   if (formData.value.splitType === 'custom') {
     let sum = 0;
     (props.participants || []).forEach(p => { sum += Number(customSplitAmounts.value[p.name]) || 0; });
@@ -588,20 +624,21 @@ const handleSubmit = () => {
       showModal({ type: 'error', title: '入力エラー', message: '各メンバーの金額を入力してください。' });
       return;
     }
-    if (sum !== Number(formData.value.amount)) {
-      const diff = Number(formData.value.amount) - sum;
-      const diffText = diff > 0 ? `¥${diff.toLocaleString()} 足りません` : `¥${Math.abs(diff).toLocaleString()} 多いです`;
-      showModal({
-        type: 'warning',
-        title: '不明な残金があります',
-        message: `指定の合計（¥${sum.toLocaleString()}）が会計総額（¥${Number(formData.value.amount).toLocaleString()}）と${diffText}。\n\n各メンバーの金額を直すか、この「不明な残金」を立替者（${formData.value.payer || '立替者'}）の負担として精算するなら、このまま保存できます。`,
-        showCancel: true,
-        confirmText: 'このまま保存',
-        cancelText: '戻って直す',
-        onConfirm: () => executeSubmit(),
-      });
-      return;
-    }
+  }
+
+  // 🌟 不明な残金がある場合＝画面下のパネルで選んだ負担者で確定してよいか、最終確認だけ挟む
+  if (remainderDiff.value !== 0) {
+    const bearerName = remainderBearer.value || formData.value.payer || '立替者';
+    showModal({
+      type: 'warning',
+      title: '不明な残金があります',
+      message: `内訳の合計（¥${breakdownTotal.value.toLocaleString()}）と会計総額（¥${Number(formData.value.amount).toLocaleString()}）に ¥${Math.abs(remainderDiff.value).toLocaleString()} の差額があります。\n\nこの差額は ${bearerName} さんの負担として精算します。よろしいですか？`,
+      showCancel: true,
+      confirmText: 'この内容で保存',
+      cancelText: '戻って直す',
+      onConfirm: () => executeSubmit(),
+    });
+    return;
   }
 
   // 金額が合っている場合はそのまま送信
@@ -636,14 +673,17 @@ const computeShares = () => {
     arr.forEach(p => { shares[p.id] = per; });
   }
 
-  // 🌟 端数（切り捨て）で合計より少なくなる分は立替者が負担し、割り勘合計を必ず総額に一致させる
-  //    → 「1円足りなくて決済が通らない」を根本から防ぐ
+  // 🌟 端数や「不明な残金」で合計がずれる分は、選んだ負担者（未選択なら立替者）に寄せて
+  //    割り勘合計を必ず総額に一致させる → 「1円足りなくて決済が通らない」を根本から防ぐ
   const total = Number(formData.value.amount) || 0;
   const sum = arr.reduce((s, p) => s + (shares[p.id] || 0), 0);
   const diff = total - sum;
   if (diff !== 0) {
-    const payerObj = arr.find(p => p.name === formData.value.payer) || arr.find(p => p.isMe) || arr[0];
-    if (payerObj) shares[payerObj.id] = (shares[payerObj.id] || 0) + diff;
+    const bearerObj = (remainderBearer.value && arr.find(p => p.name === remainderBearer.value))
+      || arr.find(p => p.name === formData.value.payer)
+      || arr.find(p => p.isMe)
+      || arr[0];
+    if (bearerObj) shares[bearerObj.id] = (shares[bearerObj.id] || 0) + diff;
   }
 
   return arr.map(p => ({ uid: p.id, name: p.name, amount: shares[p.id] || 0 }));
@@ -673,6 +713,12 @@ const executeSubmit = () => {
     amount: Number(formData.value.amount),
     date: formData.value.date ? formData.value.date.replace(/-/g, '/') : "",
     time: currentTime,
+    // 🌟 不明な残金（差額）の記録：誰が負担したか＋理由
+    remainder: remainderDiff.value !== 0 ? {
+      amount: remainderDiff.value,
+      name: remainderBearer.value || formData.value.payer || '',
+      reason: remainderReason.value || null,
+    } : null,
     // 🌟 各メンバーの負担額（割り勘の正データ）
     shares: computeShares(),
     items: receiptItems.value.map(item => ({
@@ -838,6 +884,17 @@ const executeSubmit = () => {
 }
 .tax-mode-seg button.active { background: var(--c-brand, #10b981); border-color: var(--c-brand, #10b981); color: #fff; }
 .tax-mode-desc { margin: 8px 0 0; font-size: 11px; color: #94a3b8; line-height: 1.5; }
+
+/* 🌟 合計チェック＆不明な残金パネル */
+.total-summary { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 14px; margin-top: 14px; }
+.ts-row { display: flex; justify-content: space-between; align-items: center; font-size: 13.5px; color: #475569; padding: 3px 0; }
+.ts-row b { font-size: 15px; color: #0f172a; font-variant-numeric: tabular-nums; }
+.ts-ok { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: #ecfdf5; color: #059669; font-size: 12.5px; font-weight: 700; text-align: center; }
+.remainder-box { margin-top: 10px; padding: 12px; border-radius: 12px; background: #fffbeb; border: 1px solid #fde68a; }
+.rb-title { margin: 0 0 10px; font-size: 13.5px; font-weight: 800; color: #b45309; }
+.rb-field { margin-bottom: 10px; }
+.rb-field:last-child { margin-bottom: 0; }
+.rb-field label { display: block; font-size: 11.5px; font-weight: 700; color: #92400e; margin-bottom: 5px; }
 
 .global-tax-control { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; font-size: 11px; font-weight: 800; color: #64748b; }
 .global-tax-btn { padding: 6px 10px; border-radius: 12px; border: 1px solid #cbd5e1; background: white; cursor: pointer; color: #475569; font-weight: bold; transition: 0.2s; }
