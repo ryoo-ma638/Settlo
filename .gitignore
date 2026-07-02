@@ -40,6 +40,10 @@ __screenshots__/
 
 service-account.json
 
+# 環境変数は絶対にコミットしない（.env.local は *.local で既にカバー済み）
+.env
+.env.*
+!.env.example
 .env.dev
 
 # Playwright/MCP のテスト残骸（スクショ・ログ）
