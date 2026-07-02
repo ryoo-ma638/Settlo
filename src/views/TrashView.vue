@@ -14,48 +14,52 @@
       </button>
     </div>
 
-    <p class="hint">ゴミ箱に入って7日たつと自動で消えます。承認待ちのものは「保留」に入ります。</p>
+    <p class="hint">
+      {{ tab === 'pending' ? '相手の承認を待っている項目です。' : 'ここに入って7日たつと自動で消えます。' }}
+    </p>
 
     <!-- イベント / 取引 タブ（削除・完了したもの） -->
     <div v-if="tab === 'event' || tab === 'tx'" class="list">
-      <div v-if="currentItems.length === 0" class="empty-box">{{ tab === 'event' ? '削除したイベントはありません' : '削除・完了した取引はありません' }}</div>
+      <div v-if="currentItems.length === 0" class="empty">
+        <span class="empty__icon">🗑️</span>
+        <p>{{ tab === 'event' ? '削除したイベントはありません' : '削除・完了した取引はありません' }}</p>
+      </div>
 
-      <div v-for="item in currentItems" :key="item.id" class="card trash-card">
-        <div class="trash-card__main">
-          <span class="badge" :class="item.type === 'event' ? 'badge--event' : 'badge--pay'">
-            {{ typeLabel(item.type) }}
-          </span>
-          <div class="trash-card__text">
-            <p class="ttl">{{ item.type === 'event' ? item.eventName : item.itemName }}</p>
-            <p class="sub" v-if="item.type === 'event'">ジャンル：{{ item.eventTag || 'その他' }}</p>
-            <p class="sub" v-else>¥{{ (item.amount || 0).toLocaleString() }}・{{ item.eventName }}</p>
-          </div>
+      <div v-for="item in currentItems" :key="item.id" class="tcard">
+        <div class="tcard__head">
+          <span class="tcard__badge" :class="item.type === 'event' ? 'is-event' : 'is-pay'">{{ typeLabel(item.type) }}</span>
+          <span class="tcard__days" :class="{ 'is-soon': daysLeft(item) <= 2 }">あと{{ daysLeft(item) }}日</span>
         </div>
-        <p class="days">あと{{ daysLeft(item) }}日で自動削除</p>
-        <div class="trash-card__actions">
-          <button v-if="item.type === 'event'" class="btn-brand sm" @click="restoreEvent(item)">元に戻す</button>
-          <button v-else-if="item.type === 'payment'" class="btn-brand sm" @click="restorePayment(item)">元に戻す</button>
-          <button v-else class="btn-brand sm" @click="askRestoreSettlement(item)">未精算に戻す</button>
-          <button class="btn-outline sm" @click="askDeleteForever(item)">完全に削除</button>
+        <p class="tcard__ttl">{{ item.type === 'event' ? item.eventName : item.itemName }}</p>
+        <p class="tcard__meta">
+          <template v-if="item.type === 'event'">ジャンル：{{ item.eventTag || 'その他' }}</template>
+          <template v-else><b class="yen">¥{{ (item.amount || 0).toLocaleString() }}</b><span class="sep">/</span>{{ item.eventName }}</template>
+        </p>
+        <div class="tcard__actions">
+          <button v-if="item.type === 'event'" class="btn-brand act" @click="restoreEvent(item)">元に戻す</button>
+          <button v-else-if="item.type === 'payment'" class="btn-brand act" @click="restorePayment(item)">元に戻す</button>
+          <button v-else class="btn-brand act" @click="askRestoreSettlement(item)">未精算に戻す</button>
+          <button class="btn-outline act" @click="askDeleteForever(item)">完全に削除</button>
         </div>
       </div>
     </div>
 
     <!-- 保留タブ（相手の承認待ち） -->
     <div v-else class="list">
-      <div v-if="pendingItems.length === 0" class="empty-box">保留中のものはありません</div>
+      <div v-if="pendingItems.length === 0" class="empty">
+        <span class="empty__icon">⏳</span>
+        <p>保留中のものはありません</p>
+      </div>
 
-      <div v-for="item in pendingItems" :key="item.id" class="card trash-card">
-        <div class="trash-card__main">
-          <span class="badge badge--wait">承認待ち</span>
-          <div class="trash-card__text">
-            <p class="ttl">{{ item.itemName }}</p>
-            <p class="sub">¥{{ (item.amount || 0).toLocaleString() }}・{{ item.eventName }}</p>
-          </div>
+      <div v-for="item in pendingItems" :key="item.id" class="tcard tcard--wait">
+        <div class="tcard__head">
+          <span class="tcard__badge is-wait">承認待ち</span>
         </div>
-        <p class="days">相手（{{ counterpartyNames(item) }}）の承認を待っています</p>
-        <div class="trash-card__actions">
-          <button class="btn-outline sm" @click="askCancelPending(item)">依頼を取り消す</button>
+        <p class="tcard__ttl">{{ item.itemName }}</p>
+        <p class="tcard__meta"><b class="yen">¥{{ (item.amount || 0).toLocaleString() }}</b><span class="sep">/</span>{{ item.eventName }}</p>
+        <p class="tcard__note">相手（{{ counterpartyNames(item) }}）の承認を待っています</p>
+        <div class="tcard__actions">
+          <button class="btn-outline act" @click="askCancelPending(item)">依頼を取り消す</button>
         </div>
       </div>
     </div>
@@ -227,23 +231,41 @@ onUnmounted(() => { if (unsub) unsub(); });
 
 <style scoped>
 .screen { padding-bottom: 40px; }
-.tabs { margin: 12px var(--pad) 8px; }
+.tabs { margin: 12px var(--pad) 10px; }
+.cnt { margin-left: 6px; background: var(--c-brand); color: #fff; border-radius: 999px; padding: 0 6px; font-size: 11px; font-weight: var(--fw-bold); }
 .hint { margin: 0 var(--pad) 14px; font-size: 12px; color: var(--c-text-sub); line-height: 1.5; }
 .list { padding: 0 var(--pad); display: flex; flex-direction: column; gap: 12px; }
 
-.trash-card { padding: 14px 16px; }
-.trash-card__main { display: flex; align-items: flex-start; gap: 10px; }
-.trash-card__text { flex: 1; min-width: 0; }
-.ttl { margin: 0; font-weight: var(--fw-bold); font-size: 15px; color: var(--c-ink); word-break: break-word; }
-.sub { margin: 2px 0 0; font-size: 12px; color: var(--c-text-sub); }
-.days { margin: 8px 0 10px; font-size: 12px; color: var(--c-text-sub); }
+/* 空表示 */
+.empty { text-align: center; padding: 48px 20px; color: var(--c-text-sub); }
+.empty__icon { font-size: 34px; display: block; margin-bottom: 10px; opacity: 0.7; }
+.empty p { margin: 0; font-size: 14px; }
 
-.badge { flex-shrink: 0; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: var(--fw-bold); }
-.badge--event { background: var(--c-brand-weak); color: var(--c-brand); }
-.badge--pay { background: #fff7ed; color: var(--c-pay); }
-.badge--wait { background: #fffbeb; color: var(--c-pay); }
-.cnt { margin-left: 6px; background: var(--c-brand); color: #fff; border-radius: 999px; padding: 0 6px; font-size: 11px; }
+/* カード */
+.tcard {
+  background: var(--c-surface);
+  border: 1px solid var(--c-line, #eef0f2);
+  border-radius: var(--r-lg, 16px);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(15,23,42,0.04));
+}
+.tcard--wait { border-color: #fde9c8; background: #fffdf8; }
 
-.trash-card__actions { display: flex; gap: 8px; }
-.sm { padding: 9px 14px; font-size: 13px; flex: 1; }
+.tcard__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.tcard__badge { padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: var(--fw-bold); }
+.tcard__badge.is-event { background: var(--c-brand-weak); color: var(--c-brand); }
+.tcard__badge.is-pay { background: #eef4ff; color: #3b6fd4; }
+.tcard__badge.is-wait { background: #fff4e0; color: var(--c-pay); }
+
+.tcard__days { font-size: 11px; font-weight: var(--fw-bold); color: var(--c-text-sub); background: var(--c-surface-2, #f4f5f7); padding: 3px 9px; border-radius: 999px; }
+.tcard__days.is-soon { background: #fdecec; color: var(--c-danger); }
+
+.tcard__ttl { margin: 0; font-weight: var(--fw-bold); font-size: 16px; color: var(--c-ink); word-break: break-word; line-height: 1.35; }
+.tcard__meta { margin: 3px 0 0; font-size: 13px; color: var(--c-text-sub); }
+.tcard__meta .yen { color: var(--c-ink); font-weight: var(--fw-bold); }
+.tcard__meta .sep { margin: 0 7px; color: var(--c-line, #d7dbe0); }
+.tcard__note { margin: 8px 0 0; font-size: 12px; color: var(--c-pay); }
+
+.tcard__actions { display: flex; gap: 8px; margin-top: 14px; }
+.act { padding: 10px 14px; font-size: 13.5px; flex: 1; border-radius: var(--r-md, 12px); font-weight: var(--fw-bold); }
 </style>
