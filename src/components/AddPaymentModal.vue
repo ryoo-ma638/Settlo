@@ -514,8 +514,8 @@ const handleSubmit = () => {
       const diffText = diff > 0 ? `¥${diff.toLocaleString()} 足りません` : `¥${Math.abs(diff).toLocaleString()} 多いです`;
       showModal({
         type: 'warning',
-        title: '金額が合っていません',
-        message: `内訳の合計（¥${itemsTotal.value.toLocaleString()}）が全体（¥${Number(formData.value.amount).toLocaleString()}）と${diffText}。\n\n商品の金額か担当を直すか、この差額を立替者（${formData.value.payer || '立替者'}）が負担してよければこのまま保存できます。`,
+        title: '不明な残金があります',
+        message: `内訳の合計（¥${itemsTotal.value.toLocaleString()}）が会計総額（¥${Number(formData.value.amount).toLocaleString()}）と${diffText}。\n\nお店の端数処理などで起きることがあります。商品の金額や担当を直すか、この「不明な残金」を立替者（${formData.value.payer || '立替者'}）の負担として精算するなら、このまま保存できます。`,
         showCancel: true,
         confirmText: 'このまま保存',
         cancelText: '戻って直す',
@@ -538,8 +538,8 @@ const handleSubmit = () => {
       const diffText = diff > 0 ? `¥${diff.toLocaleString()} 足りません` : `¥${Math.abs(diff).toLocaleString()} 多いです`;
       showModal({
         type: 'warning',
-        title: '金額が合っていません',
-        message: `指定の合計（¥${sum.toLocaleString()}）が全体（¥${Number(formData.value.amount).toLocaleString()}）と${diffText}。\n\n各メンバーの金額を直すか、この差額を立替者（${formData.value.payer || '立替者'}）が負担してよければこのまま保存できます。`,
+        title: '不明な残金があります',
+        message: `指定の合計（¥${sum.toLocaleString()}）が会計総額（¥${Number(formData.value.amount).toLocaleString()}）と${diffText}。\n\n各メンバーの金額を直すか、この「不明な残金」を立替者（${formData.value.payer || '立替者'}）の負担として精算するなら、このまま保存できます。`,
         showCancel: true,
         confirmText: 'このまま保存',
         cancelText: '戻って直す',
