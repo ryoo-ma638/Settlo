@@ -156,18 +156,19 @@ const notifText = (req) => {
   if (req.type === 'settlement_restore_request') return `さんが決済「${req.itemName || ''}」（¥${(req.amount || 0).toLocaleString()}）を未精算に戻したいそうです。承認しますか？`;
   if (req.type === 'settlement_restore_approved') return `さんが「${req.itemName || ''}」を未精算に戻すことを承認しました`;
   if (req.type === 'settlement_restore_rejected') return `さんが「${req.itemName || ''}」を未精算に戻すことを拒否しました`;
+  if (req.type === 'payment_completed') return 'さんとの支払いが完了しました！';
   return 'さんから支払いの承認リクエストが届いています';
 };
 const notifAction = (req) => {
   if (req.type === 'approval_rejected') return 'もう一度支払う';
   if (req.type === 'payment_reminder') return '支払う';
   if (['payment_edited', 'event_edited', 'invite_rejected', 'event_joined', 'event_restored', 'settlement_restore_approved', 'settlement_restore_rejected'].includes(req.type)) return 'イベントを見る';
-  if (req.type === 'payment_deleted') return '確認';
+  if (req.type === 'payment_deleted' || req.type === 'payment_completed') return '確認';
   return '詳細を確認する';
 };
 const notifClass = (req) => {
   if (['approval_rejected', 'invite_rejected', 'settlement_restore_rejected'].includes(req.type)) return 'notif-item--reject';
-  if (['payment_edited', 'payment_deleted', 'event_edited', 'event_joined', 'event_restored', 'settlement_restore_approved'].includes(req.type)) return 'notif-item--info';
+  if (['payment_edited', 'payment_deleted', 'event_edited', 'event_joined', 'event_restored', 'settlement_restore_approved', 'payment_completed'].includes(req.type)) return 'notif-item--info';
   return 'notif-item--pay';
 };
 
@@ -217,6 +218,8 @@ const goToPaymentDetail = async (req) => {
       if (req.eventId) router.push(`/event/${req.eventId}`);
       return;
     }
+    // 支払い完了のお知らせは既読にするだけ（取引はもう完了している）
+    if (req.type === 'payment_completed') return;
     // 承認リクエストだけ受け取る側（waiting-）。拒否・催促は支払う側（unpaid-）へ。
     const prefix = req.type === 'approval_request' || !req.type ? 'waiting' : 'unpaid';
     router.push(`/payment-detail/${prefix}-${req.transactionId}`);

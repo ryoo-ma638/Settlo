@@ -340,6 +340,10 @@ const approvePayment = () => {
       submitting.value = true;
       try {
         await updateAllItems('completed');
+        // 🌟 支払った側へ「支払いが完了しました」を届ける
+        for (const it of items.value) {
+          try { await notifyOpponent(it, 'payment_completed', '支払いが承認され、精算が完了しました。'); } catch (e) {}
+        }
         currentStatus.value = 'completed';
         showModal({
           type: 'success', title: '決済完了', message: '支払いを承認し、精算が完了しました！',
@@ -395,6 +399,10 @@ const confirmCash = () => {
         submitting.value = true;
         try {
           await updateAllItems('completed');
+          // 🌟 支払った側へ「支払いが完了しました」を届ける
+          for (const it of items.value) {
+            try { await notifyOpponent(it, 'payment_completed', '受け取りが確認され、精算が完了しました。'); } catch (e) {}
+          }
           currentStatus.value = 'completed';
           showModal({
             type: 'success', title: '完了', message: '受け取りを完了しました！',
