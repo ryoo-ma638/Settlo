@@ -157,8 +157,14 @@
         </div>
       </div>
 
-      <button class="end-event-btn" @click="handleEndEvent">イベントを終了する</button>
-      <p class="end-hint">※相手とのやり取りは、自分の画面からのみ非表示になります。</p>
+      <div v-if="eventData.ended" class="ended-chip">このイベントは終了しています（精算済み・記録として保存）</div>
+      <template v-else>
+        <button class="end-event-btn" @click="handleEndEvent">イベントを終了する</button>
+        <p class="end-hint">みんなの精算をすべて済ませて、イベントを締めます（記録は残ります）。</p>
+      </template>
+
+      <button class="delete-event-btn" @click="handleDeleteEvent">イベントを削除する</button>
+      <p class="end-hint">自分の画面から非表示にします。ゴミ箱から7日以内なら復元できます（相手の画面には残ります）。</p>
     </main>
 
     <Teleport to="body">
@@ -178,11 +184,11 @@
         :show="modals.unpaidWarning"
         type="warning"
         title="未精算の決済が残っています"
-        message="このイベントを自分の画面から非表示にします。ゴミ箱から7日以内なら復元でき、相手の画面や貸し借りは残ります。よろしいですか？"
-        confirmText="終了する"
-        cancelText="戻って精算する"
+        message="イベントを終了するには、先にみんなの精算を済ませてください。精算サマリーからまとめて精算できます。"
+        confirmText="精算サマリーを見る"
+        cancelText="閉じる"
         :showCancel="true"
-        @confirm="forceEndEvent"
+        @confirm="modals.unpaidWarning = false; modals.summaryDetail = true"
         @cancel="modals.unpaidWarning = false"
         @close="modals.unpaidWarning = false"
       />
@@ -472,6 +478,7 @@ const eventData = ref({
   total: 0, // 🌟 最初は 0
   invitationCode: '------',
   tag: 'その他', // 🌟 イベントのジャンル
+  ended: false, // 🌟 終了済み（精算を締めた状態・削除とは別）
   participants: [],
   history: []
 });
@@ -695,8 +702,13 @@ const markAsCompleted = async (id) => {
 // 🌟 ここが最大の修正ポイント！「共通の履歴」と「イベント内」の両方に保存します
 const addHistory = async (newPayment) => {
   console.log("🚀 受信したデータ:", newPayment);
+  // 🌟 終了済みイベントには新しい支払いを追加できない（記録の改変防止）
+  if (eventData.value.ended) {
+    showAlert('info', '終了済みのイベントです', 'このイベントは終了しています。新しい支払いの追加や編集はできません。');
+    return;
+  }
   try {
-    const eventId = route.params.id || "test-event-1"; 
+    const eventId = route.params.id || "test-event-1";
     const myUid = auth.currentUser?.uid;
     if (!myUid) throw new Error("ログインセッションが切れています");
 
@@ -836,6 +848,7 @@ onMounted(async () => {
       const data = docSnap.data();
       eventData.value.name = data.name;
       eventData.value.tag = data.tag || 'その他';
+      eventData.value.ended = !!data.ended; // 🌟 終了済みフラグ
       eventData.value.invitationCode = data.invitationCode || "------";
 
       // 参加者情報の取得（名前＋アイコンを実データから）
@@ -953,19 +966,35 @@ const deleteEventCompletely = async () => {
   router.push('/');
 };
 
+// 🌟 イベントの「終了」＝全員の精算を締める（削除はしない・記録として残る）
 const handleEndEvent = () => {
+  // 未精算が残っていたら、まず精算へ誘導（終了は精算完了が条件）
   if (unpaidItems.value.length > 0) { modals.value.unpaidWarning = true; return; }
   showConfirm(
     'イベントを終了しますか？',
-    'このイベントを自分の画面から削除します。ゴミ箱に入り、7日以内なら復元できます（相手の画面には残ります）。',
-    () => deleteEventCompletely(),
+    '精算はすべて完了しています。終了すると記録として残り、参加者全員の画面で「終了済み」になります。',
+    async () => {
+      try {
+        await updateDoc(doc(db, 'events', route.params.id), { ended: true, endedAt: serverTimestamp() });
+        eventData.value.ended = true;
+        showToast('イベントを終了しました');
+      } catch (e) {
+        console.error('イベント終了エラー:', e);
+        showAlert('error', 'エラー', 'イベントの終了に失敗しました。');
+      }
+    },
     { type: 'warning', confirmText: '終了する', cancelText: 'やめる' }
   );
 };
-const forceEndEvent = () => {
-  // 上の未精算モーダルが確認そのものなので、ここでは二重に確認せずそのまま終了する
-  modals.value.unpaidWarning = false;
-  deleteEventCompletely();
+
+// 🌟 イベントの「削除」＝自分の画面から非表示（ゴミ箱に入り7日以内は復元可）
+const handleDeleteEvent = () => {
+  showConfirm(
+    'イベントを削除しますか？',
+    'このイベントを自分の画面から削除します。ゴミ箱に入り、7日以内なら復元できます（相手の画面には残ります）。',
+    () => deleteEventCompletely(),
+    { type: 'error', confirmText: '削除する', cancelText: 'やめる' }
+  );
 };
 
 // ==========================================
@@ -1207,7 +1236,14 @@ onMounted(() => {
 
 .end-event-btn { width: 100%; background-color: #0f172a; color: white; border: none; padding: 18px; border-radius: 20px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,0.15); transition: 0.2s; margin-bottom: 12px; }
 .end-event-btn:active { transform: scale(0.96); }
-.end-hint { font-size: 11px; color: #94a3b8; text-align: center; margin: 0; font-weight: 700; }
+.end-hint { font-size: 11px; color: #94a3b8; text-align: center; margin: 0 0 18px; font-weight: 700; }
+
+/* 🌟 削除（ゴミ箱行き）は終了と明確に区別 */
+.delete-event-btn { width: 100%; background: #fff; color: #dc2626; border: 1.5px solid #fecaca; padding: 16px; border-radius: 20px; font-size: 15px; font-weight: 900; cursor: pointer; transition: 0.2s; margin-bottom: 12px; }
+.delete-event-btn:active { transform: scale(0.96); background: #fef2f2; }
+
+/* 🌟 終了済み表示 */
+.ended-chip { width: 100%; background: #ecfdf5; color: #059669; border: 1.5px solid #a7f3d0; padding: 14px; border-radius: 16px; font-size: 13px; font-weight: 800; text-align: center; margin-bottom: 18px; }
 
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.6); display: flex; align-items: flex-end; justify-content: center; z-index: 2000; backdrop-filter: blur(4px); }
 .modal-content { background: white; width: 100%; max-width: 600px; border-radius: 32px 32px 0 0; padding: 30px 25px; box-sizing: border-box; max-height: 85vh; overflow-y: auto; }

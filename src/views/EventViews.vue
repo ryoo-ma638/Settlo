@@ -19,6 +19,7 @@
             <span class="tag tag--icon">
               <GenreIcon :type="event.tag" class="tag__icon" />{{ event.tag }}
             </span>
+            <span v-if="event.ended" class="ended-tag">終了済み</span>
             <span class="evcard__date">{{ event.createdAtDate }}</span>
           </div>
 
@@ -153,6 +154,7 @@ onMounted(() => {
 .tag--icon { display: inline-flex; align-items: center; gap: 5px; }
 .tag__icon { width: 14px; height: 14px; }
 .evcard__date { font-size: 12px; color: var(--c-text-faint); font-weight: var(--fw-medium); }
+.ended-tag { margin-left: auto; margin-right: 8px; padding: 2px 8px; border-radius: 999px; background: #ecfdf5; color: #059669; font-size: 11px; font-weight: var(--fw-bold); }
 
 .evcard__name {
   font-size: 17px;
