@@ -41,7 +41,10 @@
                 <div class="notif-body">
                   <template v-if="req.status === 'pending'">
                     <p>{{ req.formName }}さんから友達申請が届いています</p>
-                    <button class="mini-btn" @click="acceptRequest(req)">承認する</button>
+                    <div class="notif-actions">
+                      <button class="mini-btn" @click="acceptRequest(req)">承認する</button>
+                      <button class="mini-btn mini-btn--ghost" @click="rejectFriendRequest(req)">拒否する</button>
+                    </div>
                   </template>
                   <template v-else-if="req.status === 'accepted'">
                     <p>{{ req.formName }}さんとフレンドになりました</p>
@@ -86,7 +89,10 @@
           <div class="notif-body">
             <template v-if="req.status === 'pending'">
               <p>{{ req.formName }}さんから友達申請が届いています</p>
-              <button class="mini-btn" @click="acceptRequest(req)">承認する</button>
+              <div class="notif-actions">
+                <button class="mini-btn" @click="acceptRequest(req)">承認する</button>
+                <button class="mini-btn mini-btn--ghost" @click="rejectFriendRequest(req)">拒否する</button>
+              </div>
             </template>
             <template v-else-if="req.status === 'accepted'">
               <p>{{ req.formName }}さんとフレンドになりました</p>
@@ -222,6 +228,14 @@ const goToPaymentDetail = async (req) => {
 const deleteNotification = async (notifId) => {
   try { await deleteDoc(doc(db, "friendRequests", notifId)); }
   catch (error) { console.error("通知の削除に失敗しました:", error); }
+};
+
+// 友達申請を拒否＝申請を削除（承認/拒否を選ぶまでお知らせに残す）
+const rejectFriendRequest = (req) => {
+  askConfirm('友達申請を拒否しますか？', `${req.formName || '相手'}さんからの友達申請を削除します。`, async () => {
+    try { await deleteDoc(doc(db, "friendRequests", req.id)); }
+    catch (e) { console.error("友達申請の拒否に失敗:", e); }
+  });
 };
 
 // 支払い系の通知を「確認済み（既読）」にして一覧から消す

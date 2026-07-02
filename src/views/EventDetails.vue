@@ -177,9 +177,9 @@
       <BaseModal
         :show="modals.unpaidWarning"
         type="warning"
-        title="未完済の取引があります"
-        message="以下の取引がまだ精算されていません。本当に終了リクエストを送りますか？"
-        confirmText="終了リクエストを送る"
+        title="未精算の決済が残っています"
+        message="このイベントを自分の画面から非表示にします。ゴミ箱から7日以内なら復元でき、相手の画面や貸し借りは残ります。よろしいですか？"
+        confirmText="終了する"
         cancelText="戻って精算する"
         :showCancel="true"
         @confirm="forceEndEvent"
@@ -592,13 +592,42 @@ const notifyParticipants = async (uids, notifData) => {
   }
 };
 
-// 🌟 支払いの削除（transactions・履歴・合計を消す／確認つき／関係者へ通知）
+// 🌟 支払いの削除（ゴミ箱へ控えを残してから削除／確認つき／関係者へ通知）
 const deletePayment = (h) => {
-  showConfirm('支払いを削除', `「${h.itemName}」（¥${(Number(h.amount) || 0).toLocaleString()}）を削除しますか？\nこの支払いに紐づく精算も消えます。`, async () => {
+  showConfirm('支払いを削除', `「${h.itemName}」（¥${(Number(h.amount) || 0).toLocaleString()}）を削除しますか？\nゴミ箱に入り、7日以内なら元に戻せます。`, async () => {
     try {
       const eventId = route.params.id;
-      // 通知先＝イベント参加者全員（自分は sendPaymentNotifications 内で除外）
+      const myUid = auth.currentUser?.uid;
       const involved = eventData.value.participants.map(p => p.id);
+      // 削除前に取引の中身を控える（復元用）
+      const txSnapshots = [];
+      for (const tid of (h.transactionIds || [])) {
+        try { const t = await getDoc(doc(db, "transactions", tid)); if (t.exists()) txSnapshots.push(t.data()); } catch (e) {}
+      }
+      // ゴミ箱に控えを保存（7日以内なら作り直して復元できる）
+      if (myUid) {
+        try {
+          await addDoc(collection(db, "users", myUid, "trash"), {
+            type: 'payment',
+            trashedAt: serverTimestamp(),
+            status: 'trashed',
+            eventId,
+            eventName: eventData.value.name || 'イベント',
+            itemName: h.itemName || '支払い',
+            amount: Number(h.amount) || 0,
+            historySnapshot: {
+              payer: h.payer || '', payerUid: h.payerUid || null,
+              itemName: h.itemName || '', splitType: h.splitType || 'all',
+              amount: Number(h.amount) || 0, color: h.color || '#fca5a5',
+              date: h.date || '', time: h.time || '',
+              shares: h.shares || [], category: h.category || 'その他',
+              items: h.items || [],
+            },
+            transactionSnapshots: txSnapshots,
+          });
+        } catch (e) { console.error('ゴミ箱への控え保存に失敗:', e); }
+      }
+      // 実際に削除
       for (const tid of (h.transactionIds || [])) {
         try { await deleteDoc(doc(db, "transactions", tid)); } catch (e) { console.error(e); }
       }
@@ -606,7 +635,7 @@ const deletePayment = (h) => {
       await updateDoc(doc(db, "events", eventId), { totalAmount: increment(-(Number(h.amount) || 0)) });
       await notifyParticipants(involved, { type: 'payment_deleted', itemName: h.itemName, amount: Number(h.amount) || 0 });
       modals.value.historyDetail = false;
-      showToast('支払いを削除しました');
+      showToast('支払いをゴミ箱に移動しました');
     } catch (e) {
       console.error('支払い削除エラー:', e);
       showAlert('error', 'エラー', '支払いの削除に失敗しました。');
@@ -733,6 +762,7 @@ const addHistory = async (newPayment) => {
       payerUid: creditorUid, // 🌟 立替者のUID（役割判定を名前でなくUIDで行う）
       itemName: newPayment.itemName,
       category: newPayment.category || 'その他', // 🌟 支払いジャンル
+      registrationNumber: newPayment.registrationNumber || null, // 🌟 事業者登録番号（インボイス）
       splitType: newPayment.splitType,
       amount: Number(newPayment.amount),
       date: newPayment.date,
@@ -861,6 +891,7 @@ onMounted(async () => {
         shares: data.shares || [],
         payerUid: data.payerUid || null,
         category: data.category || 'その他',
+        registrationNumber: data.registrationNumber || null,
         items: data.items || []
       });
     });
@@ -928,14 +959,9 @@ const handleEndEvent = () => {
   );
 };
 const forceEndEvent = () => {
+  // 上の未精算モーダルが確認そのものなので、ここでは二重に確認せずそのまま終了する
   modals.value.unpaidWarning = false;
-  // 未精算が残っているので、終了前にもう一度確認
-  showConfirm(
-    '本当に終了していいですか？',
-    '未精算の決済が残っています。自分の画面からは非表示になります（ゴミ箱から7日以内なら復元可・相手の画面と貸し借りは残ります）。',
-    () => deleteEventCompletely(),
-    { type: 'warning', confirmText: '終了する', cancelText: '戻って精算する' }
-  );
+  deleteEventCompletely();
 };
 
 // ==========================================

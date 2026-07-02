@@ -20,17 +20,18 @@
       <div v-for="item in trashedItems" :key="item.id" class="card trash-card">
         <div class="trash-card__main">
           <span class="badge" :class="item.type === 'event' ? 'badge--event' : 'badge--pay'">
-            {{ item.type === 'event' ? 'イベント' : '決済' }}
+            {{ typeLabel(item.type) }}
           </span>
           <div class="trash-card__text">
             <p class="ttl">{{ item.type === 'event' ? item.eventName : item.itemName }}</p>
-            <p class="sub" v-if="item.type === 'settlement'">¥{{ (item.amount || 0).toLocaleString() }}・{{ item.eventName }}</p>
-            <p class="sub" v-else>ジャンル：{{ item.eventTag || 'その他' }}</p>
+            <p class="sub" v-if="item.type === 'event'">ジャンル：{{ item.eventTag || 'その他' }}</p>
+            <p class="sub" v-else>¥{{ (item.amount || 0).toLocaleString() }}・{{ item.eventName }}</p>
           </div>
         </div>
         <p class="days">あと{{ daysLeft(item) }}日で自動削除</p>
         <div class="trash-card__actions">
           <button v-if="item.type === 'event'" class="btn-brand sm" @click="restoreEvent(item)">元に戻す</button>
+          <button v-else-if="item.type === 'payment'" class="btn-brand sm" @click="restorePayment(item)">元に戻す</button>
           <button v-else class="btn-brand sm" @click="askRestoreSettlement(item)">未精算に戻す</button>
           <button class="btn-outline sm" @click="askDeleteForever(item)">完全に削除</button>
         </div>
@@ -76,7 +77,7 @@ import { ref, computed, reactive, onMounted, onUnmounted } from 'vue';
 import { db, auth } from '@/firebase';
 import {
   collection, query, orderBy, onSnapshot, doc, getDoc,
-  updateDoc, deleteDoc, addDoc, serverTimestamp, arrayRemove
+  updateDoc, deleteDoc, addDoc, serverTimestamp, arrayRemove, increment
 } from 'firebase/firestore';
 import PageHeader from '@/components/PageHeader.vue';
 import BaseModal from '@/components/BaseModal.vue';
@@ -95,6 +96,7 @@ const daysLeft = (item) => {
   return Math.max(0, left);
 };
 const counterpartyNames = (item) => (item.counterparties || []).map(c => c.name).join('・') || '相手';
+const typeLabel = (t) => (t === 'event' ? 'イベント' : (t === 'payment' ? '支払い' : '決済'));
 
 // ---- 確認ダイアログ ----
 const alertState = reactive({ show: false, type: 'warning', title: '', message: '', showCancel: true, confirmText: 'はい', cancelText: 'いいえ', onConfirm: null });
@@ -129,6 +131,26 @@ const restoreEvent = async (item) => {
     } catch (e) { console.error('復元通知エラー:', e); }
     await deleteDoc(doc(db, 'users', myUid, 'trash', item.id));
   } catch (e) { console.error('イベント復元エラー:', e); }
+};
+
+// ---- 削除した支払いを元に戻す（取引・履歴を作り直す） ----
+const restorePayment = async (item) => {
+  const myUid = auth.currentUser?.uid;
+  if (!myUid) return;
+  try {
+    const eventId = item.eventId;
+    const newTxIds = [];
+    for (const tx of (item.transactionSnapshots || [])) {
+      const ref = await addDoc(collection(db, 'transactions'), { ...tx, createdAt: serverTimestamp() });
+      newTxIds.push(ref.id);
+    }
+    const hs = item.historySnapshot || {};
+    await addDoc(collection(db, 'events', eventId, 'history'), {
+      ...hs, transactionIds: newTxIds, status: 'unpaid', timestamp: serverTimestamp(),
+    });
+    await updateDoc(doc(db, 'events', eventId), { totalAmount: increment(Number(item.amount) || 0) });
+    await deleteDoc(doc(db, 'users', myUid, 'trash', item.id));
+  } catch (e) { console.error('支払い復元エラー:', e); }
 };
 
 // ---- 決済を未精算に戻す（相手の承認待ちへ） ----

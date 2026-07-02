@@ -66,6 +66,11 @@
               <input v-model="formData.itemName" type="text" class="standard-input" placeholder="例: 鳥貴族">
             </div>
 
+            <div class="input-row">
+              <label>事業者登録番号 <span class="hint-text">(任意・レシートから自動取得)</span></label>
+              <input v-model="formData.registrationNumber" type="text" class="standard-input" placeholder="例: T1234567890123">
+            </div>
+
             <div class="input-row half-row">
               <div class="half">
                 <label>日付</label>
@@ -270,7 +275,8 @@ const formData = ref({
   time: '',
   payer: '',
   category: '食事', // 🌟 支払いジャンル
-  splitType: 'all'
+  splitType: 'all',
+  registrationNumber: '' // 🌟 事業者登録番号（インボイス・レシートOCRで取得）
 });
 
 // 🌟 参加者は親（イベント）から渡された実データを使う
@@ -301,6 +307,7 @@ const resetForm = () => {
   formData.value.time = '';
   formData.value.category = '食事';
   formData.value.splitType = 'all';
+  formData.value.registrationNumber = '';
   receiptItems.value = [];
   uploadedImage.value = null;
   isAnalyzing.value = false;
@@ -319,6 +326,7 @@ const prefillFromEdit = (d) => {
   formData.value.time = d.time || '';
   formData.value.category = d.category || 'その他';
   formData.value.splitType = d.splitType || 'all';
+  formData.value.registrationNumber = d.registrationNumber || '';
   formData.value.payer = d.payer || '';
   const next = {};
   (props.participants || []).forEach(p => { next[p.name] = ''; });
@@ -422,6 +430,7 @@ const processImage = (file) => {
       formData.value.amount = data.totalAmount ? String(data.totalAmount) : '';
       if (data.date) formData.value.date = data.date;
       if (data.time) formData.value.time = data.time;
+      formData.value.registrationNumber = data.registrationNumber || ''; // 事業者登録番号
       
       // 🌟 ここが新しい処理！展開せずに「個数（qty）」と「税率（taxRate）」として綺麗にセットする
       if (data.items && data.items.length > 0) {
@@ -486,15 +495,14 @@ const handleSubmit = () => {
       return;
     }
 
-    // 金額がズレている場合の confirm を美しいモーダルに！
+    // 金額がズレている場合は、合わせて直してもらう（ズレたまま保存させない）
     if (itemsTotal.value !== Number(formData.value.amount)) {
+      const diff = Number(formData.value.amount) - itemsTotal.value;
+      const diffText = diff > 0 ? `¥${diff.toLocaleString()} 足りません` : `¥${Math.abs(diff).toLocaleString()} 多いです`;
       showModal({
-        type: 'warning',
-        title: '金額が一致しません',
-        message: `内訳の合計（¥${itemsTotal.value.toLocaleString()}）が、全体の合計（¥${Number(formData.value.amount).toLocaleString()}）と一致していません。\n\n差額は誰の支払いにもならず消滅するか、立替者が多く負担することになります。\nこのまま追加しますか？`,
-        showCancel: true,
-        confirmText: 'このまま追加する',
-        onConfirm: () => executeSubmit() // 確認OKなら実際の送信処理へ
+        type: 'error',
+        title: '金額が合っていません',
+        message: `内訳の合計（¥${itemsTotal.value.toLocaleString()}）が全体（¥${Number(formData.value.amount).toLocaleString()}）と${diffText}。\n\n商品の金額か担当を直して、合計を合わせてから保存してください。`,
       });
       return;
     }
@@ -509,13 +517,12 @@ const handleSubmit = () => {
       return;
     }
     if (sum !== Number(formData.value.amount)) {
+      const diff = Number(formData.value.amount) - sum;
+      const diffText = diff > 0 ? `¥${diff.toLocaleString()} 足りません` : `¥${Math.abs(diff).toLocaleString()} 多いです`;
       showModal({
-        type: 'warning',
-        title: '金額が一致しません',
-        message: `指定の合計（¥${sum.toLocaleString()}）が全体（¥${Number(formData.value.amount).toLocaleString()}）と一致していません。\nこのまま追加しますか？`,
-        showCancel: true,
-        confirmText: 'このまま追加する',
-        onConfirm: () => executeSubmit()
+        type: 'error',
+        title: '金額が合っていません',
+        message: `指定の合計（¥${sum.toLocaleString()}）が全体（¥${Number(formData.value.amount).toLocaleString()}）と${diffText}。\n\n各メンバーの金額を直して合計を合わせてから保存してください。`,
       });
       return;
     }
@@ -574,6 +581,7 @@ const executeSubmit = () => {
     payerUid: payerObj ? payerObj.id : (props.myUid || null),
     itemName: formData.value.itemName,
     category: formData.value.category, // 🌟 支払いジャンル
+    registrationNumber: formData.value.registrationNumber || null, // 🌟 事業者登録番号
     splitType: formData.value.splitType,
     amount: Number(formData.value.amount),
     date: formData.value.date ? formData.value.date.replace(/-/g, '/') : "",
