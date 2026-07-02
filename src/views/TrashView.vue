@@ -3,8 +3,11 @@
     <PageHeader title="ゴミ箱" fallback="/mypage" />
 
     <div class="seg tabs">
-      <button class="seg__btn" :class="{ 'seg__btn--active': tab === 'trash' }" @click="tab = 'trash'">
-        ゴミ箱<span v-if="trashedItems.length" class="cnt">{{ trashedItems.length }}</span>
+      <button class="seg__btn" :class="{ 'seg__btn--active': tab === 'event' }" @click="tab = 'event'">
+        イベント<span v-if="eventItems.length" class="cnt">{{ eventItems.length }}</span>
+      </button>
+      <button class="seg__btn" :class="{ 'seg__btn--active': tab === 'tx' }" @click="tab = 'tx'">
+        取引<span v-if="txItems.length" class="cnt">{{ txItems.length }}</span>
       </button>
       <button class="seg__btn" :class="{ 'seg__btn--active': tab === 'pending' }" @click="tab = 'pending'">
         保留<span v-if="pendingItems.length" class="cnt">{{ pendingItems.length }}</span>
@@ -13,11 +16,11 @@
 
     <p class="hint">ゴミ箱に入って7日たつと自動で消えます。承認待ちのものは「保留」に入ります。</p>
 
-    <!-- ゴミ箱タブ -->
-    <div v-if="tab === 'trash'" class="list">
-      <div v-if="trashedItems.length === 0" class="empty-box">ゴミ箱は空です</div>
+    <!-- イベント / 取引 タブ（削除・完了したもの） -->
+    <div v-if="tab === 'event' || tab === 'tx'" class="list">
+      <div v-if="currentItems.length === 0" class="empty-box">{{ tab === 'event' ? '削除したイベントはありません' : '削除・完了した取引はありません' }}</div>
 
-      <div v-for="item in trashedItems" :key="item.id" class="card trash-card">
+      <div v-for="item in currentItems" :key="item.id" class="card trash-card">
         <div class="trash-card__main">
           <span class="badge" :class="item.type === 'event' ? 'badge--event' : 'badge--pay'">
             {{ typeLabel(item.type) }}
@@ -82,13 +85,17 @@ import {
 import PageHeader from '@/components/PageHeader.vue';
 import BaseModal from '@/components/BaseModal.vue';
 
-const tab = ref('trash');
+const tab = ref('event');
 const items = ref([]);
 const myName = ref('メンバー');
 let unsub = null;
 
 const trashedItems = computed(() => items.value.filter(i => i.status !== 'pending'));
 const pendingItems = computed(() => items.value.filter(i => i.status === 'pending'));
+// イベントと取引を分ける
+const eventItems = computed(() => trashedItems.value.filter(i => i.type === 'event'));
+const txItems = computed(() => trashedItems.value.filter(i => i.type !== 'event'));
+const currentItems = computed(() => (tab.value === 'event' ? eventItems.value : txItems.value));
 
 const daysLeft = (item) => {
   const ms = item.trashedAt?.toMillis ? item.trashedAt.toMillis() : Date.now();
