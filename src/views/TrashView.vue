@@ -2,15 +2,21 @@
   <div class="screen">
     <PageHeader title="ゴミ箱" fallback="/mypage" />
 
-    <div class="seg tabs">
-      <button class="seg__btn" :class="{ 'seg__btn--active': tab === 'event' }" @click="tab = 'event'">
-        イベント<span v-if="eventItems.length" class="cnt">{{ eventItems.length }}</span>
+    <div class="ttabs">
+      <button class="ttab" :class="{ 'is-on': tab === 'event' }" @click="tab = 'event'">
+        <svg class="ttab__icon" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg>
+        <span>イベント</span>
+        <span v-if="eventItems.length" class="ttab__cnt">{{ eventItems.length }}</span>
       </button>
-      <button class="seg__btn" :class="{ 'seg__btn--active': tab === 'tx' }" @click="tab = 'tx'">
-        取引<span v-if="txItems.length" class="cnt">{{ txItems.length }}</span>
+      <button class="ttab" :class="{ 'is-on': tab === 'tx' }" @click="tab = 'tx'">
+        <svg class="ttab__icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v8M9.2 9.8h4.2a1.8 1.8 0 1 1 0 3.6H10a1.9 1.9 0 1 0 0 3.8h4.6"/></svg>
+        <span>取引</span>
+        <span v-if="txItems.length" class="ttab__cnt">{{ txItems.length }}</span>
       </button>
-      <button class="seg__btn" :class="{ 'seg__btn--active': tab === 'pending' }" @click="tab = 'pending'">
-        保留<span v-if="pendingItems.length" class="cnt">{{ pendingItems.length }}</span>
+      <button class="ttab" :class="{ 'is-on': tab === 'pending' }" @click="tab = 'pending'">
+        <svg class="ttab__icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+        <span>保留</span>
+        <span v-if="pendingItems.length" class="ttab__cnt">{{ pendingItems.length }}</span>
       </button>
     </div>
 
@@ -231,8 +237,55 @@ onUnmounted(() => { if (unsub) unsub(); });
 
 <style scoped>
 .screen { padding-bottom: 40px; }
-.tabs { margin: 12px var(--pad) 10px; }
-.cnt { margin-left: 6px; background: var(--c-brand); color: #fff; border-radius: 999px; padding: 0 6px; font-size: 11px; font-weight: var(--fw-bold); }
+
+/* タブ（はっきり見える大きめボタン） */
+.ttabs {
+  display: flex;
+  gap: 8px;
+  margin: 14px var(--pad) 12px;
+}
+.ttab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 4px 10px;
+  border-radius: var(--r-lg, 16px);
+  background: var(--c-surface);
+  border: 1.5px solid var(--c-line, #e5e8eb);
+  color: var(--c-text-sub);
+  font-size: 13px;
+  font-weight: var(--fw-bold);
+  position: relative;
+  transition: all 0.15s ease;
+}
+.ttab__icon { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ttab.is-on {
+  background: var(--c-brand);
+  border-color: var(--c-brand);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(16, 145, 90, 0.28);
+}
+.ttab:active { transform: scale(0.97); }
+.ttab__cnt {
+  position: absolute;
+  top: -7px;
+  right: -4px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--c-danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: var(--fw-bold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--c-bg, #fff);
+}
+
 .hint { margin: 0 var(--pad) 14px; font-size: 12px; color: var(--c-text-sub); line-height: 1.5; }
 .list { padding: 0 var(--pad); display: flex; flex-direction: column; gap: 12px; }
 
