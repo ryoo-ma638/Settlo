@@ -163,11 +163,20 @@
               <button class="add-item-btn" @click="addDummyItem">＋ 商品追加</button>
             </div>
 
-            <div class="global-tax-control">
-              <span>一括設定:</span>
-              <button class="global-tax-btn" @click="setGlobalTax(0)">すべて税抜</button>
-              <button class="global-tax-btn" @click="setGlobalTax(8)">すべて+8%</button>
-              <button class="global-tax-btn" @click="setGlobalTax(10)">すべて+10%</button>
+            <div class="tax-mode-box">
+              <p class="tax-mode-title">税の計算方法 <span class="hint-text">(レシートから自動判定・変更可)</span></p>
+              <div class="tax-mode-seg">
+                <button :class="{ active: taxMode === 'included' }" @click="taxMode = 'included'">価格は税込</button>
+                <button :class="{ active: taxMode === 'aggregate' }" @click="taxMode = 'aggregate'">税抜 → 合計に課税</button>
+                <button :class="{ active: taxMode === 'perItem' }" @click="taxMode = 'perItem'">税抜 → 商品ごと課税</button>
+              </div>
+              <p class="tax-mode-desc">{{ taxModeDesc }}</p>
+            </div>
+
+            <div v-if="taxMode !== 'included'" class="global-tax-control">
+              <span>税率を一括設定:</span>
+              <button class="global-tax-btn" @click="setGlobalTax(8)">すべて8%</button>
+              <button class="global-tax-btn" @click="setGlobalTax(10)">すべて10%</button>
             </div>
 
             <div class="receipt-items-list">
@@ -191,13 +200,13 @@
                     <span>{{ item.qty }}</span>
                     <button @click="item.qty++">+</button>
                   </div>
-                  <button class="tax-toggle-btn" :class="'tax-' + item.taxRate" @click="toggleTax(item)">
-                    {{ item.taxRate === 0 ? '税込' : `+${item.taxRate}%` }}
+                  <button v-if="taxMode !== 'included'" class="tax-toggle-btn" :class="'tax-' + item.taxRate" @click="toggleTax(item)">
+                    {{ item.taxRate === 0 ? '0%' : `${item.taxRate}%` }}
                   </button>
                 </div>
 
                 <div class="item-subtotal">
-                  小計: <strong>¥{{ calcItemTotal(item).toLocaleString() }}</strong>
+                  小計{{ taxMode === 'aggregate' ? '（税抜）' : '' }}: <strong>¥{{ calcItemTotal(item).toLocaleString() }}</strong>
                 </div>
                 
                 <div class="item-assignees">
@@ -321,6 +330,7 @@ const resetForm = () => {
   formData.value.category = '食事';
   formData.value.splitType = 'all';
   formData.value.registrationNumber = '';
+  taxMode.value = 'included';
   receiptItems.value = [];
   uploadedImage.value = null;
   isAnalyzing.value = false;
@@ -341,12 +351,17 @@ const prefillFromEdit = (d) => {
   formData.value.splitType = d.splitType || 'all';
   formData.value.registrationNumber = d.registrationNumber || '';
   formData.value.payer = d.payer || '';
+  taxMode.value = d.taxMode || 'included';
   const next = {};
   (props.participants || []).forEach(p => { next[p.name] = ''; });
   (d.shares || []).forEach(s => { if (s && s.name != null) next[s.name] = Number(s.amount) || ''; });
   customSplitAmounts.value = next;
   receiptItems.value = (d.items || []).map(it => ({
-    name: it.name || '', price: it.price || 0, qty: 1, taxRate: 0, assignees: it.assignees || [],
+    name: it.name || '',
+    price: it.rawPrice != null ? it.rawPrice : (it.price || 0), // 印字価格があればそれを復元
+    qty: it.qty || 1,
+    taxRate: it.taxRate != null ? it.taxRate : 0,
+    assignees: it.assignees || [],
   }));
   uploadedImage.value = null;
   isAnalyzing.value = false;
@@ -439,20 +454,32 @@ const processImage = (file) => {
       const data = result.data; // AIが返してきたJSONデータ！
 
       // フォームに自動入力
-      formData.value.itemName = data.storeName || '不明な店舗';
-      formData.value.amount = data.totalAmount ? String(data.totalAmount) : '';
-      if (data.date) formData.value.date = data.date;
-      if (data.time) formData.value.time = data.time;
-      formData.value.registrationNumber = data.registrationNumber || ''; // 事業者登録番号
-      
-      // 🌟 ここが新しい処理！展開せずに「個数（qty）」と「税率（taxRate）」として綺麗にセットする
-      if (data.items && data.items.length > 0) {
-        receiptItems.value = data.items.map(item => ({
-          name: item.name || '不明な商品',
-          price: item.price || 0,
-          qty: item.quantity && item.quantity > 0 ? item.quantity : 1, // AIが読んだ個数をセット
-          taxRate: 0, // 初期値は税込(0%)
-          assignees: [] 
+      // 🛡️ OCR結果の検証（AIの出力が乱れてもUIが壊れないようにクランプする）
+      const safeNum = (v, min, max, dflt) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : dflt;
+      };
+      const safeText = (v, len) => (typeof v === 'string' ? v.trim().slice(0, len) : '');
+
+      formData.value.itemName = safeText(data.storeName, 60) || '不明な店舗';
+      const total = safeNum(data.totalAmount, 0, 99999999, 0);
+      formData.value.amount = total > 0 ? String(total) : '';
+      if (typeof data.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.date)) formData.value.date = data.date;
+      if (typeof data.time === 'string' && /^\d{1,2}:\d{2}$/.test(data.time)) formData.value.time = data.time;
+      const regNo = safeText(data.registrationNumber, 20);
+      formData.value.registrationNumber = /^T\d{13}$/.test(regNo) ? regNo : ''; // 事業者登録番号（T+13桁のみ受理）
+
+      // 🌟 税込/税抜をAIの判定から自動セット（税抜なら「合計してから課税」方式に）
+      taxMode.value = data.taxIncluded === false ? 'aggregate' : 'included';
+
+      // 🌟 商品ごとの税率もAIの判定をプリセット（8%か10%のボタンが押された状態にする）
+      if (Array.isArray(data.items) && data.items.length > 0) {
+        receiptItems.value = data.items.slice(0, 100).map(item => ({
+          name: safeText(item.name, 60) || '不明な商品',
+          price: safeNum(item.price, 0, 9999999, 0),
+          qty: safeNum(item.quantity, 1, 999, 1),
+          taxRate: item.taxRate === 8 ? 8 : (item.taxRate === 10 ? 10 : (data.taxIncluded === false ? 10 : 8)),
+          assignees: []
         }));
         formData.value.splitType = 'item'; // 商品タブに自動で切り替え
       }
@@ -471,24 +498,52 @@ const toggleAssignee = (item, name) => {
   else item.assignees.push(name);
 };
 const addDummyItem = () => {
-  receiptItems.value.push({ name: '', price: null, qty: 1, taxRate: 0, assignees: [] });
+  receiptItems.value.push({ name: '', price: null, qty: 1, taxRate: 10, assignees: [] });
 };
 
-// 🌟 小計・合計の計算ロジック
+// 🌟 税の計算方法（レシートOCRが自動判定・手動でも変更可）
+//   included  = 商品の価格がすでに税込 → そのまま合算
+//   aggregate = 税抜価格 → 税率ごとにまとめて「合計してから」課税（レシートで最も一般的）
+//   perItem   = 税抜価格 → 商品1つずつ課税（店によってはこちら）
+const taxMode = ref('included');
+const taxModeDesc = computed(() => {
+  if (taxMode.value === 'included') return '商品の価格を税込として、そのまま合算します。';
+  if (taxMode.value === 'aggregate') return '税抜価格を税率ごとに合算してから消費税をかけます（1円ずれが出にくい方式）。';
+  return '商品1つずつに消費税をかけてから合算します。';
+});
+
+// 🌟 小計・合計の計算ロジック（taxMode に応じて切替）
 const calcItemTotal = (item) => {
   const base = (Number(item.price) || 0) * (item.qty || 1);
-  return Math.floor(base * (1 + (item.taxRate / 100)));
+  if (taxMode.value === 'perItem') return Math.floor(base * (1 + (Number(item.taxRate) || 0) / 100));
+  return Math.round(base); // included: 税込そのまま / aggregate: 税抜のまま表示（課税は合計側で）
+};
+
+// 割り勘の負担額に使う「税込換算後」の商品金額
+const itemShareAmount = (item) => {
+  const base = (Number(item.price) || 0) * (item.qty || 1);
+  if (taxMode.value === 'included') return Math.round(base);
+  return Math.floor(base * (1 + (Number(item.taxRate) || 0) / 100));
 };
 
 const itemsTotal = computed(() => {
+  if (taxMode.value === 'aggregate') {
+    // 税率ごとにまとめて課税（端数の切り捨ては税率グループごとに1回だけ）
+    const groups = {};
+    receiptItems.value.forEach(it => {
+      const r = Number(it.taxRate) || 0;
+      groups[r] = (groups[r] || 0) + (Number(it.price) || 0) * (it.qty || 1);
+    });
+    return Object.entries(groups).reduce((sum, [r, net]) => sum + Math.floor(net * (1 + Number(r) / 100)), 0);
+  }
   return receiptItems.value.reduce((sum, item) => sum + calcItemTotal(item), 0);
 });
 
-// 🌟 税率の切り替え機能
+// 🌟 税率の切り替え機能（8% → 10% → 0%（非課税） → 8%…）
 const toggleTax = (item) => {
-  if (item.taxRate === 0) item.taxRate = 8;
-  else if (item.taxRate === 8) item.taxRate = 10;
-  else item.taxRate = 0;
+  if (item.taxRate === 8) item.taxRate = 10;
+  else if (item.taxRate === 10) item.taxRate = 0;
+  else item.taxRate = 8;
 };
 const setGlobalTax = (rate) => {
   receiptItems.value.forEach(item => item.taxRate = rate);
@@ -564,9 +619,9 @@ const computeShares = () => {
     // 金額指定：各人が入力した額がそのまま負担額
     arr.forEach(p => { shares[p.id] = Number(customSplitAmounts.value[p.name]) || 0; });
   } else if (formData.value.splitType === 'item') {
-    // 商品ごと：各商品を支払う人で均等割りし、合算
+    // 商品ごと：各商品（税込換算後）を支払う人で均等割りし、合算
     receiptItems.value.forEach(item => {
-      const price = calcItemTotal(item);
+      const price = itemShareAmount(item);
       const assignees = item.assignees || [];
       if (assignees.length === 0) return;
       const per = Math.floor(price / assignees.length);
@@ -614,6 +669,7 @@ const executeSubmit = () => {
     category: formData.value.category, // 🌟 支払いジャンル
     registrationNumber: formData.value.registrationNumber || null, // 🌟 事業者登録番号
     splitType: formData.value.splitType,
+    taxMode: taxMode.value, // 🌟 税の計算方法（再編集時に復元する）
     amount: Number(formData.value.amount),
     date: formData.value.date ? formData.value.date.replace(/-/g, '/') : "",
     time: currentTime,
@@ -621,7 +677,10 @@ const executeSubmit = () => {
     shares: computeShares(),
     items: receiptItems.value.map(item => ({
       name: item.name,
-      price: calcItemTotal(item),
+      price: itemShareAmount(item), // 税込換算後（表示・精算用）
+      rawPrice: Number(item.price) || 0, // 印字どおりの価格（再編集用）
+      qty: item.qty || 1,
+      taxRate: Number(item.taxRate) || 0,
       assignees: item.assignees
     }))
   };
@@ -769,6 +828,17 @@ const executeSubmit = () => {
 .match-status.error { color: #ef4444; background: #fee2e2; border: 1px dashed #ef4444; }
 
 /* 🌟 UX向上：商品ごとのレイアウト */
+/* 🌟 税の計算方法セレクタ */
+.tax-mode-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; margin-bottom: 14px; }
+.tax-mode-title { margin: 0 0 8px; font-size: 12px; font-weight: 800; color: #475569; }
+.tax-mode-seg { display: flex; gap: 6px; }
+.tax-mode-seg button {
+  flex: 1; padding: 9px 4px; border-radius: 10px; font-size: 11.5px; font-weight: 700;
+  background: #fff; border: 1.5px solid #e2e8f0; color: #64748b; transition: all 0.15s ease; line-height: 1.3;
+}
+.tax-mode-seg button.active { background: var(--c-brand, #10b981); border-color: var(--c-brand, #10b981); color: #fff; }
+.tax-mode-desc { margin: 8px 0 0; font-size: 11px; color: #94a3b8; line-height: 1.5; }
+
 .global-tax-control { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; font-size: 11px; font-weight: 800; color: #64748b; }
 .global-tax-btn { padding: 6px 10px; border-radius: 12px; border: 1px solid #cbd5e1; background: white; cursor: pointer; color: #475569; font-weight: bold; transition: 0.2s; }
 .global-tax-btn:active { background: #f1f5f9; }
