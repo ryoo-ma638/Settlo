@@ -764,6 +764,7 @@ const addHistory = async (newPayment) => {
       category: newPayment.category || 'その他', // 🌟 支払いジャンル
       registrationNumber: newPayment.registrationNumber || null, // 🌟 事業者登録番号（インボイス）
       splitType: newPayment.splitType,
+      taxMode: newPayment.taxMode || 'included', // 🌟 税の計算方法（再編集時に復元）
       amount: Number(newPayment.amount),
       date: newPayment.date,
       time: newPayment.time,
@@ -892,6 +893,7 @@ onMounted(async () => {
         payerUid: data.payerUid || null,
         category: data.category || 'その他',
         registrationNumber: data.registrationNumber || null,
+        taxMode: data.taxMode || 'included',
         items: data.items || []
       });
     });
