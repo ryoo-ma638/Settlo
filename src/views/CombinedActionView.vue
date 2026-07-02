@@ -99,6 +99,21 @@
             await updateDoc(doc(db, "transactions", id), { status: 'completed' });
           }
 
+          // 🌟 相手へ「精算が完了しました」を届ける
+          if (txIds.length > 0) {
+            try {
+              await addDoc(collection(db, "notifications"), {
+                toUserId: friendUid,
+                fromUserId: myUid,
+                fromUserName: auth.currentUser?.displayName || 'メンバー',
+                type: 'payment_completed',
+                message: `${ids.size}件の取引がまとめて精算されました。`,
+                isRead: false,
+                createdAt: serverTimestamp(),
+              });
+            } catch (e) { console.error('完了通知の送信に失敗:', e); }
+          }
+
           // 🗑️ 間違えて精算した時のために、7日間はゴミ箱から「未精算に戻す」ことができるように
           if (txIds.length > 0) {
             try {
