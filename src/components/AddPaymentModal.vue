@@ -225,6 +225,19 @@
 
       </div>
     </div>
+
+    <BaseModal
+      :show="modalState.show"
+      :type="modalState.type"
+      :title="modalState.title"
+      :message="modalState.message"
+      :showCancel="modalState.showCancel"
+      :confirmText="modalState.confirmText"
+      :cancelText="modalState.cancelText"
+      @confirm="handleConfirmModal"
+      @cancel="modalState.show = false"
+      @close="modalState.show = false"
+    />
   </Teleport>
 </template>
 
@@ -495,14 +508,18 @@ const handleSubmit = () => {
       return;
     }
 
-    // 金額がズレている場合は、合わせて直してもらう（ズレたまま保存させない）
+    // 金額がズレている場合は差額を表示。直すか、立替者が差額を負担して保存かを選べる
     if (itemsTotal.value !== Number(formData.value.amount)) {
       const diff = Number(formData.value.amount) - itemsTotal.value;
       const diffText = diff > 0 ? `¥${diff.toLocaleString()} 足りません` : `¥${Math.abs(diff).toLocaleString()} 多いです`;
       showModal({
-        type: 'error',
+        type: 'warning',
         title: '金額が合っていません',
-        message: `内訳の合計（¥${itemsTotal.value.toLocaleString()}）が全体（¥${Number(formData.value.amount).toLocaleString()}）と${diffText}。\n\n商品の金額か担当を直して、合計を合わせてから保存してください。`,
+        message: `内訳の合計（¥${itemsTotal.value.toLocaleString()}）が全体（¥${Number(formData.value.amount).toLocaleString()}）と${diffText}。\n\n商品の金額か担当を直すか、この差額を立替者（${formData.value.payer || '立替者'}）が負担してよければこのまま保存できます。`,
+        showCancel: true,
+        confirmText: 'このまま保存',
+        cancelText: '戻って直す',
+        onConfirm: () => executeSubmit(),
       });
       return;
     }
@@ -520,9 +537,13 @@ const handleSubmit = () => {
       const diff = Number(formData.value.amount) - sum;
       const diffText = diff > 0 ? `¥${diff.toLocaleString()} 足りません` : `¥${Math.abs(diff).toLocaleString()} 多いです`;
       showModal({
-        type: 'error',
+        type: 'warning',
         title: '金額が合っていません',
-        message: `指定の合計（¥${sum.toLocaleString()}）が全体（¥${Number(formData.value.amount).toLocaleString()}）と${diffText}。\n\n各メンバーの金額を直して合計を合わせてから保存してください。`,
+        message: `指定の合計（¥${sum.toLocaleString()}）が全体（¥${Number(formData.value.amount).toLocaleString()}）と${diffText}。\n\n各メンバーの金額を直すか、この差額を立替者（${formData.value.payer || '立替者'}）が負担してよければこのまま保存できます。`,
+        showCancel: true,
+        confirmText: 'このまま保存',
+        cancelText: '戻って直す',
+        onConfirm: () => executeSubmit(),
       });
       return;
     }
@@ -558,6 +579,16 @@ const computeShares = () => {
     // 全員で均等
     const per = Math.floor(Number(formData.value.amount) / (arr.length || 1));
     arr.forEach(p => { shares[p.id] = per; });
+  }
+
+  // 🌟 端数（切り捨て）で合計より少なくなる分は立替者が負担し、割り勘合計を必ず総額に一致させる
+  //    → 「1円足りなくて決済が通らない」を根本から防ぐ
+  const total = Number(formData.value.amount) || 0;
+  const sum = arr.reduce((s, p) => s + (shares[p.id] || 0), 0);
+  const diff = total - sum;
+  if (diff !== 0) {
+    const payerObj = arr.find(p => p.name === formData.value.payer) || arr.find(p => p.isMe) || arr[0];
+    if (payerObj) shares[payerObj.id] = (shares[payerObj.id] || 0) + diff;
   }
 
   return arr.map(p => ({ uid: p.id, name: p.name, amount: shares[p.id] || 0 }));
