@@ -966,6 +966,18 @@ const deleteEventCompletely = async () => {
       trashedAt: serverTimestamp(),
       status: 'trashed',
     });
+    // 🌟 一方的な削除にならないよう、他の参加者へ「抜けました。正しいですか？」を届ける
+    const others = eventData.value.participants.map(p => p.id).filter(uid => uid !== myUid);
+    for (const uid of others) {
+      try {
+        await addDoc(collection(db, "notifications"), {
+          toUserId: uid, type: 'event_left_check',
+          eventId, eventName: eventData.value.name || 'イベント',
+          fromUserId: myUid, fromUserName: myName.value || 'メンバー',
+          isRead: false, createdAt: serverTimestamp(),
+        });
+      } catch (e) {}
+    }
   } catch (e) {
     console.error("イベント削除エラー:", e);
   }
