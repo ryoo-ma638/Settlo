@@ -611,11 +611,14 @@ const deletePayment = (h) => {
       for (const tid of (h.transactionIds || [])) {
         try { const t = await getDoc(doc(db, "transactions", tid)); if (t.exists()) txSnapshots.push(t.data()); } catch (e) {}
       }
-      // ゴミ箱に控えを保存（7日以内なら作り直して復元できる）
+      // 🌟 共有ゴミ箱に控えを保存（両当事者が見られる・7日以内なら作り直して復元できる）
       if (myUid) {
         try {
-          await addDoc(collection(db, "users", myUid, "trash"), {
+          await addDoc(collection(db, "trash"), {
             type: 'payment',
+            participants: involved.includes(myUid) ? involved : [...involved, myUid], // 当事者全員が閲覧・操作可
+            createdBy: myUid,
+            createdByName: myName.value || 'メンバー',
             trashedAt: serverTimestamp(),
             status: 'trashed',
             eventId,
@@ -677,8 +680,11 @@ const markAsCompleted = async (id) => {
       if (hist.payerUid) addOther(hist.payerUid, hist.payer);
       (hist.shares || []).forEach(s => addOther(s.uid, s.name));
       try {
-        await addDoc(collection(db, "users", myUid, "trash"), {
+        await addDoc(collection(db, "trash"), {
           type: 'settlement',
+          participants: [myUid, ...others.map(o => o.uid)], // 🌟 両当事者が見られる共有ゴミ箱
+          createdBy: myUid,
+          createdByName: myName.value || 'メンバー',
           trashedAt: serverTimestamp(),
           status: 'trashed',
           eventId,
