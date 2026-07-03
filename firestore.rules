@@ -79,6 +79,12 @@ service cloud.firestore {
       }
     }
 
+    // ---- 共有ゴミ箱（取引の削除/完了の控え・両当事者が見られる） ----
+    match /trash/{trashId} {
+      allow read, update, delete: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants;
+    }
+
     // ---- 通知 ----
     match /notifications/{notifId} {
       allow read:           if isSignedIn() && resource.data.toUserId == request.auth.uid;

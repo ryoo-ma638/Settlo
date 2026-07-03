@@ -114,12 +114,15 @@
             } catch (e) { console.error('完了通知の送信に失敗:', e); }
           }
 
-          // 🗑️ 間違えて精算した時のために、7日間はゴミ箱から「未精算に戻す」ことができるように
+          // 🗑️ 間違えて精算した時のために、7日間はゴミ箱から「未精算に戻す」ことができるように（両当事者が見られる共有ゴミ箱）
           if (txIds.length > 0) {
             try {
               const friendName = route.params.name || '相手';
-              await addDoc(collection(db, "users", myUid, "trash"), {
+              await addDoc(collection(db, "trash"), {
                 type: 'settlement',
+                participants: [myUid, friendUid],
+                createdBy: myUid,
+                createdByName: auth.currentUser?.displayName || 'メンバー',
                 trashedAt: serverTimestamp(),
                 status: 'trashed',
                 eventId: null,

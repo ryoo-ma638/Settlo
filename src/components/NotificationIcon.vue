@@ -34,6 +34,10 @@
                       <button class="mini-btn mini-btn--ghost" @click="rejectTx(req)">拒否する</button>
                       <button class="mini-btn mini-btn--ghost" @click="goToPaymentDetail(req)">詳細</button>
                     </template>
+                    <template v-else-if="req.type === 'restore_check'">
+                      <button class="mini-btn" @click="confirmRestoreOk(req)">正しい</button>
+                      <button class="mini-btn mini-btn--ghost" @click="confirmRestoreNg(req)">正しくない</button>
+                    </template>
                     <template v-else>
                       <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
                       <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
@@ -87,6 +91,10 @@
                 <button class="mini-btn" @click="approveTx(req)">承認する</button>
                 <button class="mini-btn mini-btn--ghost" @click="rejectTx(req)">拒否する</button>
                 <button class="mini-btn mini-btn--ghost" @click="goToPaymentDetail(req)">詳細</button>
+              </template>
+              <template v-else-if="req.type === 'restore_check'">
+                <button class="mini-btn" @click="confirmRestoreOk(req)">正しい</button>
+                <button class="mini-btn mini-btn--ghost" @click="confirmRestoreNg(req)">正しくない</button>
               </template>
               <template v-else>
                 <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
@@ -145,7 +153,7 @@ import BaseModal from './BaseModal.vue';
 import { db, auth } from '@/firebase';
 import {
   collection, query, where, onSnapshot,
-  doc, getDoc, setDoc, deleteDoc, updateDoc, addDoc, serverTimestamp, arrayUnion
+  doc, getDoc, setDoc, deleteDoc, updateDoc, addDoc, serverTimestamp, arrayUnion, increment
 } from 'firebase/firestore';
 
 const router = useRouter();
@@ -167,6 +175,8 @@ const notifText = (req) => {
   if (req.type === 'settlement_restore_approved') return `さんが「${req.itemName || ''}」を未精算に戻すことを承認しました`;
   if (req.type === 'settlement_restore_rejected') return `さんが「${req.itemName || ''}」を未精算に戻すことを拒否しました`;
   if (req.type === 'payment_completed') return 'さんとの支払いが完了しました！';
+  if (req.type === 'restore_check') return `さんが「${req.itemName || ''}」（¥${(req.amount || 0).toLocaleString()}）をゴミ箱から元に戻しました。こちらで正しいですか？`;
+  if (req.type === 'restore_reverted') return `さんが「正しくない」を選んだため、「${req.itemName || ''}」をゴミ箱に戻しました。内容を確認してください`;
   return 'さんから支払いの承認リクエストが届いています';
 };
 const notifAction = (req) => {
@@ -177,7 +187,7 @@ const notifAction = (req) => {
   return '詳細を確認する';
 };
 const notifClass = (req) => {
-  if (['approval_rejected', 'invite_rejected', 'settlement_restore_rejected'].includes(req.type)) return 'notif-item--reject';
+  if (['approval_rejected', 'invite_rejected', 'settlement_restore_rejected', 'restore_reverted'].includes(req.type)) return 'notif-item--reject';
   if (['payment_edited', 'payment_deleted', 'event_edited', 'event_joined', 'event_restored', 'settlement_restore_approved', 'payment_completed'].includes(req.type)) return 'notif-item--info';
   return 'notif-item--pay';
 };
@@ -224,7 +234,7 @@ const goToPaymentDetail = async (req) => {
       return;
     }
     // 編集/削除/イベント編集/招待拒否/参加/復元/決済戻し結果は該当イベントへ（対象の取引はもう無い/変わっているため）
-    if (['payment_edited', 'payment_deleted', 'event_edited', 'invite_rejected', 'event_joined', 'event_restored', 'settlement_restore_approved', 'settlement_restore_rejected'].includes(req.type)) {
+    if (['payment_edited', 'payment_deleted', 'event_edited', 'invite_rejected', 'event_joined', 'event_restored', 'settlement_restore_approved', 'settlement_restore_rejected', 'restore_reverted'].includes(req.type)) {
       if (req.eventId) router.push(`/event/${req.eventId}`);
       return;
     }
@@ -392,6 +402,8 @@ const approveRestore = async (req) => {
       eventId: req.eventId || null, eventName: req.eventName || '', itemName: req.itemName || '',
       fromUserId: myUid, fromUserName: myName, isRead: false, createdAt: serverTimestamp(),
     });
+    // 🌟 共有ゴミ箱の控えを確定（復元完了なので消す）
+    if (req.trashId) { try { await deleteDoc(doc(db, "trash", req.trashId)); } catch (e) {} }
     await updateDoc(doc(db, "notifications", req.id), { isRead: true });
   } catch (e) { console.error("復元承認エラー:", e); }
 };
@@ -408,8 +420,54 @@ const rejectRestore = (req) => {
         eventId: req.eventId || null, eventName: req.eventName || '', itemName: req.itemName || '',
         fromUserId: myUid, fromUserName: myName, isRead: false, createdAt: serverTimestamp(),
       });
+      // 🌟 共有ゴミ箱の控えを「保留」からゴミ箱に戻す（完了のまま）
+      if (req.trashId) { try { await updateDoc(doc(db, "trash", req.trashId), { status: 'trashed' }); } catch (e) {} }
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
     } catch (e) { console.error("復元拒否エラー:", e); }
+  });
+};
+
+// 🌟 復元の確認「正しい」＝復元を確定（ゴミ箱の控えを消す）
+const confirmRestoreOk = async (req) => {
+  try {
+    if (req.trashId) { try { await deleteDoc(doc(db, "trash", req.trashId)); } catch (e) {} }
+    await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+  } catch (e) { console.error("復元確認エラー:", e); }
+};
+
+// 🌟 復元の確認「正しくない」＝復元された取引・履歴を消してゴミ箱に差し戻し、復元した人へ通知
+const confirmRestoreNg = (req) => {
+  askConfirm('「正しくない」を選びますか？', `「${req.itemName || ''}」を削除リスト（ゴミ箱）に戻します。相手に通知が届きます。`, async () => {
+    try {
+      const myUid = auth.currentUser?.uid;
+      if (!req.trashId) { await updateDoc(doc(db, "notifications", req.id), { isRead: true }); return; }
+      const t = await getDoc(doc(db, "trash", req.trashId));
+      if (t.exists()) {
+        const d = t.data();
+        // 復元で作り直された取引・履歴を削除して元のゴミ箱状態に戻す
+        for (const tid of (d.restoredTransactionIds || [])) {
+          try { await deleteDoc(doc(db, "transactions", tid)); } catch (e) {}
+        }
+        if (d.eventId && d.restoredHistoryId) {
+          try { await deleteDoc(doc(db, "events", d.eventId, "history", d.restoredHistoryId)); } catch (e) {}
+        }
+        if (d.eventId) {
+          try { await updateDoc(doc(db, "events", d.eventId), { totalAmount: increment(-(Number(d.amount) || 0)) }); } catch (e) {}
+        }
+        await updateDoc(doc(db, "trash", req.trashId), {
+          status: 'trashed', restoredHistoryId: null, restoredTransactionIds: [], restoredBy: null,
+        });
+        // 復元した人へ「差し戻しました」通知
+        await addDoc(collection(db, "notifications"), {
+          toUserId: d.restoredBy || req.fromUserId, type: 'restore_reverted',
+          eventId: d.eventId || null, eventName: d.eventName || '',
+          itemName: d.itemName || '', amount: Number(d.amount) || 0,
+          fromUserId: myUid, fromUserName: await getMyName(),
+          isRead: false, createdAt: serverTimestamp(),
+        });
+      }
+      await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+    } catch (e) { console.error("復元差し戻しエラー:", e); }
   });
 };
 

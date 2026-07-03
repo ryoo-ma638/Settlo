@@ -31,7 +31,7 @@
         <p>{{ tab === 'event' ? '削除したイベントはありません' : '削除・完了した取引はありません' }}</p>
       </div>
 
-      <div v-for="item in currentItems" :key="item.id" class="tcard">
+      <div v-for="item in currentItems" :key="item._loc + item.id" class="tcard">
         <div class="tcard__head">
           <span class="tcard__badge" :class="item.type === 'event' ? 'is-event' : 'is-pay'">{{ typeLabel(item.type) }}</span>
           <span class="tcard__days" :class="{ 'is-soon': daysLeft(item) <= 2 }">あと{{ daysLeft(item) }}日</span>
@@ -40,6 +40,9 @@
         <p class="tcard__meta">
           <template v-if="item.type === 'event'">ジャンル：{{ item.eventTag || 'その他' }}</template>
           <template v-else><b class="yen">¥{{ (item.amount || 0).toLocaleString() }}</b><span class="sep">/</span>{{ item.eventName }}</template>
+        </p>
+        <p class="tcard__note" v-if="item._loc === 'shared' && item.createdBy && item.createdBy !== myUid">
+          {{ item.createdByName || '相手' }}さんが{{ item.type === 'payment' ? '削除' : '完了に' }}しました
         </p>
         <div class="tcard__actions">
           <button v-if="item.type === 'event'" class="btn-brand act" @click="restoreEvent(item)">元に戻す</button>
@@ -57,14 +60,17 @@
         <p>保留中のものはありません</p>
       </div>
 
-      <div v-for="item in pendingItems" :key="item.id" class="tcard tcard--wait">
+      <div v-for="item in pendingItems" :key="item._loc + item.id" class="tcard tcard--wait">
         <div class="tcard__head">
-          <span class="tcard__badge is-wait">承認待ち</span>
+          <span class="tcard__badge is-wait">{{ item.status === 'restored' ? '復元の確認待ち' : '承認待ち' }}</span>
         </div>
         <p class="tcard__ttl">{{ item.itemName }}</p>
         <p class="tcard__meta"><b class="yen">¥{{ (item.amount || 0).toLocaleString() }}</b><span class="sep">/</span>{{ item.eventName }}</p>
-        <p class="tcard__note">相手（{{ counterpartyNames(item) }}）の承認を待っています</p>
-        <div class="tcard__actions">
+        <p class="tcard__note" v-if="item.status === 'restored'">
+          {{ item.restoredBy === myUid ? '元に戻しました。相手が「正しい」を選ぶと確定します' : `${item.createdByName || '相手'}さんが元に戻しました。お知らせから「正しい／正しくない」を選んでください` }}
+        </p>
+        <p class="tcard__note" v-else>相手（{{ counterpartyNames(item) }}）の承認を待っています</p>
+        <div class="tcard__actions" v-if="item.status === 'pending'">
           <button class="btn-outline act" @click="askCancelPending(item)">依頼を取り消す</button>
         </div>
       </div>
@@ -89,23 +95,41 @@
 import { ref, computed, reactive, onMounted, onUnmounted } from 'vue';
 import { db, auth } from '@/firebase';
 import {
-  collection, query, orderBy, onSnapshot, doc, getDoc,
+  collection, query, where, orderBy, onSnapshot, doc, getDoc,
   updateDoc, deleteDoc, addDoc, serverTimestamp, arrayRemove, increment
 } from 'firebase/firestore';
 import PageHeader from '@/components/PageHeader.vue';
 import BaseModal from '@/components/BaseModal.vue';
 
 const tab = ref('event');
-const items = ref([]);
+const userItems = ref([]);   // 自分専用（イベントの非表示など）
+const sharedItems = ref([]); // 共有ゴミ箱（取引・両当事者が見られる）
 const myName = ref('メンバー');
-let unsub = null;
+const myUid = ref('');
+let unsubUser = null;
+let unsubShared = null;
 
-const trashedItems = computed(() => items.value.filter(i => i.status !== 'pending'));
-const pendingItems = computed(() => items.value.filter(i => i.status === 'pending'));
+// 2つのゴミ箱を新しい順にまとめる
+const items = computed(() => {
+  const all = [
+    ...userItems.value.map(i => ({ ...i, _loc: 'user' })),
+    ...sharedItems.value.map(i => ({ ...i, _loc: 'shared' })),
+  ];
+  return all.sort((a, b) => (b.trashedAt?.seconds || 0) - (a.trashedAt?.seconds || 0));
+});
+
+// 保留＝相手の承認待ち(pending) or 復元後の相手確認待ち(restored)
+const trashedItems = computed(() => items.value.filter(i => i.status !== 'pending' && i.status !== 'restored'));
+const pendingItems = computed(() => items.value.filter(i => i.status === 'pending' || i.status === 'restored'));
 // イベントと取引を分ける
 const eventItems = computed(() => trashedItems.value.filter(i => i.type === 'event'));
 const txItems = computed(() => trashedItems.value.filter(i => i.type !== 'event'));
 const currentItems = computed(() => (tab.value === 'event' ? eventItems.value : txItems.value));
+
+// 項目がどちらのゴミ箱にあるかを見て正しい参照を返す
+const trashRef = (item) => (item._loc === 'shared'
+  ? doc(db, 'trash', item.id)
+  : doc(db, 'users', auth.currentUser?.uid, 'trash', item.id));
 
 const daysLeft = (item) => {
   const ms = item.trashedAt?.toMillis ? item.trashedAt.toMillis() : Date.now();
@@ -127,33 +151,33 @@ const handleConfirm = () => { const cb = alertState.onConfirm; alertState.show =
 
 // ---- イベントを元に戻す ----
 const restoreEvent = async (item) => {
-  const myUid = auth.currentUser?.uid;
-  if (!myUid) return;
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
   try {
     // 自分の非表示を解除
-    await updateDoc(doc(db, 'events', item.eventId), { hiddenBy: arrayRemove(myUid) });
+    await updateDoc(doc(db, 'events', item.eventId), { hiddenBy: arrayRemove(uid) });
     // 他の参加者に「復元しました」とお知らせ
     try {
       const ev = await getDoc(doc(db, 'events', item.eventId));
       const parts = ev.exists() ? (ev.data().participants || []) : [];
-      for (const uid of parts) {
-        if (uid === myUid) continue;
+      for (const p of parts) {
+        if (p === uid) continue;
         await addDoc(collection(db, 'notifications'), {
-          toUserId: uid, type: 'event_restored',
+          toUserId: p, type: 'event_restored',
           eventId: item.eventId, eventName: item.eventName || '',
-          fromUserId: myUid, fromUserName: myName.value,
+          fromUserId: uid, fromUserName: myName.value,
           isRead: false, createdAt: serverTimestamp(),
         });
       }
     } catch (e) { console.error('復元通知エラー:', e); }
-    await deleteDoc(doc(db, 'users', myUid, 'trash', item.id));
+    await deleteDoc(doc(db, 'users', uid, 'trash', item.id));
   } catch (e) { console.error('イベント復元エラー:', e); }
 };
 
-// ---- 削除した支払いを元に戻す（取引・履歴を作り直す） ----
+// ---- 削除した支払いを元に戻す（取引・履歴を作り直し、相手に「正しいですか？」確認を送る） ----
 const restorePayment = async (item) => {
-  const myUid = auth.currentUser?.uid;
-  if (!myUid) return;
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
   try {
     const eventId = item.eventId;
     const newTxIds = [];
@@ -162,11 +186,36 @@ const restorePayment = async (item) => {
       newTxIds.push(ref.id);
     }
     const hs = item.historySnapshot || {};
-    await addDoc(collection(db, 'events', eventId, 'history'), {
+    const histRef = await addDoc(collection(db, 'events', eventId, 'history'), {
       ...hs, transactionIds: newTxIds, status: 'unpaid', timestamp: serverTimestamp(),
     });
     await updateDoc(doc(db, 'events', eventId), { totalAmount: increment(Number(item.amount) || 0) });
-    await deleteDoc(doc(db, 'users', myUid, 'trash', item.id));
+
+    if (item._loc === 'shared') {
+      // 🌟 復元後は「相手の確認待ち」として保留に残す（正しくない→ゴミ箱に差し戻せるように）
+      await updateDoc(doc(db, 'trash', item.id), {
+        status: 'restored',
+        restoredBy: uid,
+        restoredHistoryId: histRef.id,
+        restoredTransactionIds: newTxIds,
+        restoredAt: serverTimestamp(),
+      });
+      // 他の当事者へ「元に戻されましたが正しいですか？」
+      for (const p of (item.participants || [])) {
+        if (p === uid) continue;
+        await addDoc(collection(db, 'notifications'), {
+          toUserId: p, type: 'restore_check',
+          trashId: item.id,
+          eventId: eventId || null, eventName: item.eventName || '',
+          itemName: item.itemName || '支払い', amount: Number(item.amount) || 0,
+          fromUserId: uid, fromUserName: myName.value,
+          isRead: false, createdAt: serverTimestamp(),
+        });
+      }
+    } else {
+      // 旧形式（自分専用）は即確定
+      await deleteDoc(trashRef(item));
+    }
   } catch (e) { console.error('支払い復元エラー:', e); }
 };
 
@@ -180,17 +229,18 @@ const askRestoreSettlement = (item) => {
   );
 };
 const requestSettlementRestore = async (item) => {
-  const myUid = auth.currentUser?.uid;
-  if (!myUid) return;
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
   try {
-    await updateDoc(doc(db, 'users', myUid, 'trash', item.id), { status: 'pending' });
+    await updateDoc(trashRef(item), { status: 'pending' });
     for (const c of (item.counterparties || [])) {
       await addDoc(collection(db, 'notifications'), {
         toUserId: c.uid, type: 'settlement_restore_request',
+        trashId: item._loc === 'shared' ? item.id : null, // 承認/拒否でゴミ箱側の状態も更新するため
         eventId: item.eventId || null, eventName: item.eventName || '',
         historyId: item.historyId || null, itemName: item.itemName || '決済',
         amount: item.amount || 0, transactionIds: item.transactionIds || [],
-        fromUserId: myUid, fromUserName: myName.value,
+        fromUserId: uid, fromUserName: myName.value,
         isRead: false, createdAt: serverTimestamp(),
       });
     }
@@ -200,8 +250,7 @@ const requestSettlementRestore = async (item) => {
 // ---- 保留の依頼を取り消す ----
 const askCancelPending = (item) => {
   askConfirm('依頼を取り消しますか？', `「${item.itemName}」を未精算に戻す依頼を取り消します。`, async () => {
-    const myUid = auth.currentUser?.uid;
-    try { await deleteDoc(doc(db, 'users', myUid, 'trash', item.id)); } catch (e) { console.error(e); }
+    try { await updateDoc(trashRef(item), { status: 'trashed' }); } catch (e) { console.error(e); }
   }, { confirmText: '取り消す', cancelText: 'やめる' });
 };
 
@@ -211,28 +260,34 @@ const askDeleteForever = (item) => {
     '完全に削除しますか？',
     item.type === 'event'
       ? 'このイベントを自分の画面から完全に消します（もう元に戻せません）。相手の画面には残ります。'
-      : 'この決済を完了で確定します（もう未精算には戻せません）。',
+      : 'この取引の控えを消して確定します（もう元に戻せません）。相手のゴミ箱からも消えます。',
     async () => {
-      const myUid = auth.currentUser?.uid;
-      try { await deleteDoc(doc(db, 'users', myUid, 'trash', item.id)); } catch (e) { console.error(e); }
+      try { await deleteDoc(trashRef(item)); } catch (e) { console.error(e); }
     },
     { type: 'error', confirmText: '完全に削除', cancelText: 'やめる' }
   );
 };
 
 onMounted(() => {
-  const myUid = auth.currentUser?.uid;
-  if (!myUid) return;
-  getDoc(doc(db, 'users', myUid)).then(md => {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+  myUid.value = uid;
+  getDoc(doc(db, 'users', uid)).then(md => {
     if (md.exists() && md.data().name) myName.value = md.data().name;
     else myName.value = auth.currentUser?.displayName || 'メンバー';
   }).catch(() => {});
-  const q = query(collection(db, 'users', myUid, 'trash'), orderBy('trashedAt', 'desc'));
-  unsub = onSnapshot(q, (snap) => {
-    items.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  // 自分専用ゴミ箱（イベントの非表示など）
+  const qUser = query(collection(db, 'users', uid, 'trash'), orderBy('trashedAt', 'desc'));
+  unsubUser = onSnapshot(qUser, (snap) => {
+    userItems.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   }, (err) => { if (err?.code !== 'permission-denied') console.error('ゴミ箱の読み込みエラー:', err); });
+  // 共有ゴミ箱（取引・自分が当事者のもの）
+  const qShared = query(collection(db, 'trash'), where('participants', 'array-contains', uid));
+  unsubShared = onSnapshot(qShared, (snap) => {
+    sharedItems.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  }, (err) => { if (err?.code !== 'permission-denied') console.error('共有ゴミ箱の読み込みエラー:', err); });
 });
-onUnmounted(() => { if (unsub) unsub(); });
+onUnmounted(() => { if (unsubUser) unsubUser(); if (unsubShared) unsubShared(); });
 </script>
 
 <style scoped>
