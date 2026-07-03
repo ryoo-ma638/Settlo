@@ -29,6 +29,11 @@
                       <button class="mini-btn" @click="approveRestore(req)">承認する</button>
                       <button class="mini-btn mini-btn--ghost" @click="rejectRestore(req)">拒否する</button>
                     </template>
+                    <template v-else-if="req.type === 'approval_request' || (!req.type && req.transactionId)">
+                      <button class="mini-btn" @click="approveTx(req)">承認する</button>
+                      <button class="mini-btn mini-btn--ghost" @click="rejectTx(req)">拒否する</button>
+                      <button class="mini-btn mini-btn--ghost" @click="goToPaymentDetail(req)">詳細</button>
+                    </template>
                     <template v-else>
                       <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
                       <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
@@ -77,6 +82,11 @@
               <template v-else-if="req.type === 'settlement_restore_request'">
                 <button class="mini-btn" @click="approveRestore(req)">承認する</button>
                 <button class="mini-btn mini-btn--ghost" @click="rejectRestore(req)">拒否する</button>
+              </template>
+              <template v-else-if="req.type === 'approval_request' || (!req.type && req.transactionId)">
+                <button class="mini-btn" @click="approveTx(req)">承認する</button>
+                <button class="mini-btn mini-btn--ghost" @click="rejectTx(req)">拒否する</button>
+                <button class="mini-btn mini-btn--ghost" @click="goToPaymentDetail(req)">詳細</button>
               </template>
               <template v-else>
                 <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
@@ -308,6 +318,55 @@ const rejectInvite = (req) => {
       });
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
     } catch (e) { console.error("招待拒否エラー:", e); }
+  });
+};
+
+// 自分の表示名を取得（通知の差出人名に使う）
+const getMyName = async () => {
+  const myUid = auth.currentUser?.uid;
+  let name = auth.currentUser?.displayName || 'メンバー';
+  try { const md = await getDoc(doc(db, "users", myUid)); if (md.exists() && md.data().name) name = md.data().name; } catch (e) {}
+  return name;
+};
+
+// 🌟 支払いの承認リクエストを「承認」＝取引を完了にして相手へ完了通知
+const approveTx = async (req) => {
+  try {
+    const myUid = auth.currentUser?.uid;
+    if (!myUid || !req.transactionId) return;
+    const t = await getDoc(doc(db, "transactions", req.transactionId));
+    if (!t.exists() || t.data().paidToId !== myUid) { // 受け取る側だけが承認できる
+      await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+      return;
+    }
+    await updateDoc(doc(db, "transactions", req.transactionId), { status: 'completed' });
+    await addDoc(collection(db, "notifications"), {
+      toUserId: req.fromUserId, type: 'payment_completed',
+      message: '支払いが承認され、精算が完了しました。',
+      transactionId: req.transactionId,
+      fromUserId: myUid, fromUserName: await getMyName(),
+      isRead: false, createdAt: serverTimestamp(),
+    });
+    await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+  } catch (e) { console.error("支払い承認エラー:", e); }
+};
+
+// 🌟 支払いの承認リクエストを「拒否」＝未払いに戻して相手へ通知（相手は再リクエスト可）
+const rejectTx = (req) => {
+  askConfirm('支払いを拒否しますか？', 'この支払いは未払いに戻り、相手に通知が届きます（相手は再度お支払い手続きができます）。', async () => {
+    try {
+      const myUid = auth.currentUser?.uid;
+      if (!myUid || !req.transactionId) return;
+      await updateDoc(doc(db, "transactions", req.transactionId), { status: 'unpaid' });
+      await addDoc(collection(db, "notifications"), {
+        toUserId: req.fromUserId, type: 'approval_rejected',
+        message: '承認リクエストが拒否されました。もう一度お支払い手続きをしてください。',
+        transactionId: req.transactionId,
+        fromUserId: myUid, fromUserName: await getMyName(),
+        isRead: false, createdAt: serverTimestamp(),
+      });
+      await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+    } catch (e) { console.error("支払い拒否エラー:", e); }
   });
 };
 
