@@ -613,9 +613,10 @@ const deletePayment = (h) => {
         try { const t = await getDoc(doc(db, "transactions", tid)); if (t.exists()) txSnapshots.push(t.data()); } catch (e) {}
       }
       // 🌟 共有ゴミ箱に控えを保存（両当事者が見られる・7日以内なら作り直して復元できる）
+      let trashDocId = null;
       if (myUid) {
         try {
-          await addDoc(collection(db, "trash"), {
+          const trashRef = await addDoc(collection(db, "trash"), {
             type: 'payment',
             participants: involved.includes(myUid) ? involved : [...involved, myUid], // 当事者全員が閲覧・操作可
             createdBy: myUid,
@@ -636,6 +637,7 @@ const deletePayment = (h) => {
             },
             transactionSnapshots: txSnapshots,
           });
+          trashDocId = trashRef.id;
         } catch (e) { console.error('ゴミ箱への控え保存に失敗:', e); }
       }
       // 実際に削除
@@ -644,7 +646,7 @@ const deletePayment = (h) => {
       }
       await deleteDoc(doc(db, "events", eventId, "history", h.id));
       await updateDoc(doc(db, "events", eventId), { totalAmount: increment(-(Number(h.amount) || 0)) });
-      await notifyParticipants(involved, { type: 'payment_deleted', itemName: h.itemName, amount: Number(h.amount) || 0 });
+      await notifyParticipants(involved, { type: 'payment_deleted', itemName: h.itemName, amount: Number(h.amount) || 0, eventName: eventData.value.name || '', trashId: trashDocId });
       modals.value.historyDetail = false;
       showToast('支払いをゴミ箱に移動しました');
     } catch (e) {
@@ -971,7 +973,7 @@ const deleteEventCompletely = async () => {
     // 相手のイベントは消さず、自分の画面からだけ隠す（hiddenBy に自分を追加）
     await updateDoc(doc(db, "events", eventId), { hiddenBy: arrayUnion(myUid) });
     // ゴミ箱に入れる（7日以内なら復元できる）
-    await addDoc(collection(db, "users", myUid, "trash"), {
+    const evTrashRef = await addDoc(collection(db, "users", myUid, "trash"), {
       type: 'event',
       eventId,
       eventName: eventData.value.name || 'イベント',
@@ -986,6 +988,7 @@ const deleteEventCompletely = async () => {
         await addDoc(collection(db, "notifications"), {
           toUserId: uid, type: 'event_left_check',
           eventId, eventName: eventData.value.name || 'イベント',
+          trashId: evTrashRef.id,
           fromUserId: myUid, fromUserName: myName.value || 'メンバー',
           isRead: false, createdAt: serverTimestamp(),
         });

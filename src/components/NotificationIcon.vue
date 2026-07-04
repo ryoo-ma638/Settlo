@@ -34,17 +34,12 @@
                       <button class="mini-btn mini-btn--ghost" @click="rejectTx(req)">拒否する</button>
                       <button class="mini-btn mini-btn--ghost" @click="goToPaymentDetail(req)">詳細</button>
                     </template>
-                    <template v-else-if="req.type === 'restore_check'">
-                      <button class="mini-btn" @click="confirmRestoreOk(req)">正しい</button>
-                      <button class="mini-btn mini-btn--ghost" @click="confirmRestoreNg(req)">正しくない</button>
+                    <template v-else-if="req.type === 'payment_completed'">
+                      <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
                     </template>
-                    <template v-else-if="req.type === 'event_left_check'">
-                      <button class="mini-btn" @click="dismissNotif(req)">正しい</button>
-                      <button class="mini-btn mini-btn--ghost" @click="rejectEventLeft(req)">正しくない</button>
-                    </template>
-                    <template v-else-if="req.type === 'event_restored'">
-                      <button class="mini-btn" @click="dismissNotif(req)">正しい</button>
-                      <button class="mini-btn mini-btn--ghost" @click="rejectEventRestore(req)">正しくない</button>
+                    <template v-else-if="isJudgeType(req.type)">
+                      <button class="mini-btn" @click="judgeOk(req)">正しい</button>
+                      <button class="mini-btn mini-btn--ghost" @click="judgeNg(req)">正しくない</button>
                     </template>
                     <template v-else>
                       <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
@@ -100,17 +95,12 @@
                 <button class="mini-btn mini-btn--ghost" @click="rejectTx(req)">拒否する</button>
                 <button class="mini-btn mini-btn--ghost" @click="goToPaymentDetail(req)">詳細</button>
               </template>
-              <template v-else-if="req.type === 'restore_check'">
-                <button class="mini-btn" @click="confirmRestoreOk(req)">正しい</button>
-                <button class="mini-btn mini-btn--ghost" @click="confirmRestoreNg(req)">正しくない</button>
+              <template v-else-if="req.type === 'payment_completed'">
+                <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
               </template>
-              <template v-else-if="req.type === 'event_left_check'">
-                <button class="mini-btn" @click="dismissNotif(req)">正しい</button>
-                <button class="mini-btn mini-btn--ghost" @click="rejectEventLeft(req)">正しくない</button>
-              </template>
-              <template v-else-if="req.type === 'event_restored'">
-                <button class="mini-btn" @click="dismissNotif(req)">正しい</button>
-                <button class="mini-btn mini-btn--ghost" @click="rejectEventRestore(req)">正しくない</button>
+              <template v-else-if="isJudgeType(req.type)">
+                <button class="mini-btn" @click="judgeOk(req)">正しい</button>
+                <button class="mini-btn mini-btn--ghost" @click="judgeNg(req)">正しくない</button>
               </template>
               <template v-else>
                 <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
@@ -168,8 +158,8 @@ import { useRouter } from 'vue-router';
 import BaseModal from './BaseModal.vue';
 import { db, auth } from '@/firebase';
 import {
-  collection, query, where, onSnapshot,
-  doc, getDoc, setDoc, deleteDoc, updateDoc, addDoc, serverTimestamp, arrayUnion, increment
+  collection, query, where, onSnapshot, getDocs,
+  doc, getDoc, setDoc, deleteDoc, updateDoc, addDoc, serverTimestamp, arrayUnion, arrayRemove, increment
 } from 'firebase/firestore';
 
 const router = useRouter();
@@ -181,7 +171,7 @@ const notifText = (req) => {
   if (req.type === 'approval_rejected') return 'さんがあなたの承認リクエストを拒否しました';
   if (req.type === 'payment_reminder') return 'さんから支払いの催促が届いています';
   if (req.type === 'payment_edited') return `さんが「${req.itemName || '支払い'}」（¥${(req.amount || 0).toLocaleString()}）を編集しました`;
-  if (req.type === 'payment_deleted') return `さんが「${req.itemName || '支払い'}」（¥${(req.amount || 0).toLocaleString()}）を削除しました`;
+  if (req.type === 'payment_deleted') return `さんが「${req.itemName || '支払い'}」（¥${(req.amount || 0).toLocaleString()}）を削除しました。これは正しいですか？`;
   if (req.type === 'event_edited') return `さんがイベント「${req.eventName || ''}」を編集しました`;
   if (req.type === 'event_invite') return `さんがイベント「${req.eventName || ''}」に招待しています。心当たりはありますか？`;
   if (req.type === 'invite_rejected') return `さんがイベント「${req.eventName || ''}」への招待を拒否しました。内容が正しいか再確認してください`;
@@ -189,13 +179,14 @@ const notifText = (req) => {
   if (req.type === 'event_restored') return `さんがイベント「${req.eventName || ''}」に戻ってきました（ゴミ箱から復元）。これは正しいですか？`;
   if (req.type === 'settlement_restore_request') return `さんが決済「${req.itemName || ''}」（¥${(req.amount || 0).toLocaleString()}）を未精算に戻したいそうです。承認しますか？`;
   if (req.type === 'settlement_restore_approved') return `さんが「${req.itemName || ''}」を未精算に戻すことを承認しました`;
-  if (req.type === 'settlement_restore_rejected') return `さんが「${req.itemName || ''}」を未精算に戻すことを拒否しました`;
+  if (req.type === 'settlement_restore_rejected') return `さんが「${req.itemName || ''}」を未精算に戻すことを拒否しました。これは正しいですか？（正しくない＝もう一度依頼します）`;
   if (req.type === 'payment_completed') return 'さんとの支払いが完了しました！';
   if (req.type === 'restore_check') return `さんが「${req.itemName || ''}」（¥${(req.amount || 0).toLocaleString()}）をゴミ箱から元に戻しました。こちらで正しいですか？`;
-  if (req.type === 'restore_reverted') return `さんが「正しくない」を選んだため、「${req.itemName || ''}」をゴミ箱に戻しました。内容を確認してください`;
+  if (req.type === 'restore_reverted') return `さんが「正しくない」を選び、「${req.itemName || ''}」をゴミ箱に戻しました。これは正しいですか？（正しくない＝もう一度元に戻します）`;
+  if (req.type === 'payment_delete_rejected') return `さんは「${req.itemName || ''}」の削除は正しくないと考えています。これは正しいですか？（正しい＝ゴミ箱から元に戻します／正しくない＝削除を続けます）`;
   if (req.type === 'event_left_check') return `さんがイベント「${req.eventName || ''}」から抜けました（自分の画面から削除）。これは正しいですか？`;
-  if (req.type === 'event_left_rejected') return `さんがイベント「${req.eventName || ''}」からの退出に「正しくない」を選びました。削除が正しいか再確認してください（ゴミ箱から戻せます）`;
-  if (req.type === 'event_restore_rejected') return `さんが「正しくない」を選んだため、イベント「${req.eventName || ''}」をゴミ箱に戻しました。内容を確認してください`;
+  if (req.type === 'event_left_rejected') return `さんは、あなたがイベント「${req.eventName || ''}」から抜けたのは正しくないと考えています。これは正しいですか？（正しい＝イベントに戻ります／正しくない＝削除を続けます）`;
+  if (req.type === 'event_restore_rejected') return `さんが「正しくない」を選び、イベント「${req.eventName || ''}」をゴミ箱に戻しました。これは正しいですか？（正しくない＝もう一度復帰します）`;
   return 'さんから支払いの承認リクエストが届いています';
 };
 const notifAction = (req) => {
@@ -436,6 +427,8 @@ const rejectRestore = (req) => {
       try { const md = await getDoc(doc(db, "users", myUid)); if (md.exists() && md.data().name) myName = md.data().name; } catch (e) {}
       await addDoc(collection(db, "notifications"), {
         toUserId: req.fromUserId, type: 'settlement_restore_rejected',
+        trashId: req.trashId || null, transactionIds: req.transactionIds || [],
+        historyId: req.historyId || null, amount: req.amount || 0,
         eventId: req.eventId || null, eventName: req.eventName || '', itemName: req.itemName || '',
         fromUserId: myUid, fromUserName: myName, isRead: false, createdAt: serverTimestamp(),
       });
@@ -479,6 +472,7 @@ const confirmRestoreNg = (req) => {
         // 復元した人へ「差し戻しました」通知
         await addDoc(collection(db, "notifications"), {
           toUserId: d.restoredBy || req.fromUserId, type: 'restore_reverted',
+          trashId: req.trashId,
           eventId: d.eventId || null, eventName: d.eventName || '',
           itemName: d.itemName || '', amount: Number(d.amount) || 0,
           fromUserId: myUid, fromUserName: await getMyName(),
@@ -497,6 +491,7 @@ const rejectEventLeft = (req) => {
       const myUid = auth.currentUser?.uid;
       await addDoc(collection(db, "notifications"), {
         toUserId: req.fromUserId, type: 'event_left_rejected',
+        trashId: req.trashId || null,
         eventId: req.eventId || null, eventName: req.eventName || '',
         fromUserId: myUid, fromUserName: await getMyName(),
         isRead: false, createdAt: serverTimestamp(),
@@ -524,6 +519,225 @@ const rejectEventRestore = (req) => {
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
     } catch (e) { console.error("復帰拒否の通知エラー:", e); }
   });
+};
+
+// ==========================================
+// 🌟 「正しい／正しくない」判断ループの共通処理
+//    差し戻された側も再び判断でき、決着がつくまで交互に確認が続く
+// ==========================================
+
+// 共有ゴミ箱の控えから支払いを復元し、相手へ「正しいですか？」を送る
+const restorePaymentFromTrash = async (trashId) => {
+  const uid = auth.currentUser?.uid;
+  if (!uid || !trashId) return false;
+  const t = await getDoc(doc(db, "trash", trashId));
+  if (!t.exists()) return false;
+  const d = t.data();
+  if (d.status === 'restored') return true; // すでに復元済み
+  const newTxIds = [];
+  for (const tx of (d.transactionSnapshots || [])) {
+    const ref = await addDoc(collection(db, 'transactions'), { ...tx, createdAt: serverTimestamp() });
+    newTxIds.push(ref.id);
+  }
+  const hs = d.historySnapshot || {};
+  const histRef = await addDoc(collection(db, 'events', d.eventId, 'history'), {
+    ...hs, transactionIds: newTxIds, status: 'unpaid', timestamp: serverTimestamp(),
+  });
+  await updateDoc(doc(db, 'events', d.eventId), { totalAmount: increment(Number(d.amount) || 0) });
+  await updateDoc(doc(db, 'trash', trashId), {
+    status: 'restored', restoredBy: uid,
+    restoredHistoryId: histRef.id, restoredTransactionIds: newTxIds, restoredAt: serverTimestamp(),
+  });
+  const name = await getMyName();
+  for (const pUid of (d.participants || [])) {
+    if (pUid === uid) continue;
+    await addDoc(collection(db, 'notifications'), {
+      toUserId: pUid, type: 'restore_check', trashId,
+      eventId: d.eventId || null, eventName: d.eventName || '',
+      itemName: d.itemName || '支払い', amount: Number(d.amount) || 0,
+      fromUserId: uid, fromUserName: name, isRead: false, createdAt: serverTimestamp(),
+    });
+  }
+  return true;
+};
+
+// イベントに戻る（hiddenBy解除＋自分の控えを確認待ちに＋参加者へ「正しいですか？」）
+const restoreEventAgain = async (req) => {
+  const uid = auth.currentUser?.uid;
+  if (!uid || !req.eventId) return;
+  await updateDoc(doc(db, 'events', req.eventId), { hiddenBy: arrayRemove(uid) });
+  try {
+    if (req.trashId) {
+      await updateDoc(doc(db, 'users', uid, 'trash', req.trashId), { status: 'restored', restoredBy: uid, restoredAt: serverTimestamp() });
+    } else {
+      const snap = await getDocs(query(collection(db, 'users', uid, 'trash'), where('eventId', '==', req.eventId)));
+      for (const dd of snap.docs) { await updateDoc(dd.ref, { status: 'restored', restoredBy: uid, restoredAt: serverTimestamp() }); }
+    }
+  } catch (e) {}
+  const name = await getMyName();
+  try {
+    const ev = await getDoc(doc(db, 'events', req.eventId));
+    const parts = ev.exists() ? (ev.data().participants || []) : [];
+    for (const pUid of parts) {
+      if (pUid === uid) continue;
+      await addDoc(collection(db, 'notifications'), {
+        toUserId: pUid, type: 'event_restored',
+        eventId: req.eventId, eventName: req.eventName || '',
+        fromUserId: uid, fromUserName: name, isRead: false, createdAt: serverTimestamp(),
+      });
+    }
+  } catch (e) {}
+};
+
+// --- 支払い削除の判断ループ ---
+// 「削除は正しくない」と返す（削除された側）
+const rejectPaymentDelete = (req) => {
+  askConfirm('「正しくない」を選びますか？', `${req.fromUserName || '相手'}さんに「この削除は正しくない」と伝えます。相手が認めるとゴミ箱から元に戻ります。`, async () => {
+    try {
+      const myUid = auth.currentUser?.uid;
+      await addDoc(collection(db, "notifications"), {
+        toUserId: req.fromUserId, type: 'payment_delete_rejected',
+        trashId: req.trashId || null,
+        eventId: req.eventId || null, eventName: req.eventName || '',
+        itemName: req.itemName || '', amount: Number(req.amount) || 0,
+        fromUserId: myUid, fromUserName: await getMyName(),
+        isRead: false, createdAt: serverTimestamp(),
+      });
+      await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+    } catch (e) { console.error("削除への異議通知エラー:", e); }
+  });
+};
+
+// 相手の「削除は正しくない」を認める＝ゴミ箱から元に戻す（削除した側）
+const acceptDeleteRejection = (req) => {
+  askConfirm('削除をやめて元に戻しますか？', `「${req.itemName || ''}」をゴミ箱から元に戻し、相手に「正しいですか？」の確認を送ります。`, async () => {
+    try {
+      if (req.trashId) await restorePaymentFromTrash(req.trashId);
+      await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+    } catch (e) { console.error("削除取り消しエラー:", e); }
+  });
+};
+
+// 「いや、削除で正しい」と再主張（削除した側）→ 相手にまた判断が飛ぶ
+const reassertDelete = (req) => {
+  askConfirm('削除を続けますか？', `${req.fromUserName || '相手'}さんに、もう一度「削除は正しい」と確認を送ります。`, async () => {
+    try {
+      const myUid = auth.currentUser?.uid;
+      await addDoc(collection(db, "notifications"), {
+        toUserId: req.fromUserId, type: 'payment_deleted',
+        trashId: req.trashId || null,
+        eventId: req.eventId || null, eventName: req.eventName || '',
+        itemName: req.itemName || '', amount: Number(req.amount) || 0,
+        fromUserId: myUid, fromUserName: await getMyName(),
+        isRead: false, createdAt: serverTimestamp(),
+      });
+      await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+    } catch (e) { console.error("削除の再主張エラー:", e); }
+  });
+};
+
+// 差し戻し（restore_reverted）に「正しくない」＝もう一度元に戻す
+const reRestorePayment = (req) => {
+  askConfirm('もう一度元に戻しますか？', `「${req.itemName || ''}」を再び復元し、相手に「正しいですか？」の確認を送ります。`, async () => {
+    try {
+      if (req.trashId) await restorePaymentFromTrash(req.trashId);
+      await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+    } catch (e) { console.error("再復元エラー:", e); }
+  });
+};
+
+// --- イベントの判断ループ ---
+// 相手の「退出は正しくない」を認める＝イベントに戻る（削除した側）
+const acceptLeftRejection = (req) => {
+  askConfirm('イベントに戻りますか？', `イベント「${req.eventName || ''}」をゴミ箱から戻し、参加者に「正しいですか？」の確認を送ります。`, async () => {
+    try {
+      await restoreEventAgain(req);
+      await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+    } catch (e) { console.error("イベント復帰エラー:", e); }
+  });
+};
+
+// 「いや、抜けるで正しい」と再主張（削除した側）→ 相手にまた判断が飛ぶ
+const reassertLeft = (req) => {
+  askConfirm('削除（退出）を続けますか？', `${req.fromUserName || '相手'}さんに、もう一度「退出は正しい」と確認を送ります。`, async () => {
+    try {
+      const myUid = auth.currentUser?.uid;
+      await addDoc(collection(db, "notifications"), {
+        toUserId: req.fromUserId, type: 'event_left_check',
+        trashId: req.trashId || null,
+        eventId: req.eventId || null, eventName: req.eventName || '',
+        fromUserId: myUid, fromUserName: await getMyName(),
+        isRead: false, createdAt: serverTimestamp(),
+      });
+      await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+    } catch (e) { console.error("退出の再主張エラー:", e); }
+  });
+};
+
+// 復帰の差し戻し（event_restore_rejected）に「正しくない」＝もう一度復帰
+const reRestoreEvent = (req) => {
+  askConfirm('もう一度復帰しますか？', `イベント「${req.eventName || ''}」に再び戻り、参加者に「正しいですか？」の確認を送ります。`, async () => {
+    try {
+      await restoreEventAgain(req);
+      await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+    } catch (e) { console.error("再復帰エラー:", e); }
+  });
+};
+
+// --- 未精算戻しの判断ループ ---
+// 拒否（settlement_restore_rejected）に「正しくない」＝もう一度依頼を送る
+const reRequestRestore = (req) => {
+  askConfirm('もう一度依頼しますか？', `「${req.itemName || ''}」を未精算に戻す依頼を、もう一度 ${req.fromUserName || '相手'}さんに送ります。`, async () => {
+    try {
+      const myUid = auth.currentUser?.uid;
+      if (req.trashId) { try { await updateDoc(doc(db, "trash", req.trashId), { status: 'pending' }); } catch (e) {} }
+      await addDoc(collection(db, "notifications"), {
+        toUserId: req.fromUserId, type: 'settlement_restore_request',
+        trashId: req.trashId || null,
+        eventId: req.eventId || null, eventName: req.eventName || '',
+        historyId: req.historyId || null, itemName: req.itemName || '決済',
+        amount: req.amount || 0, transactionIds: req.transactionIds || [],
+        fromUserId: myUid, fromUserName: await getMyName(),
+        isRead: false, createdAt: serverTimestamp(),
+      });
+      await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+    } catch (e) { console.error("再依頼エラー:", e); }
+  });
+};
+
+// ==========================================
+// 🌟 「正しい／正しくない」で判断する通知タイプと振り分け
+// ==========================================
+const JUDGE_TYPES = [
+  'payment_deleted', 'payment_delete_rejected', 'restore_check', 'restore_reverted',
+  'event_left_check', 'event_left_rejected', 'event_restored', 'event_restore_rejected',
+  'settlement_restore_rejected',
+];
+const isJudgeType = (t) => JUDGE_TYPES.includes(t);
+
+// 「正しい」＝相手の主張・現状を受け入れる
+const judgeOk = (req) => {
+  switch (req.type) {
+    case 'restore_check': return confirmRestoreOk(req);         // 復元を確定
+    case 'payment_delete_rejected': return acceptDeleteRejection(req); // 削除をやめて元に戻す
+    case 'event_left_rejected': return acceptLeftRejection(req);       // イベントに戻る
+    default: return dismissNotif(req);                           // 受け入れて既読
+  }
+};
+
+// 「正しくない」＝異議・再主張（相手にまた判断が飛ぶ）
+const judgeNg = (req) => {
+  switch (req.type) {
+    case 'payment_deleted': return rejectPaymentDelete(req);
+    case 'payment_delete_rejected': return reassertDelete(req);
+    case 'restore_check': return confirmRestoreNg(req);
+    case 'restore_reverted': return reRestorePayment(req);
+    case 'event_left_check': return rejectEventLeft(req);
+    case 'event_left_rejected': return reassertLeft(req);
+    case 'event_restored': return rejectEventRestore(req);
+    case 'event_restore_rejected': return reRestoreEvent(req);
+    case 'settlement_restore_rejected': return reRequestRestore(req);
+  }
 };
 
 const acceptRequest = async (request) => {

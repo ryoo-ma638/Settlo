@@ -287,7 +287,7 @@ const deleteEvent = async (id) => {
         // 自分の画面からだけ非表示にする
         await updateDoc(doc(db, "events", id), { hiddenBy: arrayUnion(myUid) });
         // ゴミ箱に控えを残す（7日以内なら復元可）
-        await addDoc(collection(db, "users", myUid, "trash"), {
+        const evTrashRef = await addDoc(collection(db, "users", myUid, "trash"), {
           type: 'event',
           eventId: id,
           eventName: ev.name || 'イベント',
@@ -304,6 +304,7 @@ const deleteEvent = async (id) => {
             await addDoc(collection(db, "notifications"), {
               toUserId: uid, type: 'event_left_check',
               eventId: id, eventName: ev.name || 'イベント',
+              trashId: evTrashRef.id,
               fromUserId: myUid, fromUserName: auth.currentUser?.displayName || 'メンバー',
               isRead: false, createdAt: serverTimestamp(),
             });
