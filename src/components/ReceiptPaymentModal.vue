@@ -89,12 +89,9 @@ const props = defineProps({
 });
 const emit = defineEmits(['close', 'complete', 'edit', 'delete']);
 
-const handlePayment = (method) => {
-  const methodText = method === 'paypay' ? 'PayPayアプリを起動して決済しますか？' : '精算を完了しますか？\n（相手に承認リクエストが送信されます）';
-  if(confirm(methodText)) {
-    emit('complete', props.history.id);
-    alert('決済（リクエスト）を完了しました！');
-  }
+const handlePayment = () => {
+  // 確認は親（EventDetails）側の統一モーダルで1回だけ行う
+  emit('complete', props.history.id);
 };
 </script>
 

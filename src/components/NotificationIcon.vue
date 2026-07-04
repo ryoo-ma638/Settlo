@@ -43,8 +43,8 @@
                       <button class="mini-btn mini-btn--ghost" @click="rejectEventLeft(req)">正しくない</button>
                     </template>
                     <template v-else-if="req.type === 'event_restored'">
-                      <button class="mini-btn" @click="dismissNotif(req)">承認する</button>
-                      <button class="mini-btn mini-btn--ghost" @click="rejectEventRestore(req)">拒否する</button>
+                      <button class="mini-btn" @click="dismissNotif(req)">正しい</button>
+                      <button class="mini-btn mini-btn--ghost" @click="rejectEventRestore(req)">正しくない</button>
                     </template>
                     <template v-else>
                       <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
@@ -109,8 +109,8 @@
                 <button class="mini-btn mini-btn--ghost" @click="rejectEventLeft(req)">正しくない</button>
               </template>
               <template v-else-if="req.type === 'event_restored'">
-                <button class="mini-btn" @click="dismissNotif(req)">承認する</button>
-                <button class="mini-btn mini-btn--ghost" @click="rejectEventRestore(req)">拒否する</button>
+                <button class="mini-btn" @click="dismissNotif(req)">正しい</button>
+                <button class="mini-btn mini-btn--ghost" @click="rejectEventRestore(req)">正しくない</button>
               </template>
               <template v-else>
                 <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
@@ -186,7 +186,7 @@ const notifText = (req) => {
   if (req.type === 'event_invite') return `さんがイベント「${req.eventName || ''}」に招待しています。心当たりはありますか？`;
   if (req.type === 'invite_rejected') return `さんがイベント「${req.eventName || ''}」への招待を拒否しました。内容が正しいか再確認してください`;
   if (req.type === 'event_joined') return `さんがイベント「${req.eventName || ''}」に参加しました`;
-  if (req.type === 'event_restored') return `さんがイベント「${req.eventName || ''}」を復元しました`;
+  if (req.type === 'event_restored') return `さんがイベント「${req.eventName || ''}」に戻ってきました（ゴミ箱から復元）。これは正しいですか？`;
   if (req.type === 'settlement_restore_request') return `さんが決済「${req.itemName || ''}」（¥${(req.amount || 0).toLocaleString()}）を未精算に戻したいそうです。承認しますか？`;
   if (req.type === 'settlement_restore_approved') return `さんが「${req.itemName || ''}」を未精算に戻すことを承認しました`;
   if (req.type === 'settlement_restore_rejected') return `さんが「${req.itemName || ''}」を未精算に戻すことを拒否しました`;
@@ -195,7 +195,7 @@ const notifText = (req) => {
   if (req.type === 'restore_reverted') return `さんが「正しくない」を選んだため、「${req.itemName || ''}」をゴミ箱に戻しました。内容を確認してください`;
   if (req.type === 'event_left_check') return `さんがイベント「${req.eventName || ''}」から抜けました（自分の画面から削除）。これは正しいですか？`;
   if (req.type === 'event_left_rejected') return `さんがイベント「${req.eventName || ''}」からの退出に「正しくない」を選びました。削除が正しいか再確認してください（ゴミ箱から戻せます）`;
-  if (req.type === 'event_restore_rejected') return `さんがイベント「${req.eventName || ''}」への復帰を拒否しました。内容を確認してください`;
+  if (req.type === 'event_restore_rejected') return `さんが「正しくない」を選んだため、イベント「${req.eventName || ''}」をゴミ箱に戻しました。内容を確認してください`;
   return 'さんから支払いの承認リクエストが届いています';
 };
 const notifAction = (req) => {
@@ -506,11 +506,15 @@ const rejectEventLeft = (req) => {
   });
 };
 
-// 🌟 「〇〇さんが復元しました（戻ってきました）」を拒否＝復元した人へ通知
+// 🌟 「〇〇さんが復元しました（戻ってきました）」に「正しくない」＝イベントを実際にゴミ箱へ戻す
 const rejectEventRestore = (req) => {
-  askConfirm('復帰を拒否しますか？', `${req.fromUserName || '相手'}さんに「復帰が拒否されました」と通知します。`, async () => {
+  askConfirm('「正しくない」を選びますか？', `イベント「${req.eventName || ''}」を${req.fromUserName || '相手'}さんの画面から再び非表示にし、ゴミ箱に戻します。相手に通知が届きます。`, async () => {
     try {
       const myUid = auth.currentUser?.uid;
+      // 復元した人の画面から再び非表示に（本人のゴミ箱側は自己修復で trashed に戻る）
+      if (req.eventId && req.fromUserId) {
+        try { await updateDoc(doc(db, "events", req.eventId), { hiddenBy: arrayUnion(req.fromUserId) }); } catch (e) {}
+      }
       await addDoc(collection(db, "notifications"), {
         toUserId: req.fromUserId, type: 'event_restore_rejected',
         eventId: req.eventId || null, eventName: req.eventName || '',

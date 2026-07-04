@@ -183,10 +183,10 @@
       <BaseModal
         :show="modals.unpaidWarning"
         type="warning"
-        title="未精算の決済が残っています"
-        message="イベントを終了するには、先にみんなの精算を済ませてください。精算サマリーからまとめて精算できます。"
-        confirmText="精算サマリーを見る"
-        cancelText="閉じる"
+        title="イベントの決済を確定しますか？"
+        message="これ以上イベントを進めない場合は、残っている貸し借りをまとめて精算しましょう。精算サマリーで全員の負担が均等になる最小回数の送金にまとめられます。すべての決済が完了すると、イベントを終了できます。"
+        confirmText="決済を確定する（精算へ）"
+        cancelText="まだ進める"
         :showCancel="true"
         @confirm="modals.unpaidWarning = false; modals.summaryDetail = true"
         @cancel="modals.unpaidWarning = false"
@@ -601,6 +601,7 @@ const notifyParticipants = async (uids, notifData) => {
 
 // 🌟 支払いの削除（ゴミ箱へ控えを残してから削除／確認つき／関係者へ通知）
 const deletePayment = (h) => {
+  modals.value.historyDetail = false; // 詳細シートを先に閉じて、確認を1つだけにする
   showConfirm('支払いを削除', `「${h.itemName}」（¥${(Number(h.amount) || 0).toLocaleString()}）を削除しますか？\nゴミ箱に入り、7日以内なら元に戻せます。`, async () => {
     try {
       const eventId = route.params.id;
@@ -656,7 +657,19 @@ const deletePayment = (h) => {
 // ==========================================
 // 🌟 4. Firestore データベース操作
 // ==========================================
-const markAsCompleted = async (id) => {
+// 決済完了の入口（詳細シートを閉じて、綺麗な確認を1つだけ出す）
+const markAsCompleted = (id) => {
+  modals.value.historyDetail = false;
+  const hist = eventData.value.history.find(h => h.id === id);
+  showConfirm(
+    '決済を完了しますか？',
+    `「${hist?.itemName || '決済'}」を完了として記録します。\n間違えた場合はゴミ箱から7日以内なら戻せます。`,
+    () => doMarkAsCompleted(id),
+    { confirmText: '完了する', cancelText: 'やめる' }
+  );
+};
+
+const doMarkAsCompleted = async (id) => {
   try {
     const eventId = route.params.id || "test-event-1";
     const myUid = auth.currentUser?.uid;
