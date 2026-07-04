@@ -64,10 +64,13 @@
         <div class="tcard__head">
           <span class="tcard__badge is-wait">{{ item.status === 'restored' ? '復元の確認待ち' : '承認待ち' }}</span>
         </div>
-        <p class="tcard__ttl">{{ item.itemName }}</p>
-        <p class="tcard__meta"><b class="yen">¥{{ (item.amount || 0).toLocaleString() }}</b><span class="sep">/</span>{{ item.eventName }}</p>
+        <p class="tcard__ttl">{{ item.type === 'event' ? item.eventName : item.itemName }}</p>
+        <p class="tcard__meta">
+          <template v-if="item.type === 'event'">ジャンル：{{ item.eventTag || 'その他' }}</template>
+          <template v-else><b class="yen">¥{{ (item.amount || 0).toLocaleString() }}</b><span class="sep">/</span>{{ item.eventName }}</template>
+        </p>
         <p class="tcard__note" v-if="item.status === 'restored'">
-          {{ item.restoredBy === myUid ? '元に戻しました。相手が「正しい」を選ぶと確定します' : `${item.createdByName || '相手'}さんが元に戻しました。お知らせから「正しい／正しくない」を選んでください` }}
+          {{ item.restoredBy === myUid ? '元に戻しました。相手が「正しくない」を選ぶとゴミ箱に戻ります' : `${item.createdByName || '相手'}さんが元に戻しました。お知らせから「正しい／正しくない」を選んでください` }}
         </p>
         <p class="tcard__note" v-else>相手（{{ counterpartyNames(item) }}）の承認を待っています</p>
         <div class="tcard__actions" v-if="item.status === 'pending'">
@@ -149,14 +152,14 @@ const askConfirm = (title, message, onConfirm, opts = {}) => {
 };
 const handleConfirm = () => { const cb = alertState.onConfirm; alertState.show = false; if (cb) cb(); };
 
-// ---- イベントを元に戻す ----
+// ---- イベントを元に戻す（相手が「正しくない」を選ぶとゴミ箱に戻る） ----
 const restoreEvent = async (item) => {
   const uid = auth.currentUser?.uid;
   if (!uid) return;
   try {
     // 自分の非表示を解除
     await updateDoc(doc(db, 'events', item.eventId), { hiddenBy: arrayRemove(uid) });
-    // 他の参加者に「復元しました」とお知らせ
+    // 他の参加者に「復帰しました。正しいですか？」とお知らせ
     try {
       const ev = await getDoc(doc(db, 'events', item.eventId));
       const parts = ev.exists() ? (ev.data().participants || []) : [];
@@ -170,8 +173,30 @@ const restoreEvent = async (item) => {
         });
       }
     } catch (e) { console.error('復元通知エラー:', e); }
-    await deleteDoc(doc(db, 'users', uid, 'trash', item.id));
+    // 🌟 控えは消さずに「復元の確認待ち」として残す
+    //    （相手が「正しくない」を選ぶと hiddenBy が戻り、自己修復でゴミ箱状態に戻る）
+    await updateDoc(doc(db, 'users', uid, 'trash', item.id), {
+      status: 'restored', restoredBy: uid, restoredAt: serverTimestamp(),
+    });
   } catch (e) { console.error('イベント復元エラー:', e); }
+};
+
+// 🌟 自己修復：復元確認待ちのイベントについて、相手が「正しくない」を選んで
+//    hiddenBy に自分が戻されていたら、ゴミ箱状態（trashed）に自動で戻す
+const reconciling = new Set();
+const reconcileRestoredEvents = async (list) => {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+  for (const item of list) {
+    if (item.type !== 'event' || item.status !== 'restored' || reconciling.has(item.id)) continue;
+    reconciling.add(item.id);
+    try {
+      const ev = await getDoc(doc(db, 'events', item.eventId));
+      if (ev.exists() && (ev.data().hiddenBy || []).includes(uid)) {
+        await updateDoc(doc(db, 'users', uid, 'trash', item.id), { status: 'trashed' });
+      }
+    } catch (e) {} finally { reconciling.delete(item.id); }
+  }
 };
 
 // ---- 削除した支払いを元に戻す（取引・履歴を作り直し、相手に「正しいですか？」確認を送る） ----
@@ -280,6 +305,7 @@ onMounted(() => {
   const qUser = query(collection(db, 'users', uid, 'trash'), orderBy('trashedAt', 'desc'));
   unsubUser = onSnapshot(qUser, (snap) => {
     userItems.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    reconcileRestoredEvents(userItems.value); // 復元が「正しくない」で差し戻されていたらゴミ箱状態に戻す
   }, (err) => { if (err?.code !== 'permission-denied') console.error('ゴミ箱の読み込みエラー:', err); });
   // 共有ゴミ箱（取引・自分が当事者のもの）
   const qShared = query(collection(db, 'trash'), where('participants', 'array-contains', uid));

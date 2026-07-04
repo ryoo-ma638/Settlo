@@ -66,7 +66,7 @@
                 このイベントの詳細・精算へ進む
               </button>
               <button class="delete-btn" @click="deleteEvent(selectedEvent.id)">
-                このイベントを終了する
+                このイベントを削除する
               </button>
               <button class="cancel-btn" @click="selectedEvent = null">閉じる</button>
             </div>
@@ -95,7 +95,7 @@ import { ref, onMounted, onUnmounted, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, onSnapshot, getDoc, doc, getDocs, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDoc, doc, getDocs, deleteDoc, updateDoc, addDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import PaymentCarousel from '@/components/PaymentCarousel.vue';
 import BaseModal from '@/components/BaseModal.vue'; // 🌟 Eventブランチの統一モーダル
 import api from '@/services/api';
@@ -269,32 +269,47 @@ const copyCode = (code) => {
     });
 };
 
-// 🌟 イベント削除の confirm と alert を美しいモーダルに！ (Eventブランチの機能)
+// 🌟 イベントの削除＝イベント詳細と同じソフト削除（自分の画面から非表示＋ゴミ箱＋相手へ確認通知）
+//    ※以前ここにあった「全員分を完全削除する」旧処理は危険なため廃止
 const deleteEvent = async (id) => {
+  const ev = ongoingEvents.value.find(e => e.id === id) || selectedEvent.value || {};
+  selectedEvent.value = null; // 先にポップアップを閉じて、確認を1つだけにする
   showModal({
     type: 'warning',
-    title: 'イベントの削除',
-    message: 'このイベントを終了して削除しますか？\n（この操作は元に戻せません）',
+    title: 'イベントを削除しますか？',
+    message: 'このイベントを自分の画面から削除します。ゴミ箱に入り、7日以内なら復元できます（相手の画面には残ります）。',
     showCancel: true,
     confirmText: '削除する',
     onConfirm: async () => {
       try {
-        // 1. このイベントに紐づく取引(transactions)を削除
-        const txSnap = await getDocs(query(collection(db, "transactions"), where("eventId", "==", id)));
-        for (const d of txSnap.docs) await deleteDoc(d.ref);
-        // 2. 立て替え履歴サブコレクションを削除
-        const histSnap = await getDocs(collection(db, "events", id, "history"));
-        for (const d of histSnap.docs) await deleteDoc(d.ref);
-        // 3. イベント本体を削除
-        await deleteDoc(doc(db, "events", id));
-
+        const myUid = auth.currentUser?.uid;
+        if (!myUid) return;
+        // 自分の画面からだけ非表示にする
+        await updateDoc(doc(db, "events", id), { hiddenBy: arrayUnion(myUid) });
+        // ゴミ箱に控えを残す（7日以内なら復元可）
+        await addDoc(collection(db, "users", myUid, "trash"), {
+          type: 'event',
+          eventId: id,
+          eventName: ev.name || 'イベント',
+          eventTag: ev.tag || 'その他',
+          trashedAt: serverTimestamp(),
+          status: 'trashed',
+        });
+        // 他の参加者へ「抜けました。正しいですか？」を届ける
+        const evDoc = await getDoc(doc(db, "events", id));
+        const parts = evDoc.exists() ? (evDoc.data().participants || []) : [];
+        for (const uid of parts) {
+          if (uid === myUid) continue;
+          try {
+            await addDoc(collection(db, "notifications"), {
+              toUserId: uid, type: 'event_left_check',
+              eventId: id, eventName: ev.name || 'イベント',
+              fromUserId: myUid, fromUserName: auth.currentUser?.displayName || 'メンバー',
+              isRead: false, createdAt: serverTimestamp(),
+            });
+          } catch (e) {}
+        }
         ongoingEvents.value = ongoingEvents.value.filter(e => e.id !== id);
-        selectedEvent.value = null;
-
-        setTimeout(() => {
-          showModal({ type: 'success', title: '削除完了', message: 'イベントを削除しました。' });
-        }, 300);
-
       } catch (error) {
         console.error("イベント削除エラー:", error);
         showModal({ type: 'error', title: 'エラー', message: '削除に失敗しました' });
