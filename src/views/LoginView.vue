@@ -26,6 +26,7 @@
         </button>
         <p class="guest-note">登録なしでOK。デモ用のイベント・精算が用意された状態ですぐに体験できます。</p>
 
+        <p v-if="loginError" class="guest-error">{{ loginError }}</p>
         <p v-if="guestError" class="guest-error">{{ guestError }}</p>
         <p class="login__note">続行すると、利用規約とプライバシーポリシーに同意したものとみなされます。</p>
       </div>
@@ -37,25 +38,59 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { auth, provider, functions } from "../firebase";
-import { signInWithPopup, signInAnonymously } from "firebase/auth";
+import { signInWithPopup, signInWithRedirect, getRedirectResult, signInAnonymously } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
+import { onMounted } from "vue";
 import { saveUser } from "../user";
 
 const router = useRouter();
 
 const guestLoading = ref(false);
 const guestError = ref("");
+const loginError = ref("");
+
+// 🌟 ホーム画面に追加した「アプリ版（PWA）」で動いているか
+//    アプリ版は独立ウィンドウのためポップアップが開けず、リダイレクト方式でログインする
+const isStandalone = () =>
+  window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
 
 const loginWithGoogle = async () => {
+  loginError.value = "";
   try {
+    if (isStandalone()) {
+      // アプリ版：同じ画面内で Google に移動して戻ってくる方式
+      await signInWithRedirect(auth, provider);
+      return;
+    }
     const result = await signInWithPopup(auth, provider);
-    const user = result.user;
-    await saveUser(user);
-    console.log("ログイン成功", user);
+    await saveUser(result.user);
+    console.log("ログイン成功", result.user);
   } catch (error) {
     console.error("ログイン失敗", error);
+    // ポップアップが開けない環境ではリダイレクト方式に自動で切り替える
+    const popupIssues = ["auth/popup-blocked", "auth/operation-not-supported-in-this-environment", "auth/cancelled-popup-request", "auth/popup-closed-by-user"];
+    if (popupIssues.includes(error?.code) && error?.code !== "auth/popup-closed-by-user") {
+      try { await signInWithRedirect(auth, provider); return; } catch (e) { console.error(e); }
+    }
+    if (error?.code !== "auth/popup-closed-by-user") {
+      loginError.value = "ログインに失敗しました。もう一度お試しください。";
+    }
   }
 };
+
+// 🌟 リダイレクト方式で Google から戻ってきた時の受け取り
+onMounted(async () => {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result?.user) {
+      await saveUser(result.user);
+      console.log("ログイン成功（リダイレクト）", result.user);
+    }
+  } catch (e) {
+    console.error("リダイレクトログイン失敗", e);
+    loginError.value = "ログインに失敗しました。もう一度お試しください。";
+  }
+});
 
 // 🌟 ゲスト（お試し）ログイン：匿名認証→サーバーがデモ環境を一式用意
 const loginAsGuest = async () => {
