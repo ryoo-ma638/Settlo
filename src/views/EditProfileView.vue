@@ -18,8 +18,17 @@
         <input type="text" v-model="newName" class="input" placeholder="新しい名前を入力" />
       </div>
 
-      <button class="btn-brand edit__save" @click="saveProfile">保存する</button>
+      <button class="btn-brand edit__save" :disabled="saving" @click="saveProfile">{{ saving ? '保存中…' : '保存する' }}</button>
     </main>
+
+    <BaseModal
+      :show="modalState.show"
+      :type="modalState.type"
+      :title="modalState.title"
+      :message="modalState.message"
+      @confirm="handleModalConfirm"
+      @close="handleModalConfirm"
+    />
 
     <Teleport to="body">
       <transition name="sheet">
@@ -45,20 +54,35 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { auth, db } from "../firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useRouter } from "vue-router";
 import PageHeader from "../components/PageHeader.vue";
+import BaseModal from "../components/BaseModal.vue";
 
 const router = useRouter();
 const newName = ref("");
 const userPhoto = ref("");
 const previewPhoto = ref(null);
+const selectedFile = ref(null); // アップロード待ちの画像
+const saving = ref(false);
 
 const showPhotoOptions = ref(false);
 const fileInputLibrary = ref(null);
 const fileInputCamera = ref(null);
+
+// 統一モーダル（alert の置き換え）
+const modalState = reactive({ show: false, type: 'success', title: '', message: '', onConfirm: null });
+const showModal = (type, title, message, onConfirm = null) => {
+  Object.assign(modalState, { type, title, message, onConfirm, show: true });
+};
+const handleModalConfirm = () => {
+  const cb = modalState.onConfirm;
+  modalState.show = false;
+  if (cb) cb();
+};
 
 onMounted(async () => {
   const user = auth.currentUser;
@@ -84,41 +108,66 @@ const triggerLibrary = () => {
 
 const triggerCamera = () => {
   showPhotoOptions.value = false;
-  if (confirm("Settlo がカメラへのアクセスを求めています。\n許可しますか？")) {
-    fileInputCamera.value.click();
-  }
+  fileInputCamera.value.click(); // カメラの許可はブラウザが確認してくれる
 };
 
 const onFileChange = (event) => {
   const file = event.target.files[0];
   if (file) {
-    previewPhoto.value = URL.createObjectURL(file);
-    // TODO: 後でここにFirebaseへのアップロード処理を書く
+    selectedFile.value = file;
+    previewPhoto.value = URL.createObjectURL(file); // まずプレビュー表示（保存時にアップロード）
   }
 };
+
+// 🌟 画像を最大512pxに縮小してJPEG化（通信量と表示速度のため）
+const resizeImage = (file, max = 512) => new Promise((resolve, reject) => {
+  const img = new Image();
+  img.onload = () => {
+    const scale = Math.min(1, max / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('画像の変換に失敗'))), 'image/jpeg', 0.85);
+    URL.revokeObjectURL(img.src);
+  };
+  img.onerror = () => reject(new Error('画像の読み込みに失敗'));
+  img.src = URL.createObjectURL(file);
+});
 
 const saveProfile = async () => {
   const user = auth.currentUser;
   const nameToSave = newName.value.trim();
 
   if (!nameToSave) {
-    alert("名前を入力してください");
+    showModal('error', '入力エラー', '名前を入力してください');
     return;
   }
+  if (!user || saving.value) return;
+  saving.value = true;
 
   try {
-    if (user) {
-      const userDocRef = doc(db, "users", user.uid);
-      await updateDoc(userDocRef, {
-        name: nameToSave,
-      });
+    const payload = { name: nameToSave };
 
-      alert("プロフィールを保存しました！");
-      router.replace("/mypage");
+    // 🌟 画像が選ばれていれば Firebase Storage にアップロードしてURLを保存
+    if (selectedFile.value) {
+      const blob = await resizeImage(selectedFile.value);
+      const sref = storageRef(getStorage(), `avatars/${user.uid}`);
+      await uploadBytes(sref, blob, { contentType: 'image/jpeg' });
+      const url = await getDownloadURL(sref);
+      payload.photo = url;
+      payload.photoURL = url; // 両方のキーを読む画面があるため揃えて保存
     }
+
+    await setDoc(doc(db, "users", user.uid), payload, { merge: true });
+
+    showModal('success', '保存しました', 'プロフィールを更新しました！', () => router.replace("/mypage"));
   } catch (error) {
     console.error("❌ 保存エラー:", error);
-    alert("保存に失敗しました。サーバーが起動しているか確認してください。");
+    showModal('error', '保存に失敗しました', '電波状況を確認してもう一度お試しください。');
+  } finally {
+    saving.value = false;
   }
 };
 </script>
