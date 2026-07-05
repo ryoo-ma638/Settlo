@@ -21,9 +21,10 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            if (id.includes('@firebase/firestore')) return 'firebase-firestore';
-            if (id.includes('@firebase/auth')) return 'firebase-auth';
-            if (id.includes('@firebase/') || id.includes('/firebase/')) return 'firebase-core';
+            // ⚠️ firebase は内部で相互参照しているため「1つのチャンク」にまとめること。
+            //    firestore/auth などに細分割すると初期化順序が壊れて
+            //    実行時に ReferenceError でアプリ全体が起動しなくなる（実際に起きた）。
+            if (id.includes('firebase')) return 'firebase';
             if (id.includes('vue')) return 'vue';
             return 'vendor';
           }
