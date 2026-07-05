@@ -357,3 +357,122 @@ exports.pushOnFriendRequest = onDocumentCreated(
     catch (e) { console.error("プッシュ送信エラー:", e); }
   }
 );
+
+// =================================================================
+// 5. ゲストユーザーのデモ環境セットアップ
+//    「ゲストとして試す」（匿名ログイン）直後に呼ばれ、
+//    体験用のイベント・立替・精算・通知・フレンド申請を一式つくる。
+//    審査員・初見ユーザーがログインなしで全機能を触れるようにする。
+// =================================================================
+exports.setupGuestDemo = onCall(
+  {
+    region: "asia-northeast1",
+    cors: ['http://localhost:5173', 'https://pairpay-4c17a.web.app', 'https://settlo-app.web.app', 'https://settlo-app.firebaseapp.com'],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "ログインが必要です。");
+    }
+    const uid = request.auth.uid;
+    const userRef = db.collection("users").doc(uid);
+    const userSnap = await userRef.get();
+
+    // すでにセットアップ済みなら二重生成しない（冪等）
+    if (userSnap.exists && userSnap.data().demoSetupDone) {
+      return { ok: true, already: true };
+    }
+
+    const guestName = `ゲスト${Math.floor(100 + Math.random() * 900)}`;
+    const now = admin.firestore.FieldValue.serverTimestamp();
+
+    // 1) ゲスト本人のプロフィール
+    await userRef.set({
+      uid,
+      name: guestName,
+      email: "",
+      photo: "",
+      isGuest: true,
+      demoSetupDone: true,
+      lastLogin: now,
+    }, { merge: true });
+
+    // 2) デモメンバー（全ゲスト共通の相手役・無ければ作る）
+    const TARO = "demo-user-taro";
+    const HANAKO = "demo-user-hanako";
+    await db.collection("users").doc(TARO).set({ uid: TARO, name: "デモ太郎", email: "", photo: "", isDemo: true }, { merge: true });
+    await db.collection("users").doc(HANAKO).set({ uid: HANAKO, name: "デモ花子", email: "", photo: "", isDemo: true }, { merge: true });
+
+    // 3) デモイベント（ゲストごとに独立）
+    const code = "DEMO" + Math.floor(1000 + Math.random() * 9000);
+    const eventRef = await db.collection("events").add({
+      name: "札幌旅行（デモ）",
+      tag: "旅行",
+      participants: [uid, TARO, HANAKO],
+      invitationCode: code,
+      totalAmount: 15000,
+      memo: "Settloのお試し用イベントです。自由に触ってみてください！",
+      hiddenBy: [],
+      createdAt: now,
+    });
+    const eventId = eventRef.id;
+    const dateStr = new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/-/g, "/");
+
+    // 4) 立替1：ゲストが夕食6,000円を立て替え（太郎・花子が2,000円ずつ支払う）
+    const tx1 = await db.collection("transactions").add({
+      paidById: TARO, paidToId: uid, paidByName: "デモ太郎", amount: 2000,
+      itemName: "ジンギスカン夕食", status: "unpaid", eventId, createdAt: now,
+    });
+    const tx2 = await db.collection("transactions").add({
+      paidById: HANAKO, paidToId: uid, paidByName: "デモ花子", amount: 2000,
+      itemName: "ジンギスカン夕食", status: "unpaid", eventId, createdAt: now,
+    });
+    await db.collection("events").doc(eventId).collection("history").add({
+      payer: guestName, payerUid: uid, itemName: "ジンギスカン夕食", category: "食事",
+      splitType: "all", amount: 6000, date: dateStr, time: "19:30", status: "unpaid",
+      timestamp: now, taxMode: "included", registrationNumber: null, remainder: null,
+      shares: [
+        { uid, name: guestName, amount: 2000 },
+        { uid: TARO, name: "デモ太郎", amount: 2000 },
+        { uid: HANAKO, name: "デモ花子", amount: 2000 },
+      ],
+      items: [], transactionIds: [tx1.id, tx2.id],
+    });
+
+    // 5) 立替2：太郎がレンタカー9,000円を立て替え（ゲストは3,000円支払う側）
+    const tx3 = await db.collection("transactions").add({
+      paidById: uid, paidToId: TARO, paidByName: guestName, amount: 3000,
+      itemName: "レンタカー", status: "unpaid", eventId, createdAt: now,
+    });
+    const tx4 = await db.collection("transactions").add({
+      paidById: HANAKO, paidToId: TARO, paidByName: "デモ花子", amount: 3000,
+      itemName: "レンタカー", status: "unpaid", eventId, createdAt: now,
+    });
+    await db.collection("events").doc(eventId).collection("history").add({
+      payer: "デモ太郎", payerUid: TARO, itemName: "レンタカー", category: "交通",
+      splitType: "all", amount: 9000, date: dateStr, time: "13:00", status: "unpaid",
+      timestamp: now, taxMode: "included", registrationNumber: null, remainder: null,
+      shares: [
+        { uid, name: guestName, amount: 3000 },
+        { uid: TARO, name: "デモ太郎", amount: 3000 },
+        { uid: HANAKO, name: "デモ花子", amount: 3000 },
+      ],
+      items: [], transactionIds: [tx3.id, tx4.id],
+    });
+
+    // 6) お知らせ体験：太郎から支払いの催促＋花子からフレンド申請
+    await db.collection("notifications").add({
+      toUserId: uid, type: "payment_reminder",
+      message: "レンタカー代（¥3,000）をお願いします！",
+      transactionId: tx3.id,
+      fromUserId: TARO, fromUserName: "デモ太郎",
+      isRead: false, createdAt: now,
+    });
+    await db.collection("friendRequests").add({
+      toId: uid, toName: guestName,
+      formId: HANAKO, formName: "デモ花子", formPhoto: "",
+      status: "pending", createdAt: now,
+    });
+
+    return { ok: true, eventId, guestName };
+  }
+);

@@ -19,6 +19,14 @@
           </svg>
           <span>Google でログイン</span>
         </button>
+
+        <button class="guest-btn" :disabled="guestLoading" @click="loginAsGuest">
+          <svg class="guest-btn__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5 20v-1a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1"/></svg>
+          <span>{{ guestLoading ? 'デモを準備中…' : 'ゲストとして試す（デモ）' }}</span>
+        </button>
+        <p class="guest-note">登録なしでOK。デモ用のイベント・精算が用意された状態ですぐに体験できます。</p>
+
+        <p v-if="guestError" class="guest-error">{{ guestError }}</p>
         <p class="login__note">続行すると、利用規約とプライバシーポリシーに同意したものとみなされます。</p>
       </div>
     </div>
@@ -26,9 +34,17 @@
 </template>
 
 <script setup>
-import { auth, provider } from "../firebase";
-import { signInWithPopup } from "firebase/auth";
+import { ref } from "vue";
+import { useRouter } from "vue-router";
+import { auth, provider, functions } from "../firebase";
+import { signInWithPopup, signInAnonymously } from "firebase/auth";
+import { httpsCallable } from "firebase/functions";
 import { saveUser } from "../user";
+
+const router = useRouter();
+
+const guestLoading = ref(false);
+const guestError = ref("");
 
 const loginWithGoogle = async () => {
   try {
@@ -38,6 +54,29 @@ const loginWithGoogle = async () => {
     console.log("ログイン成功", user);
   } catch (error) {
     console.error("ログイン失敗", error);
+  }
+};
+
+// 🌟 ゲスト（お試し）ログイン：匿名認証→サーバーがデモ環境を一式用意
+const loginAsGuest = async () => {
+  if (guestLoading.value) return;
+  guestLoading.value = true;
+  guestError.value = "";
+  try {
+    await signInAnonymously(auth);
+    const setup = httpsCallable(functions, "setupGuestDemo");
+    const res = await setup({});
+    // デモイベントへ直接案内（生成完了後なのでデータが揃っている）
+    if (res.data && res.data.eventId) {
+      router.replace(`/event/${res.data.eventId}`);
+    } else {
+      router.replace("/");
+    }
+  } catch (error) {
+    console.error("ゲストログイン失敗", error);
+    guestError.value = "ゲストログインに失敗しました。時間をおいてもう一度お試しください。";
+  } finally {
+    guestLoading.value = false;
   }
 };
 </script>
@@ -132,6 +171,47 @@ const loginWithGoogle = async () => {
   background: var(--c-surface-2);
 }
 .gbtn__logo { flex-shrink: 0; }
+
+/* 🌟 ゲストログイン */
+.guest-btn {
+  width: 100%;
+  max-width: 340px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 15px 20px;
+  border-radius: var(--r-pill);
+  background: var(--c-brand);
+  border: none;
+  box-shadow: 0 6px 16px rgba(5, 150, 105, 0.3);
+  color: #fff;
+  font-size: 16px;
+  font-weight: var(--fw-bold);
+  transition: transform 0.12s ease;
+}
+.guest-btn:active { transform: scale(0.98); }
+.guest-btn:disabled { opacity: 0.7; }
+.guest-btn__icon {
+  width: 19px; height: 19px; flex-shrink: 0;
+  fill: none; stroke: #fff; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round;
+}
+.guest-note {
+  max-width: 300px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--c-text-sub);
+  margin: 0;
+}
+.guest-error {
+  max-width: 300px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--c-danger, #dc2626);
+  font-weight: var(--fw-bold);
+  margin: 0;
+}
 
 .login__note {
   max-width: 300px;
