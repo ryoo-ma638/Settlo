@@ -266,3 +266,94 @@ exports.purgeTrash = onSchedule(
     console.log(`ゴミ箱: ${count}件を自動削除しました`);
   }
 );
+
+// =================================================================
+// 4. プッシュ通知（お知らせ作成時にスマホへ実配信）
+//    notifications / friendRequests にドキュメントが作られたら、
+//    宛先ユーザーの登録トークン(users/{uid}.fcmTokens)へ送信する。
+// =================================================================
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+
+// 通知タイプ → プッシュの本文
+const PUSH_TEXT = {
+  approval_request: "支払いの承認リクエストが届きました",
+  approval_rejected: "承認リクエストが拒否されました",
+  payment_reminder: "支払いの催促が届きました",
+  payment_completed: "支払いが完了しました！",
+  payment_edited: "支払いが編集されました",
+  payment_deleted: "支払いが削除されました。確認してください",
+  payment_delete_rejected: "削除に「正しくない」が選ばれました",
+  event_edited: "イベントが編集されました",
+  event_invite: "イベントに招待されています",
+  invite_rejected: "招待が拒否されました",
+  event_joined: "イベントに新しいメンバーが参加しました",
+  event_restored: "イベントが復元されました。確認してください",
+  event_restore_rejected: "復帰に「正しくない」が選ばれました",
+  event_left_check: "メンバーがイベントから抜けました。確認してください",
+  event_left_rejected: "退出に「正しくない」が選ばれました",
+  restore_check: "取引が元に戻されました。確認してください",
+  restore_reverted: "取引がゴミ箱に戻されました",
+  settlement_restore_request: "未精算に戻す依頼が届きました",
+  settlement_restore_approved: "未精算に戻す依頼が承認されました",
+  settlement_restore_rejected: "未精算に戻す依頼が拒否されました",
+};
+
+// 宛先ユーザーのトークンにプッシュを送り、無効なトークンは掃除する
+async function sendPushTo(uid, title, body) {
+  if (!uid) return;
+  const userSnap = await db.collection("users").doc(uid).get();
+  if (!userSnap.exists) return;
+  const tokens = userSnap.data().fcmTokens || [];
+  if (tokens.length === 0) return;
+
+  const message = {
+    tokens,
+    notification: { title, body },
+    webpush: {
+      notification: { icon: "/favicon.ico", badge: "/favicon.ico" },
+      fcmOptions: { link: "https://settlo-app.web.app/" },
+    },
+  };
+  const res = await admin.messaging().sendEachForMulticast(message);
+
+  // 期限切れ・削除済みのトークンを配列から除去
+  const dead = [];
+  res.responses.forEach((r, i) => {
+    if (!r.success) {
+      const code = r.error && r.error.code;
+      if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-argument") {
+        dead.push(tokens[i]);
+      }
+    }
+  });
+  if (dead.length > 0) {
+    await db.collection("users").doc(uid).update({
+      fcmTokens: admin.firestore.FieldValue.arrayRemove(...dead),
+    });
+  }
+}
+
+// お知らせ（notifications）が作られたらプッシュ
+exports.pushOnNotification = onDocumentCreated(
+  { document: "notifications/{id}", region: "asia-northeast1" },
+  async (event) => {
+    const data = event.data && event.data.data();
+    if (!data || !data.toUserId) return;
+    const from = data.fromUserName || "メンバー";
+    const body = `${from}さん: ${PUSH_TEXT[data.type] || data.message || "新しいお知らせがあります"}`;
+    try { await sendPushTo(data.toUserId, "Settlo", body); }
+    catch (e) { console.error("プッシュ送信エラー:", e); }
+  }
+);
+
+// フレンド申請（friendRequests）が作られたらプッシュ
+exports.pushOnFriendRequest = onDocumentCreated(
+  { document: "friendRequests/{id}", region: "asia-northeast1" },
+  async (event) => {
+    const data = event.data && event.data.data();
+    if (!data || !data.toId || data.status !== "pending") return;
+    const from = data.formName || "メンバー";
+    try { await sendPushTo(data.toId, "Settlo", `${from}さんからフレンド申請が届きました`); }
+    catch (e) { console.error("プッシュ送信エラー:", e); }
+  }
+);
