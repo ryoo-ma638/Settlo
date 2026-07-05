@@ -18,17 +18,36 @@
             </div>
 
             <div class="results">
-              <div v-for="user in searchResults" :key="user.uid" class="rescard">
-                <div class="rescard__avatar">
-                  <img v-if="user.photo" :src="user.photo" />
-                  <div v-else class="rescard__ph" :style="{ backgroundColor: user.color || '#cbd5e1' }"></div>
+              <template v-if="searchQuery">
+                <div v-for="user in searchResults" :key="user.uid" class="rescard">
+                  <div class="rescard__avatar">
+                    <img v-if="user.photo" :src="user.photo" />
+                    <div v-else class="rescard__ph" :style="{ backgroundColor: user.color || '#cbd5e1' }"></div>
+                  </div>
+                  <span class="rescard__name">{{ user.name }}
+                    <span v-if="isEventMember(user.uid)" class="rescard__tag">同じイベント</span>
+                    <span v-else-if="isAlreadyFriend(user.uid)" class="rescard__tag is-friend">フレンド済み</span>
+                  </span>
+                  <button v-if="!isAlreadyFriend(user.uid)" class="rescard__add" @click="selectedUser = user">追加</button>
                 </div>
-                <span class="rescard__name">{{ user.name }}</span>
-                <button class="rescard__add" @click="selectedUser = user">追加</button>
-              </div>
-              <div v-if="searchQuery && searchResults.length === 0" class="empty-msg">
-                ユーザーが見つかりません
-              </div>
+                <div v-if="searchResults.length === 0" class="empty-msg">
+                  ユーザーが見つかりません
+                </div>
+              </template>
+              <template v-else>
+                <p v-if="eventMembers.length" class="cand-title">同じイベントのメンバー</p>
+                <div v-for="user in eventMembers" :key="user.uid" class="rescard">
+                  <div class="rescard__avatar">
+                    <img v-if="user.photo" :src="user.photo" />
+                    <div v-else class="rescard__ph" :style="{ backgroundColor: '#cbd5e1' }"></div>
+                  </div>
+                  <span class="rescard__name">{{ user.name }}</span>
+                  <button class="rescard__add" @click="selectedUser = user">追加</button>
+                </div>
+                <div v-if="eventMembers.length === 0" class="empty-msg">
+                  名前かIDで検索してください
+                </div>
+              </template>
             </div>
 
             <button class="modal-close" @click="close">閉じる</button>
@@ -86,7 +105,7 @@
 import { ref, watch, reactive } from 'vue';
 import BaseModal from './BaseModal.vue'; // 🌟 統一モーダルをインポート
 import { db, auth } from '@/firebase';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
 import { doc, getDoc } from 'firebase/firestore';
 
 const props = defineProps({ isOpen: Boolean });
@@ -121,8 +140,9 @@ const performSearch = async () => {
     const results = [];
 
     if (searchMode.value === 'name') {
+      // 🌟 先頭一致（前方一致）で候補を出す
       const usersRef = collection(db, "users");
-      const q = query(usersRef, where("name", "==", text), limit(10));
+      const q = query(usersRef, orderBy("name"), where("name", ">=", text), where("name", "<=", text + "\uf8ff"), limit(10));
       const querySnapshot = await getDocs(q);
       querySnapshot.forEach((doc) => {
         if (doc.id !== auth.currentUser?.uid) {
@@ -132,6 +152,13 @@ const performSearch = async () => {
             name: data.name,
             photo: data.photo || ""
           });
+        }
+      });
+      // 🌟 同じイベントのメンバーは「部分一致」でも候補に出す
+      const inResults = new Set(results.map(r => r.uid));
+      eventMembers.value.forEach(m => {
+        if (!inResults.has(m.uid) && (m.name || '').includes(text)) {
+          results.push({ ...m });
         }
       });
     } else {
@@ -155,6 +182,33 @@ const performSearch = async () => {
 };
 
 watch(searchQuery, () => performSearch());
+
+// 🌟 同じイベントにいるメンバーを候補として読み込む（既にフレンドの人は除外）
+const eventMembers = ref([]);
+const friendUids = ref(new Set());
+const isEventMember = (uid) => eventMembers.value.some(m => m.uid === uid);
+const isAlreadyFriend = (uid) => friendUids.value.has(uid);
+const loadCandidates = async () => {
+  const myUid = auth.currentUser?.uid;
+  if (!myUid) return;
+  try {
+    const friendsSnap = await getDocs(collection(db, 'users', myUid, 'friends'));
+    friendUids.value = new Set(friendsSnap.docs.map(d => d.id));
+    const evs = await getDocs(query(collection(db, 'events'), where('participants', 'array-contains', myUid)));
+    const uids = new Set();
+    evs.forEach(e => (e.data().participants || []).forEach(u => { if (u !== myUid) uids.add(u); }));
+    const arr = [];
+    for (const u of uids) {
+      if (friendUids.value.has(u)) continue; // 既にフレンドは候補から外す
+      try {
+        const ud = await getDoc(doc(db, 'users', u));
+        if (ud.exists()) arr.push({ uid: u, name: ud.data().name || 'メンバー', photo: ud.data().photo || ud.data().photoURL || '' });
+      } catch (e) {}
+    }
+    eventMembers.value = arr;
+  } catch (e) { console.error('候補の取得エラー:', e); }
+};
+watch(() => props.isOpen, (v) => { if (v) loadCandidates(); });
 
 // 🌟 申請確認画面で「この人との本物の取引履歴」を表示
 const tradeHistory = ref([]);
@@ -330,6 +384,9 @@ const executeRequest = async () => {
 .rescard__add:active { transform: scale(0.95); }
 
 .empty-msg { text-align: center; color: var(--c-text-faint); font-size: 14px; padding: 28px 0; }
+.cand-title { font-size: 11px; font-weight: 800; color: var(--c-text-faint); margin: 0 0 2px 4px; }
+.rescard__tag { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 999px; background: var(--c-brand-weak, #ecfdf5); color: var(--c-brand, #059669); font-size: 10px; font-weight: 800; vertical-align: middle; }
+.rescard__tag.is-friend { background: var(--c-surface-2, #f1f5f9); color: var(--c-text-sub, #64748b); }
 
 .modal-close {
   display: block;
