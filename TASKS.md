@@ -31,13 +31,13 @@
   - 済：「心当たりがない」→「本当に心当たりがないですか？」と再確認 → 拒否で招待した人へ `invite_rejected` 通知（正しいか再確認を促す）。
   - 関連: `notifications` / `src/components/InviteModal.vue` / `src/components/NotificationIcon.vue` / `src/views/EventDetails.vue`
 
-- [ ] **参加者一覧から各参加者をタップ → フレンド申請へ**
-  - 参加者モーダルの各人から、フレンド申請などのアクションに遷移できるように。
+- [x] **参加者一覧から各参加者をタップ → フレンド申請へ**（2026-07-05 実装）
+  - 済：参加者一覧の各行に「フレンド申請」ボタン（フレンド済み／申請済みは状態タグ表示）。
   - 関連: `src/views/EventDetails.vue`（参加者一覧モーダル）
 
-- [ ] **フレンド検索の改善（部分一致・候補表示）**
-  - 今は `name` 完全一致のみ。先頭文字一致で候補表示、特に同じイベントにいる人を候補に出す。
-  - 関連: `src/components/FriendAddModal.vue` / `src/components/InviteModal.vue`
+- [x] **フレンド検索の改善（部分一致・候補表示）**（2026-07-05 実装）
+  - 済：名前検索を**先頭一致**の候補表示に。**同じイベントのメンバー**は部分一致でも候補に出し、検索欄が空のときは候補として一覧表示（フレンド済みは除外・バッジ表示）。
+  - 関連: `src/components/FriendAddModal.vue`
 
 - [ ] **CombinedSettlementView の集計を精査**
   - 実データ集計になっているか確認（ダミー名のハードコードは見当たらないが要確認）。

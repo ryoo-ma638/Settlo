@@ -23,7 +23,7 @@
           </div>
         </div>
 
-        <div class="participants-section" @click="modals.participants = true">
+        <div class="participants-section" @click="openParticipants">
           <div class="participants-header">
             <span class="label">参加者 ({{ eventData.participants.length }}名)</span>
             <span class="arrow">›</span>
@@ -208,6 +208,9 @@
                 :style="{ backgroundColor: p.color || '#cbd5e1' }"
               ></div>
               <span class="item-name">{{ p.name }} <span v-if="p.isMe" class="me-badge">自分</span></span>
+              <button v-if="!p.isMe && friendStatus[p.id] === 'none'" class="p-friend-btn" @click="sendFriendRequestTo(p)">フレンド申請</button>
+              <span v-else-if="!p.isMe && friendStatus[p.id] === 'friend'" class="p-friend-tag">フレンド</span>
+              <span v-else-if="!p.isMe && friendStatus[p.id] === 'requested'" class="p-friend-tag is-wait">申請済み</span>
               <button v-if="!p.isMe" class="p-remove-btn" @click="removeParticipant(p)" aria-label="外す">
                 <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>
               </button>
@@ -457,6 +460,52 @@ const saveEventEdit = async () => {
 };
 
 // 🌟 参加者をイベントから外す（確認つき）
+// 🌟 参加者一覧を開く（各参加者とのフレンド状態も読み込む）
+const friendStatus = ref({}); // uid -> 'friend' | 'requested' | 'none'
+const openParticipants = async () => {
+  modals.value.participants = true;
+  const myUid = auth.currentUser?.uid;
+  if (!myUid) return;
+  try {
+    const [friendsSnap, reqSnap] = await Promise.all([
+      getDocs(collection(db, 'users', myUid, 'friends')),
+      getDocs(query(collection(db, 'friendRequests'), where('formId', '==', myUid), where('status', '==', 'pending'))),
+    ]);
+    const friends = new Set(friendsSnap.docs.map(d => d.id));
+    const requested = new Set(reqSnap.docs.map(d => d.data().toId));
+    const map = {};
+    for (const p of eventData.value.participants) {
+      if (p.isMe) continue;
+      map[p.id] = friends.has(p.id) ? 'friend' : (requested.has(p.id) ? 'requested' : 'none');
+    }
+    friendStatus.value = map;
+  } catch (e) { console.error('フレンド状態の取得エラー:', e); }
+};
+
+// 🌟 参加者にフレンド申請を送る
+const sendFriendRequestTo = async (p) => {
+  const myUid = auth.currentUser?.uid;
+  if (!myUid) return;
+  try {
+    let myPhoto = '';
+    try { const md = await getDoc(doc(db, 'users', myUid)); if (md.exists()) myPhoto = md.data().photo || md.data().photoURL || ''; } catch (e) {}
+    await addDoc(collection(db, 'friendRequests'), {
+      toId: p.id,
+      toName: p.name || '',
+      formId: myUid,
+      formName: myName.value || 'メンバー',
+      formPhoto: myPhoto,
+      status: 'pending',
+      createdAt: serverTimestamp(),
+    });
+    friendStatus.value = { ...friendStatus.value, [p.id]: 'requested' };
+    showToast(`${p.name}さんにフレンド申請を送りました`);
+  } catch (e) {
+    console.error('フレンド申請エラー:', e);
+    showAlert('error', 'エラー', 'フレンド申請の送信に失敗しました。');
+  }
+};
+
 const removeParticipant = (p) => {
   if (p.isMe) { showAlert('info', '外せません', '自分はイベントから外せません。'); return; }
   showConfirm('参加者を外す', `${p.name} さんをこのイベントから外しますか？`, async () => {
@@ -1288,6 +1337,10 @@ onMounted(() => {
 .list-item { display: flex; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid #f1f5f9; }
 .avatar-medium { width: 44px; height: 44px; border-radius: 50%; }
 .item-name { flex: 1; font-size: 16px; font-weight: 800; color: #334155; display: flex; align-items: center; gap: 10px; }
+.p-friend-btn { background: var(--c-brand, #10b981); color: #fff; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 800; border: none; flex-shrink: 0; }
+.p-friend-btn:active { transform: scale(0.95); }
+.p-friend-tag { background: var(--c-brand-weak, #ecfdf5); color: var(--c-brand, #059669); padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; flex-shrink: 0; }
+.p-friend-tag.is-wait { background: #fffbeb; color: #b45309; }
 .me-badge { font-size: 10px; background: var(--c-brand); color: white; padding: 2px 8px; border-radius: 10px; font-weight: 800; }
 .p-remove-btn { flex-shrink: 0; width: 34px; height: 34px; border: none; background: #fef2f2; color: var(--c-danger, #ef4444); border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .p-remove-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
