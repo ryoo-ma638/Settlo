@@ -131,7 +131,7 @@
 
   <BaseModal
     :show="modalState.show"
-    type="success"
+    :type="modalState.type"
     :title="modalState.title"
     :message="modalState.message"
     @confirm="modalState.show = false"
@@ -278,6 +278,8 @@ const dismissNotif = async (req) => {
 };
 
 const modalState = reactive({ show: false, type: 'success', title: '', message: '' });
+// 結果をユーザーに必ず見せる（成功/失敗を黙らせない）
+const notice = (type, title, message) => { Object.assign(modalState, { type, title, message, show: true }); };
 
 // 招待の拒否時の二段階確認ダイアログ
 const confirmState = reactive({ show: false, title: '', message: '', onConfirm: null });
@@ -526,13 +528,37 @@ const rejectEventRestore = (req) => {
 //    差し戻された側も再び判断でき、決着がつくまで交互に確認が続く
 // ==========================================
 
-// 共有ゴミ箱の控えから支払いを復元し、相手へ「正しいですか？」を送る
-const restorePaymentFromTrash = async (trashId) => {
+// 通知から対象のゴミ箱の控えを特定する（古い通知に trashId が無くても、内容から探し出す）
+const resolveTrashDoc = async (req) => {
+  if (req.trashId) {
+    try {
+      const t = await getDoc(doc(db, "trash", req.trashId));
+      if (t.exists()) return { id: t.id, data: t.data() };
+    } catch (e) {}
+  }
+  // フォールバック：自分が当事者の控えから、イベント・品名・金額が一致するものを探す
   const uid = auth.currentUser?.uid;
-  if (!uid || !trashId) return false;
-  const t = await getDoc(doc(db, "trash", trashId));
-  if (!t.exists()) return false;
-  const d = t.data();
+  if (!uid) return null;
+  try {
+    const snap = await getDocs(query(collection(db, 'trash'), where('participants', 'array-contains', uid)));
+    const cands = snap.docs
+      .map(d => ({ id: d.id, data: d.data() }))
+      .filter(x => (!req.eventId || x.data.eventId === req.eventId)
+        && (!req.itemName || x.data.itemName === req.itemName)
+        && (req.amount == null || Number(x.data.amount) === Number(req.amount)))
+      .sort((a, b) => (b.data.trashedAt?.seconds || 0) - (a.data.trashedAt?.seconds || 0));
+    return cands[0] || null;
+  } catch (e) { return null; }
+};
+
+// 共有ゴミ箱の控えから支払いを復元し、相手へ「正しいですか？」を送る
+const restorePaymentFromTrash = async (req) => {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return false;
+  const found = await resolveTrashDoc(req);
+  if (!found) return false;
+  const trashId = found.id;
+  const d = found.data;
   if (d.status === 'restored') return true; // すでに復元済み
   const newTxIds = [];
   for (const tx of (d.transactionSnapshots || [])) {
@@ -604,7 +630,11 @@ const rejectPaymentDelete = (req) => {
         isRead: false, createdAt: serverTimestamp(),
       });
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
-    } catch (e) { console.error("削除への異議通知エラー:", e); }
+      notice('success', '相手に伝えました', `${req.fromUserName || '相手'}さんに「削除は正しくない」と伝えました。相手の判断をお待ちください。`);
+    } catch (e) {
+      console.error("削除への異議通知エラー:", e);
+      notice('error', 'エラー', '通知の送信に失敗しました。もう一度お試しください。');
+    }
   });
 };
 
@@ -612,9 +642,17 @@ const rejectPaymentDelete = (req) => {
 const acceptDeleteRejection = (req) => {
   askConfirm('削除をやめて元に戻しますか？', `「${req.itemName || ''}」をゴミ箱から元に戻し、相手に「正しいですか？」の確認を送ります。`, async () => {
     try {
-      if (req.trashId) await restorePaymentFromTrash(req.trashId);
+      const ok = await restorePaymentFromTrash(req);
+      if (!ok) {
+        notice('error', '元に戻せませんでした', 'ゴミ箱に控えが見つかりませんでした（自動削除された可能性があります）。ゴミ箱を確認してください。');
+        return; // 通知は残す
+      }
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
-    } catch (e) { console.error("削除取り消しエラー:", e); }
+      notice('success', '元に戻しました', 'ゴミ箱から復元し、相手に「正しいですか？」の確認を送りました。');
+    } catch (e) {
+      console.error("削除取り消しエラー:", e);
+      notice('error', 'エラー', '元に戻す処理に失敗しました。電波状況を確認してもう一度お試しください。');
+    }
   });
 };
 
@@ -640,9 +678,17 @@ const reassertDelete = (req) => {
 const reRestorePayment = (req) => {
   askConfirm('もう一度元に戻しますか？', `「${req.itemName || ''}」を再び復元し、相手に「正しいですか？」の確認を送ります。`, async () => {
     try {
-      if (req.trashId) await restorePaymentFromTrash(req.trashId);
+      const ok = await restorePaymentFromTrash(req);
+      if (!ok) {
+        notice('error', '復元できませんでした', 'ゴミ箱に控えが見つかりませんでした。ゴミ箱を確認してください。');
+        return; // 通知は残す
+      }
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
-    } catch (e) { console.error("再復元エラー:", e); }
+      notice('success', '元に戻しました', '再び復元し、相手に「正しいですか？」の確認を送りました。');
+    } catch (e) {
+      console.error("再復元エラー:", e);
+      notice('error', 'エラー', '復元に失敗しました。電波状況を確認してもう一度お試しください。');
+    }
   });
 };
 
@@ -653,7 +699,11 @@ const acceptLeftRejection = (req) => {
     try {
       await restoreEventAgain(req);
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
-    } catch (e) { console.error("イベント復帰エラー:", e); }
+      notice('success', 'イベントに戻りました', '参加者に「正しいですか？」の確認を送りました。');
+    } catch (e) {
+      console.error("イベント復帰エラー:", e);
+      notice('error', 'エラー', 'イベントへの復帰に失敗しました。もう一度お試しください。');
+    }
   });
 };
 
@@ -680,7 +730,11 @@ const reRestoreEvent = (req) => {
     try {
       await restoreEventAgain(req);
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
-    } catch (e) { console.error("再復帰エラー:", e); }
+      notice('success', '復帰しました', 'イベントに戻り、参加者に「正しいですか？」の確認を送りました。');
+    } catch (e) {
+      console.error("再復帰エラー:", e);
+      notice('error', 'エラー', '復帰に失敗しました。もう一度お試しください。');
+    }
   });
 };
 
@@ -690,10 +744,11 @@ const reRequestRestore = (req) => {
   askConfirm('もう一度依頼しますか？', `「${req.itemName || ''}」を未精算に戻す依頼を、もう一度 ${req.fromUserName || '相手'}さんに送ります。`, async () => {
     try {
       const myUid = auth.currentUser?.uid;
-      if (req.trashId) { try { await updateDoc(doc(db, "trash", req.trashId), { status: 'pending' }); } catch (e) {} }
+      const found = await resolveTrashDoc(req); // 古い通知で trashId が無くても控えを探す
+      if (found) { try { await updateDoc(doc(db, "trash", found.id), { status: 'pending' }); } catch (e) {} }
       await addDoc(collection(db, "notifications"), {
         toUserId: req.fromUserId, type: 'settlement_restore_request',
-        trashId: req.trashId || null,
+        trashId: found ? found.id : (req.trashId || null),
         eventId: req.eventId || null, eventName: req.eventName || '',
         historyId: req.historyId || null, itemName: req.itemName || '決済',
         amount: req.amount || 0, transactionIds: req.transactionIds || [],
@@ -701,7 +756,11 @@ const reRequestRestore = (req) => {
         isRead: false, createdAt: serverTimestamp(),
       });
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
-    } catch (e) { console.error("再依頼エラー:", e); }
+      notice('success', '依頼を送りました', `${req.fromUserName || '相手'}さんに、もう一度依頼を送りました。`);
+    } catch (e) {
+      console.error("再依頼エラー:", e);
+      notice('error', 'エラー', '依頼の送信に失敗しました。もう一度お試しください。');
+    }
   });
 };
 
