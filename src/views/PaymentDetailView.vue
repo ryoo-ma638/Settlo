@@ -211,7 +211,7 @@ onMounted(async () => {
           id: d.id,
           opponentUid,
           eventName: data.eventName || data.itemName || '精算',
-          date: '',
+          date: fmtDate(data.createdAt),
           name: opponentName,
           itemName: data.itemName || 'イベント代',
           amount: data.amount || 0,
@@ -245,7 +245,7 @@ onMounted(async () => {
           id: docSnap.id,
           opponentUid,
           eventName: data.eventName || data.itemName || '個別精算',
-          date: '',
+          date: fmtDate(data.createdAt),
           name: opponentName,
           itemName: data.itemName,
           amount: data.amount || 0,
@@ -264,6 +264,11 @@ onMounted(async () => {
 const openOverlay = (item) => { selectedItem.value = item; };
 
 // 取引のステータスを一括更新する共通処理
+// 取引の作成日時を「YYYY/MM/DD」表示にする
+const fmtDate = (ts) => (ts && ts.seconds)
+  ? new Date(ts.seconds * 1000).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })
+  : '';
+
 const updateAllItems = async (status) => {
   for (const it of items.value) {
     await updateDoc(doc(db, "transactions", it.id), { status });
