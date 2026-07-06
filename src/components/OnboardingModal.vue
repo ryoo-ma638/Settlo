@@ -5,18 +5,17 @@
         <div class="ob-card">
           <!-- スライド -->
           <div class="ob-slide">
-            <div class="ob-illust" :class="`ob-illust--${step}`">
-              <!-- 1: ようこそ -->
-              <svg v-if="step === 0" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><path d="M9 14l2 2 4-4"/></svg>
-              <!-- 2: レシート -->
-              <svg v-else-if="step === 1" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 7h6M9 11h6M9 15h4"/><circle cx="17.5" cy="17.5" r="4" fill="var(--c-brand)" stroke="none"/><path d="M15.8 17.5l1.2 1.2 2.2-2.2" stroke="#fff"/></svg>
-              <!-- 3: 精算 -->
-              <svg v-else-if="step === 2" viewBox="0 0 24 24"><path d="M7 10l-3 3 3 3M17 4l3 3-3 3"/><path d="M4 13h13M20 7H7"/></svg>
-              <!-- 4: 安心 -->
-              <svg v-else viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>
+            <!-- 1枚目はブランド、それ以降は実際の画面写真 -->
+            <div v-if="!slides[step].image" class="ob-illust">
+              <svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><path d="M9 14l2 2 4-4"/></svg>
             </div>
+            <div v-else class="ob-shot">
+              <img :src="slides[step].image" alt="" />
+            </div>
+
             <h2 class="ob-title">{{ slides[step].title }}</h2>
             <p class="ob-text">{{ slides[step].text }}</p>
+            <p v-if="slides[step].tap" class="ob-tap">👆 {{ slides[step].tap }}</p>
           </div>
 
           <!-- ドット -->
@@ -43,22 +42,35 @@ import { auth } from '../firebase';
 const show = ref(false);
 const step = ref(0);
 
+// 実際の画面写真つきガイド（画像は public/tutorial/）
 const slides = [
   {
     title: 'ようこそ Settlo へ！',
-    text: '旅行や飲み会の立て替えを、イベントごとにかんたん記録。仲間を招待して、割り勘をもっとスマートに。',
+    text: '旅行や飲み会の立て替えを、イベントごとにかんたん記録。仲間を招待して、割り勘をもっとスマートに。実際の画面で使い方を見てみましょう。',
   },
   {
+    image: './tutorial/home.jpg',
+    title: 'ホームで貸し借りがひと目でわかる',
+    text: '「受け取る額」と「支払う額」をまとめて表示。イベントはここから開けます。',
+    tap: '新しいイベントは、下の緑の「＋」ボタンから作成',
+  },
+  {
+    image: './tutorial/event.jpg',
+    title: 'イベントに仲間を集める',
+    text: '「＋ 招待」や招待コードのシェアでメンバーを追加。未精算の残りと進捗もここで確認できます。',
+    tap: '立て替えたら「＋ 支払いを追加」をタップ',
+  },
+  {
+    image: './tutorial/payment.jpg',
     title: 'レシートはAIにおまかせ',
-    text: 'レシートを撮るだけで、店名・金額・商品・消費税まで自動入力。商品ごとに「誰が払うか」も選べます。',
+    text: 'レシートを撮るだけで店名・金額・商品・消費税まで自動入力。割り勘は「均等／金額指定／商品ごと」から選べます。',
+    tap: '点線の枠をタップしてレシートを撮影',
   },
   {
-    title: '精算は最小回数でまとめて',
-    text: '貸し借りを自動で相殺して、いちばん少ない送金回数に。PayPayリンクや現金＋承認でスッキリ完了。',
-  },
-  {
-    title: '間違えても、勝手に消されても安心',
-    text: '削除・変更は相手に「正しいですか？」の確認が届き、ゴミ箱から7日以内なら元に戻せます。使い方はヘルプ（マイページ）からいつでも確認できます。',
+    image: './tutorial/notify.jpg',
+    title: '通知で安心のやり取り',
+    text: '催促・承認依頼・「これは正しいですか？」の確認がベルに届きます。間違えてもゴミ箱から7日以内なら元に戻せます。',
+    tap: '右上のベルでお知らせ、「？」でいつでもヘルプ',
   },
 ];
 
@@ -94,21 +106,23 @@ onUnmounted(() => window.removeEventListener('settlo:show-onboarding', forceShow
   background: rgba(15, 23, 42, 0.55);
   z-index: 90000;
   display: flex; align-items: center; justify-content: center;
-  padding: 24px;
+  padding: 20px;
   backdrop-filter: blur(3px);
 }
 .ob-card {
   width: 100%; max-width: 340px;
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
   background: var(--c-surface, #fff);
   border-radius: 24px;
-  padding: 30px 24px 22px;
+  padding: 22px 22px 18px;
   text-align: center;
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
 }
 
 .ob-illust {
   width: 96px; height: 96px;
-  margin: 0 auto 18px;
+  margin: 26px auto 18px;
   border-radius: 28px;
   background: var(--c-brand-weak, #ecfdf5);
   display: flex; align-items: center; justify-content: center;
@@ -118,10 +132,31 @@ onUnmounted(() => window.removeEventListener('settlo:show-onboarding', forceShow
   fill: none; stroke: var(--c-brand, #059669); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
 }
 
-.ob-title { font-size: 19px; font-weight: var(--fw-black, 900); color: var(--c-ink); margin: 0 0 10px; }
-.ob-text { font-size: 14px; line-height: 1.8; color: var(--c-text-sub); margin: 0 0 18px; min-height: 100px; }
+/* 実画面のスクリーンショット */
+.ob-shot {
+  width: 200px;
+  margin: 0 auto 14px;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 4px solid var(--c-ink, #0f172a);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+  background: #fff;
+}
+.ob-shot img { display: block; width: 100%; height: 240px; object-fit: cover; object-position: top; }
 
-.ob-dots { display: flex; justify-content: center; gap: 7px; margin-bottom: 18px; }
+.ob-title { font-size: 17px; font-weight: var(--fw-black, 900); color: var(--c-ink); margin: 0 0 8px; }
+.ob-text { font-size: 13px; line-height: 1.75; color: var(--c-text-sub); margin: 0 0 8px; min-height: 68px; }
+.ob-tap {
+  font-size: 12.5px; font-weight: 800;
+  color: var(--c-brand, #059669);
+  background: var(--c-brand-weak, #ecfdf5);
+  border-radius: 999px;
+  padding: 7px 12px;
+  margin: 0 0 4px;
+  display: inline-block;
+}
+
+.ob-dots { display: flex; justify-content: center; gap: 7px; margin: 10px 0 14px; }
 .ob-dot {
   width: 8px; height: 8px; border-radius: 50%;
   background: var(--c-line-bold, #d7dbe0);
@@ -130,10 +165,10 @@ onUnmounted(() => window.removeEventListener('settlo:show-onboarding', forceShow
 }
 .ob-dot.is-on { background: var(--c-brand); width: 22px; border-radius: 999px; }
 
-.ob-actions { display: flex; flex-direction: column; gap: 6px; }
+.ob-actions { display: flex; flex-direction: column; gap: 4px; }
 .ob-next { width: 100%; }
 .ob-skip {
-  padding: 10px;
+  padding: 9px;
   font-size: 13px; font-weight: var(--fw-bold);
   color: var(--c-text-faint);
   background: none; border: none;

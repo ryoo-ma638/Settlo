@@ -43,7 +43,9 @@ const isActive = (path) => {
 <style scoped>
 .botnav {
   flex-shrink: 0;
-  height: var(--nav-h);
+  /* ⚠️ iPhoneのホームバー余白（safe-area）は高さに「足す」こと。
+     66pxの内側に食い込ませるとタブが半分に潰れて見える（実際に起きた） */
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
   display: flex;
   align-items: stretch;
   background: var(--c-surface);
@@ -57,9 +59,10 @@ const isActive = (path) => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 4px;
+  padding-top: 2px;
   color: var(--c-text-faint);
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: var(--fw-medium);
   transition: color 0.15s ease;
 }
