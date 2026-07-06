@@ -8,6 +8,13 @@
     <h1 class="topbar__brand" @click="navigate('/')">Settlo</h1>
 
     <div class="topbar__right">
+      <button class="topbar__help" @click="navigate('/help')" aria-label="ヘルプ">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M9.6 9.2a2.5 2.5 0 1 1 3.6 2.6c-.8.5-1.2 1-1.2 1.9"/>
+          <path d="M12 17h.01"/>
+        </svg>
+      </button>
       <NotificationIcon ref="notifRef" />
     </div>
   </header>
@@ -92,5 +99,15 @@ onMounted(() => {
   justify-self: end;
   display: flex;
   align-items: center;
+  gap: 2px;
 }
+
+.topbar__help {
+  width: 38px; height: 38px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--c-text-sub);
+  background: none; border: none;
+  border-radius: 50%;
+}
+.topbar__help:active { background: var(--c-surface-2); transform: scale(0.94); }
 </style>
