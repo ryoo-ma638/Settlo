@@ -34,7 +34,7 @@
                       <button class="mini-btn mini-btn--ghost" @click="rejectTx(req)">拒否する</button>
                       <button class="mini-btn mini-btn--ghost" @click="goToPaymentDetail(req)">詳細</button>
                     </template>
-                    <template v-else-if="req.type === 'payment_completed'">
+                    <template v-else-if="req.type === 'payment_completed' || req.type === 'profile_updated'">
                       <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
                     </template>
                     <template v-else-if="isJudgeType(req.type)">
@@ -95,7 +95,7 @@
                 <button class="mini-btn mini-btn--ghost" @click="rejectTx(req)">拒否する</button>
                 <button class="mini-btn mini-btn--ghost" @click="goToPaymentDetail(req)">詳細</button>
               </template>
-              <template v-else-if="req.type === 'payment_completed'">
+              <template v-else-if="req.type === 'payment_completed' || req.type === 'profile_updated'">
                 <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
               </template>
               <template v-else-if="isJudgeType(req.type)">
@@ -181,6 +181,7 @@ const notifText = (req) => {
   if (req.type === 'settlement_restore_approved') return `さんが「${req.itemName || ''}」を未精算に戻すことを承認しました`;
   if (req.type === 'settlement_restore_rejected') return `さんが「${req.itemName || ''}」を未精算に戻すことを拒否しました。これは正しいですか？（正しくない＝もう一度依頼します）`;
   if (req.type === 'payment_completed') return 'さんとの支払いが完了しました！';
+  if (req.type === 'profile_updated') return 'さんがプロフィールを更新しました';
   if (req.type === 'restore_check') return `さんが「${req.itemName || ''}」（¥${(req.amount || 0).toLocaleString()}）をゴミ箱から元に戻しました。こちらで正しいですか？`;
   if (req.type === 'restore_reverted') return `さんが「正しくない」を選び、「${req.itemName || ''}」をゴミ箱に戻しました。これは正しいですか？（正しくない＝もう一度元に戻します）`;
   if (req.type === 'payment_delete_rejected') return `さんは「${req.itemName || ''}」の削除は正しくないと考えています。これは正しいですか？（正しい＝ゴミ箱から元に戻します／正しくない＝削除を続けます）`;
@@ -198,7 +199,7 @@ const notifAction = (req) => {
 };
 const notifClass = (req) => {
   if (['approval_rejected', 'invite_rejected', 'settlement_restore_rejected', 'restore_reverted', 'event_left_rejected', 'event_restore_rejected'].includes(req.type)) return 'notif-item--reject';
-  if (['payment_edited', 'payment_deleted', 'event_edited', 'event_joined', 'event_restored', 'settlement_restore_approved', 'payment_completed'].includes(req.type)) return 'notif-item--info';
+  if (['payment_edited', 'payment_deleted', 'event_edited', 'event_joined', 'event_restored', 'settlement_restore_approved', 'payment_completed', 'profile_updated'].includes(req.type)) return 'notif-item--info';
   return 'notif-item--pay';
 };
 

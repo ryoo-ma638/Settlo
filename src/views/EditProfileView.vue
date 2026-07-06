@@ -56,7 +56,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
 import { auth, db } from "../firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useRouter } from "vue-router";
 import PageHeader from "../components/PageHeader.vue";
@@ -64,6 +64,7 @@ import BaseModal from "../components/BaseModal.vue";
 
 const router = useRouter();
 const newName = ref("");
+const originalName = ref(""); // 変更通知の判定用
 const userPhoto = ref("");
 const previewPhoto = ref(null);
 const selectedFile = ref(null); // アップロード待ちの画像
@@ -98,6 +99,7 @@ onMounted(async () => {
       newName.value = user.displayName || "";
       userPhoto.value = user.photoURL || "";
     }
+    originalName.value = newName.value;
   }
 });
 
@@ -161,6 +163,29 @@ const saveProfile = async () => {
     }
 
     await setDoc(doc(db, "users", user.uid), payload, { merge: true });
+
+    // 🌟 変更内容をフレンド全員へお知らせ（名前変更・画像変更）
+    const nameChanged = originalName.value && nameToSave !== originalName.value;
+    const photoChanged = !!payload.photo;
+    if (nameChanged || photoChanged) {
+      let message = '';
+      if (nameChanged && photoChanged) message = `名前を「${originalName.value}」から「${nameToSave}」に変更し、プロフィール画像も更新しました`;
+      else if (nameChanged) message = `名前を「${originalName.value}」から「${nameToSave}」に変更しました`;
+      else message = 'プロフィール画像を変更しました';
+      try {
+        const friendsSnap = await getDocs(collection(db, "users", user.uid, "friends"));
+        for (const f of friendsSnap.docs) {
+          try {
+            await addDoc(collection(db, "notifications"), {
+              toUserId: f.id, type: 'profile_updated',
+              message,
+              fromUserId: user.uid, fromUserName: nameToSave,
+              isRead: false, createdAt: serverTimestamp(),
+            });
+          } catch (e) {}
+        }
+      } catch (e) { console.error('プロフィール変更通知の送信に失敗:', e); }
+    }
 
     showModal('success', '保存しました', 'プロフィールを更新しました！', () => router.replace("/mypage"));
   } catch (error) {
