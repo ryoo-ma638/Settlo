@@ -14,10 +14,15 @@
         >
           <span v-if="m.fromUid !== myUid" class="msg__name">{{ m.fromName || '相手' }}</span>
           <div class="msg__bubble">{{ m.text }}</div>
+          <span v-if="m.id === lastReadMineId" class="msg__read">既読</span>
         </div>
         <div v-if="messages.length === 0" class="thread__empty">まだメッセージはありません。</div>
       </template>
     </main>
+
+    <div class="thread__quick">
+      <button v-for="q in QUICK_REPLIES" :key="q" class="quick-chip" :disabled="sending" @click="send(q)">{{ q }}</button>
+    </div>
 
     <footer class="thread__compose">
       <textarea
@@ -26,9 +31,9 @@
         rows="1"
         maxlength="500"
         placeholder="メッセージを入力"
-        @keydown.enter.exact.prevent="send"
+        @keydown.enter.exact.prevent="send()"
       ></textarea>
-      <button class="thread__send" :disabled="!draft.trim() || sending" @click="send" aria-label="送信">
+      <button class="thread__send" :disabled="!draft.trim() || sending" @click="send()" aria-label="送信">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" />
         </svg>
@@ -42,10 +47,14 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { db, auth } from '@/firebase';
 import {
-  collection, query, orderBy, onSnapshot, addDoc, doc, getDoc, setDoc, updateDoc, serverTimestamp,
+  collection, query, orderBy, onSnapshot, addDoc, doc, getDoc, setDoc, updateDoc, serverTimestamp, arrayUnion,
 } from 'firebase/firestore';
+import { computed } from 'vue';
 import PageHeader from '../components/PageHeader.vue';
 import { ensureThread } from '@/lib/thread';
+
+// クイック返信の定型文
+const QUICK_REPLIES = ['ありがとう！', '確認しました', 'もう少し待って', 'OKです'];
 
 const route = useRoute();
 const threadId = route.params.id;
@@ -63,6 +72,15 @@ const loading = ref(true);
 const sending = ref(false);
 const scrollArea = ref(null);
 let unsub = null;
+
+// 自分のメッセージのうち、相手が読んだ最後の1件（そこに「既読」を出す）
+const lastReadMineId = computed(() => {
+  let id = null;
+  for (const m of messages.value) {
+    if (m.fromUid === myUid && (m.readBy || []).includes(otherUid.value)) id = m.id;
+  }
+  return id;
+});
 
 const scrollToBottom = () => nextTick(() => {
   const el = scrollArea.value;
@@ -98,6 +116,13 @@ onMounted(async () => {
       messages.value = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       loading.value = false;
       scrollToBottom();
+      // 相手のメッセージを既読にする（自分がまだ読んでいないもの）
+      snap.docs.forEach((d) => {
+        const m = d.data();
+        if (m.fromUid !== myUid && !(m.readBy || []).includes(myUid)) {
+          updateDoc(d.ref, { readBy: arrayUnion(myUid) }).catch(() => {});
+        }
+      });
     }, (e) => { console.error('スレッド購読エラー:', e); loading.value = false; });
   } catch (e) {
     console.error('スレッド初期化エラー:', e);
@@ -107,11 +132,12 @@ onMounted(async () => {
 
 onUnmounted(() => { if (unsub) unsub(); });
 
-const send = async () => {
-  const text = draft.value.trim();
+const send = async (preset) => {
+  const usePreset = typeof preset === 'string';
+  const text = (usePreset ? preset : draft.value).trim();
   if (!text || sending.value || !myUid) return;
   sending.value = true;
-  draft.value = '';
+  if (!usePreset) draft.value = '';
   try {
     await addDoc(collection(db, 'threads', threadId, 'messages'), {
       fromUid: myUid, fromName: myName.value, text,
@@ -133,7 +159,7 @@ const send = async () => {
     }
   } catch (e) {
     console.error('メッセージ送信エラー:', e);
-    draft.value = text; // 失敗時は入力を戻す
+    if (!usePreset) draft.value = text; // 失敗時は入力を戻す
   } finally {
     sending.value = false;
   }
@@ -156,11 +182,21 @@ const send = async () => {
 }
 .msg--mine .msg__bubble { background: var(--c-brand); color: #fff; border-bottom-right-radius: 6px; }
 .msg--theirs .msg__bubble { background: var(--c-surface); color: var(--c-ink); border-bottom-left-radius: 6px; box-shadow: var(--shadow-card); }
+.msg__read { font-size: 10px; color: var(--c-text-faint); font-weight: var(--fw-bold); margin: 3px 4px 0; }
+
+.thread__quick { display: flex; gap: 8px; overflow-x: auto; padding: 8px var(--pad); background: var(--c-surface); border-top: 1px solid var(--c-line); }
+.quick-chip {
+  flex-shrink: 0; background: var(--c-brand-weak); color: var(--c-brand);
+  border: 1px solid var(--c-brand-tint); border-radius: var(--r-pill);
+  padding: 7px 14px; font-size: 13px; font-weight: var(--fw-bold); cursor: pointer; white-space: nowrap;
+}
+.quick-chip:active { transform: scale(0.96); }
+.quick-chip:disabled { opacity: 0.5; }
 
 .thread__compose {
   display: flex; align-items: flex-end; gap: 8px;
   padding: 10px var(--pad) calc(10px + env(safe-area-inset-bottom, 0));
-  background: var(--c-surface); border-top: 1px solid var(--c-line);
+  background: var(--c-surface);
 }
 .thread__input {
   flex: 1; box-sizing: border-box; resize: none; max-height: 120px;
