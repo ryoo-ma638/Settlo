@@ -194,7 +194,7 @@
       />
       <div v-if="modals.participants" class="modal-overlay" @click.self="modals.participants = false">
         <div class="modal-content slide-up">
-          <div class="modal-header"><h3>参加者一覧</h3><button class="close-btn" @click="modals.participants = false">×</button></div>
+          <div class="modal-header"><h3>参加者一覧</h3><button class="close-btn" @click="modals.participants = false" aria-label="閉じる">×</button></div>
           <div class="modal-list">
             <div class="list-item" v-for="p in eventData.participants" :key="p.id">
               <img
@@ -221,7 +221,7 @@
 
       <div v-if="modals.editEvent" class="modal-overlay" @click.self="modals.editEvent = false">
         <div class="modal-content slide-up">
-          <div class="modal-header"><h3>イベントを編集</h3><button class="close-btn" @click="modals.editEvent = false">×</button></div>
+          <div class="modal-header"><h3>イベントを編集</h3><button class="close-btn" @click="modals.editEvent = false" aria-label="閉じる">×</button></div>
           <div class="edit-body">
             <label class="edit-label">イベント名</label>
             <input v-model="editName" class="edit-input" placeholder="イベント名" />
@@ -245,7 +245,7 @@
 
       <div v-if="modals.summaryDetail && selectedSummary" class="modal-overlay" @click.self="modals.summaryDetail = false">
         <div class="modal-content slide-up">
-          <div class="modal-header"><h3>精算の詳細</h3><button class="close-btn" @click="modals.summaryDetail = false">×</button></div>
+          <div class="modal-header"><h3>精算の詳細</h3><button class="close-btn" @click="modals.summaryDetail = false" aria-label="閉じる">×</button></div>
           <div class="summary-detail-body">
             <div class="flow-large">
               <img v-if="selectedSummary.fromPhoto" :src="selectedSummary.fromPhoto" class="avatar-large" />
@@ -1188,7 +1188,7 @@ onMounted(() => {
   flex-shrink: 0; box-sizing: border-box;
   z-index: 0;
 }
-.invite-pill-btn { background: #eff6ff; color: var(--c-brand); border: none; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 800; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 8px rgba(59,130,246,0.15); }
+.invite-pill-btn { background: #eff6ff; color: var(--c-brand); border: none; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 800; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 8px rgba(5,150,105,0.15); }
 .invite-pill-btn:active { transform: scale(0.95); background: #dbeafe; }
 
 /* 🌟 招待コード（作成後もいつでも表示・コピー可能） */
@@ -1196,7 +1196,7 @@ onMounted(() => {
   display: flex; align-items: center; gap: 10px;
   margin-top: 14px;
   background: var(--c-brand-weak, #ecfdf5);
-  border: 1px solid var(--c-brand-weak, #d1fae5);
+  border: 1px solid var(--c-brand-weak, var(--c-brand-tint));
   border-radius: 16px;
   padding: 12px 14px;
 }
@@ -1207,7 +1207,7 @@ onMounted(() => {
 
 .section-title { font-size: 18px; font-weight: 900; color: #0f172a; margin: 0 0 16px 0; }
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.add-payment-btn { background: var(--c-brand); color: white; border: none; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px rgba(59,130,246,0.25); transition: 0.2s; }
+.add-payment-btn { background: var(--c-brand); color: white; border: none; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px rgba(5,150,105,0.25); transition: 0.2s; }
 .add-payment-btn:active { transform: scale(0.95); }
 .settlement-summary-section, .history-section { margin-bottom: 36px; }
 
@@ -1337,7 +1337,7 @@ onMounted(() => {
 .list-item { display: flex; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid #f1f5f9; }
 .avatar-medium { width: 44px; height: 44px; border-radius: 50%; }
 .item-name { flex: 1; font-size: 16px; font-weight: 800; color: #334155; display: flex; align-items: center; gap: 10px; }
-.p-friend-btn { background: var(--c-brand, #10b981); color: #fff; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 800; border: none; flex-shrink: 0; }
+.p-friend-btn { background: var(--c-brand); color: #fff; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 800; border: none; flex-shrink: 0; }
 .p-friend-btn:active { transform: scale(0.95); }
 .p-friend-tag { background: var(--c-brand-weak, #ecfdf5); color: var(--c-brand, #059669); padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; flex-shrink: 0; }
 .p-friend-tag.is-wait { background: #fffbeb; color: #b45309; }
@@ -1369,7 +1369,7 @@ onMounted(() => {
 .s-amount { font-size: 48px; font-weight: 900; margin: 0 0 10px; letter-spacing: -1.5px; }
 .s-hint { font-size: 14px; color: #94a3b8; margin-bottom: 32px; font-weight: 700; }
 .action-btn { width: 100%; padding: 18px; border-radius: 20px; border: none; font-weight: 900; font-size: 16px; cursor: pointer; transition: 0.2s; }
-.action-btn.main { background: var(--c-brand); color: white; box-shadow: 0 8px 20px rgba(59,130,246,0.25); }
+.action-btn.main { background: var(--c-brand); color: white; box-shadow: 0 8px 20px rgba(5,150,105,0.25); }
 .action-btn.main:active { transform: scale(0.96); }
 
 .warning-modal { background: #fef2f2; }

@@ -9,7 +9,7 @@
             class="paypay-input"
           />
           <button class="save-btn" @click="saveMyLink">保存</button>
-          <button v-if="myPayPayLink" class="cancel-btn" @click="isEditingLink = false">×</button>
+          <button v-if="myPayPayLink" class="cancel-btn" @click="isEditingLink = false" aria-label="キャンセル">×</button>
         </div>
         <div v-else class="link-display-area">
           <button @click="copyMyLink" class="method-btn paypay">

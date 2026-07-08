@@ -4,7 +4,7 @@
       <div class="modal-content slide-up receipt-style">
         <div class="modal-header">
           <h3>取引の詳細・決済</h3>
-          <button class="close-btn" @click="$emit('close')">×</button>
+          <button class="close-btn" @click="$emit('close')" aria-label="閉じる">×</button>
         </div>
         
         <div class="receipt-body">

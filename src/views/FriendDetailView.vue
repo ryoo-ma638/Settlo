@@ -298,7 +298,7 @@ const handleDeleteFriend = async () => {
 .event-action { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .event-amount { font-size: 16px; font-weight: bold; }
 .action-btn { padding: 5px 12px; border-radius: 20px; border: none; font-size: 11px; font-weight: bold; color: #fff; cursor: pointer; }
-.green-btn { background-color: #22c55e; }
+.green-btn { background-color: var(--c-brand); }
 .red-btn { background-color: #ef4444; color: #ffffff; }
 
 .history-toggle-btn { width: 100%; padding: 12px; background-color: #93c5fd; color: #fff; border: none; border-radius: 15px; font-size: 18px; font-weight: bold; margin-bottom: 15px; }

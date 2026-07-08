@@ -5,7 +5,7 @@
         
         <div class="modal-header">
           <h2 class="modal-title">{{ editData ? '支払いを編集' : '新しく支払いを追加' }}</h2>
-          <button class="close-btn" @click="closeModal">×</button>
+          <button class="close-btn" @click="closeModal" aria-label="閉じる">×</button>
         </div>
 
         <div class="modal-body scroll-area">
@@ -774,7 +774,7 @@ const executeSubmit = () => {
 /* アップロード完了後 */
 .upload-preview { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
 .preview-img { width: 100%; height: 100%; object-fit: cover; opacity: 0.3; }
-.success-badge { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -100%); background: #10b981; color: white; padding: 6px 12px; border-radius: 12px; font-size: 12px; font-weight: 900; box-shadow: 0 4px 10px rgba(16,185,129,0.3); }
+.success-badge { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -100%); background: var(--c-brand); color: white; padding: 6px 12px; border-radius: 12px; font-size: 12px; font-weight: 900; box-shadow: 0 4px 10px rgba(5,150,105,0.3); }
 .re-upload-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, 20%); background: rgba(15,23,42,0.8); color: white; border: none; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: bold; backdrop-filter: blur(4px); cursor: pointer; }
 
 /* 🌟 2. 基本情報のカード */
@@ -789,7 +789,7 @@ const executeSubmit = () => {
 .amount-input-wrapper { display: flex; align-items: baseline; gap: 4px; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px; transition: 0.2s; }
 .amount-input-wrapper:focus-within { border-color: #f59e0b; }
 .currency-mark { font-size: 24px; font-weight: 900; color: #1e293b; }
-.amount-input { flex: 1; border: none; outline: none; font-size: 36px; font-weight: 900; color: #f59e0b; background: transparent; letter-spacing: -1px; width: 100%; }
+.amount-input { flex: 1; border: none; outline: none; font-size: 36px; font-weight: 900; color: var(--c-ink); background: transparent; letter-spacing: -1px; width: 100%; }
 .amount-input::placeholder { color: #cbd5e1; }
 .currency-unit { font-size: 16px; font-weight: 800; color: #64748b; }
 
@@ -828,7 +828,7 @@ const executeSubmit = () => {
 .custom-split-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
 .remaining-text { font-size: 13px; font-weight: 900; color: var(--c-brand); background: var(--c-brand-weak); padding: 4px 10px; border-radius: 12px; transition: 0.2s; }
 .remaining-text.error { color: #ef4444; background: #fef2f2; }
-.ai-hint { font-size: 11px; font-weight: 800; color: #10b981; text-align: center; margin-top: 12px; }
+.ai-hint { font-size: 11px; font-weight: 800; color: var(--c-brand); text-align: center; margin-top: 12px; }
 
 .custom-split-list { background: white; border-radius: 20px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .custom-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px dashed #e2e8f0; }
@@ -836,7 +836,7 @@ const executeSubmit = () => {
 .user-info { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 800; color: #1e293b; }
 .avatar-small { width: 28px; height: 28px; border-radius: 50%; }
 .custom-input-box { display: flex; align-items: baseline; gap: 4px; font-size: 14px; font-weight: 800; color: #64748b; }
-.custom-input-box input { width: 80px; text-align: right; font-size: 18px; font-weight: 900; border: none; border-bottom: 2px solid #e2e8f0; outline: none; color: #f59e0b; padding-bottom: 2px; }
+.custom-input-box input { width: 80px; text-align: right; font-size: 18px; font-weight: 900; border: none; border-bottom: 2px solid var(--c-line-bold); outline: none; color: var(--c-ink); padding-bottom: 2px; }
 
 /* 商品ごとに指定 */
 .item-split-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px; }
@@ -847,7 +847,7 @@ const executeSubmit = () => {
 .item-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
 .item-name-input { flex: 1; border: none; border-bottom: 2px solid #e2e8f0; font-size: 15px; font-weight: 900; color: #1e293b; padding-bottom: 4px; outline: none; }
 .item-price-box { display: flex; align-items: baseline; gap: 2px; font-weight: 800; color: #64748b; }
-.item-price-input { width: 60px; text-align: right; border: none; border-bottom: 2px solid #e2e8f0; font-size: 16px; font-weight: 900; color: #f59e0b; outline: none; }
+.item-price-input { width: 60px; text-align: right; border: none; border-bottom: 2px solid var(--c-line-bold); font-size: 16px; font-weight: 900; color: var(--c-ink); outline: none; }
 .remove-item-btn { background: #fef2f2; color: var(--c-danger); border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .remove-item-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
@@ -855,7 +855,7 @@ const executeSubmit = () => {
 .assign-label { font-size: 11px; color: #64748b; font-weight: 800; display: block; margin-bottom: 8px; }
 .assign-chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip { background: white; border: 1px solid #cbd5e1; color: #64748b; padding: 6px 12px; border-radius: 16px; font-size: 11px; font-weight: 800; cursor: pointer; transition: 0.2s; }
-.chip.selected { background: var(--c-brand); border-color: var(--c-brand); color: white; box-shadow: 0 2px 6px rgba(59,130,246,0.3); }
+.chip.selected { background: var(--c-brand); border-color: var(--c-brand); color: white; box-shadow: 0 2px 6px rgba(5,150,105,0.3); }
 
 /* 🌟 フッター（固定） */
 .modal-footer { padding: 16px 24px 30px; background: white; border-top: 1px solid rgba(0,0,0,0.05); }
@@ -870,7 +870,7 @@ const executeSubmit = () => {
 /* 🌟 追加：金額一致チェックのスタイル */
 .header-left { display: flex; flex-direction: column; gap: 6px; }
 .match-status { font-size: 13px; font-weight: 900; margin: 0; padding: 4px 10px; border-radius: 8px; display: inline-block; align-self: flex-start; transition: 0.3s; }
-.match-status.matched { color: #10b981; background: #d1fae5; }
+.match-status.matched { color: var(--c-brand); background: var(--c-brand-tint); }
 .match-status.error { color: #ef4444; background: #fee2e2; border: 1px dashed #ef4444; }
 
 /* 🌟 UX向上：商品ごとのレイアウト */
@@ -882,7 +882,7 @@ const executeSubmit = () => {
   flex: 1; padding: 9px 4px; border-radius: 10px; font-size: 11.5px; font-weight: 700;
   background: #fff; border: 1.5px solid #e2e8f0; color: #64748b; transition: all 0.15s ease; line-height: 1.3;
 }
-.tax-mode-seg button.active { background: var(--c-brand, #10b981); border-color: var(--c-brand, #10b981); color: #fff; }
+.tax-mode-seg button.active { background: var(--c-brand); border-color: var(--c-brand); color: #fff; }
 .tax-mode-desc { margin: 8px 0 0; font-size: 11px; color: #94a3b8; line-height: 1.5; }
 
 /* 🌟 合計チェック＆不明な残金パネル */
@@ -911,7 +911,7 @@ const executeSubmit = () => {
 
 .tax-toggle-btn { padding: 6px 10px; border-radius: 10px; font-size: 12px; font-weight: 900; border: 1px solid #cbd5e1; cursor: pointer; background: white; transition: 0.2s; }
 .tax-toggle-btn.tax-0 { color: #64748b; }
-.tax-toggle-btn.tax-8 { color: #f59e0b; border-color: #f59e0b; background: #fffbeb; }
+.tax-toggle-btn.tax-8 { color: var(--c-pay-strong); border-color: var(--c-pay); background: var(--c-pay-weak); }
 .tax-toggle-btn.tax-10 { color: #ef4444; border-color: #ef4444; background: #fef2f2; }
 
 .item-subtotal { text-align: right; font-size: 12px; color: #64748b; margin-bottom: 16px; font-weight: 700; border-bottom: 1px dashed #e2e8f0; padding-bottom: 12px; }
@@ -919,6 +919,6 @@ const executeSubmit = () => {
 
 .header-left { display: flex; flex-direction: column; gap: 6px; }
 .match-status { font-size: 12px; font-weight: 900; margin: 0; padding: 6px 12px; border-radius: 10px; display: inline-block; align-self: flex-start; transition: 0.3s; }
-.match-status.matched { color: #10b981; background: #d1fae5; }
+.match-status.matched { color: var(--c-brand); background: var(--c-brand-tint); }
 .match-status.error { color: #ef4444; background: #fee2e2; border: 1px dashed #ef4444; }
 </style>

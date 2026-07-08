@@ -4,7 +4,7 @@
 
     <div class="sidebar-panel" :class="{ 'is-open': isOpen, 'pc-mode': isDesktop }">
       
-      <button class="close-btn" v-if="!isDesktop" @click="closeMenu">✕</button>
+      <button class="close-btn" v-if="!isDesktop" @click="closeMenu" aria-label="閉じる">✕</button>
 
       <div class="profile-section">
         <img :src="userPhoto" class="user-circle-large" />
@@ -185,7 +185,7 @@ const navigate = (path) => {
 .menu-item-inner { display: flex; justify-content: space-between; align-items: center; width: 100%; }
 .badge { background-color: rgba(255, 255, 255, 0.2); font-size: 12px; padding: 2px 8px; border-radius: 10px; }
 .bottom-actions { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
-.btn-primary { background-color: #0d9488; color: white; border: none; border-radius: 12px; padding: 15px; font-size: 16px; font-weight: bold; cursor: pointer; }
+.btn-primary { background-color: var(--c-brand); color: white; border: none; border-radius: 12px; padding: 15px; font-size: 16px; font-weight: bold; cursor: pointer; }
 .btn-home { background-color: #334155; color: white; border: none; border-radius: 12px; padding: 15px; font-size: 16px; font-weight: bold; cursor: pointer; }
 
 /* 💻 PC版用のスタイル */

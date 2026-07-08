@@ -28,11 +28,15 @@
   --c-receive:      #2563eb; /* 入金待ち / 受け取る（ブルー） */
   --c-receive-strong: #1d4ed8;
   --c-receive-weak: #eaf1ff;
-  --c-pay:          #f59e0b; /* 未払い / 支払う（アンバー） */
-  --c-pay-strong:   #d97706;
+  --c-pay:          #f59e0b; /* 未払い / 支払う（アンバー）※面の"文字色"には使わない（薄すぎる）。枠/アクセント/淡背景のみ */
+  --c-pay-strong:   #d97706; /* アンバーで文字を出すときは必ずこの濃い方を使う */
   --c-pay-weak:     #fff7ea;
   --c-danger:       #ef4444;
+  --c-danger-strong: #dc2626;
+  --c-danger-weak:  #fef2f2;
   --c-info:         #2563eb;
+  --c-paypay:       #ff0033; /* PayPay の CTA 専用赤（danger とは別物） */
+  --c-overlay:      rgba(15, 23, 42, 0.5); /* モーダル暗幕を1つに統一 */
 
   /* --- タイポグラフィ --- */
   --font-sans: "Noto Sans JP", system-ui, -apple-system, "Hiragino Sans",
@@ -40,6 +44,7 @@
   --fw-regular: 400;
   --fw-medium:  500;
   --fw-bold:    700;
+  --fw-heavy:   800;
   --fw-black:   900;
 
   /* --- 角丸 --- */
@@ -53,6 +58,18 @@
   --shadow-sm:   0 1px 2px rgba(15, 23, 42, 0.05);
   --shadow-card: 0 2px 10px rgba(15, 23, 42, 0.05), 0 1px 2px rgba(15, 23, 42, 0.04);
   --shadow-pop:  0 14px 40px rgba(15, 23, 42, 0.18);
+
+  /* --- 余白スケール（4/8pxグリッド。以後の余白はこれを使う） --- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* --- 重なり順（モーダル等を一本化） --- */
+  --z-nav:    100;
+  --z-modal:  1000;
 
   /* --- レイアウト --- */
   --app-max:  480px;
@@ -103,6 +120,13 @@ button {
   border: none;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* キーボード/スイッチ操作時だけ出るフォーカスリング（マウス操作では出ない）。
+   入力欄が個別に outline:none していても、これで可視化を担保する。 */
+:where(a, button, [role="button"], input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--c-brand);
+  outline-offset: 2px;
 }
 
 input,
