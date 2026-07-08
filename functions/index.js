@@ -340,7 +340,8 @@ exports.pushOnNotification = onDocumentCreated(
     const data = event.data && event.data.data();
     if (!data || !data.toUserId) return;
     const from = data.fromUserName || "メンバー";
-    const body = `${from}さん: ${PUSH_TEXT[data.type] || data.message || "新しいお知らせがあります"}`;
+    let body = `${from}さん: ${PUSH_TEXT[data.type] || data.message || "新しいお知らせがあります"}`;
+    if (data.userMessage) body += `\n「${data.userMessage}」`; // 送信者が添えた自由メッセージ
     try { await sendPushTo(data.toUserId, "Settlo", body); }
     catch (e) { console.error("プッシュ送信エラー:", e); }
   }
