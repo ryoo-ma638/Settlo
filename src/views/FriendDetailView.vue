@@ -232,7 +232,7 @@ const handleDeleteFriend = async () => {
 .friend-detail-container { 
   height: 100vh; 
   box-sizing: border-box;
-  background-color: #f8fafc; 
+  background-color: var(--c-surface-2); 
   display: flex;
   flex-direction: column;
 }
@@ -250,10 +250,10 @@ const handleDeleteFriend = async () => {
   margin-bottom: 15px;
 }
 
-.back-btn { background: none; border: none; font-size: 32px; color: #1e293b; cursor: pointer; transition: 0.2s; }
+.back-btn { background: none; border: none; font-size: 32px; color: var(--c-text); cursor: pointer; transition: 0.2s; }
 .back-btn:active { transform: scale(0.9); }
 .user-info-block { display: flex; align-items: center; gap: 15px; }
-.user-name { font-size: 22px; font-weight: 900; margin: 0; color: #1e293b; letter-spacing: 0.5px; }
+.user-name { font-size: 22px; font-weight: 900; margin: 0; color: var(--c-text); letter-spacing: 0.5px; }
 .delete-link-btn { background: rgba(255, 255, 255, 0.5); border: none; color: var(--c-danger); font-size: 12px; font-weight: 900; padding: 6px 12px; border-radius: 12px; cursor: pointer; transition: 0.2s; }
 .delete-link-btn:active { background: #fee2e2; }
 
@@ -266,12 +266,12 @@ const handleDeleteFriend = async () => {
 .scroll-content::-webkit-scrollbar { display: none; }
 
 /* 🌟 トータル収支カードを洗練 */
-.total-balance-card { background-color: #fff; border-radius: 28px; padding: 24px; margin-bottom: 25px; box-shadow: 0 8px 30px rgba(33, 105, 163, 0.08); cursor: pointer; text-align: center; border: 1px solid #f1f5f9; }
+.total-balance-card { background-color: #fff; border-radius: 28px; padding: 24px; margin-bottom: 25px; box-shadow: 0 8px 30px rgba(33, 105, 163, 0.08); cursor: pointer; text-align: center; border: 1px solid var(--c-surface-2); }
 .balance-label { font-size: 13px; font-weight: 800; color: var(--c-text-sub); margin-bottom: 12px; }
 .balance-main { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 16px; }
 .balance-amount { font-size: 36px; font-weight: 900; margin: 0; letter-spacing: -1px; }
-.arrow-icon { font-size: 24px; color: #cbd5e1; }
-.balance-sub-info { font-size: 11px; color: #94a3b8; display: flex; justify-content: center; gap: 15px; background: #f8fafc; padding: 8px; border-radius: 12px; }
+.arrow-icon { font-size: 24px; color: var(--c-line-strong); }
+.balance-sub-info { font-size: 11px; color: var(--c-text-faint); display: flex; justify-content: center; gap: 15px; background: var(--c-surface-2); padding: 8px; border-radius: 12px; }
 .sub-item { display: flex; align-items: center; gap: 5px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; }
 .blue-dot { background-color: #3b82f6; }

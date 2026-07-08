@@ -407,7 +407,7 @@ const goToEventDetail = (id) => {
 /* 詳細モーダル */
 .modal-overlay {
   position: fixed; inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: var(--c-overlay);
   display: flex; justify-content: center; align-items: center;
   z-index: 2000; padding: 20px;
 }

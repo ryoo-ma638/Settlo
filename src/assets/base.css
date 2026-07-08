@@ -14,10 +14,12 @@
   /* --- ニュートラル --- */
   --c-ink:        #0f172a; /* 見出し・強調テキスト */
   --c-text:       #1f2937; /* 本文 */
+  --c-text-strong:#475569; /* 強めの補助テキスト（見出し前・注意文） */
   --c-text-sub:   #64748b; /* 補助テキスト */
   --c-text-faint: #9aa6b4; /* 最も淡い */
   --c-line:       #eaeef3; /* 罫線・区切り */
-  --c-line-bold:  #dbe2ea;
+  --c-line-bold:  #dbe2ea; /* カード縁 */
+  --c-line-strong:#cbd5e1; /* 入力・操作要素の境界線／プレースホルダ */
   --c-surface:    #ffffff; /* カード面 */
   --c-surface-2:  #f5f7fa; /* 一段沈んだ面 */
   --c-bg:         #eaf1fa; /* アプリ背景（薄い水色） */
@@ -36,7 +38,7 @@
   --c-danger-weak:  #fef2f2;
   --c-info:         #2563eb;
   --c-paypay:       #ff0033; /* PayPay の CTA 専用赤（danger とは別物） */
-  --c-overlay:      rgba(15, 23, 42, 0.5); /* モーダル暗幕を1つに統一 */
+  --c-overlay:      rgba(15, 23, 42, 0.6); /* モーダル暗幕を1つに統一 */
 
   /* --- タイポグラフィ --- */
   --font-sans: "Noto Sans JP", system-ui, -apple-system, "Hiragino Sans",

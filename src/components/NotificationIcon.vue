@@ -873,7 +873,7 @@ defineExpose({ open });
 /* モーダル */
 .modal-overlay {
   position: fixed; inset: 0;
-  background-color: rgba(15, 23, 42, 0.5);
+  background-color: var(--c-overlay);
   z-index: 9000; /* ヘッダー(1000)より上・確認用BaseModal(99999)より下に置き、確認が前面に出るように */
   display: flex; justify-content: center; align-items: center;
   padding: 20px;

@@ -149,12 +149,12 @@
   .method-btn { width: 100%; padding: 15px; border-radius: 14px; border: none; font-weight: bold; cursor: pointer; text-align: center; font-size: 15px;}
   .paypay { background-color: var(--c-paypay); color: white; transition: 0.2s; box-shadow: 0 4px 12px rgba(255,0,51,0.2); display: block; }
   .paypay:active { transform: scale(0.96); }
-  .paypay.disabled { background-color: #cbd5e1; box-shadow: none; cursor: not-allowed; }
+  .paypay.disabled { background-color: var(--c-line-strong); box-shadow: none; cursor: not-allowed; }
   .link-input-area { display: flex; gap: 8px; align-items: center; }
-  .paypay-input { flex: 1; padding: 14px 12px; border: 1px solid #cbd5e1; border-radius: 12px; font-size: 14px; outline: none; }
+  .paypay-input { flex: 1; padding: 14px 12px; border: 1px solid var(--c-line-strong); border-radius: 12px; font-size: 14px; outline: none; }
   .paypay-input:focus { border-color: var(--c-paypay); }
   .save-btn { background: var(--c-brand); color: white; border: none; padding: 0 16px; height: 46px; border-radius: 12px; font-weight: bold; cursor: pointer; }
-  .cancel-btn { background: #e2e8f0; color: var(--c-text-sub); border: none; width: 46px; height: 46px; border-radius: 12px; font-weight: bold; cursor: pointer; }
+  .cancel-btn { background: var(--c-line-bold); color: var(--c-text-sub); border: none; width: 46px; height: 46px; border-radius: 12px; font-weight: bold; cursor: pointer; }
   .link-display-area { display: flex; flex-direction: column; align-items: center; }
   .edit-text-btn { background: none; border: none; color: var(--c-text-sub); font-size: 12px; margin-top: 10px; text-decoration: underline; cursor: pointer; }
   </style>

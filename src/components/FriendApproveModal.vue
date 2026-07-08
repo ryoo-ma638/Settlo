@@ -149,26 +149,26 @@ const approve = () => {
 
 <style scoped>
 /* 既存スタイルそのまま */
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0, 0, 0, 0.5); z-index: 2000; display: flex; justify-content: center; align-items: center; padding: 20px; }
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: var(--c-overlay); z-index: 2000; display: flex; justify-content: center; align-items: center; padding: 20px; }
 .confirm-view { background: #eef7ff; width: 100%; max-width: 350px; border-radius: 30px; padding: 25px 20px; text-align: center; }
-.modal-title { font-size: 20px; font-weight: bold; margin-bottom: 20px; color: #1e293b; }
+.modal-title { font-size: 20px; font-weight: bold; margin-bottom: 20px; color: var(--c-text); }
 .target-user { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 20px; }
 .avatar { width: 80px; height: 80px; border-radius: 50%; }
 .name { font-size: 22px; margin: 0; font-weight: bold; }
-.question { font-size: 14px; font-weight: bold; color: #1e293b; margin-bottom: 20px; }
+.question { font-size: 14px; font-weight: bold; color: var(--c-text); margin-bottom: 20px; }
 
 .trade-history { background: #fff; padding: 15px; border-radius: 15px; text-align: left; margin-bottom: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
 .history-title { font-size: 12px; color: var(--c-text-sub); margin: 0 0 10px 0; }
 .history-list { list-style: none; padding: 0; margin: 0; font-size: 14px; }
-.history-list li { display: flex; justify-content: space-between; border-bottom: 1px dashed #cbd5e1; padding: 8px 0; }
+.history-list li { display: flex; justify-content: space-between; border-bottom: 1px dashed var(--c-line-strong); padding: 8px 0; }
 .history-list li:last-child { border-bottom: none; }
-.date { color: #94a3b8; font-size: 12px; }
-.no-history { font-size: 12px; color: #94a3b8; font-weight: 700; text-align: center; margin: 0 0 22px; }
+.date { color: var(--c-text-faint); font-size: 12px; }
+.no-history { font-size: 12px; color: var(--c-text-faint); font-weight: 700; text-align: center; margin: 0 0 22px; }
 
 .actions { display: flex; flex-direction: column; gap: 10px; }
 .btn { width: 100%; padding: 15px; border-radius: 15px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; }
 .execute-btn { background: var(--c-brand); color: white; } 
-.cancel-btn { background: #e2e8f0; color: var(--c-text-sub); }
+.cancel-btn { background: var(--c-line-bold); color: var(--c-text-sub); }
 
 .avatar-wrapper-large { width: 100px; height: 100px;  margin: 0 auto 15px auto;  flex-shrink: 0; }
 .avatar-img-large { width: 100%;  height: 100%;  border-radius: 50%;  object-fit: cover;  box-shadow: 0 2px 8px rgba(0,0,0,0.1); }

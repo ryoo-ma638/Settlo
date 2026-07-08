@@ -465,7 +465,7 @@ const confirmCash = () => {
 .blue-mode { background: var(--c-receive); }
 .orange-mode { background: var(--c-pay); }
 .total-amount { font-size: 36px; font-weight: bold; margin: 5px 0; }
-.section-sub { font-size: 16px; font-weight: bold; color: #1e293b; margin: 20px 0 10px; text-align: left; }
+.section-sub { font-size: 16px; font-weight: bold; color: var(--c-text); margin: 20px 0 10px; text-align: left; }
 .footer-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 30px; }
 .method-btn { width: 100%; padding: 15px; border-radius: 14px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
 .method-btn:active:not(:disabled) { transform: scale(0.98); }
@@ -477,7 +477,7 @@ const confirmCash = () => {
 .reject:active:not(:disabled) { background-color: var(--c-danger-weak); }
 .remind-btn { background-color: var(--c-receive); color: #fff; margin-top: 10px; }
 .remind-btn:active:not(:disabled) { transform: scale(0.98); }
-.disabled-btn { background-color: #cbd5e1; color: #475569; cursor: not-allowed; }
+.disabled-btn { background-color: var(--c-line-strong); color: var(--c-text-strong); cursor: not-allowed; }
 .method-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* 承認待ちバナー */
@@ -499,8 +499,8 @@ const confirmCash = () => {
 .completed-title { font-size: 16px; font-weight: bold; margin: 0 0 5px 0; }
 .completed-date { font-size: 12px; opacity: 0.8; margin: 0; }
 
-.overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: flex-end; z-index: 3000; }
+.overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--c-overlay); display: flex; align-items: flex-end; z-index: 3000; }
 .overlay-content { background: white; width: 100%; padding: 30px; border-radius: 30px 30px 0 0; position: relative; }
-.close-overlay { position: absolute; top: 15px; right: 15px; font-size: 24px; border: none; background: none; color: #cbd5e1; }
-.main-btn { width: 100%; padding: 15px; border-radius: 14px; border: none; background: #1e293b; color: white; font-weight: bold; margin-top: 20px; }
+.close-overlay { position: absolute; top: 15px; right: 15px; font-size: 24px; border: none; background: none; color: var(--c-line-strong); }
+.main-btn { width: 100%; padding: 15px; border-radius: 14px; border: none; background: var(--c-text); color: white; font-weight: bold; margin-top: 20px; }
 </style>

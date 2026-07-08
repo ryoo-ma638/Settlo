@@ -193,19 +193,19 @@ onMounted(async () => {
   .route-arrow { font-size: 30px; font-weight: bold; }
   
   .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-  .section-sub { font-size: 16px; font-weight: bold; color: #1e293b; margin: 0; }
-  .reset-filter-btn { font-size: 12px; background: #e2e8f0; border: none; padding: 4px 10px; border-radius: 12px; cursor: pointer; }
+  .section-sub { font-size: 16px; font-weight: bold; color: var(--c-text); margin: 0; }
+  .reset-filter-btn { font-size: 12px; background: var(--c-line-bold); border: none; padding: 4px 10px; border-radius: 12px; cursor: pointer; }
   
   .comparison-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
   .comp-box { flex: 1; background: white; padding: 15px; border-radius: 15px; display: flex; flex-direction: column; border-bottom: 4px solid; cursor: pointer; transition: 0.2s; opacity: 0.6; }
   .active-box { opacity: 1; box-shadow: 0 4px 10px rgba(0,0,0,0.1); transform: translateY(-2px); }
   .blue-border { border-color: var(--c-receive); }
   .orange-border { border-color: var(--c-pay); }
-  .comp-operator { padding: 0 10px; font-weight: bold; color: #94a3b8; }
+  .comp-operator { padding: 0 10px; font-weight: bold; color: var(--c-text-faint); }
   
   .event-history { background: white; border-radius: 20px; padding: 20px; }
-  .history-label { font-size: 12px; color: #94a3b8; margin-bottom: 10px; }
-  .history-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: 0.3s; }
+  .history-label { font-size: 12px; color: var(--c-text-faint); margin-bottom: 10px; }
+  .history-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--c-surface-2); cursor: pointer; transition: 0.3s; }
   .excluded-item { opacity: 0.4; text-decoration: line-through; } /* 🌟 除外された項目のスタイル */
   
   .toggle-btn { background: var(--c-surface-2); border: none; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; margin-right: 10px; cursor: pointer; flex-shrink: 0; }
@@ -222,8 +222,8 @@ onMounted(async () => {
   .close-btn { background: var(--c-surface-2); color: var(--c-text-sub); }
   
   /* オーバーレイ */
-  .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: flex-end; z-index: 3000; }
-  .overlay-content { background: #f8fafc; width: 100%; padding: 30px; border-radius: 30px 30px 0 0; position: relative; }
+  .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--c-overlay); display: flex; align-items: flex-end; z-index: 3000; }
+  .overlay-content { background: var(--c-surface-2); width: 100%; padding: 30px; border-radius: 30px 30px 0 0; position: relative; }
   .close-overlay { position: absolute; top: -40px; right: 20px; font-size: 30px; border: none; background: none; color: white; }
 
   /* 🌟 戻るボタンのスタイル追加 */

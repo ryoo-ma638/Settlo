@@ -227,7 +227,7 @@ const props = defineProps({
   
   .blue-bg { background: var(--c-receive); color: #fff; }
   .orange-bg { background: var(--c-pay); color: #fff; }
-  .white-bg { background: #ffffff; border: 1px solid #f1f5f9; }
+  .white-bg { background: #ffffff; border: 1px solid var(--c-surface-2); }
   
   .card-main { text-align: center; margin-bottom: 15px; }
   .detail-label { font-size: 12px; opacity: 0.9; font-weight: bold; }
@@ -257,27 +257,27 @@ const props = defineProps({
   
   .summary-top { display: flex; justify-content: space-between; width: 100%; }
   .status-box { text-align: center; flex: 1; cursor: pointer; transition: 0.2s; border-radius: 12px; padding: 8px 0; }
-  .status-box:active { background: #f8fafc; transform: scale(0.95); } /* 🌟 押した時のフィードバック */
+  .status-box:active { background: var(--c-surface-2); transform: scale(0.95); } /* 🌟 押した時のフィードバック */
   .badge { display: inline-block; color: white; padding: 4px 14px; border-radius: 20px; font-size: 11px; font-weight: bold; margin-bottom: 8px; }
   .blue { background-color: var(--c-receive); }
   .orange { background-color: var(--c-pay-strong); } /* 白文字バッジが読めるよう濃いアンバー */
   .price { font-size: 24px; font-weight: bold; }
   .blue-text { color: var(--c-receive); }
   .orange-text { color: var(--c-pay-strong); }
-  .divider { width: 1px; height: 60px; background-color: #f1f5f9; margin: 0 15px; }
-  .progress-bar { width: 85%; height: 6px; background-color: #f1f5f9; border-radius: 10px; margin: 8px auto 0; overflow: hidden; }
+  .divider { width: 1px; height: 60px; background-color: var(--c-surface-2); margin: 0 15px; }
+  .progress-bar { width: 85%; height: 6px; background-color: var(--c-surface-2); border-radius: 10px; margin: 8px auto 0; overflow: hidden; }
   .bar { height: 100%; border-radius: 10px; }
   .blue-bar { background-color: var(--c-receive); transition: width 0.3s ease; }
   .orange-bar { background-color: var(--c-pay); transition: width 0.3s ease; }
   
-  .monthly-balance { margin-top: 20px; text-align: center; font-size: 13px; font-weight: bold; color: #94a3b8; background: #f8fafc; padding: 10px; border-radius: 12px; }
+  .monthly-balance { margin-top: 20px; text-align: center; font-size: 13px; font-weight: bold; color: var(--c-text-faint); background: var(--c-surface-2); padding: 10px; border-radius: 12px; }
   .balance-number { font-size: 18px; color: var(--c-brand); margin-left: 8px; }
   
   .nav-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; background-color: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); border-radius: 50%; border: 1px solid rgba(0,0,0,0.05); box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; z-index: 20; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); padding: 0; }
   .nav-arrow:active { transform: translateY(-50%) scale(0.85); background-color: #fff; }
   .left-arrow { left: 8px; }
   .right-arrow { right: 8px; }
-  .chevron { display: inline-block; border-right: 3px solid #1e293b; border-bottom: 3px solid #1e293b; width: 10px; height: 10px; }
+  .chevron { display: inline-block; border-right: 3px solid var(--c-text); border-bottom: 3px solid var(--c-text); width: 10px; height: 10px; }
   .left { transform: rotate(135deg); margin-left: 4px; }
   .right { transform: rotate(-45deg); margin-right: 4px; }
   
@@ -286,7 +286,7 @@ const props = defineProps({
   
   /* 🌟 ドットをボタン化 */
   .carousel-dots { display: flex; justify-content: center; gap: 8px; margin-top: 15px; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background-color: #cbd5e1; transition: all 0.3s ease; cursor: pointer; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background-color: var(--c-line-strong); transition: all 0.3s ease; cursor: pointer; }
   .dot:active { transform: scale(1.5); }
   .dot.active { background-color: var(--c-brand); width: 24px; border-radius: 10px; }
   </style>
