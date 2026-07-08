@@ -188,6 +188,6 @@
 .section-sub { font-size: 15px; font-weight: var(--fw-bold); margin: 18px 0 10px; color: var(--c-ink); }
 .method-btn { width: 100%; padding: 16px; border-radius: var(--r-md); border: none; font-weight: var(--fw-bold); font-size: 16px; cursor: pointer; }
 .cash { background-color: var(--c-brand); color: white; }
-.paypay { background-color: #ff0033; color: white; }
+.paypay { background-color: var(--c-paypay); color: white; }
 .footer-actions { margin-top: 26px; }
 </style>

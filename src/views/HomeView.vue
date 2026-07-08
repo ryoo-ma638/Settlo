@@ -442,7 +442,7 @@ const goToEventDetail = (id) => {
 .go-detail-btn { background: var(--c-brand); color: #fff; padding: 15px; border-radius: var(--r-md); font-size: 15px; font-weight: var(--fw-bold); }
 .go-detail-btn:active { transform: scale(0.98); background: var(--c-brand-strong); }
 .delete-btn { background: #fff; border: 1.5px solid var(--c-danger); color: var(--c-danger); padding: 13px; border-radius: var(--r-md); font-size: 14px; font-weight: var(--fw-bold); }
-.delete-btn:active { background: #fef2f2; }
+.delete-btn:active { background: var(--c-danger-weak); }
 .cancel-btn { background: var(--c-surface-2); color: var(--c-text-sub); padding: 13px; border-radius: var(--r-md); font-size: 14px; font-weight: var(--fw-bold); }
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }

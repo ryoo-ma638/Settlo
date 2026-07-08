@@ -200,7 +200,7 @@ onMounted(async () => {
   .comp-box { flex: 1; background: white; padding: 15px; border-radius: 15px; display: flex; flex-direction: column; border-bottom: 4px solid; cursor: pointer; transition: 0.2s; opacity: 0.6; }
   .active-box { opacity: 1; box-shadow: 0 4px 10px rgba(0,0,0,0.1); transform: translateY(-2px); }
   .blue-border { border-color: var(--c-receive); }
-  .orange-border { border-color: #f59e0b; }
+  .orange-border { border-color: var(--c-pay); }
   .comp-operator { padding: 0 10px; font-weight: bold; color: #94a3b8; }
   
   .event-history { background: white; border-radius: 20px; padding: 20px; }
@@ -213,7 +213,7 @@ onMounted(async () => {
   .item-info { display: flex; align-items: center; gap: 10px; flex: 1; }
   .badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; color: white; }
   .waiting { background: var(--c-receive); }
-  .pay { background: #f59e0b; }
+  .pay { background: var(--c-pay); }
   .price { font-weight: bold; }
   
   .main-btn { width: 100%; padding: 18px; border-radius: 18px; border: none; font-weight: bold; font-size: 16px; color: white; cursor: pointer; margin-top: 20px; }
@@ -231,7 +231,7 @@ onMounted(async () => {
   display: flex;  align-items: center;  padding: 10px 15px;  background: white;
 }
 .back-btn {
-  background: none;  border: none;  font-size: 32px;  color: #64748b;  cursor: pointer;
+  background: none;  border: none;  font-size: 32px;  color: var(--c-text-sub);  cursor: pointer;
 }
 
 .spacer {

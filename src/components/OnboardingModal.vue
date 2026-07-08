@@ -124,12 +124,12 @@ onUnmounted(() => window.removeEventListener('settlo:show-onboarding', forceShow
   width: 96px; height: 96px;
   margin: 26px auto 18px;
   border-radius: 28px;
-  background: var(--c-brand-weak, #ecfdf5);
+  background: var(--c-brand-weak);
   display: flex; align-items: center; justify-content: center;
 }
 .ob-illust svg {
   width: 52px; height: 52px;
-  fill: none; stroke: var(--c-brand, #059669); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
+  fill: none; stroke: var(--c-brand); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
 }
 
 /* 実画面のスクリーンショット */
@@ -138,7 +138,7 @@ onUnmounted(() => window.removeEventListener('settlo:show-onboarding', forceShow
   margin: 0 auto 14px;
   border-radius: 18px;
   overflow: hidden;
-  border: 4px solid var(--c-ink, #0f172a);
+  border: 4px solid var(--c-ink);
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
   background: #fff;
 }
@@ -148,8 +148,8 @@ onUnmounted(() => window.removeEventListener('settlo:show-onboarding', forceShow
 .ob-text { font-size: 13px; line-height: 1.75; color: var(--c-text-sub); margin: 0 0 8px; min-height: 68px; }
 .ob-tap {
   font-size: 12.5px; font-weight: 800;
-  color: var(--c-brand, #059669);
-  background: var(--c-brand-weak, #ecfdf5);
+  color: var(--c-brand);
+  background: var(--c-brand-weak);
   border-radius: 999px;
   padding: 7px 12px;
   margin: 0 0 4px;

@@ -245,7 +245,7 @@ onUnmounted(() => { if (unsubFriends) unsubFriends(); });
 .modal-body { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 
 .code-section { margin-bottom: 20px; flex-shrink: 0; }
-.code-section label { display: block; font-size: 13px; font-weight: bold; color: #64748b; margin-bottom: 8px; }
+.code-section label { display: block; font-size: 13px; font-weight: bold; color: var(--c-text-sub); margin-bottom: 8px; }
 .code-box { display: flex; justify-content: space-between; align-items: center; background: var(--c-brand-deep); padding: 12px 16px; border-radius: 12px; }
 .code { color: white; font-size: 24px; font-weight: bold; letter-spacing: 4px; }
 .copy-btn { background: white; color: var(--c-brand-deep); border: none; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; }
@@ -255,14 +255,14 @@ onUnmounted(() => { if (unsubFriends) unsubFriends(); });
 .divider { border: none; border-top: 1px dashed #cbd5e1; margin: 0 0 20px 0; flex-shrink: 0; }
 
 .invite-section { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.invite-section label { display: block; font-size: 13px; font-weight: bold; color: #64748b; margin-bottom: 10px; }
+.invite-section label { display: block; font-size: 13px; font-weight: bold; color: var(--c-text-sub); margin-bottom: 10px; }
 
 .search-box { margin-bottom: 10px; flex-shrink: 0; }
 .search-input { width: 100%; padding: 12px 15px; border-radius: 12px; border: 1px solid #cbd5e1; background: white; font-size: 14px; font-weight: bold; color: #1e293b; outline: none; box-sizing: border-box; transition: 0.2s; }
 .search-input:focus { border-color: var(--c-brand); box-shadow: 0 0 0 3px var(--c-brand-weak); }
 
 .filter-controls { display: flex; justify-content: flex-end; margin-bottom: 15px; flex-shrink: 0; }
-.custom-select { padding: 8px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: white; font-size: 12px; font-weight: bold; color: #64748b; outline: none; }
+.custom-select { padding: 8px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: white; font-size: 12px; font-weight: bold; color: var(--c-text-sub); outline: none; }
 
 .user-list { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-bottom: 10px; flex: 1; }
 .user-item { display: flex; justify-content: space-between; align-items: center; background: white; border: 1px solid #f1f5f9; padding: 12px; border-radius: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); }
@@ -272,7 +272,7 @@ onUnmounted(() => { if (unsubFriends) unsubFriends(); });
 .user-info { display: flex; flex-direction: column; }
 .user-name { font-size: 15px; font-weight: bold; color: #1e293b; }
 .user-id { font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 6px; margin-top: 2px; }
-.not-friend-badge { background: #fee2e2; color: #ef4444; padding: 2px 6px; border-radius: 6px; font-size: 9px; font-weight: bold; }
+.not-friend-badge { background: #fee2e2; color: var(--c-danger); padding: 2px 6px; border-radius: 6px; font-size: 9px; font-weight: bold; }
 .friend-badge { background: var(--c-brand-weak); color: var(--c-brand-strong); padding: 2px 6px; border-radius: 6px; font-size: 9px; font-weight: bold; }
 
 .invite-btn { background: var(--c-brand); color: white; border: none; padding: 8px 16px; border-radius: 12px; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; }

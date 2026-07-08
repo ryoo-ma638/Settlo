@@ -243,7 +243,7 @@ const loginAsGuest = async () => {
   max-width: 300px;
   text-align: center;
   font-size: 12px;
-  color: var(--c-danger, #dc2626);
+  color: var(--c-danger, var(--c-danger-strong));
   font-weight: var(--fw-bold);
   margin: 0;
 }

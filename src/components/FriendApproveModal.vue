@@ -158,7 +158,7 @@ const approve = () => {
 .question { font-size: 14px; font-weight: bold; color: #1e293b; margin-bottom: 20px; }
 
 .trade-history { background: #fff; padding: 15px; border-radius: 15px; text-align: left; margin-bottom: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
-.history-title { font-size: 12px; color: #64748b; margin: 0 0 10px 0; }
+.history-title { font-size: 12px; color: var(--c-text-sub); margin: 0 0 10px 0; }
 .history-list { list-style: none; padding: 0; margin: 0; font-size: 14px; }
 .history-list li { display: flex; justify-content: space-between; border-bottom: 1px dashed #cbd5e1; padding: 8px 0; }
 .history-list li:last-child { border-bottom: none; }
@@ -168,7 +168,7 @@ const approve = () => {
 .actions { display: flex; flex-direction: column; gap: 10px; }
 .btn { width: 100%; padding: 15px; border-radius: 15px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; }
 .execute-btn { background: var(--c-brand); color: white; } 
-.cancel-btn { background: #e2e8f0; color: #64748b; }
+.cancel-btn { background: #e2e8f0; color: var(--c-text-sub); }
 
 .avatar-wrapper-large { width: 100px; height: 100px;  margin: 0 auto 15px auto;  flex-shrink: 0; }
 .avatar-img-large { width: 100%;  height: 100%;  border-radius: 50%;  object-fit: cover;  box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
