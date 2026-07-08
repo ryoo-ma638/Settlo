@@ -5,7 +5,7 @@
         
         <div class="modal-header">
           <h3 class="modal-title">相手に催促を送る</h3>
-          <button class="close-btn" @click="$emit('close')">×</button>
+          <button class="close-btn" @click="$emit('close')" aria-label="閉じる">×</button>
         </div>
 
         <div class="modal-body">

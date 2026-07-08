@@ -73,7 +73,7 @@
       <Teleport to="body">
         <div v-if="selectedItem" class="overlay" @click.self="selectedItem = null">
           <div class="overlay-content">
-            <button class="close-overlay" @click="selectedItem = null">×</button>
+            <button class="close-overlay" @click="selectedItem = null" aria-label="閉じる">×</button>
             <PaymentReceipt :item="selectedItem" />
             <button class="main-btn close-btn" @click="selectedItem = null">閉じる</button>
           </div>

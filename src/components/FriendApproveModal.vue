@@ -167,7 +167,7 @@ const approve = () => {
 
 .actions { display: flex; flex-direction: column; gap: 10px; }
 .btn { width: 100%; padding: 15px; border-radius: 15px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; }
-.execute-btn { background: #22c55e; color: white; } 
+.execute-btn { background: var(--c-brand); color: white; } 
 .cancel-btn { background: #e2e8f0; color: #64748b; }
 
 .avatar-wrapper-large { width: 100px; height: 100px;  margin: 0 auto 15px auto;  flex-shrink: 0; }

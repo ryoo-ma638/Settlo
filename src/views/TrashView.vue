@@ -388,8 +388,8 @@ onUnmounted(() => { if (unsubUser) unsubUser(); if (unsubShared) unsubShared(); 
 .tcard__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .tcard__badge { padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: var(--fw-bold); }
 .tcard__badge.is-event { background: var(--c-brand-weak); color: var(--c-brand); }
-.tcard__badge.is-pay { background: #eef4ff; color: #3b6fd4; }
-.tcard__badge.is-wait { background: #fff4e0; color: var(--c-pay); }
+.tcard__badge.is-pay { background: var(--c-pay-weak); color: var(--c-pay-strong); }
+.tcard__badge.is-wait { background: var(--c-pay-weak); color: var(--c-pay-strong); }
 
 .tcard__days { font-size: 11px; font-weight: var(--fw-bold); color: var(--c-text-sub); background: var(--c-surface-2, #f4f5f7); padding: 3px 9px; border-radius: 999px; }
 .tcard__days.is-soon { background: #fdecec; color: var(--c-danger); }

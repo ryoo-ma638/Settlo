@@ -307,7 +307,7 @@ const formatTimestamp = (timestamp) => {
   margin-bottom: 8px;
 }
 .summary--receive { background: var(--c-receive); }
-.summary--pay { background: var(--c-pay); }
+.summary--pay { background: var(--c-pay-strong); } /* 白文字が読めるよう濃いアンバーに */
 .summary__label { font-size: 13px; opacity: 0.92; font-weight: var(--fw-medium); }
 .summary__amount {
   font-size: 34px;
