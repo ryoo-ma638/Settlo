@@ -361,7 +361,7 @@ const formatTimestamp = (timestamp) => {
 .trow__sub { font-size: 12px; color: var(--c-text-sub); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .trow__badge { background: var(--c-pay-weak); color: var(--c-pay-strong); font-size: 10px; font-weight: var(--fw-bold); padding: 2px 8px; border-radius: var(--r-pill); }
 .trow__badge--action { background: var(--c-brand-weak); color: var(--c-brand-strong); }
-.trow__badge--remind { background: var(--c-receive-weak, #eaf1ff); color: var(--c-receive); }
+.trow__badge--remind { background: var(--c-receive-weak); color: var(--c-receive); }
 .trow__right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .trow__amount { font-size: 16px; font-weight: var(--fw-black); color: var(--c-ink); }
 .trow__chevron { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: var(--c-text-faint); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }

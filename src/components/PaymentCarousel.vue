@@ -268,7 +268,7 @@ const props = defineProps({
   .progress-bar { width: 85%; height: 6px; background-color: #f1f5f9; border-radius: 10px; margin: 8px auto 0; overflow: hidden; }
   .bar { height: 100%; border-radius: 10px; }
   .blue-bar { background-color: var(--c-receive); transition: width 0.3s ease; }
-  .orange-bar { background-color: #f59e0b; transition: width 0.3s ease; }
+  .orange-bar { background-color: var(--c-pay); transition: width 0.3s ease; }
   
   .monthly-balance { margin-top: 20px; text-align: center; font-size: 13px; font-weight: bold; color: #94a3b8; background: #f8fafc; padding: 10px; border-radius: 12px; }
   .balance-number { font-size: 18px; color: var(--c-brand); margin-left: 8px; }

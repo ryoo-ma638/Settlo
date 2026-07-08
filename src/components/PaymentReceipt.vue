@@ -27,8 +27,8 @@
   .receipt-amount-label { font-size: 13px; color: var(--c-text-sub); font-weight: var(--fw-bold); }
   .receipt-amount { font-size: 28px; font-weight: var(--fw-black); color: var(--c-ink); }
   .receipt-row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px; }
-  .receipt-row span { color: #64748b; }
+  .receipt-row span { color: var(--c-text-sub); }
   .divider { border: none; border-top: 1px dashed #e2e8f0; margin: 15px 0; }
-  .items-label { font-size: 13px; font-weight: bold; color: #64748b; margin-bottom: 8px; text-align: left; }
+  .items-label { font-size: 13px; font-weight: bold; color: var(--c-text-sub); margin-bottom: 8px; text-align: left; }
   .items-list { padding-left: 20px; text-align: left; font-size: 14px; color: #1e293b; list-style: disc; }
   </style>

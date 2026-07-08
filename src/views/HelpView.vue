@@ -115,7 +115,7 @@ const replayTour = () => {
 .hcard__head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .hcard__icon {
   width: 36px; height: 36px; border-radius: 10px;
-  background: var(--c-brand-weak, #ecfdf5);
+  background: var(--c-brand-weak);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }

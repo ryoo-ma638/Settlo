@@ -35,12 +35,12 @@
   .avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; }
   .info { display: flex; flex-direction: column; }
   .name { font-size: 16px; font-weight: bold; color: #1e293b; margin: 0 0 4px 0; }
-  .details { font-size: 12px; color: #64748b; margin: 0; }
+  .details { font-size: 12px; color: var(--c-text-sub); margin: 0; }
   
   .card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
   .amount { font-size: 18px; font-weight: bold; margin: 0; }
   .blue-text { color: var(--c-receive); } /* 受け取りは緑 */
   .orange-text { color: var(--c-pay); } /* 支払いはアンバー */
   
-  .status-badge { font-size: 10px; background-color: #f1f5f9; color: #64748b; padding: 4px 8px; border-radius: 12px; font-weight: bold; }
+  .status-badge { font-size: 10px; background-color: #f1f5f9; color: var(--c-text-sub); padding: 4px 8px; border-radius: 12px; font-weight: bold; }
   </style>

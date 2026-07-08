@@ -170,9 +170,9 @@ const goToDetail = (item) => {
   box-shadow: 0 4px 15px rgba(0,0,0,0.05);
   margin-bottom: 15px;
 }
-.back-btn { background: none; border: none; font-size: 32px; color: #0f172a; cursor: pointer; padding: 0; display: flex; align-items: center; transition: 0.2s; }
+.back-btn { background: none; border: none; font-size: 32px; color: var(--c-ink); cursor: pointer; padding: 0; display: flex; align-items: center; transition: 0.2s; }
 .back-btn:active { transform: scale(0.9); }
-.title { font-size: 18px; font-weight: 900; margin: 0; color: #0f172a; flex: 1; text-align: center; }
+.title { font-size: 18px; font-weight: 900; margin: 0; color: var(--c-ink); flex: 1; text-align: center; }
 .spacer { width: 32px; }
 
 .content { flex: 1; width: 100%; margin: 0 auto; padding: 8px var(--pad) 28px; box-sizing: border-box; display: flex; flex-direction: column; }
@@ -189,7 +189,7 @@ const goToDetail = (item) => {
   }
   .filter-btn { 
     flex: 1; padding: 10px 0; border: none; background: transparent; 
-    font-size: 12px; font-weight: bold; color: #64748b; 
+    font-size: 12px; font-weight: bold; color: var(--c-text-sub); 
     border-radius: 8px; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); 
   }
   .filter-btn.active { 
@@ -213,7 +213,7 @@ const goToDetail = (item) => {
   .avatar { width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
   .info { display: flex; flex-direction: column; gap: 4px; }
   .name { font-size: 16px; font-weight: bold; color: #1e293b; margin: 0; }
-  .details { font-size: 12px; color: #64748b; margin: 0; display: flex; align-items: center; }
+  .details { font-size: 12px; color: var(--c-text-sub); margin: 0; display: flex; align-items: center; }
   .dot-separator { margin: 0 6px; font-size: 10px; opacity: 0.5; }
   
   .card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
@@ -227,7 +227,7 @@ const goToDetail = (item) => {
     padding: 4px 10px; border-radius: 12px; font-weight: bold; 
   }
   .status-badge.pending {
-    background-color: #f1f5f9; color: #64748b;
+    background-color: #f1f5f9; color: var(--c-text-sub);
   }
   .status-badge.awaiting {
     background-color: var(--c-pay-weak); color: var(--c-pay-strong);

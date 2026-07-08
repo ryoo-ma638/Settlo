@@ -89,7 +89,7 @@ const cancel = () => { emit('cancel'); close(); };
 }
 .icon-area.success { background: var(--c-brand-weak); }
 .icon-area.success svg { stroke: var(--c-brand); }
-.icon-area.error { background: #fef2f2; }
+.icon-area.error { background: var(--c-danger-weak); }
 .icon-area.error svg { stroke: var(--c-danger); }
 .icon-area.warning { background: #fffbeb; }
 .icon-area.warning svg { stroke: var(--c-pay); }

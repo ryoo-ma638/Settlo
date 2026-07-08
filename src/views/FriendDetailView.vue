@@ -254,7 +254,7 @@ const handleDeleteFriend = async () => {
 .back-btn:active { transform: scale(0.9); }
 .user-info-block { display: flex; align-items: center; gap: 15px; }
 .user-name { font-size: 22px; font-weight: 900; margin: 0; color: #1e293b; letter-spacing: 0.5px; }
-.delete-link-btn { background: rgba(255, 255, 255, 0.5); border: none; color: #ef4444; font-size: 12px; font-weight: 900; padding: 6px 12px; border-radius: 12px; cursor: pointer; transition: 0.2s; }
+.delete-link-btn { background: rgba(255, 255, 255, 0.5); border: none; color: var(--c-danger); font-size: 12px; font-weight: 900; padding: 6px 12px; border-radius: 12px; cursor: pointer; transition: 0.2s; }
 .delete-link-btn:active { background: #fee2e2; }
 
 /* 🌟 アイコンの枠をリッチに */
@@ -267,7 +267,7 @@ const handleDeleteFriend = async () => {
 
 /* 🌟 トータル収支カードを洗練 */
 .total-balance-card { background-color: #fff; border-radius: 28px; padding: 24px; margin-bottom: 25px; box-shadow: 0 8px 30px rgba(33, 105, 163, 0.08); cursor: pointer; text-align: center; border: 1px solid #f1f5f9; }
-.balance-label { font-size: 13px; font-weight: 800; color: #64748b; margin-bottom: 12px; }
+.balance-label { font-size: 13px; font-weight: 800; color: var(--c-text-sub); margin-bottom: 12px; }
 .balance-main { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 16px; }
 .balance-amount { font-size: 36px; font-weight: 900; margin: 0; letter-spacing: -1px; }
 .arrow-icon { font-size: 24px; color: #cbd5e1; }
@@ -275,14 +275,14 @@ const handleDeleteFriend = async () => {
 .sub-item { display: flex; align-items: center; gap: 5px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; }
 .blue-dot { background-color: #3b82f6; }
-.orange-dot { background-color: #f59e0b; }
+.orange-dot { background-color: var(--c-pay); }
 
 .section-title { font-size: 20px; font-weight: bold; margin-bottom: 20px; text-align: left; }
 .status-section { background-color: #fff; border-radius: 20px; padding: 15px; margin-bottom: 20px; }
 .status-header { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; position: relative; }
 .status-badge { padding: 4px 12px; border-radius: 15px; color: white; font-size: 11px; font-weight: bold; }
 .blue-badge { background-color: #3b82f6; }
-.orange-badge { background-color: #f59e0b; }
+.orange-badge { background-color: var(--c-pay); }
 .total-amount { font-size: 28px; font-weight: bold; }
 .blue-text { color: var(--c-receive); }
 .orange-text { color: var(--c-pay); }
@@ -299,7 +299,7 @@ const handleDeleteFriend = async () => {
 .event-amount { font-size: 16px; font-weight: bold; }
 .action-btn { padding: 5px 12px; border-radius: 20px; border: none; font-size: 11px; font-weight: bold; color: #fff; cursor: pointer; }
 .green-btn { background-color: var(--c-brand); }
-.red-btn { background-color: #ef4444; color: #ffffff; }
+.red-btn { background-color: var(--c-danger); color: #ffffff; }
 
 .history-toggle-btn { width: 100%; padding: 12px; background-color: #93c5fd; color: #fff; border: none; border-radius: 15px; font-size: 18px; font-weight: bold; margin-bottom: 15px; }
 .history-card { background-color: #fff; display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-radius: 40px; margin-bottom: 10px; }

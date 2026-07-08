@@ -455,9 +455,9 @@ const confirmCash = () => {
 /* 基本スタイル */
 .payment-detail-container { width: 100%; background-color: var(--c-bg); display: flex; flex-direction: column; box-sizing: border-box; overflow-x: hidden; }
 .detail-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); position: sticky; top: 60px; z-index: 100; border-radius: 0 0 24px 24px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 15px; }
-.back-btn { background: none; border: none; font-size: 32px; color: #0f172a; cursor: pointer; padding: 0; display: flex; align-items: center; transition: 0.2s; }
+.back-btn { background: none; border: none; font-size: 32px; color: var(--c-ink); cursor: pointer; padding: 0; display: flex; align-items: center; transition: 0.2s; }
 .back-btn:active { transform: scale(0.9); }
-.title { font-size: 18px; font-weight: 900; margin: 0; color: #0f172a; flex: 1; text-align: center; }
+.title { font-size: 18px; font-weight: 900; margin: 0; color: var(--c-ink); flex: 1; text-align: center; }
 .spacer { width: 32px; }
 .content { padding: 8px var(--pad) 28px; width: 100%; box-sizing: border-box; }
 .state-msg { text-align: center; padding: 48px 16px; color: var(--c-text-sub); font-weight: var(--fw-medium); }
@@ -474,7 +474,7 @@ const confirmCash = () => {
 .cash { background-color: var(--c-brand); color: white; }
 .approve { background-color: var(--c-brand); color: white; box-shadow: 0 4px 12px rgba(5,150,105,0.3); }
 .reject { background-color: #fff; border: 1.5px solid var(--c-danger); color: var(--c-danger); }
-.reject:active:not(:disabled) { background-color: #fef2f2; }
+.reject:active:not(:disabled) { background-color: var(--c-danger-weak); }
 .remind-btn { background-color: var(--c-receive); color: #fff; margin-top: 10px; }
 .remind-btn:active:not(:disabled) { transform: scale(0.98); }
 .disabled-btn { background-color: #cbd5e1; color: #475569; cursor: not-allowed; }

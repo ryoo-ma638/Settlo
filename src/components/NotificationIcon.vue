@@ -920,12 +920,12 @@ defineExpose({ open });
 .notif-item--pay { border-left-color: var(--c-pay); }
 .notif-item--friend { border-left-color: var(--c-brand); }
 .notif-item--reject { border-left-color: var(--c-danger); }
-.notif-item--info { border-left-color: var(--c-brand, #059669); }
+.notif-item--info { border-left-color: var(--c-brand); }
 
 .notif-body { display: flex; flex-direction: column; gap: 8px; }
 .notif-body p { font-weight: var(--fw-medium); color: var(--c-ink); }
 .notif-sub { font-size: 12px; color: var(--c-text-sub) !important; font-weight: var(--fw-medium); }
-.notif-changes { font-size: 12px; color: var(--c-brand-strong, #059669) !important; font-weight: var(--fw-bold, 700); background: var(--c-brand-weak, #ecfdf5); border-radius: 8px; padding: 6px 10px; line-height: 1.5; }
+.notif-changes { font-size: 12px; color: var(--c-brand-strong, var(--c-brand)) !important; font-weight: var(--fw-bold, 700); background: var(--c-brand-weak); border-radius: 8px; padding: 6px 10px; line-height: 1.5; }
 .notif-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
 .mini-btn {
