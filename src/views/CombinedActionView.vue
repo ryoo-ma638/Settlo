@@ -31,6 +31,8 @@
         :showCancel="modalState.showCancel"
         :confirmText="modalState.confirmText"
         :cancelText="modalState.cancelText"
+        :withReason="modalState.withReason"
+        :reasonPlaceholder="modalState.reasonPlaceholder"
         @confirm="handleConfirm"
         @cancel="modalState.show = false"
         @close="modalState.show = false"
@@ -56,16 +58,17 @@
   
   // 🌟 統一モーダルの状態管理
   const modalState = reactive({
-    show: false, type: 'info', title: '', message: '', 
-    showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null
+    show: false, type: 'info', title: '', message: '',
+    showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null,
+    withReason: false, reasonPlaceholder: ''
   });
 
   const showModal = (options) => {
-    Object.assign(modalState, { showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, ...options, show: true });
+    Object.assign(modalState, { showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, withReason: false, reasonPlaceholder: '', ...options, show: true });
   };
 
-  const handleConfirm = () => {
-    if (modalState.onConfirm) modalState.onConfirm();
+  const handleConfirm = (reason) => {
+    if (modalState.onConfirm) modalState.onConfirm(reason);
     modalState.show = false;
   };
   
@@ -79,7 +82,9 @@
         : "この相手との貸し借りを現金で支払って精算しますか？\nこの相手との未決済をすべて「完了」にします。",
       showCancel: true,
       confirmText: isRemind.value ? '受け取った' : '支払った',
-      onConfirm: async () => {
+      withReason: true,
+      reasonPlaceholder: '相手へのひとこと（任意・お礼など）',
+      onConfirm: async (reason) => {
         try {
           const myUid = auth.currentUser?.uid;
           const friendUid = route.query.uid;
@@ -108,6 +113,7 @@
                 fromUserName: auth.currentUser?.displayName || 'メンバー',
                 type: 'payment_completed',
                 message: `${ids.size}件の取引がまとめて精算されました。`,
+                userMessage: reason || null,
                 isRead: false,
                 createdAt: serverTimestamp(),
               });
