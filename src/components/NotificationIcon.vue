@@ -54,6 +54,7 @@
                 <div class="notif-body">
                   <template v-if="req.status === 'pending'">
                     <p>{{ req.formName }}さんから友達申請が届いています</p>
+                    <p v-if="req.userMessage" class="notif-msg">{{ req.userMessage }}</p>
                     <div class="notif-actions">
                       <button class="mini-btn" @click="acceptRequest(req)">承認する</button>
                       <button class="mini-btn mini-btn--ghost" @click="rejectFriendRequest(req)">拒否する</button>
@@ -115,6 +116,7 @@
           <div class="notif-body">
             <template v-if="req.status === 'pending'">
               <p>{{ req.formName }}さんから友達申請が届いています</p>
+              <p v-if="req.userMessage" class="notif-msg">{{ req.userMessage }}</p>
               <div class="notif-actions">
                 <button class="mini-btn" @click="acceptRequest(req)">承認する</button>
                 <button class="mini-btn mini-btn--ghost" @click="rejectFriendRequest(req)">拒否する</button>
