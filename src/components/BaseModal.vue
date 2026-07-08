@@ -24,6 +24,8 @@
             <p class="modal-message">{{ message }}</p>
           </div>
 
+          <MessageField v-if="withReason" v-model="reason" :placeholder="reasonPlaceholder" class="modal-reason" />
+
           <div class="button-area">
             <button v-if="showCancel" class="btn-cancel" @click="cancel">{{ cancelText }}</button>
             <button class="btn-confirm" :class="type" @click="confirm">{{ confirmText }}</button>
@@ -35,7 +37,8 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits } from 'vue';
+import { ref, watch } from 'vue';
+import MessageField from './MessageField.vue';
 
 const props = defineProps({
   show: Boolean,
@@ -44,13 +47,22 @@ const props = defineProps({
   message: String,
   confirmText: { type: String, default: 'OK' },
   cancelText: { type: String, default: 'キャンセル' },
-  showCancel: { type: Boolean, default: false }
+  showCancel: { type: Boolean, default: false },
+  // 任意の理由メッセージ欄（判断ループなどで「なぜそうしたか」を添える）
+  withReason: { type: Boolean, default: false },
+  reasonValue: { type: String, default: '' },
+  reasonPlaceholder: { type: String, default: '理由を書けます（任意・相手に届きます）' }
 });
 
 const emit = defineEmits(['close', 'confirm', 'cancel']);
 
+// モーダルは常時マウントされるので、開くたびに理由を初期化する
+const reason = ref(props.reasonValue);
+watch(() => props.show, (v) => { if (v) reason.value = props.reasonValue; });
+
 const close = () => emit('close');
-const confirm = () => { emit('confirm'); close(); };
+// 既存の呼び出しは第2引数を無視するので後方互換
+const confirm = () => { emit('confirm', props.withReason ? reason.value.trim() : undefined); close(); };
 const cancel = () => { emit('cancel'); close(); };
 </script>
 
@@ -99,6 +111,7 @@ const cancel = () => { emit('cancel'); close(); };
 /* テキスト */
 .modal-title { font-size: 18px; font-weight: var(--fw-bold); color: var(--c-ink); margin-bottom: 8px; white-space: pre-line; }
 .modal-message { font-size: 14px; color: var(--c-text-sub); margin-bottom: 22px; line-height: 1.6; white-space: pre-line; }
+.modal-reason { margin-bottom: 26px; text-align: left; }
 
 /* ボタン */
 .button-area { display: flex; gap: 10px; }
