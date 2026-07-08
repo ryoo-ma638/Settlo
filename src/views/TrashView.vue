@@ -97,6 +97,8 @@
       :showCancel="alertState.showCancel"
       :confirmText="alertState.confirmText"
       :cancelText="alertState.cancelText"
+      :withReason="alertState.withReason"
+      :reasonPlaceholder="alertState.reasonPlaceholder"
       @confirm="handleConfirm"
       @cancel="alertState.show = false"
       @close="alertState.show = false"
@@ -153,14 +155,16 @@ const counterpartyNames = (item) => (item.counterparties || []).map(c => c.name)
 const typeLabel = (t) => (t === 'event' ? 'イベント' : (t === 'payment' ? '支払い' : '決済'));
 
 // ---- 確認ダイアログ ----
-const alertState = reactive({ show: false, type: 'warning', title: '', message: '', showCancel: true, confirmText: 'はい', cancelText: 'いいえ', onConfirm: null });
+const alertState = reactive({ show: false, type: 'warning', title: '', message: '', showCancel: true, confirmText: 'はい', cancelText: 'いいえ', onConfirm: null, withReason: false, reasonPlaceholder: '' });
 const askConfirm = (title, message, onConfirm, opts = {}) => {
   Object.assign(alertState, {
     type: opts.type || 'warning', title, message, showCancel: true,
-    confirmText: opts.confirmText || 'はい', cancelText: opts.cancelText || 'いいえ', onConfirm, show: true,
+    confirmText: opts.confirmText || 'はい', cancelText: opts.cancelText || 'いいえ',
+    withReason: !!opts.withReason, reasonPlaceholder: opts.reasonPlaceholder || '理由を書けます（任意・相手に届きます）',
+    onConfirm, show: true,
   });
 };
-const handleConfirm = () => { const cb = alertState.onConfirm; alertState.show = false; if (cb) cb(); };
+const handleConfirm = (reason) => { const cb = alertState.onConfirm; alertState.show = false; if (cb) cb(reason); };
 
 // ---- イベントを元に戻す（相手が「正しくない」を選ぶとゴミ箱に戻る） ----
 const restoreEvent = async (item) => {
@@ -259,11 +263,11 @@ const askRestoreSettlement = (item) => {
   askConfirm(
     '未精算に戻しますか？',
     `「${item.itemName}」を未精算に戻すには相手の承認が必要です。承認されるまで「保留」に入ります。`,
-    () => requestSettlementRestore(item),
-    { confirmText: '承認を依頼する', cancelText: 'やめる' }
+    (reason) => requestSettlementRestore(item, reason),
+    { confirmText: '承認を依頼する', cancelText: 'やめる', withReason: true, reasonPlaceholder: '戻したい理由を書けます（任意・相手に届きます）' }
   );
 };
-const requestSettlementRestore = async (item) => {
+const requestSettlementRestore = async (item, reason) => {
   const uid = auth.currentUser?.uid;
   if (!uid) return;
   try {
@@ -276,6 +280,7 @@ const requestSettlementRestore = async (item) => {
         historyId: item.historyId || null, itemName: item.itemName || '決済',
         amount: item.amount || 0, transactionIds: item.transactionIds || [],
         fromUserId: uid, fromUserName: myName.value,
+        userMessage: reason || null,
         isRead: false, createdAt: serverTimestamp(),
       });
     }

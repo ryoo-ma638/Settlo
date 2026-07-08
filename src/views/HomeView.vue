@@ -82,6 +82,8 @@
         :showCancel="modalState.showCancel"
         :confirmText="modalState.confirmText"
         :cancelText="modalState.cancelText"
+        :withReason="modalState.withReason"
+        :reasonPlaceholder="modalState.reasonPlaceholder"
         @confirm="handleConfirmModal"
         @cancel="modalState.show = false"
         @close="modalState.show = false"
@@ -112,13 +114,14 @@ const openDetail = (event) => {
 // 🌟 モーダル状態管理 (Eventブランチの機能)
 const modalState = reactive({
   show: false, type: 'info', title: '', message: '',
-  showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null
+  showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null,
+  withReason: false, reasonPlaceholder: ''
 });
 const showModal = (options) => {
-  Object.assign(modalState, { showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, ...options, show: true });
+  Object.assign(modalState, { showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, withReason: false, reasonPlaceholder: '', ...options, show: true });
 };
-const handleConfirmModal = () => {
-  if (modalState.onConfirm) modalState.onConfirm();
+const handleConfirmModal = (reason) => {
+  if (modalState.onConfirm) modalState.onConfirm(reason);
   modalState.show = false;
 };
 
@@ -280,7 +283,9 @@ const deleteEvent = async (id) => {
     message: 'このイベントを自分の画面から削除します。ゴミ箱に入り、7日以内なら復元できます（相手の画面には残ります）。',
     showCancel: true,
     confirmText: '削除する',
-    onConfirm: async () => {
+    withReason: true,
+    reasonPlaceholder: '削除の理由を書けます（任意・参加者に届きます）',
+    onConfirm: async (reason) => {
       try {
         const myUid = auth.currentUser?.uid;
         if (!myUid) return;
@@ -306,6 +311,7 @@ const deleteEvent = async (id) => {
               eventId: id, eventName: ev.name || 'イベント',
               trashId: evTrashRef.id,
               fromUserId: myUid, fromUserName: auth.currentUser?.displayName || 'メンバー',
+              userMessage: reason || null,
               isRead: false, createdAt: serverTimestamp(),
             });
           } catch (e) {}

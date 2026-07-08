@@ -176,6 +176,8 @@
         :showCancel="alertState.showCancel"
         :confirmText="alertState.confirmText"
         :cancelText="alertState.cancelText"
+        :withReason="alertState.withReason"
+        :reasonPlaceholder="alertState.reasonPlaceholder"
         @confirm="handleAlertConfirm"
         @cancel="alertState.show = false"
         @close="alertState.show = false"
@@ -363,22 +365,23 @@ import PageHeader from '@/components/PageHeader.vue';
 import GenreIcon from '@/components/GenreIcon.vue'; // 🌟 イベントのジャンルアイコン
 
 // 🌟 どこからでも呼べる美しいアラートの準備
-const alertState = reactive({ show: false, type: 'info', title: '', message: '', showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null });
+const alertState = reactive({ show: false, type: 'info', title: '', message: '', showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, withReason: false, reasonPlaceholder: '' });
 const showAlert = (type, title, message) => {
-  Object.assign(alertState, { type, title, message, showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, show: true });
+  Object.assign(alertState, { type, title, message, showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, withReason: false, show: true });
 };
 // 🌟 はい／いいえ の確認ダイアログ（誤操作防止）
 const showConfirm = (title, message, onConfirm, opts = {}) => {
   Object.assign(alertState, {
     type: opts.type || 'warning', title, message,
     showCancel: true, confirmText: opts.confirmText || 'はい', cancelText: opts.cancelText || 'いいえ',
+    withReason: !!opts.withReason, reasonPlaceholder: opts.reasonPlaceholder || '理由を書けます（任意・相手に届きます）',
     onConfirm, show: true,
   });
 };
-const handleAlertConfirm = () => {
+const handleAlertConfirm = (reason) => {
   const cb = alertState.onConfirm;
   alertState.show = false;
-  if (cb) cb();
+  if (cb) cb(reason);
 };
 
 // 🌟 自動で消えるトースト（コピー完了などの軽い通知用・モーダルより邪魔にならない）
@@ -651,7 +654,7 @@ const notifyParticipants = async (uids, notifData) => {
 // 🌟 支払いの削除（ゴミ箱へ控えを残してから削除／確認つき／関係者へ通知）
 const deletePayment = (h) => {
   modals.value.historyDetail = false; // 詳細シートを先に閉じて、確認を1つだけにする
-  showConfirm('支払いを削除', `「${h.itemName}」（¥${(Number(h.amount) || 0).toLocaleString()}）を削除しますか？\nゴミ箱に入り、7日以内なら元に戻せます。`, async () => {
+  showConfirm('支払いを削除', `「${h.itemName}」（¥${(Number(h.amount) || 0).toLocaleString()}）を削除しますか？\nゴミ箱に入り、7日以内なら元に戻せます。`, async (reason) => {
     try {
       const eventId = route.params.id;
       const myUid = auth.currentUser?.uid;
@@ -695,14 +698,14 @@ const deletePayment = (h) => {
       }
       await deleteDoc(doc(db, "events", eventId, "history", h.id));
       await updateDoc(doc(db, "events", eventId), { totalAmount: increment(-(Number(h.amount) || 0)) });
-      await notifyParticipants(involved, { type: 'payment_deleted', itemName: h.itemName, amount: Number(h.amount) || 0, eventName: eventData.value.name || '', trashId: trashDocId });
+      await notifyParticipants(involved, { type: 'payment_deleted', itemName: h.itemName, amount: Number(h.amount) || 0, eventName: eventData.value.name || '', trashId: trashDocId, userMessage: reason || null });
       modals.value.historyDetail = false;
       showToast('支払いをゴミ箱に移動しました');
     } catch (e) {
       console.error('支払い削除エラー:', e);
       showAlert('error', 'エラー', '支払いの削除に失敗しました。');
     }
-  }, { confirmText: '削除', cancelText: 'やめる' });
+  }, { confirmText: '削除', cancelText: 'やめる', withReason: true, reasonPlaceholder: '削除の理由を書けます（任意・相手に届きます）' });
 };
 
 // ==========================================
@@ -1012,7 +1015,7 @@ const goToBatchPayment = (summary) => {
   }
 };
 
-const deleteEventCompletely = async () => {
+const deleteEventCompletely = async (reason) => {
   const eventId = route.params.id;
   const myUid = auth.currentUser?.uid;
   if (!eventId || !myUid) { router.push('/'); return; }
@@ -1039,6 +1042,7 @@ const deleteEventCompletely = async () => {
           eventId, eventName: eventData.value.name || 'イベント',
           trashId: evTrashRef.id,
           fromUserId: myUid, fromUserName: myName.value || 'メンバー',
+          userMessage: reason || null,
           isRead: false, createdAt: serverTimestamp(),
         });
       } catch (e) {}
@@ -1075,8 +1079,8 @@ const handleDeleteEvent = () => {
   showConfirm(
     'イベントを削除しますか？',
     'このイベントを自分の画面から削除します。ゴミ箱に入り、7日以内なら復元できます（相手の画面には残ります）。',
-    () => deleteEventCompletely(),
-    { type: 'error', confirmText: '削除する', cancelText: 'やめる' }
+    (reason) => deleteEventCompletely(reason),
+    { type: 'error', confirmText: '削除する', cancelText: 'やめる', withReason: true, reasonPlaceholder: '削除の理由を書けます（任意・参加者に届きます）' }
   );
 };
 
