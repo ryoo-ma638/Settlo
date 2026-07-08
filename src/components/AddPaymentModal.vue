@@ -250,6 +250,8 @@
         </div>
 
         <div class="modal-footer">
+          <MessageField v-if="editData" v-model="editNote" class="edit-note" label="変更のひとこと（任意）" placeholder="例：金額を打ち間違えたので直しました" />
+
           <button class="submit-btn" @click="handleSubmit">{{ editData ? 'この内容で保存する' : 'この内容で追加する' }}</button>
         </div>
 
@@ -274,6 +276,7 @@
 <script setup>
 import { ref, computed, reactive, watch } from 'vue';
 import BaseModal from '../components/BaseModal.vue';
+import MessageField from '../components/MessageField.vue';
 import GenreIcon from '../components/GenreIcon.vue'; // 🌟 支払いジャンルのアイコン
 import { app } from "../firebase";
 import { getFunctions, httpsCallable } from "firebase/functions"; // ← AI通信に必要なこれらが抜けていました！
@@ -569,6 +572,7 @@ const itemsTotal = computed(() => {
 // ==========================================
 const remainderBearer = ref(''); // 差額を負担する人の名前（空＝立替者）
 const remainderReason = ref(''); // 差額の理由（任意メモ）
+const editNote = ref(''); // 編集時に相手へ添えるひとこと（任意）
 
 // 内訳の合計（割り勘方法に応じて）
 const breakdownTotal = computed(() => {
@@ -703,6 +707,7 @@ const executeSubmit = () => {
   const payerObj = (props.participants || []).find(p => p.name === formData.value.payer);
   const payload = {
     editId: props.editData ? props.editData.id : null, // 🌟 編集なら対象ID
+    editNote: props.editData ? (editNote.value.trim() || null) : null, // 🌟 編集時に添えるひとこと（任意）
     payer: formData.value.payer,
     payerUid: payerObj ? payerObj.id : (props.myUid || null),
     itemName: formData.value.itemName,
@@ -859,6 +864,7 @@ const executeSubmit = () => {
 
 /* 🌟 フッター（固定） */
 .modal-footer { padding: 16px 24px 30px; background: white; border-top: 1px solid rgba(0,0,0,0.05); }
+.edit-note { margin-bottom: 24px; }
 .submit-btn { width: 100%; background-color: var(--c-brand); color: white; border: none; padding: 18px; border-radius: var(--r-pill); font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 8px 20px rgba(5,150,105,0.25); transition: 0.2s; }
 .submit-btn:active { transform: scale(0.96); }
 
