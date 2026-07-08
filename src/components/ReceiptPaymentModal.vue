@@ -96,32 +96,32 @@ const handlePayment = () => {
 </script>
 
 <style scoped>
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: flex-end; justify-content: center; z-index: 2010; backdrop-filter: blur(2px); }
-.modal-content { background: #f8fafc; width: 100%; max-width: 600px; border-radius: 30px 30px 0 0; padding: 25px; box-sizing: border-box; max-height: 90vh; overflow-y: auto; }
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--c-overlay); display: flex; align-items: flex-end; justify-content: center; z-index: 2010; backdrop-filter: blur(2px); }
+.modal-content { background: var(--c-surface-2); width: 100%; max-width: 600px; border-radius: 30px 30px 0 0; padding: 25px; box-sizing: border-box; max-height: 90vh; overflow-y: auto; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.modal-header h3 { margin: 0; font-size: 18px; color: #1e293b; font-weight: 900; }
-.close-btn { background: #e2e8f0; border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 18px; color: var(--c-text-sub); cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+.modal-header h3 { margin: 0; font-size: 18px; color: var(--c-text); font-weight: 900; }
+.close-btn { background: var(--c-line-bold); border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 18px; color: var(--c-text-sub); cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; }
 
 .receipt-style { text-align: center; }
 .r-icon { width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 15px; border: 4px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.05); background: var(--c-brand-weak); color: var(--c-brand); display: flex; align-items: center; justify-content: center; }
 .r-icon :deep(svg) { width: 30px; height: 30px; }
-.receipt-body h2 { margin: 0 0 5px; font-size: 22px; color: #1e293b; font-weight: 900; }
+.receipt-body h2 { margin: 0 0 5px; font-size: 22px; color: var(--c-text); font-weight: 900; }
 .r-date { color: var(--c-text-sub); font-size: 13px; margin: 0 0 20px; font-weight: 700; }
 .r-amount { font-size: 40px; margin: 0 0 6px; letter-spacing: -1px; font-weight: 900; }
 .r-role { font-size: 12px; color: var(--c-text-sub); font-weight: 800; margin: 0 0 15px; }
 
-.shares-list { background: #fff; border: 1px solid #eef2f7; border-radius: 16px; padding: 14px 16px; margin: 0 0 18px; text-align: left; }
-.shares-title { font-size: 11px; color: #94a3b8; font-weight: 800; margin-bottom: 10px; letter-spacing: 1px; }
-.share-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px dashed #eef2f7; }
+.shares-list { background: #fff; border: 1px solid var(--c-line); border-radius: 16px; padding: 14px 16px; margin: 0 0 18px; text-align: left; }
+.shares-title { font-size: 11px; color: var(--c-text-faint); font-weight: 800; margin-bottom: 10px; letter-spacing: 1px; }
+.share-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px dashed var(--c-line); }
 .share-row:last-child { border-bottom: none; }
-.s-name { font-size: 14px; font-weight: 800; color: #334155; display: flex; align-items: center; gap: 6px; }
+.s-name { font-size: 14px; font-weight: 800; color: var(--c-text); display: flex; align-items: center; gap: 6px; }
 .s-tag { font-size: 9px; background: var(--c-brand-weak); color: var(--c-brand-strong, var(--c-brand)); padding: 2px 6px; border-radius: 6px; font-weight: 800; }
 .s-amt { font-size: 15px; font-weight: 900; color: var(--c-ink); }
 
 /* 🌟 追加：レシート内訳のデザイン */
 .receipt-paper {
   background: #ffffff;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed var(--c-line-strong);
   border-radius: 16px;
   padding: 20px;
   margin: 20px 0;
@@ -130,7 +130,7 @@ const handlePayment = () => {
 }
 .receipt-paper-header {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--c-text-faint);
   font-weight: 800;
   margin-bottom: 16px;
   text-align: center;
@@ -146,7 +146,7 @@ const handlePayment = () => {
   justify-content: space-between;
   align-items: baseline;
   font-size: 14px;
-  color: #334155;
+  color: var(--c-text);
   font-weight: 700;
 }
 .item-name {
@@ -162,7 +162,7 @@ const handlePayment = () => {
   color: var(--c-ink);
 }
 .receipt-divider {
-  border-top: 2px dashed #e2e8f0;
+  border-top: 2px dashed var(--c-line-bold);
   margin: 16px 0;
 }
 .receipt-total {
@@ -182,13 +182,13 @@ const handlePayment = () => {
 .completed-title { font-size: 15px; font-weight: 900; margin: 0 0 4px 0; }
 .completed-date { font-size: 12px; opacity: 0.8; margin: 0; font-weight: 700; }
 
-.payment-actions { margin-top: 15px; padding-top: 20px; border-top: 1px dashed #cbd5e1; }
+.payment-actions { margin-top: 15px; padding-top: 20px; border-top: 1px dashed var(--c-line-strong); }
 .payment-actions .hint { font-size: 12px; color: var(--c-text-sub); font-weight: bold; margin-bottom: 12px; }
 .method-btn { width: 100%; padding: 16px; border-radius: 16px; border: none; font-weight: 900; font-size: 14px; margin-bottom: 10px; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
 .method-btn:active { transform: scale(0.96); box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
 .paypay { background-color: var(--c-paypay); color: white; }
 .cash { background-color: var(--c-brand); color: white; }
-.action-btn { width: 100%; padding: 16px; border-radius: 16px; border: none; font-weight: 900; font-size: 15px; cursor: pointer; background: #e2e8f0; color: #475569; margin-top: 10px; transition: 0.2s; }
+.action-btn { width: 100%; padding: 16px; border-radius: 16px; border: none; font-weight: 900; font-size: 15px; cursor: pointer; background: var(--c-line-bold); color: var(--c-text-strong); margin-top: 10px; transition: 0.2s; }
 .action-btn:active { transform: scale(0.96); }
 
 /* 🌟 編集・削除 */
@@ -196,7 +196,7 @@ const handlePayment = () => {
 .ed-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 13px; border-radius: 14px; border: 1.5px solid; background: #fff; font-size: 14px; font-weight: 800; cursor: pointer; transition: 0.2s; }
 .ed-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .ed-btn:active { transform: scale(0.96); }
-.ed-edit { color: #475569; border-color: #cbd5e1; }
+.ed-edit { color: var(--c-text-strong); border-color: var(--c-line-strong); }
 .ed-delete { color: var(--c-danger); border-color: #fecaca; background: var(--c-danger-weak); }
 
 .slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }

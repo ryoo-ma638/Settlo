@@ -176,7 +176,7 @@ const navigate = (path) => {
 }
 .user-info { display: flex; flex-direction: column; }
 .user-name { font-size: 22px; font-weight: bold; margin: 0; }
-.mypage-link { font-size: 13px; color: #cbd5e1; margin: 5px 0 0 0; cursor: pointer; text-decoration: underline; }
+.mypage-link { font-size: 13px; color: var(--c-line-strong); margin: 5px 0 0 0; cursor: pointer; text-decoration: underline; }
 .divider { border: none; border-top: 1px solid rgba(255, 255, 255, 0.2); margin: 15px 0; }
 .menu-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 15px; }
 .menu-list li { font-size: 16px; cursor: pointer; display: flex; align-items: center; transition: opacity 0.2s; }
@@ -186,7 +186,7 @@ const navigate = (path) => {
 .badge { background-color: rgba(255, 255, 255, 0.2); font-size: 12px; padding: 2px 8px; border-radius: 10px; }
 .bottom-actions { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
 .btn-primary { background-color: var(--c-brand); color: white; border: none; border-radius: 12px; padding: 15px; font-size: 16px; font-weight: bold; cursor: pointer; }
-.btn-home { background-color: #334155; color: white; border: none; border-radius: 12px; padding: 15px; font-size: 16px; font-weight: bold; cursor: pointer; }
+.btn-home { background-color: var(--c-text); color: white; border: none; border-radius: 12px; padding: 15px; font-size: 16px; font-weight: bold; cursor: pointer; }
 
 /* 💻 PC版用のスタイル */
 @media (min-width: 1024px) {
@@ -198,7 +198,7 @@ const navigate = (path) => {
     max-width: none;
     height: 100vh;
     border-radius: 0;
-    background: #1e293b;
+    background: var(--c-text);
   }
 }
 </style>

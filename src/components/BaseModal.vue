@@ -58,7 +58,7 @@ const cancel = () => { emit('cancel'); close(); };
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(15, 23, 42, 0.5);
+  background-color: var(--c-overlay);
   display: flex;
   justify-content: center;
   align-items: center;

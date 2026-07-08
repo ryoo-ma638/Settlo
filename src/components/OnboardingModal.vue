@@ -15,7 +15,13 @@
 
             <h2 class="ob-title">{{ slides[step].title }}</h2>
             <p class="ob-text">{{ slides[step].text }}</p>
-            <p v-if="slides[step].tap" class="ob-tap">👆 {{ slides[step].tap }}</p>
+            <p v-if="slides[step].tap" class="ob-tap">
+              <svg class="ob-tap__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" />
+                <path d="M6 12a6 6 0 0 1 12 0" /><path d="M3.5 12a8.5 8.5 0 0 1 17 0" />
+              </svg>
+              {{ slides[step].tap }}
+            </p>
           </div>
 
           <!-- ドット -->
@@ -153,8 +159,11 @@ onUnmounted(() => window.removeEventListener('settlo:show-onboarding', forceShow
   border-radius: 999px;
   padding: 7px 12px;
   margin: 0 0 4px;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
+.ob-tap__icon { width: 15px; height: 15px; flex-shrink: 0; }
 
 .ob-dots { display: flex; justify-content: center; gap: 7px; margin: 10px 0 14px; }
 .ob-dot {

@@ -27,7 +27,13 @@
     <!-- イベント / 取引 タブ（削除・完了したもの） -->
     <div v-if="tab === 'event' || tab === 'tx'" class="list">
       <div v-if="currentItems.length === 0" class="empty">
-        <span class="empty__icon">🗑️</span>
+        <span class="empty__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 7h16" /><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+            <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
+            <path d="M10 11v6" /><path d="M14 11v6" />
+          </svg>
+        </span>
         <p>{{ tab === 'event' ? '削除したイベントはありません' : '削除・完了した取引はありません' }}</p>
       </div>
 
@@ -56,7 +62,11 @@
     <!-- 保留タブ（相手の承認待ち） -->
     <div v-else class="list">
       <div v-if="pendingItems.length === 0" class="empty">
-        <span class="empty__icon">⏳</span>
+        <span class="empty__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" />
+          </svg>
+        </span>
         <p>保留中のものはありません</p>
       </div>
 
@@ -372,7 +382,8 @@ onUnmounted(() => { if (unsubUser) unsubUser(); if (unsubShared) unsubShared(); 
 
 /* 空表示 */
 .empty { text-align: center; padding: 48px 20px; color: var(--c-text-sub); }
-.empty__icon { font-size: 34px; display: block; margin-bottom: 10px; opacity: 0.7; }
+.empty__icon { display: block; margin-bottom: 10px; opacity: 0.6; line-height: 0; }
+.empty__icon svg { width: 40px; height: 40px; }
 .empty p { margin: 0; font-size: 14px; }
 
 /* カード */

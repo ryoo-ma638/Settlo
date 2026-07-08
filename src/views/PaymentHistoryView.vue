@@ -181,7 +181,7 @@ const goToDetail = (item) => {
   /* 🌟 iOS風のモダンな切り替えタブ */
   .filter-tabs { 
     display: flex; 
-    background-color: #e2e8f0; 
+    background-color: var(--c-line-bold); 
     border-radius: 12px; 
     padding: 4px; 
     margin-bottom: 24px; 
@@ -207,12 +207,12 @@ const goToDetail = (item) => {
     transition: transform 0.2s, box-shadow 0.2s;
     cursor: pointer; /* 今後タップできるように */
   }
-  .history-card:active { transform: scale(0.98); background-color: #f8fafc; }
+  .history-card:active { transform: scale(0.98); background-color: var(--c-surface-2); }
   
   .card-left { display: flex; align-items: center; gap: 15px; }
   .avatar { width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
   .info { display: flex; flex-direction: column; gap: 4px; }
-  .name { font-size: 16px; font-weight: bold; color: #1e293b; margin: 0; }
+  .name { font-size: 16px; font-weight: bold; color: var(--c-text); margin: 0; }
   .details { font-size: 12px; color: var(--c-text-sub); margin: 0; display: flex; align-items: center; }
   .dot-separator { margin: 0 6px; font-size: 10px; opacity: 0.5; }
   
@@ -227,7 +227,7 @@ const goToDetail = (item) => {
     padding: 4px 10px; border-radius: 12px; font-weight: bold; 
   }
   .status-badge.pending {
-    background-color: #f1f5f9; color: var(--c-text-sub);
+    background-color: var(--c-surface-2); color: var(--c-text-sub);
   }
   .status-badge.awaiting {
     background-color: var(--c-pay-weak); color: var(--c-pay-strong);
@@ -236,7 +236,7 @@ const goToDetail = (item) => {
   /* 🌟 データが空の時の表示 */
   .empty-msg { 
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    color: #94a3b8; font-weight: bold; margin-top: 60px; 
+    color: var(--c-text-faint); font-weight: bold; margin-top: 60px; 
   }
   .empty-icon { font-size: 40px; margin-bottom: 15px; opacity: 0.5; }
 

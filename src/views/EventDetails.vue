@@ -1135,7 +1135,7 @@ onMounted(() => {
 /* 🌟 コンテンツ全体の余白とカードの洗練 */
 .content { padding: 15px 20px 20px; flex: 1; padding-bottom: 120px; }
 
-.summary-card { background: white; border-radius: 28px; padding: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); margin-bottom: 32px; border: 1px solid #f1f5f9; }
+.summary-card { background: white; border-radius: 28px; padding: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); margin-bottom: 32px; border: 1px solid var(--c-surface-2); }
 .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; gap: 12px; }
 .event-title-wrap { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .event-genre { width: 38px; height: 38px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--c-brand-weak); border-radius: 12px; color: var(--c-brand); }
@@ -1145,22 +1145,22 @@ onMounted(() => {
 .event-edit-btn { flex-shrink: 0; font-size: 12px; font-weight: 800; color: var(--c-brand-strong, var(--c-brand)); background: var(--c-brand-weak); border: none; padding: 8px 16px; border-radius: 12px; cursor: pointer; transition: 0.2s; }
 .event-edit-btn:active { transform: scale(0.95); }
 
-.total-section { text-align: center; margin-bottom: 24px; background: #f8fafc; padding: 20px; border-radius: 20px; }
+.total-section { text-align: center; margin-bottom: 24px; background: var(--c-surface-2); padding: 20px; border-radius: 20px; }
 .label { font-size: 13px; color: var(--c-text-sub); font-weight: 800; display: flex; justify-content: center; align-items: center; margin-bottom: 8px; }
 .total-amount { font-size: 48px; font-weight: 900; margin: 0; color: var(--c-ink); letter-spacing: -1.5px; }
-.total-sub { display: block; font-size: 12px; font-weight: 800; color: #94a3b8; margin-top: 6px; }
+.total-sub { display: block; font-size: 12px; font-weight: 800; color: var(--c-text-faint); margin-top: 6px; }
 .progress-wrap { margin-top: 14px; }
-.progress-bar { height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+.progress-bar { height: 8px; background: var(--c-line-bold); border-radius: 999px; overflow: hidden; }
 .progress-fill { height: 100%; background: var(--c-brand); border-radius: 999px; transition: width 0.4s ease; }
 .progress-text { display: block; font-size: 11px; font-weight: 800; color: var(--c-text-sub); margin-top: 6px; }
 
 /* （これ以降のCSSは既存のままでOKです） */
 
-.participants-section { background: #f8fafc; padding: 16px; border-radius: 20px; cursor: pointer; transition: 0.2s; border: 1px solid #f1f5f9; }
-.participants-section:active { background: #f1f5f9; }
+.participants-section { background: var(--c-surface-2); padding: 16px; border-radius: 20px; cursor: pointer; transition: 0.2s; border: 1px solid var(--c-surface-2); }
+.participants-section:active { background: var(--c-surface-2); }
 .participants-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.participants-header .label { margin: 0; color: #475569; }
-.participants-header .arrow { color: #cbd5e1; font-weight: bold; font-size: 16px; }
+.participants-header .label { margin: 0; color: var(--c-text-strong); }
+.participants-header .arrow { color: var(--c-line-strong); font-weight: bold; font-size: 16px; }
 .participants-row { display: flex; justify-content: space-between; align-items: center; }
 .avatar-stack { display: flex; align-items: center; padding-left: 14px; }
 /* 🌟 丸い枠＋overflow:hidden で画像を切り抜く（縦長に歪まない）。少し大きく＆重ねる */
@@ -1173,7 +1173,7 @@ onMounted(() => {
   overflow: hidden;
   flex-shrink: 0;
   box-sizing: border-box;
-  background: #e2e8f0;
+  background: var(--c-line-bold);
 }
 .avatar__img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .avatar__ph { width: 100%; height: 100%; }
@@ -1182,7 +1182,7 @@ onMounted(() => {
   border-radius: 50%;
   border: 3px solid #fff;
   margin-left: -14px;
-  background: #e2e8f0; color: var(--c-text-sub);
+  background: var(--c-line-bold); color: var(--c-text-sub);
   font-size: 13px; font-weight: bold;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0; box-sizing: border-box;
@@ -1212,16 +1212,16 @@ onMounted(() => {
 .settlement-summary-section, .history-section { margin-bottom: 36px; }
 
 .filter-wrapper { display: flex; gap: 10px; margin-bottom: 20px; }
-.ios-segmented-control { display: flex; flex: 1; background: #e2e8f0; border-radius: 12px; padding: 3px; }
+.ios-segmented-control { display: flex; flex: 1; background: var(--c-line-bold); border-radius: 12px; padding: 3px; }
 .ios-segmented-control button { flex: 1; padding: 8px 0; border: none; background: transparent; font-weight: 800; font-size: 12px; color: var(--c-text-sub); border-radius: 10px; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
 .ios-segmented-control button.active { background: white; color: var(--c-ink); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
 .custom-select-wrapper { flex: 1; position: relative; }
 .custom-select-wrapper.auto-width { flex: 0.6; }
-.ios-select { width: 100%; padding: 0 12px; border-radius: 12px; border: 1px solid #cbd5e1; background: white; font-size: 12px; font-weight: 800; color: #1e293b; outline: none; height: 100%; min-height: 36px; appearance: none; -webkit-appearance: none; cursor: pointer; }
-.custom-select-wrapper::after { content: '▾'; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 10px; color: #94a3b8; pointer-events: none; }
+.ios-select { width: 100%; padding: 0 12px; border-radius: 12px; border: 1px solid var(--c-line-strong); background: white; font-size: 12px; font-weight: 800; color: var(--c-text); outline: none; height: 100%; min-height: 36px; appearance: none; -webkit-appearance: none; cursor: pointer; }
+.custom-select-wrapper::after { content: '▾'; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 10px; color: var(--c-text-faint); pointer-events: none; }
 
 .summary-list, .timeline { display: flex; flex-direction: column; gap: 12px; }
-.empty-state { text-align: center; font-size: 13px; color: #94a3b8; font-weight: 800; padding: 30px; background: white; border-radius: 20px; border: 2px dashed #e2e8f0; }
+.empty-state { text-align: center; font-size: 13px; color: var(--c-text-faint); font-weight: 800; padding: 30px; background: white; border-radius: 20px; border: 2px dashed var(--c-line-bold); }
 .summary-card-item { background: white; border-radius: 20px; padding: 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; box-shadow: var(--shadow-card); cursor: pointer; transition: 0.2s; border: 1px solid transparent; }
 .summary-card-item:active { transform: scale(0.98); border-color: var(--c-line); }
 .flow { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; }
@@ -1231,13 +1231,13 @@ onMounted(() => {
 .amount-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
 .amount { font-size: 18px; font-weight: 900; display: flex; align-items: center; gap: 6px; }
 .blue-text { color: var(--c-receive); } .orange-text { color: var(--c-pay); }
-.arrow-icon { font-size: 16px; color: #cbd5e1; }
+.arrow-icon { font-size: 16px; color: var(--c-line-strong); }
 
 .timeline { position: relative; padding-left: 12px; }
 .timeline-item { position: relative; margin-bottom: 16px; cursor: pointer; display: flex; align-items: stretch; }
-.timeline-line { position: absolute; left: 6px; top: 24px; bottom: -16px; width: 2px; background-color: #e2e8f0; z-index: 1; }
+.timeline-line { position: absolute; left: 6px; top: 24px; bottom: -16px; width: 2px; background-color: var(--c-line-bold); z-index: 1; }
 .timeline-item:last-child .timeline-line { display: none; }
-.timeline-dot { position: absolute; left: 0; top: 20px; width: 14px; height: 14px; border-radius: 50%; border: 3px solid #f4f7f9; z-index: 2; box-shadow: 0 0 0 1px #e2e8f0; }
+.timeline-dot { position: absolute; left: 0; top: 20px; width: 14px; height: 14px; border-radius: 50%; border: 3px solid #f4f7f9; z-index: 2; box-shadow: 0 0 0 1px var(--c-line-bold); }
 .timeline-content { padding-left: 28px; flex: 1; }
 
 .history-card { background: white; border-radius: 20px; padding: 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.03); transition: 0.2s; border: 1px solid transparent; }
@@ -1290,7 +1290,7 @@ onMounted(() => {
   font-size: 10px; 
   color: var(--c-text-sub); 
   font-weight: 700; 
-  background: #f1f5f9; 
+  background: var(--c-surface-2); 
   padding: 2px 6px; 
   border-radius: 6px; 
   margin-left: 6px; 
@@ -1304,7 +1304,7 @@ onMounted(() => {
   flex-shrink: 0; /* 金額やボタンが潰れないようにする */
   margin-left: 12px; /* 左のテキストとの間隔を確保 */
 }
-.split-type { font-size: 10px; color: var(--c-text-sub); font-weight: 700; background: #f1f5f9; padding: 2px 6px; border-radius: 6px; margin-left: 4px; vertical-align: middle; }
+.split-type { font-size: 10px; color: var(--c-text-sub); font-weight: 700; background: var(--c-surface-2); padding: 2px 6px; border-radius: 6px; margin-left: 4px; vertical-align: middle; }
 .history-payer { font-size: 11px; color: var(--c-text-sub); font-weight: 700; }
 .history-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .history-price { font-size: 18px; font-weight: 900; color: var(--c-ink); letter-spacing: -0.5px; }
@@ -1312,14 +1312,14 @@ onMounted(() => {
 .pay-now-btn:active { transform: scale(0.95); }
 
 .badge { font-size: 10px; padding: 4px 10px; border-radius: 12px; font-weight: 800; }
-.paid { background: #f1f5f9; color: var(--c-text-sub); }
+.paid { background: var(--c-surface-2); color: var(--c-text-sub); }
 .badge.receive { background: var(--c-brand-weak); color: var(--c-brand-strong, var(--c-brand)); }
 .badge.owe { background: #fff7ed; color: #ea580c; }
-.badge.pending { background: #f1f5f9; color: #94a3b8; }
+.badge.pending { background: var(--c-surface-2); color: var(--c-text-faint); }
 
 .end-event-btn { width: 100%; background-color: var(--c-ink); color: white; border: none; padding: 18px; border-radius: 20px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,0.15); transition: 0.2s; margin-bottom: 12px; }
 .end-event-btn:active { transform: scale(0.96); }
-.end-hint { font-size: 11px; color: #94a3b8; text-align: center; margin: 0 0 18px; font-weight: 700; }
+.end-hint { font-size: 11px; color: var(--c-text-faint); text-align: center; margin: 0 0 18px; font-weight: 700; }
 
 /* 🌟 削除（ゴミ箱行き）は終了と明確に区別 */
 .delete-event-btn { width: 100%; background: #fff; color: var(--c-danger-strong); border: 1.5px solid #fecaca; padding: 16px; border-radius: 20px; font-size: 15px; font-weight: 900; cursor: pointer; transition: 0.2s; margin-bottom: 12px; }
@@ -1328,15 +1328,15 @@ onMounted(() => {
 /* 🌟 終了済み表示 */
 .ended-chip { width: 100%; background: var(--c-brand-weak); color: var(--c-brand); border: 1.5px solid #a7f3d0; padding: 14px; border-radius: 16px; font-size: 13px; font-weight: 800; text-align: center; margin-bottom: 18px; }
 
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.6); display: flex; align-items: flex-end; justify-content: center; z-index: 2000; backdrop-filter: blur(4px); }
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--c-overlay); display: flex; align-items: flex-end; justify-content: center; z-index: 2000; backdrop-filter: blur(4px); }
 .modal-content { background: white; width: 100%; max-width: 600px; border-radius: 32px 32px 0 0; padding: 30px 25px; box-sizing: border-box; max-height: 85vh; overflow-y: auto; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .modal-header h3 { margin: 0; font-size: 20px; color: var(--c-ink); font-weight: 900; }
-.close-btn { background: #f1f5f9; border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 20px; color: var(--c-text-sub); cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+.close-btn { background: var(--c-surface-2); border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 20px; color: var(--c-text-sub); cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; }
 
-.list-item { display: flex; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid #f1f5f9; }
+.list-item { display: flex; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--c-surface-2); }
 .avatar-medium { width: 44px; height: 44px; border-radius: 50%; }
-.item-name { flex: 1; font-size: 16px; font-weight: 800; color: #334155; display: flex; align-items: center; gap: 10px; }
+.item-name { flex: 1; font-size: 16px; font-weight: 800; color: var(--c-text); display: flex; align-items: center; gap: 10px; }
 .p-friend-btn { background: var(--c-brand); color: #fff; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 800; border: none; flex-shrink: 0; }
 .p-friend-btn:active { transform: scale(0.95); }
 .p-friend-tag { background: var(--c-brand-weak); color: var(--c-brand); padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; flex-shrink: 0; }
@@ -1349,10 +1349,10 @@ onMounted(() => {
 /* 🌟 イベント編集モーダル */
 .edit-body { display: flex; flex-direction: column; }
 .edit-label { font-size: 12px; font-weight: 800; color: var(--c-text-sub); margin-bottom: 8px; }
-.edit-input { width: 100%; padding: 14px 16px; border-radius: 14px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 15px; font-weight: 800; color: var(--c-ink); outline: none; box-sizing: border-box; margin-bottom: 20px; }
+.edit-input { width: 100%; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--c-line-bold); background: var(--c-surface-2); font-size: 15px; font-weight: 800; color: var(--c-ink); outline: none; box-sizing: border-box; margin-bottom: 20px; }
 .edit-input:focus { border-color: var(--c-brand); background: #fff; }
 .edit-genre-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 24px; }
-.edit-genre { background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 16px; padding: 14px 4px 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--c-text-sub); cursor: pointer; transition: 0.15s; }
+.edit-genre { background: var(--c-surface-2); border: 1.5px solid var(--c-line-bold); border-radius: 16px; padding: 14px 4px 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--c-text-sub); cursor: pointer; transition: 0.15s; }
 .edit-genre:active { transform: scale(0.96); }
 .edit-genre-icon { width: 24px; height: 24px; color: var(--c-text-sub); }
 .edit-genre-label { font-size: 12px; font-weight: 800; }
@@ -1364,20 +1364,20 @@ onMounted(() => {
 .summary-detail-body { text-align: center; padding: 10px 0; }
 .flow-large { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 20px; }
 .avatar-large { width: 64px; height: 64px; border-radius: 50%; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-.arrow-large { font-size: 24px; color: #cbd5e1; font-weight: bold; }
-.s-text { font-size: 16px; color: #475569; line-height: 1.6; margin-bottom: 16px; font-weight: 700; }
+.arrow-large { font-size: 24px; color: var(--c-line-strong); font-weight: bold; }
+.s-text { font-size: 16px; color: var(--c-text-strong); line-height: 1.6; margin-bottom: 16px; font-weight: 700; }
 .s-amount { font-size: 48px; font-weight: 900; margin: 0 0 10px; letter-spacing: -1.5px; }
-.s-hint { font-size: 14px; color: #94a3b8; margin-bottom: 32px; font-weight: 700; }
+.s-hint { font-size: 14px; color: var(--c-text-faint); margin-bottom: 32px; font-weight: 700; }
 .action-btn { width: 100%; padding: 18px; border-radius: 20px; border: none; font-weight: 900; font-size: 16px; cursor: pointer; transition: 0.2s; }
 .action-btn.main { background: var(--c-brand); color: white; box-shadow: 0 8px 20px rgba(5,150,105,0.25); }
 .action-btn.main:active { transform: scale(0.96); }
 
 .warning-modal { background: var(--c-danger-weak); }
 .warning-title { color: var(--c-danger) !important; }
-.warning-desc { font-size: 15px; color: #475569; font-weight: 800; margin-bottom: 24px; line-height: 1.6; }
+.warning-desc { font-size: 15px; color: var(--c-text-strong); font-weight: 800; margin-bottom: 24px; line-height: 1.6; }
 .warning-actions { display: flex; flex-direction: column; gap: 12px; }
 .danger-btn { background: var(--c-danger); color: white; border: none; padding: 18px; border-radius: 20px; font-weight: 900; font-size: 16px; cursor: pointer; box-shadow: 0 8px 20px rgba(239,68,68,0.25); }
-.safe-btn { background: white; color: #475569; border: 2px solid #cbd5e1; padding: 16px; border-radius: 20px; font-weight: 900; font-size: 16px; cursor: pointer; }
+.safe-btn { background: white; color: var(--c-text-strong); border: 2px solid var(--c-line-strong); padding: 16px; border-radius: 20px; font-weight: 900; font-size: 16px; cursor: pointer; }
 
 .completed-section { margin-top: 20px; margin-bottom: 20px; }
 .completed-card { background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 16px; padding: 20px; text-align: center; color: #166534; box-shadow: 0 4px 10px rgba(0,0,0,0.02); }
@@ -1408,19 +1408,19 @@ onMounted(() => {
 
 /* 🌟 追加：サマリー内訳のスタイル */
 .breakdown-list {
-  background: #f8fafc;
+  background: var(--c-surface-2);
   border-radius: 16px;
   padding: 16px;
   margin: 20px 0;
   text-align: left;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--c-line-bold);
 }
 .breakdown-title {
   font-size: 12px;
   color: var(--c-text-sub);
   margin: 0 0 12px 0;
   font-weight: 800;
-  border-bottom: 1px dashed #cbd5e1;
+  border-bottom: 1px dashed var(--c-line-strong);
   padding-bottom: 8px;
 }
 .breakdown-item {
@@ -1435,7 +1435,7 @@ onMounted(() => {
 .bd-name {
   font-size: 14px;
   font-weight: 800;
-  color: #334155;
+  color: var(--c-text);
 }
 .bd-right {
   display: flex;
@@ -1445,9 +1445,9 @@ onMounted(() => {
 }
 .bd-who {
   font-size: 10px;
-  color: #94a3b8;
+  color: var(--c-text-faint);
   font-weight: 800;
-  background: #f1f5f9;
+  background: var(--c-surface-2);
   padding: 2px 6px;
   border-radius: 6px;
 }

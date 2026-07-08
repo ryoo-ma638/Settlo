@@ -98,28 +98,28 @@ const handleSend = () => {
 
 <style scoped>
 /* 既存スタイルそのまま */
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.6); display: flex; align-items: flex-end; justify-content: center; z-index: 3000; backdrop-filter: blur(4px); }
-.modal-content { background: #f8fafc; width: 100%; max-width: 600px; border-radius: 32px 32px 0 0; padding: 30px 25px; box-sizing: border-box; }
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--c-overlay); display: flex; align-items: flex-end; justify-content: center; z-index: 3000; backdrop-filter: blur(4px); }
+.modal-content { background: var(--c-surface-2); width: 100%; max-width: 600px; border-radius: 32px 32px 0 0; padding: 30px 25px; box-sizing: border-box; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
 .modal-title { margin: 0; font-size: 20px; color: var(--c-ink); font-weight: 900; }
-.close-btn { background: #e2e8f0; border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 20px; color: var(--c-text-sub); cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+.close-btn { background: var(--c-line-bold); border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 20px; color: var(--c-text-sub); cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; }
 .desc { font-size: 13px; color: var(--c-text-sub); font-weight: bold; margin-bottom: 20px; }
 .deadline-options { display: flex; flex-direction: column; gap: 12px; margin-bottom: 25px; }
 .hidden-radio { display: none; }
-.radio-card { display: block; background: white; border: 2px solid #e2e8f0; border-radius: 20px; padding: 16px; cursor: pointer; transition: 0.2s; }
+.radio-card { display: block; background: white; border: 2px solid var(--c-line-bold); border-radius: 20px; padding: 16px; cursor: pointer; transition: 0.2s; }
 .radio-card.active { border-color: var(--c-danger); background: var(--c-danger-weak); box-shadow: 0 4px 12px rgba(239, 68, 68, 0.1); }
 .card-content { display: flex; align-items: center; gap: 15px; }
 .icon { color: var(--c-text-sub); display: flex; flex-shrink: 0; }
 .icon svg { width: 24px; height: 24px; }
 .radio-card.active .icon { color: var(--c-danger); }
-.text h4 { margin: 0 0 4px 0; font-size: 15px; font-weight: 900; color: #1e293b; }
+.text h4 { margin: 0 0 4px 0; font-size: 15px; font-weight: 900; color: var(--c-text); }
 .text p { margin: 0; font-size: 11px; color: var(--c-text-sub); font-weight: bold; }
 .radio-card.active .text h4 { color: var(--c-danger); }
 .sub-input { display: flex; align-items: center; gap: 10px; padding: 0 10px 10px; margin-top: -5px; }
-.num-input, .date-input { padding: 10px; border-radius: 12px; border: 1px solid #cbd5e1; outline: none; font-weight: bold; font-size: 14px; }
+.num-input, .date-input { padding: 10px; border-radius: 12px; border: 1px solid var(--c-line-strong); outline: none; font-weight: bold; font-size: 14px; }
 .num-input { width: 80px; text-align: right; }
 .date-input { flex: 1; }
-.unit { font-size: 14px; font-weight: bold; color: #475569; }
+.unit { font-size: 14px; font-weight: bold; color: var(--c-text-strong); }
 .submit-btn { width: 100%; background: var(--c-danger); color: white; border: none; padding: 18px; border-radius: 20px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.25); transition: 0.2s; }
 .submit-btn:active { transform: scale(0.96); }
 .slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }

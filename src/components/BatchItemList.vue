@@ -19,13 +19,13 @@
   </script>
   
   <style scoped>
-  .section-sub { font-size: 16px; font-weight: bold; color: #1e293b; margin: 20px 0 10px; text-align: left; }
+  .section-sub { font-size: 16px; font-weight: bold; color: var(--c-text); margin: 20px 0 10px; text-align: left; }
   .item-row { 
     background: white; padding: 15px; border-radius: 16px; margin-bottom: 10px;
     display: flex; justify-content: space-between; align-items: center; cursor: pointer;
   }
   .item-info { display: flex; flex-direction: column; text-align: left; }
-  .row-date { font-size: 11px; color: #94a3b8; }
+  .row-date { font-size: 11px; color: var(--c-text-faint); }
   .row-name { font-weight: bold; }
-  .item-price { font-weight: bold; color: #1e293b; }
+  .item-price { font-weight: bold; color: var(--c-text); }
   </style>
