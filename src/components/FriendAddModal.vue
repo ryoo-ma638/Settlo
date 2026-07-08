@@ -82,6 +82,8 @@
             </div>
             <p v-else-if="historyLoaded" class="confirm-no-history">この人との取引履歴はまだありません</p>
 
+            <MessageField v-model="requestMessage" class="confirm__msg" placeholder="はじめまして。〇〇で一緒だった△△です。" />
+
             <div class="confirm__actions">
               <button class="btn-brand" @click="executeRequest">申請を送る</button>
               <button class="btn-outline" @click="selectedUser = null">検索に戻る</button>
@@ -110,6 +112,7 @@
 <script setup>
 import { ref, watch, reactive } from 'vue';
 import BaseModal from './BaseModal.vue'; // 🌟 統一モーダルをインポート
+import MessageField from './MessageField.vue';
 import { db, auth } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
 import { doc, getDoc } from 'firebase/firestore';
@@ -121,6 +124,7 @@ const searchMode = ref('name');
 const searchQuery = ref('');
 const searchResults = ref([]);
 const selectedUser = ref(null);
+const requestMessage = ref(''); // 申請に添えるひとこと（任意）
 
 // 🌟 統一モーダルの状態管理
 const modalState = reactive({
@@ -264,6 +268,7 @@ watch(selectedUser, (u) => {
 const close = () => {
   searchQuery.value = '';
   selectedUser.value = null;
+  requestMessage.value = '';
   emit('close');
 };
 
@@ -294,6 +299,7 @@ const executeRequest = async () => {
       formId: auth.currentUser.uid,
       formName: myName,
       formPhoto: myPhoto,
+      userMessage: requestMessage.value.trim() || null, // 申請に添えたひとこと（任意）
       status: "pending",
       createdAt: serverTimestamp()
     });
@@ -428,6 +434,7 @@ const executeRequest = async () => {
 .ch-price { color: var(--c-ink); }
 .confirm-no-history { font-size: 12px; color: var(--c-text-faint, var(--c-text-faint)); font-weight: 700; margin: 0 0 18px; }
 
+.confirm__msg { margin-bottom: 22px; }
 .confirm__actions { display: flex; flex-direction: column; gap: 8px; }
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }

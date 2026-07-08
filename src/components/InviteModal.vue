@@ -22,7 +22,9 @@
 
           <div class="invite-section">
             <label>フレンドから招待</label>
-            
+
+            <MessageField v-model="inviteMessage" class="invite-msg" label="招待メッセージ（任意・招待する相手に届きます）" placeholder="旅行の精算に使います。参加お願いします！" />
+
             <div class="search-box">
               <input v-model="searchQuery" type="text" placeholder="名前 または ID で検索" class="search-input" />
             </div>
@@ -79,6 +81,7 @@
 <script setup>
 import { ref, computed, watch, reactive, onUnmounted } from 'vue';
 import BaseModal from '@/components/BaseModal.vue';
+import MessageField from '@/components/MessageField.vue';
 import { db, auth } from '@/firebase';
 import { collection, onSnapshot, doc, getDoc, getDocs, query, where, limit, addDoc, serverTimestamp } from 'firebase/firestore';
 
@@ -105,6 +108,7 @@ const copyCode = () => {
 const searchQuery = ref('');
 const currentSort = ref('added_desc');
 const invitedSet = ref(new Set());
+const inviteMessage = ref(''); // この招待に添えるひとこと（任意・招待先に届く）
 
 // 🌟 自分の本物のフレンド一覧（users/{myUid}/friends をリアルタイム購読）
 const friends = ref([]);
@@ -207,6 +211,7 @@ const invite = async (user) => {
       eventName: props.eventName || '',
       fromUserId: auth.currentUser?.uid || 'unknown',
       fromUserName: props.myName || auth.currentUser?.displayName || 'メンバー',
+      userMessage: inviteMessage.value.trim() || null, // 招待に添えたひとこと（任意）
       isRead: false,
       createdAt: serverTimestamp(),
     });
@@ -224,6 +229,7 @@ watch(() => props.isOpen, (open) => {
     currentSort.value = 'added_desc';
     invitedSet.value = new Set();
     globalResults.value = [];
+    inviteMessage.value = '';
     startFriends();
   } else if (unsubFriends) {
     unsubFriends();
@@ -256,6 +262,7 @@ onUnmounted(() => { if (unsubFriends) unsubFriends(); });
 
 .invite-section { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .invite-section label { display: block; font-size: 13px; font-weight: bold; color: var(--c-text-sub); margin-bottom: 10px; }
+.invite-msg { margin: 2px 0 24px; flex-shrink: 0; }
 
 .search-box { margin-bottom: 10px; flex-shrink: 0; }
 .search-input { width: 100%; padding: 12px 15px; border-radius: 12px; border: 1px solid var(--c-line-strong); background: white; font-size: 14px; font-weight: bold; color: var(--c-text); outline: none; box-sizing: border-box; transition: 0.2s; }
