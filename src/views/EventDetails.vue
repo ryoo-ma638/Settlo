@@ -883,6 +883,7 @@ const addHistory = async (newPayment) => {
         itemName: newPayment.itemName || '',
         amount: Number(newPayment.amount) || 0,
         changes: changes.length ? changes.join(' / ') : '内容を更新しました',
+        userMessage: newPayment.editNote || null,
       });
     }
 
