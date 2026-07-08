@@ -42,10 +42,14 @@
                       <button class="mini-btn" @click="judgeOk(req)">正しい</button>
                       <button class="mini-btn mini-btn--ghost" @click="judgeNg(req)">正しくない</button>
                     </template>
+                    <template v-else-if="req.type === 'thread_reply'">
+                      <button class="mini-btn" @click="openThreadFromReply(req)">会話を開く</button>
+                    </template>
                     <template v-else>
                       <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
                       <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
                     </template>
+                    <button v-if="req.type !== 'thread_reply' && req.fromUserId" class="mini-btn mini-btn--ghost" @click="openThread(req)">返信</button>
                   </div>
                 </div>
               </div>
@@ -105,10 +109,14 @@
                 <button class="mini-btn" @click="judgeOk(req)">正しい</button>
                 <button class="mini-btn mini-btn--ghost" @click="judgeNg(req)">正しくない</button>
               </template>
+              <template v-else-if="req.type === 'thread_reply'">
+                <button class="mini-btn" @click="openThreadFromReply(req)">会話を開く</button>
+              </template>
               <template v-else>
                 <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
                 <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
               </template>
+              <button v-if="req.type !== 'thread_reply' && req.fromUserId" class="mini-btn mini-btn--ghost" @click="openThread(req)">返信</button>
             </div>
           </div>
         </div>
@@ -167,8 +175,31 @@ import {
   collection, query, where, onSnapshot, getDocs,
   doc, getDoc, setDoc, deleteDoc, updateDoc, addDoc, serverTimestamp, arrayUnion, arrayRemove, increment
 } from 'firebase/firestore';
+import { subjectKey, threadIdFor, subjectLabel } from '@/lib/thread';
 
 const router = useRouter();
+
+// 件（〜の件）の会話スレッドを開く（無ければ ThreadView 側で作られる）
+const openThread = (req) => {
+  const myUid = auth.currentUser?.uid;
+  const otherUid = req.fromUserId;
+  if (!myUid || !otherUid) return;
+  const id = threadIdFor(myUid, otherUid, subjectKey(req));
+  showModal.value = false;
+  router.push({ name: 'Thread', params: { id }, query: {
+    label: subjectLabel(req), other: otherUid, otherName: req.fromUserName || '相手',
+    eventId: req.eventId || '',
+    seedText: req.userMessage || '', seedFrom: otherUid, seedFromName: req.fromUserName || '相手',
+  }});
+};
+// 「〜の件で返信」のお知らせから会話を開く
+const openThreadFromReply = async (req) => {
+  showModal.value = false;
+  try { await updateDoc(doc(db, 'notifications', req.id), { isRead: true }); } catch (e) {}
+  router.push({ name: 'Thread', params: { id: req.threadId }, query: {
+    label: req.threadLabel || '取引の件', other: req.fromUserId, otherName: req.fromUserName || '相手',
+  }});
+};
 const friendReqs = ref([]);
 const paymentReqs = ref([]);
 
@@ -176,6 +207,7 @@ const paymentReqs = ref([]);
 const notifText = (req) => {
   if (req.type === 'approval_rejected') return 'さんがあなたの承認リクエストを拒否しました';
   if (req.type === 'payment_reminder') return 'さんから支払いの催促が届いています';
+  if (req.type === 'thread_reply') return `さんが「${req.threadLabel || '取引の件'}」で返信しました`;
   if (req.type === 'payment_edited') return `さんが「${req.itemName || '支払い'}」（¥${(req.amount || 0).toLocaleString()}）を編集しました`;
   if (req.type === 'payment_deleted') return `さんが「${req.itemName || '支払い'}」（¥${(req.amount || 0).toLocaleString()}）を削除しました。これは正しいですか？`;
   if (req.type === 'event_edited') return `さんがイベント「${req.eventName || ''}」を編集しました`;
