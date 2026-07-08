@@ -5,8 +5,8 @@
   </div>
 
   <template v-else>
-    <!-- ログインはシェル無しで全画面 -->
-    <RouterView v-if="route.path === '/login'" />
+    <!-- ログイン・チャットはシェル無しで全画面（LINE風にチャットへ集中） -->
+    <RouterView v-if="route.path === '/login' || route.path.startsWith('/thread')" />
 
     <!-- それ以外は共通のモバイルシェル -->
     <div v-else class="app-shell">
