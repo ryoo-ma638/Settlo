@@ -51,8 +51,8 @@
           {{ item.createdByName || '相手' }}さんが{{ item.type === 'payment' ? '削除' : '完了に' }}しました
         </p>
         <div class="tcard__actions">
-          <button v-if="item.type === 'event'" class="btn-brand act" @click="restoreEvent(item)">元に戻す</button>
-          <button v-else-if="item.type === 'payment'" class="btn-brand act" @click="restorePayment(item)">元に戻す</button>
+          <button v-if="item.type === 'event'" class="btn-brand act" @click="askRestoreEvent(item)">元に戻す</button>
+          <button v-else-if="item.type === 'payment'" class="btn-brand act" @click="askRestorePayment(item)">元に戻す</button>
           <button v-else class="btn-brand act" @click="askRestoreSettlement(item)">未精算に戻す</button>
           <button class="btn-outline act" @click="askDeleteForever(item)">完全に削除</button>
         </div>
@@ -167,7 +167,28 @@ const askConfirm = (title, message, onConfirm, opts = {}) => {
 const handleConfirm = (reason) => { const cb = alertState.onConfirm; alertState.show = false; if (cb) cb(reason); };
 
 // ---- イベントを元に戻す（相手が「正しくない」を選ぶとゴミ箱に戻る） ----
-const restoreEvent = async (item) => {
+// 復元は確認＋任意の理由つき（相手/参加者へ「正しいですか？」の判断が飛ぶため）
+const askRestoreEvent = (item) => {
+  askConfirm(
+    'イベントを元に戻しますか？',
+    `「${item.eventName || 'イベント'}」を元に戻します。参加者に「正しいですか？」の確認が届きます。`,
+    (reason) => restoreEvent(item, reason),
+    { confirmText: '元に戻す', cancelText: 'やめる', withReason: true, reasonPlaceholder: '戻す理由を書けます（任意・参加者に届きます）' }
+  );
+};
+const askRestorePayment = (item) => {
+  const shared = item._loc === 'shared';
+  askConfirm(
+    '元に戻しますか？',
+    `「${item.itemName || '支払い'}」を元に戻します。${shared ? '相手に「正しいですか？」の確認が届きます。' : ''}`,
+    (reason) => restorePayment(item, reason),
+    shared
+      ? { confirmText: '元に戻す', cancelText: 'やめる', withReason: true, reasonPlaceholder: '戻す理由を書けます（任意・相手に届きます）' }
+      : { confirmText: '元に戻す', cancelText: 'やめる' }
+  );
+};
+
+const restoreEvent = async (item, reason) => {
   const uid = auth.currentUser?.uid;
   if (!uid) return;
   try {
@@ -183,6 +204,7 @@ const restoreEvent = async (item) => {
           toUserId: p, type: 'event_restored',
           eventId: item.eventId, eventName: item.eventName || '',
           fromUserId: uid, fromUserName: myName.value,
+          userMessage: reason || null,
           isRead: false, createdAt: serverTimestamp(),
         });
       }
@@ -214,7 +236,7 @@ const reconcileRestoredEvents = async (list) => {
 };
 
 // ---- 削除した支払いを元に戻す（取引・履歴を作り直し、相手に「正しいですか？」確認を送る） ----
-const restorePayment = async (item) => {
+const restorePayment = async (item, reason) => {
   const uid = auth.currentUser?.uid;
   if (!uid) return;
   try {
@@ -248,6 +270,7 @@ const restorePayment = async (item) => {
           eventId: eventId || null, eventName: item.eventName || '',
           itemName: item.itemName || '支払い', amount: Number(item.amount) || 0,
           fromUserId: uid, fromUserName: myName.value,
+          userMessage: reason || null,
           isRead: false, createdAt: serverTimestamp(),
         });
       }
