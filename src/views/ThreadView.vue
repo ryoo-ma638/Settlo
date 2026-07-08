@@ -167,7 +167,7 @@ const send = async (preset) => {
 </script>
 
 <style scoped>
-.thread { display: flex; flex-direction: column; height: 100vh; background: var(--c-bg); }
+.thread { display: flex; flex-direction: column; height: 100dvh; background: var(--c-bg); }
 .thread__body { flex: 1; overflow-y: auto; padding: 12px var(--pad) 16px; display: flex; flex-direction: column; gap: 10px; }
 .thread__hint { text-align: center; font-size: 12px; color: var(--c-text-faint); font-weight: var(--fw-medium); margin: 4px 0 10px; }
 .thread__empty { text-align: center; color: var(--c-text-faint); font-size: 14px; padding: 32px 0; }
