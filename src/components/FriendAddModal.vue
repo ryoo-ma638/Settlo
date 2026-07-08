@@ -24,9 +24,12 @@
                     <img v-if="user.photo" :src="user.photo" />
                     <div v-else class="rescard__ph" :style="{ backgroundColor: user.color || '#cbd5e1' }"></div>
                   </div>
-                  <span class="rescard__name">{{ user.name }}
-                    <span v-if="isEventMember(user.uid)" class="rescard__tag">同じイベント</span>
-                    <span v-else-if="isAlreadyFriend(user.uid)" class="rescard__tag is-friend">フレンド済み</span>
+                  <span class="rescard__name">
+                    <span class="rescard__nm">{{ user.name }}
+                      <span v-if="isEventMember(user.uid)" class="rescard__tag">同じイベント</span>
+                      <span v-else-if="isAlreadyFriend(user.uid)" class="rescard__tag is-friend">フレンド済み</span>
+                    </span>
+                    <span v-if="user.nickname" class="rescard__nick">ニックネーム: {{ user.nickname }}</span>
                   </span>
                   <button v-if="!isAlreadyFriend(user.uid)" class="rescard__add" @click="selectedUser = user">追加</button>
                 </div>
@@ -41,7 +44,10 @@
                     <img v-if="user.photo" :src="user.photo" />
                     <div v-else class="rescard__ph" :style="{ backgroundColor: '#cbd5e1' }"></div>
                   </div>
-                  <span class="rescard__name">{{ user.name }}</span>
+                  <span class="rescard__name">
+                    <span class="rescard__nm">{{ user.name }}</span>
+                    <span v-if="user.nickname" class="rescard__nick">ニックネーム: {{ user.nickname }}</span>
+                  </span>
                   <button class="rescard__add" @click="selectedUser = user">追加</button>
                 </div>
                 <div v-if="eventMembers.length === 0" class="empty-msg">
@@ -140,24 +146,24 @@ const performSearch = async () => {
     const results = [];
 
     if (searchMode.value === 'name') {
-      // 🌟 先頭一致（前方一致）で候補を出す
+      // 🌟 名前・ニックネームの両方で先頭一致（前方一致）候補を出す
       const usersRef = collection(db, "users");
-      const q = query(usersRef, orderBy("name"), where("name", ">=", text), where("name", "<=", text + "\uf8ff"), limit(10));
-      const querySnapshot = await getDocs(q);
-      querySnapshot.forEach((doc) => {
-        if (doc.id !== auth.currentUser?.uid) {
-          const data = doc.data();
-          results.push({
-            uid: doc.id,
-            name: data.name,
-            photo: data.photo || ""
-          });
-        }
-      });
-      // 🌟 同じイベントのメンバーは「部分一致」でも候補に出す
-      const inResults = new Set(results.map(r => r.uid));
+      const seen = new Set();
+      const pushUser = (id, data) => {
+        if (id === auth.currentUser?.uid || seen.has(id)) return;
+        seen.add(id);
+        results.push({ uid: id, name: data.name, nickname: data.nickname || "", photo: data.photo || "" });
+      };
+      const qName = query(usersRef, orderBy("name"), where("name", ">=", text), where("name", "<=", text + "\uf8ff"), limit(10));
+      // ニックネームを設定している人だけがヒットする（例: 「大崎稜馬」が「稜馬」で見つかる）
+      const qNick = query(usersRef, orderBy("nickname"), where("nickname", ">=", text), where("nickname", "<=", text + "\uf8ff"), limit(10));
+      const [snapName, snapNick] = await Promise.all([getDocs(qName), getDocs(qNick)]);
+      snapName.forEach((d) => pushUser(d.id, d.data()));
+      snapNick.forEach((d) => pushUser(d.id, d.data()));
+      // 🌟 同じイベントのメンバーは名前・ニックネームの「部分一致」でも候補に出す
       eventMembers.value.forEach(m => {
-        if (!inResults.has(m.uid) && (m.name || '').includes(text)) {
+        if (!seen.has(m.uid) && ((m.name || '').includes(text) || (m.nickname || '').includes(text))) {
+          seen.add(m.uid);
           results.push({ ...m });
         }
       });
@@ -170,6 +176,7 @@ const performSearch = async () => {
         results.push({
           uid: userSnap.id,
           name: data.name,
+          nickname: data.nickname || "",
           photo: data.photo || ""
         });
       }
@@ -202,7 +209,7 @@ const loadCandidates = async () => {
       if (friendUids.value.has(u)) continue; // 既にフレンドは候補から外す
       try {
         const ud = await getDoc(doc(db, 'users', u));
-        if (ud.exists()) arr.push({ uid: u, name: ud.data().name || 'メンバー', photo: ud.data().photo || ud.data().photoURL || '' });
+        if (ud.exists()) arr.push({ uid: u, name: ud.data().name || 'メンバー', nickname: ud.data().nickname || '', photo: ud.data().photo || ud.data().photoURL || '' });
       } catch (e) {}
     }
     eventMembers.value = arr;
@@ -375,7 +382,9 @@ const executeRequest = async () => {
 .rescard__avatar { width: 36px; height: 36px; flex-shrink: 0; }
 .rescard__avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 .rescard__ph { width: 100%; height: 100%; border-radius: 50%; }
-.rescard__name { flex: 1; font-weight: var(--fw-bold); font-size: 14px; color: var(--c-ink); }
+.rescard__name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.rescard__nm { font-weight: var(--fw-bold); font-size: 14px; color: var(--c-ink); }
+.rescard__nick { font-size: 11px; font-weight: var(--fw-medium); color: var(--c-text-sub); }
 .rescard__add {
   background: var(--c-brand); color: #fff;
   padding: 6px 16px; border-radius: var(--r-pill);

@@ -18,6 +18,12 @@
         <input type="text" v-model="newName" class="input" placeholder="新しい名前を入力" />
       </div>
 
+      <div class="field">
+        <label class="field__label">ニックネーム（任意）</label>
+        <input type="text" v-model="newNickname" class="input" placeholder="例：稜馬" maxlength="30" />
+        <p class="field__hint">フレンド検索で、この名前でも見つけてもらえます。</p>
+      </div>
+
       <button class="btn-brand edit__save" :disabled="saving" @click="saveProfile">{{ saving ? '保存中…' : '保存する' }}</button>
     </main>
 
@@ -64,6 +70,7 @@ import BaseModal from "../components/BaseModal.vue";
 
 const router = useRouter();
 const newName = ref("");
+const newNickname = ref(""); // フレンド検索用の別名（任意）
 const originalName = ref(""); // 変更通知の判定用
 const userPhoto = ref("");
 const previewPhoto = ref(null);
@@ -94,6 +101,7 @@ onMounted(async () => {
     if (userSnap.exists()) {
       const data = userSnap.data();
       newName.value = data.name || "";
+      newNickname.value = data.nickname || "";
       userPhoto.value = data.photo || "";
     } else {
       newName.value = user.displayName || "";
@@ -150,7 +158,7 @@ const saveProfile = async () => {
   saving.value = true;
 
   try {
-    const payload = { name: nameToSave };
+    const payload = { name: nameToSave, nickname: newNickname.value.trim() };
 
     // 🌟 画像が選ばれていれば Firebase Storage にアップロードしてURLを保存
     if (selectedFile.value) {
@@ -242,6 +250,7 @@ const saveProfile = async () => {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .input::placeholder { color: var(--c-text-faint); font-weight: var(--fw-regular); }
+.field__hint { margin: 8px 2px 0; font-size: 12px; font-weight: var(--fw-medium); color: var(--c-text-faint); }
 .input:focus {
   outline: none;
   border-color: var(--c-brand);
