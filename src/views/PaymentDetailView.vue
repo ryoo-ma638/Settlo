@@ -94,6 +94,8 @@
         :showCancel="modalState.showCancel"
         :confirmText="modalState.confirmText"
         :cancelText="modalState.cancelText"
+        :withReason="modalState.withReason"
+        :reasonPlaceholder="modalState.reasonPlaceholder"
         @confirm="handleConfirmModal"
         @cancel="modalState.show = false"
         @close="modalState.show = false"
@@ -135,14 +137,15 @@ const isCompleted = computed(() => currentStatus.value === 'completed');
 const isAwaitingApproval = computed(() => currentStatus.value === 'awaiting_approval');
 
 const modalState = reactive({
-  show: false, type: 'info', title: '', message: '', 
-  showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null
+  show: false, type: 'info', title: '', message: '',
+  showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null,
+  withReason: false, reasonPlaceholder: ''
 });
 const showModal = (options) => {
-  Object.assign(modalState, { showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, ...options, show: true });
+  Object.assign(modalState, { showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, withReason: false, reasonPlaceholder: '', ...options, show: true });
 };
-const handleConfirmModal = () => {
-  if (modalState.onConfirm) modalState.onConfirm();
+const handleConfirmModal = (reason) => {
+  if (modalState.onConfirm) modalState.onConfirm(reason);
   modalState.show = false;
 };
 
@@ -342,14 +345,15 @@ const approvePayment = () => {
     type: 'warning', title: '支払いの承認',
     message: '相手からの支払いを確認しましたか？\n「承認」すると、この決済が完了します。',
     showCancel: true, confirmText: '承認する',
-    onConfirm: async () => {
+    withReason: true, reasonPlaceholder: '相手へのひとこと（任意・お礼など）',
+    onConfirm: async (reason) => {
       if (submitting.value) return;
       submitting.value = true;
       try {
         await updateAllItems('completed');
         // 🌟 支払った側へ「支払いが完了しました」を届ける
         for (const it of items.value) {
-          try { await notifyOpponent(it, 'payment_completed', '支払いが承認され、精算が完了しました。'); } catch (e) {}
+          try { await notifyOpponent(it, 'payment_completed', '支払いが承認され、精算が完了しました。', reason); } catch (e) {}
         }
         currentStatus.value = 'completed';
         showModal({
@@ -401,14 +405,15 @@ const confirmCash = () => {
       type: 'warning', title: '現金の受け取り確認',
       message: 'お金を受け取りましたか？\n相手の支払い状況を「完了」に更新します。',
       showCancel: true, confirmText: '受け取った',
-      onConfirm: async () => {
+      withReason: true, reasonPlaceholder: '相手へのひとこと（任意・お礼など）',
+      onConfirm: async (reason) => {
         if (submitting.value) return;
         submitting.value = true;
         try {
           await updateAllItems('completed');
           // 🌟 支払った側へ「支払いが完了しました」を届ける
           for (const it of items.value) {
-            try { await notifyOpponent(it, 'payment_completed', '受け取りが確認され、精算が完了しました。'); } catch (e) {}
+            try { await notifyOpponent(it, 'payment_completed', '受け取りが確認され、精算が完了しました。', reason); } catch (e) {}
           }
           currentStatus.value = 'completed';
           showModal({
@@ -428,13 +433,14 @@ const confirmCash = () => {
       type: 'warning', title: '現金の支払い確認',
       message: 'お金を支払いましたか？\n相手に「受け取り完了の承認リクエスト」を送ります。',
       showCancel: true, confirmText: '支払った',
-      onConfirm: async () => {
+      withReason: true, reasonPlaceholder: 'ひとこと（任意・PayPayで送った等）',
+      onConfirm: async (reason) => {
         if (submitting.value) return;
         submitting.value = true;
         try {
           await updateAllItems('awaiting_approval');
           for (const it of items.value) {
-            await notifyOpponent(it, 'approval_request', '支払いの承認リクエストが届きました。');
+            await notifyOpponent(it, 'approval_request', '支払いの承認リクエストが届きました。', reason);
           }
           currentStatus.value = 'awaiting_approval'; // 画面のボタンを「承認待ち」に切り替える
           showModal({
