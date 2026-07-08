@@ -150,6 +150,8 @@
     :showCancel="true"
     confirmText="はい"
     cancelText="いいえ"
+    :withReason="confirmState.withReason"
+    :reasonPlaceholder="confirmState.reasonPlaceholder"
     @confirm="doConfirm"
     @cancel="confirmState.show = false"
     @close="confirmState.show = false"
@@ -287,9 +289,9 @@ const modalState = reactive({ show: false, type: 'success', title: '', message: 
 const notice = (type, title, message) => { Object.assign(modalState, { type, title, message, show: true }); };
 
 // 招待の拒否時の二段階確認ダイアログ
-const confirmState = reactive({ show: false, title: '', message: '', onConfirm: null });
-const askConfirm = (title, message, onConfirm) => { Object.assign(confirmState, { title, message, onConfirm, show: true }); };
-const doConfirm = () => { const cb = confirmState.onConfirm; confirmState.show = false; if (cb) cb(); };
+const confirmState = reactive({ show: false, title: '', message: '', onConfirm: null, withReason: false, reasonPlaceholder: '' });
+const askConfirm = (title, message, onConfirm, opts = {}) => { Object.assign(confirmState, { title, message, onConfirm, withReason: !!opts.withReason, reasonPlaceholder: opts.reasonPlaceholder || 'なぜそう思うか書けます（任意・相手に届きます）', show: true }); };
+const doConfirm = (reason) => { const cb = confirmState.onConfirm; confirmState.show = false; if (cb) cb(reason); };
 
 // 🌟 招待を承認＝自分をイベント参加者に追加＋既存メンバーへ「参加しました」通知
 const acceptInvite = async (req) => {
@@ -427,7 +429,7 @@ const approveRestore = async (req) => {
 
 // 🌟 「決済を未精算に戻す」リクエストを拒否＝完了のまま・依頼者へ通知
 const rejectRestore = (req) => {
-  askConfirm('未精算に戻すのを拒否しますか？', `「${req.itemName || ''}」は完了のままになります。`, async () => {
+  askConfirm('未精算に戻すのを拒否しますか？', `「${req.itemName || ''}」は完了のままになります。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;
       let myName = auth.currentUser?.displayName || 'メンバー';
@@ -437,13 +439,14 @@ const rejectRestore = (req) => {
         trashId: req.trashId || null, transactionIds: req.transactionIds || [],
         historyId: req.historyId || null, amount: req.amount || 0,
         eventId: req.eventId || null, eventName: req.eventName || '', itemName: req.itemName || '',
-        fromUserId: myUid, fromUserName: myName, isRead: false, createdAt: serverTimestamp(),
+        fromUserId: myUid, fromUserName: myName, userMessage: reason || null,
+        isRead: false, createdAt: serverTimestamp(),
       });
       // 🌟 共有ゴミ箱の控えを「保留」からゴミ箱に戻す（完了のまま）
       if (req.trashId) { try { await updateDoc(doc(db, "trash", req.trashId), { status: 'trashed' }); } catch (e) {} }
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
     } catch (e) { console.error("復元拒否エラー:", e); }
-  });
+  }, { withReason: true });
 };
 
 // 🌟 復元の確認「正しい」＝復元を確定（ゴミ箱の控えを消す）
@@ -456,7 +459,7 @@ const confirmRestoreOk = async (req) => {
 
 // 🌟 復元の確認「正しくない」＝復元された取引・履歴を消してゴミ箱に差し戻し、復元した人へ通知
 const confirmRestoreNg = (req) => {
-  askConfirm('「正しくない」を選びますか？', `「${req.itemName || ''}」を削除リスト（ゴミ箱）に戻します。相手に通知が届きます。`, async () => {
+  askConfirm('「正しくない」を選びますか？', `「${req.itemName || ''}」を削除リスト（ゴミ箱）に戻します。相手に通知が届きます。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;
       if (!req.trashId) { await updateDoc(doc(db, "notifications", req.id), { isRead: true }); return; }
@@ -483,17 +486,18 @@ const confirmRestoreNg = (req) => {
           eventId: d.eventId || null, eventName: d.eventName || '',
           itemName: d.itemName || '', amount: Number(d.amount) || 0,
           fromUserId: myUid, fromUserName: await getMyName(),
-          isRead: false, createdAt: serverTimestamp(),
+          userMessage: reason || null,
+        isRead: false, createdAt: serverTimestamp(),
         });
       }
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
     } catch (e) { console.error("復元差し戻しエラー:", e); }
-  });
+  }, { withReason: true });
 };
 
 // 🌟 「〇〇さんが抜けました」に「正しくない」＝削除した人へ再確認を促す通知
 const rejectEventLeft = (req) => {
-  askConfirm('「正しくない」を選びますか？', `${req.fromUserName || '相手'}さんに「削除が正しいか再確認してください」と通知します（ゴミ箱から戻せます）。`, async () => {
+  askConfirm('「正しくない」を選びますか？', `${req.fromUserName || '相手'}さんに「削除が正しいか再確認してください」と通知します（ゴミ箱から戻せます）。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;
       await addDoc(collection(db, "notifications"), {
@@ -501,16 +505,17 @@ const rejectEventLeft = (req) => {
         trashId: req.trashId || null,
         eventId: req.eventId || null, eventName: req.eventName || '',
         fromUserId: myUid, fromUserName: await getMyName(),
+        userMessage: reason || null,
         isRead: false, createdAt: serverTimestamp(),
       });
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
     } catch (e) { console.error("退出の差し戻し通知エラー:", e); }
-  });
+  }, { withReason: true });
 };
 
 // 🌟 「〇〇さんが復元しました（戻ってきました）」に「正しくない」＝イベントを実際にゴミ箱へ戻す
 const rejectEventRestore = (req) => {
-  askConfirm('「正しくない」を選びますか？', `イベント「${req.eventName || ''}」を${req.fromUserName || '相手'}さんの画面から再び非表示にし、ゴミ箱に戻します。相手に通知が届きます。`, async () => {
+  askConfirm('「正しくない」を選びますか？', `イベント「${req.eventName || ''}」を${req.fromUserName || '相手'}さんの画面から再び非表示にし、ゴミ箱に戻します。相手に通知が届きます。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;
       // 復元した人の画面から再び非表示に（本人のゴミ箱側は自己修復で trashed に戻る）
@@ -521,11 +526,12 @@ const rejectEventRestore = (req) => {
         toUserId: req.fromUserId, type: 'event_restore_rejected',
         eventId: req.eventId || null, eventName: req.eventName || '',
         fromUserId: myUid, fromUserName: await getMyName(),
+        userMessage: reason || null,
         isRead: false, createdAt: serverTimestamp(),
       });
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
     } catch (e) { console.error("復帰拒否の通知エラー:", e); }
-  });
+  }, { withReason: true });
 };
 
 // ==========================================
@@ -623,7 +629,7 @@ const restoreEventAgain = async (req) => {
 // --- 支払い削除の判断ループ ---
 // 「削除は正しくない」と返す（削除された側）
 const rejectPaymentDelete = (req) => {
-  askConfirm('「正しくない」を選びますか？', `${req.fromUserName || '相手'}さんに「この削除は正しくない」と伝えます。相手が認めるとゴミ箱から元に戻ります。`, async () => {
+  askConfirm('「正しくない」を選びますか？', `${req.fromUserName || '相手'}さんに「この削除は正しくない」と伝えます。相手が認めるとゴミ箱から元に戻ります。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;
       await addDoc(collection(db, "notifications"), {
@@ -632,6 +638,7 @@ const rejectPaymentDelete = (req) => {
         eventId: req.eventId || null, eventName: req.eventName || '',
         itemName: req.itemName || '', amount: Number(req.amount) || 0,
         fromUserId: myUid, fromUserName: await getMyName(),
+        userMessage: reason || null,
         isRead: false, createdAt: serverTimestamp(),
       });
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
@@ -640,7 +647,7 @@ const rejectPaymentDelete = (req) => {
       console.error("削除への異議通知エラー:", e);
       notice('error', 'エラー', '通知の送信に失敗しました。もう一度お試しください。');
     }
-  });
+  }, { withReason: true });
 };
 
 // 相手の「削除は正しくない」を認める＝ゴミ箱から元に戻す（削除した側）
@@ -663,7 +670,7 @@ const acceptDeleteRejection = (req) => {
 
 // 「いや、削除で正しい」と再主張（削除した側）→ 相手にまた判断が飛ぶ
 const reassertDelete = (req) => {
-  askConfirm('削除を続けますか？', `${req.fromUserName || '相手'}さんに、もう一度「削除は正しい」と確認を送ります。`, async () => {
+  askConfirm('削除を続けますか？', `${req.fromUserName || '相手'}さんに、もう一度「削除は正しい」と確認を送ります。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;
       await addDoc(collection(db, "notifications"), {
@@ -672,11 +679,12 @@ const reassertDelete = (req) => {
         eventId: req.eventId || null, eventName: req.eventName || '',
         itemName: req.itemName || '', amount: Number(req.amount) || 0,
         fromUserId: myUid, fromUserName: await getMyName(),
+        userMessage: reason || null,
         isRead: false, createdAt: serverTimestamp(),
       });
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
     } catch (e) { console.error("削除の再主張エラー:", e); }
-  });
+  }, { withReason: true });
 };
 
 // 差し戻し（restore_reverted）に「正しくない」＝もう一度元に戻す
@@ -714,7 +722,7 @@ const acceptLeftRejection = (req) => {
 
 // 「いや、抜けるで正しい」と再主張（削除した側）→ 相手にまた判断が飛ぶ
 const reassertLeft = (req) => {
-  askConfirm('削除（退出）を続けますか？', `${req.fromUserName || '相手'}さんに、もう一度「退出は正しい」と確認を送ります。`, async () => {
+  askConfirm('削除（退出）を続けますか？', `${req.fromUserName || '相手'}さんに、もう一度「退出は正しい」と確認を送ります。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;
       await addDoc(collection(db, "notifications"), {
@@ -722,11 +730,12 @@ const reassertLeft = (req) => {
         trashId: req.trashId || null,
         eventId: req.eventId || null, eventName: req.eventName || '',
         fromUserId: myUid, fromUserName: await getMyName(),
+        userMessage: reason || null,
         isRead: false, createdAt: serverTimestamp(),
       });
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
     } catch (e) { console.error("退出の再主張エラー:", e); }
-  });
+  }, { withReason: true });
 };
 
 // 復帰の差し戻し（event_restore_rejected）に「正しくない」＝もう一度復帰
@@ -746,7 +755,7 @@ const reRestoreEvent = (req) => {
 // --- 未精算戻しの判断ループ ---
 // 拒否（settlement_restore_rejected）に「正しくない」＝もう一度依頼を送る
 const reRequestRestore = (req) => {
-  askConfirm('もう一度依頼しますか？', `「${req.itemName || ''}」を未精算に戻す依頼を、もう一度 ${req.fromUserName || '相手'}さんに送ります。`, async () => {
+  askConfirm('もう一度依頼しますか？', `「${req.itemName || ''}」を未精算に戻す依頼を、もう一度 ${req.fromUserName || '相手'}さんに送ります。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;
       const found = await resolveTrashDoc(req); // 古い通知で trashId が無くても控えを探す
@@ -758,6 +767,7 @@ const reRequestRestore = (req) => {
         historyId: req.historyId || null, itemName: req.itemName || '決済',
         amount: req.amount || 0, transactionIds: req.transactionIds || [],
         fromUserId: myUid, fromUserName: await getMyName(),
+        userMessage: reason || null,
         isRead: false, createdAt: serverTimestamp(),
       });
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
@@ -766,7 +776,7 @@ const reRequestRestore = (req) => {
       console.error("再依頼エラー:", e);
       notice('error', 'エラー', '依頼の送信に失敗しました。もう一度お試しください。');
     }
-  });
+  }, { withReason: true });
 };
 
 // ==========================================
