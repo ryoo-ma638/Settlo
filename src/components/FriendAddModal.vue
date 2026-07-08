@@ -5,7 +5,15 @@
         <div class="add-modal">
 
           <div v-if="!selectedUser">
-            <h2 class="add-modal__title">フレンドを追加</h2>
+            <div class="add-modal__head">
+              <span class="add-modal__badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="9" cy="8" r="3.2" /><path d="M3.5 20a5.5 5.5 0 0 1 11 0" /><path d="M18 8v6M15 11h6" />
+                </svg>
+              </span>
+              <h2 class="add-modal__title">フレンドを追加</h2>
+              <p class="add-modal__sub">名前・ニックネーム・ID で探して申請できます</p>
+            </div>
 
             <div class="seg">
               <button class="seg__item" :class="{ 'is-active': searchMode === 'name' }" @click="searchMode = 'name'">名前検索</button>
@@ -33,8 +41,12 @@
                   </span>
                   <button v-if="!isAlreadyFriend(user.uid)" class="rescard__add" @click="selectedUser = user">追加</button>
                 </div>
-                <div v-if="searchResults.length === 0" class="empty-msg">
-                  ユーザーが見つかりません
+                <div v-if="searchResults.length === 0" class="empty-state">
+                  <span class="empty-state__icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
+                  </span>
+                  <p class="empty-state__title">見つかりませんでした</p>
+                  <p class="empty-state__desc">名前・ニックネーム・ID を確かめてみてください</p>
                 </div>
               </template>
               <template v-else>
@@ -50,8 +62,12 @@
                   </span>
                   <button class="rescard__add" @click="selectedUser = user">追加</button>
                 </div>
-                <div v-if="eventMembers.length === 0" class="empty-msg">
-                  名前かIDで検索してください
+                <div v-if="eventMembers.length === 0" class="empty-state">
+                  <span class="empty-state__icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2" /><path d="M3.5 20a5.5 5.5 0 0 1 11 0" /><path d="M18 8v6M15 11h6" /></svg>
+                  </span>
+                  <p class="empty-state__title">名前か ID で検索</p>
+                  <p class="empty-state__desc">相手のニックネームでも見つけられます</p>
                 </div>
               </template>
             </div>
@@ -340,10 +356,27 @@ const executeRequest = async () => {
   padding: 22px;
   box-shadow: var(--shadow-pop);
 }
-.add-modal__title {
-  font-size: 18px; font-weight: var(--fw-bold); color: var(--c-ink);
-  text-align: center; margin-bottom: 16px;
+.add-modal__head { text-align: center; margin-bottom: 18px; }
+.add-modal__badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 52px; height: 52px; border-radius: 16px;
+  background: var(--c-brand-weak); color: var(--c-brand); margin-bottom: 10px;
 }
+.add-modal__badge svg { width: 26px; height: 26px; }
+.add-modal__title {
+  font-size: 19px; font-weight: var(--fw-bold); color: var(--c-ink); margin: 0 0 4px;
+}
+.add-modal__sub { font-size: 12px; font-weight: var(--fw-medium); color: var(--c-text-sub); margin: 0; }
+
+.empty-state { text-align: center; padding: 30px 12px; }
+.empty-state__icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--c-surface-2); color: var(--c-text-faint); margin-bottom: 12px;
+}
+.empty-state__icon svg { width: 26px; height: 26px; }
+.empty-state__title { font-size: 14px; font-weight: var(--fw-bold); color: var(--c-text); margin: 0 0 4px; }
+.empty-state__desc { font-size: 12px; font-weight: var(--fw-medium); color: var(--c-text-faint); margin: 0; }
 
 .seg { margin-bottom: 12px; }
 
