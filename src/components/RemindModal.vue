@@ -52,6 +52,18 @@
             </div>
           </div>
 
+          <div class="msg-field">
+            <label class="msg-label">ひとこと（任意）</label>
+            <textarea
+              v-model="message"
+              class="msg-input"
+              rows="2"
+              maxlength="200"
+              placeholder="相手に伝えたいことがあれば添えられます（例：来週までに返してもらえると助かります）"
+            ></textarea>
+            <span class="msg-count">{{ message.length }}/200</span>
+          </div>
+
           <button class="submit-btn" @click="handleSend">催促を送信する</button>
         </div>
       </div>
@@ -78,6 +90,7 @@ const emit = defineEmits(['close', 'send']);
 const remindType = ref('asap');
 const days = ref('');
 const date = ref('');
+const message = ref('');
 
 // 🌟 モーダル状態管理
 const modalState = reactive({ show: false, type: 'info', title: '', message: '', onConfirm: null });
@@ -92,7 +105,7 @@ const handleSend = () => {
   if (remindType.value === 'days') deadline = `${days.value || '数'}日以内`;
   if (remindType.value === 'date') deadline = `${date.value || ''}まで`;
   // 実際の通知送信は親（呼び出し元）が行う
-  emit('send', { deadline });
+  emit('send', { deadline, message: message.value.trim() });
 };
 </script>
 
@@ -120,6 +133,12 @@ const handleSend = () => {
 .num-input { width: 80px; text-align: right; }
 .date-input { flex: 1; }
 .unit { font-size: 14px; font-weight: bold; color: var(--c-text-strong); }
+.msg-field { position: relative; margin-bottom: 25px; }
+.msg-label { display: block; font-size: 12px; font-weight: 900; color: var(--c-text-strong); margin-bottom: 8px; }
+.msg-input { width: 100%; box-sizing: border-box; background: white; border: 1px solid var(--c-line-strong); border-radius: 14px; padding: 12px 14px; font-size: 14px; font-weight: 600; color: var(--c-ink); font-family: inherit; resize: vertical; outline: none; transition: border-color 0.15s; }
+.msg-input::placeholder { color: var(--c-text-faint); font-weight: 500; }
+.msg-input:focus { border-color: var(--c-danger); }
+.msg-count { position: absolute; right: 4px; bottom: -18px; font-size: 11px; color: var(--c-text-faint); font-weight: 700; }
 .submit-btn { width: 100%; background: var(--c-danger); color: white; border: none; padding: 18px; border-radius: 20px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.25); transition: 0.2s; }
 .submit-btn:active { transform: scale(0.96); }
 .slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }

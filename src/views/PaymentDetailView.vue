@@ -276,7 +276,7 @@ const updateAllItems = async (status) => {
 };
 
 // 相手へ通知を送る（宛先が無ければスキップしてエラーを防ぐ）
-const notifyOpponent = async (it, type, message) => {
+const notifyOpponent = async (it, type, message, userMessage) => {
   const toUserId = it.opponentUid || targetUid.value;
   if (!toUserId) return;
   await addDoc(collection(db, "notifications"), {
@@ -286,6 +286,7 @@ const notifyOpponent = async (it, type, message) => {
     transactionId: it.id,
     type,
     message,
+    userMessage: userMessage || null, // 送信者が添えた自由メッセージ（任意）
     isRead: false,
     createdAt: serverTimestamp()
   });
@@ -306,7 +307,7 @@ const openRemind = () => {
 };
 
 // 🌟 催促（リマインド通知）を相手に送る ＋ 取引に催促回数を記録
-const sendReminder = async ({ deadline } = {}) => {
+const sendReminder = async ({ deadline, message } = {}) => {
   if (submitting.value) return;
   submitting.value = true;
   try {
@@ -314,7 +315,8 @@ const sendReminder = async ({ deadline } = {}) => {
       await notifyOpponent(
         it,
         'payment_reminder',
-        `支払いの催促が届きました（${deadline || '至急'}・¥${(it.amount || 0).toLocaleString()}）`
+        `支払いの催促が届きました（${deadline || '至急'}・¥${(it.amount || 0).toLocaleString()}）`,
+        message
       );
       // 取引自体に催促回数・最終催促日時を記録（誰に何回催促したかの正データ）
       await updateDoc(doc(db, "transactions", it.id), {

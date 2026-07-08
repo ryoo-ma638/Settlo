@@ -19,6 +19,7 @@
                 <div class="notif-body">
                   <p><strong>{{ req.fromUserName }}</strong>{{ notifText(req) }}</p>
                   <p v-if="req.message" class="notif-sub">{{ req.message }}</p>
+                  <p v-if="req.userMessage" class="notif-msg">{{ req.userMessage }}</p>
                   <p v-if="req.changes" class="notif-changes">{{ req.changes }}</p>
                   <div class="notif-actions">
                     <template v-if="req.type === 'event_invite'">
@@ -80,6 +81,7 @@
           <div class="notif-body">
             <p><strong>{{ req.fromUserName }}</strong>{{ notifText(req) }}</p>
             <p v-if="req.message" class="notif-sub">{{ req.message }}</p>
+            <p v-if="req.userMessage" class="notif-msg">{{ req.userMessage }}</p>
             <p v-if="req.changes" class="notif-changes">{{ req.changes }}</p>
             <div class="notif-actions">
               <template v-if="req.type === 'event_invite'">
@@ -926,6 +928,8 @@ defineExpose({ open });
 .notif-body p { font-weight: var(--fw-medium); color: var(--c-ink); }
 .notif-sub { font-size: 12px; color: var(--c-text-sub) !important; font-weight: var(--fw-medium); }
 .notif-changes { font-size: 12px; color: var(--c-brand-strong, var(--c-brand)) !important; font-weight: var(--fw-bold, 700); background: var(--c-brand-weak); border-radius: 8px; padding: 6px 10px; line-height: 1.5; }
+/* 送信者が添えた自由メッセージ（相手の言葉として引用ブロックで見せる） */
+.notif-msg { font-size: 13px; color: var(--c-text) !important; font-weight: var(--fw-bold, 700) !important; background: var(--c-surface-2); border-left: 3px solid var(--c-line-strong); border-radius: 8px; padding: 8px 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
 .notif-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
 .mini-btn {
