@@ -176,6 +176,7 @@ import {
   doc, getDoc, setDoc, deleteDoc, updateDoc, addDoc, serverTimestamp, arrayUnion, arrayRemove, increment
 } from 'firebase/firestore';
 import { subjectKey, threadIdFor, subjectLabel } from '@/lib/thread';
+import { logApprovalBoth } from '@/lib/approvalLog';
 
 const router = useRouter();
 
@@ -306,7 +307,11 @@ const deleteNotification = async (notifId) => {
 // 友達申請を拒否＝申請を削除（承認/拒否を選ぶまでお知らせに残す）
 const rejectFriendRequest = (req) => {
   askConfirm('友達申請を拒否しますか？', `${req.formName || '相手'}さんからの友達申請を削除します。`, async () => {
-    try { await deleteDoc(doc(db, "friendRequests", req.id)); }
+    try {
+      const myUid = auth.currentUser?.uid;
+      await logApprovalBoth({ myUid, myName: await getMyName(), otherUid: req.formId, otherName: req.formName, kind: 'friend', outcome: 'rejected' });
+      await deleteDoc(doc(db, "friendRequests", req.id));
+    }
     catch (e) { console.error("友達申請の拒否に失敗:", e); }
   });
 };
@@ -409,6 +414,7 @@ const approveTx = async (req) => {
       fromUserId: myUid, fromUserName: await getMyName(),
       isRead: false, createdAt: serverTimestamp(),
     });
+    await logApprovalBoth({ myUid, myName: await getMyName(), otherUid: req.fromUserId, otherName: req.fromUserName, kind: 'payment', outcome: 'approved', itemName: req.itemName || '', amount: req.amount || 0 });
     await updateDoc(doc(db, "notifications", req.id), { isRead: true });
   } catch (e) { console.error("支払い承認エラー:", e); }
 };
@@ -427,6 +433,7 @@ const rejectTx = (req) => {
         fromUserId: myUid, fromUserName: await getMyName(),
         isRead: false, createdAt: serverTimestamp(),
       });
+      await logApprovalBoth({ myUid, myName: await getMyName(), otherUid: req.fromUserId, otherName: req.fromUserName, kind: 'payment', outcome: 'rejected', itemName: req.itemName || '', amount: req.amount || 0 });
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
     } catch (e) { console.error("支払い拒否エラー:", e); }
   });
@@ -874,6 +881,7 @@ const acceptRequest = async (request) => {
       toId: friendUid, formId: myUid, formName: myName, formPhoto: myPhoto, status: "accepted", createdAt: serverTimestamp()
     });
 
+    await logApprovalBoth({ myUid, myName, otherUid: friendUid, otherName: request.formName, kind: 'friend', outcome: 'approved' });
     await deleteDoc(doc(db, "friendRequests", request.id));
     alert(`${request.formName}さんとフレンドになりました！`);
   } catch (error) {

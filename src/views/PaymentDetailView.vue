@@ -117,6 +117,7 @@ import PayPayAction from '../components/PayPayAction.vue';
 import BaseModal from '../components/BaseModal.vue';
 import RemindModal from '../components/RemindModal.vue';
 import PageHeader from '../components/PageHeader.vue';
+import { logApprovalBoth } from '@/lib/approvalLog';
 
 const route = useRoute();
 const router = useRouter(); 
@@ -373,6 +374,9 @@ const approvePayment = () => {
       try {
         await updateAllItems('completed');
         await clearApprovalNotifs(); // お知らせの承認リクエストを消す
+        for (const it of items.value) {
+          await logApprovalBoth({ myUid: auth.currentUser?.uid, myName: auth.currentUser?.displayName || 'あなた', otherUid: it.opponentUid, otherName: it.name, kind: 'payment', outcome: 'approved', itemName: it.itemName, amount: it.amount });
+        }
         // 🌟 支払った側へ「支払いが完了しました」を届ける
         for (const it of items.value) {
           try { await notifyOpponent(it, 'payment_completed', '支払いが承認され、精算が完了しました。', reason); } catch (e) {}
@@ -404,6 +408,9 @@ const rejectPayment = () => {
       try {
         await updateAllItems('unpaid'); // 未払いに戻す → 相手が再リクエスト可能
         await clearApprovalNotifs(); // お知らせの承認リクエストを消す
+        for (const it of items.value) {
+          await logApprovalBoth({ myUid: auth.currentUser?.uid, myName: auth.currentUser?.displayName || 'あなた', otherUid: it.opponentUid, otherName: it.name, kind: 'payment', outcome: 'rejected', itemName: it.itemName, amount: it.amount });
+        }
         for (const it of items.value) {
           await notifyOpponent(it, 'approval_rejected', '承認リクエストが拒否されました。もう一度お支払い手続きをしてください。');
         }

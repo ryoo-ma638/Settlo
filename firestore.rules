@@ -103,6 +103,13 @@ service cloud.firestore {
                                   || resource.data.formId == request.auth.uid);
     }
 
+    // ---- 承認・拒否の履歴（本人のみ読める / 記録は相手側にも書くため create は誰でも） ----
+    match /approvalHistory/{id} {
+      allow read:           if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create:         if isSignedIn();
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
     // ---- 会話スレッド（件ごとのメッセージ・その件の当事者のみ） ----
     match /threads/{threadId} {
       allow read:   if isSignedIn() && request.auth.uid in resource.data.participants;
