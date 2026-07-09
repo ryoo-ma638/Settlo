@@ -88,10 +88,11 @@ onUnmounted(() => { if (unsub) unsub(); });
 </script>
 
 <style scoped>
-.chats__body { padding: 6px 0 24px; }
+.chats__body { padding: 0 0 24px; background: var(--c-surface); min-height: 100%; }
 .prow {
   width: 100%; display: flex; align-items: center; gap: 12px;
-  padding: 12px var(--pad); background: transparent; border: none; text-align: left; cursor: pointer;
+  padding: 13px var(--pad); background: var(--c-surface); border: none;
+  border-bottom: 1px solid var(--c-line); text-align: left; cursor: pointer;
 }
 .prow:active { background: var(--c-surface-2); }
 .prow__avatar {
