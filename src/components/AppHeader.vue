@@ -8,7 +8,7 @@
     <h1 class="topbar__brand" @click="navigate('/')">Settlo</h1>
 
     <div class="topbar__right">
-      <button class="topbar__pending" @click="navigate('/payment?tab=waiting')" aria-label="承認待ち">
+      <button class="topbar__pending" @click="navigate('/approvals')" aria-label="承認待ち">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
         </svg>

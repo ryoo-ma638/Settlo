@@ -60,6 +60,7 @@ import {
 import { computed } from 'vue';
 import PageHeader from '../components/PageHeader.vue';
 import { ensureThread } from '@/lib/thread';
+import { logApprovalBoth } from '@/lib/approvalLog';
 
 // クイック返信の定型文
 const QUICK_REPLIES = ['ありがとう！', '確認しました', 'もう少し待って', 'OKです'];
@@ -122,6 +123,7 @@ const approveTx = async () => {
       });
     }
     await clearApprovalNotif();
+    await logApprovalBoth({ myUid, myName: myName.value, otherUid: otherUid.value, otherName: otherName.value, kind: 'payment', outcome: 'approved', itemName: txData.value?.itemName || '', amount: txData.value?.amount || 0 });
   } catch (e) { console.error('承認エラー:', e); }
   finally { approving.value = false; }
 };
@@ -139,6 +141,7 @@ const rejectTx = async () => {
       });
     }
     await clearApprovalNotif();
+    await logApprovalBoth({ myUid, myName: myName.value, otherUid: otherUid.value, otherName: otherName.value, kind: 'payment', outcome: 'rejected', itemName: txData.value?.itemName || '', amount: txData.value?.amount || 0 });
   } catch (e) { console.error('拒否エラー:', e); }
   finally { approving.value = false; }
 };
