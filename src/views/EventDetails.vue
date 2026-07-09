@@ -1007,13 +1007,12 @@ onUnmounted(unsubscribeAll);
 
 const goToBatchPayment = (summary) => {
   modals.value.summaryDetail = false;
-  const eventId = eventData.value.id || 1;
-  
-  if (summary.isMePayer) {
-    router.push(`/payment-detail/event-unpaid-${eventId}`);
-  } else {
-    router.push(`/payment-detail/event-waiting-${eventId}`);
-  }
+  const eventId = route.params.id; // 実イベントID（以前は常に "1" になり空表示だった）
+  const kind = summary.isMePayer ? 'unpaid' : 'waiting'; // 払う=unpaid / 受け取る・催促=waiting
+  router.push({
+    path: `/payment-detail/event-${kind}-${eventId}`,
+    query: { uid: summary.opponentUid || '' }, // その相手の分だけまとめる
+  });
 };
 
 const deleteEventCompletely = async (reason) => {

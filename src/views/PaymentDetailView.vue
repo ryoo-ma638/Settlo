@@ -202,6 +202,8 @@ onMounted(async () => {
         if (!isMine) continue;
 
         const opponentUid = mode.value === 'remind' ? data.paidById : data.paidToId;
+        // 特定の相手が指定されていれば、その相手の分だけにまとめる（全員合算を防ぐ）
+        if (route.query.uid && opponentUid !== route.query.uid) continue;
         if (!targetUid.value) targetUid.value = opponentUid;
 
         let opponentName = "不明";
