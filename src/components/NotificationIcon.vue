@@ -974,17 +974,19 @@ defineExpose({ open });
 .notif-changes { font-size: 12px; color: var(--c-brand-strong, var(--c-brand)) !important; font-weight: var(--fw-bold, 700); background: var(--c-brand-weak); border-radius: 8px; padding: 6px 10px; line-height: 1.5; }
 /* 送信者が添えた自由メッセージ（相手の言葉として引用ブロックで見せる） */
 .notif-msg { font-size: 13px; color: var(--c-text) !important; font-weight: var(--fw-bold, 700) !important; background: var(--c-surface-2); border-left: 3px solid var(--c-line-strong); border-radius: 8px; padding: 8px 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
-.notif-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.notif-actions { display: flex; flex-wrap: nowrap; gap: 6px; }
 
 .mini-btn {
+  flex: 1 1 0;
+  min-width: 0;
   background: var(--c-brand);
   color: #fff;
-  padding: 8px 16px;
+  padding: 9px 4px;
   border-radius: var(--r-pill);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: var(--fw-bold);
   white-space: nowrap;
-  flex-shrink: 0;
+  text-align: center;
   transition: transform 0.12s ease;
 }
 .mini-btn:active { transform: scale(0.95); }
