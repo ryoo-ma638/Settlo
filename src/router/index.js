@@ -36,6 +36,8 @@ const router = createRouter({
     { path: '/payment-history', name: 'PaymentHistory', component: PaymentHistoryView },
     { path: '/trash', name: 'Trash', component: () => import('../views/TrashView.vue') },
     { path: '/help', name: 'Help', component: () => import('../views/HelpView.vue') },
+    { path: '/chats', name: 'Chats', component: () => import('../views/ChatListView.vue') },
+    { path: '/chats/:uid', name: 'PersonChats', component: () => import('../views/PersonChatsView.vue') },
     { path: '/thread/:id', name: 'Thread', component: () => import('../views/ThreadView.vue') },
     { path: '/event/:id', name: 'EventDetails', component: () => import('../views/EventDetails.vue') }
   ]

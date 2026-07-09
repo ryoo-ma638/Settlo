@@ -8,6 +8,12 @@
     <h1 class="topbar__brand" @click="navigate('/')">Settlo</h1>
 
     <div class="topbar__right">
+      <button class="topbar__chat" @click="navigate('/chats')" aria-label="チャット">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 11.5a8.4 8.4 0 0 1-11.9 7.6L3 21l1.9-6.1A8.4 8.4 0 1 1 21 11.5z"/>
+        </svg>
+        <span v-if="chatUnread > 0" class="topbar__chat-badge">{{ chatUnread > 99 ? '99+' : chatUnread }}</span>
+      </button>
       <button class="topbar__help" @click="navigate('/help')" aria-label="ヘルプ">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="9"/>
@@ -26,12 +32,13 @@ import { useRouter } from 'vue-router';
 import NotificationIcon from './NotificationIcon.vue';
 import { auth, db } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, collection, query, where } from "firebase/firestore";
 
 const router = useRouter();
 const notifRef = ref(null);
 const userName = ref("");
 const userPhoto = ref("");
+const chatUnread = ref(0); // チャットの合計未読件数
 
 const initial = computed(() => (userName.value || "U").trim().charAt(0).toUpperCase());
 
@@ -48,6 +55,13 @@ onMounted(() => {
           userPhoto.value = data.photo || user.photoURL || "";
         }
       });
+      // チャットの合計未読件数を購読
+      const tq = query(collection(db, "threads"), where("participants", "array-contains", user.uid));
+      onSnapshot(tq, (snap) => {
+        let n = 0;
+        snap.docs.forEach((d) => { const t = d.data(); n += (t.unread && t.unread[user.uid]) || 0; });
+        chatUnread.value = n;
+      }, () => {});
     }
   });
 });
@@ -102,12 +116,19 @@ onMounted(() => {
   gap: 2px;
 }
 
-.topbar__help {
+.topbar__help, .topbar__chat {
   width: 38px; height: 38px;
   display: flex; align-items: center; justify-content: center;
   color: var(--c-text-sub);
   background: none; border: none;
   border-radius: 50%;
 }
-.topbar__help:active { background: var(--c-surface-2); transform: scale(0.94); }
+.topbar__help:active, .topbar__chat:active { background: var(--c-surface-2); transform: scale(0.94); }
+.topbar__chat { position: relative; }
+.topbar__chat-badge {
+  position: absolute; top: 2px; right: 2px;
+  min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
+  background: var(--c-danger); color: #fff; font-size: 10px; font-weight: var(--fw-black);
+  display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+}
 </style>

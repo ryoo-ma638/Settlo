@@ -47,7 +47,7 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { db, auth } from '@/firebase';
 import {
-  collection, query, orderBy, onSnapshot, addDoc, doc, getDoc, setDoc, updateDoc, serverTimestamp, arrayUnion,
+  collection, query, orderBy, onSnapshot, addDoc, doc, getDoc, setDoc, updateDoc, serverTimestamp, arrayUnion, increment,
 } from 'firebase/firestore';
 import { computed } from 'vue';
 import PageHeader from '../components/PageHeader.vue';
@@ -94,6 +94,8 @@ onMounted(async () => {
     try { const me = await getDoc(doc(db, 'users', myUid)); if (me.exists() && me.data().name) myName.value = me.data().name; } catch (e) {}
 
     await ensureThread(threadId, { myUid, myName: myName.value, otherUid: otherUid.value, otherName: otherName.value, label: label.value, eventId });
+    // この会話を開いたので自分の未読を0に
+    try { await updateDoc(doc(db, 'threads', threadId), { [`unread.${myUid}`]: 0 }); } catch (e) {}
 
     // 最初の一言（お知らせに添えられたメッセージ）を種として1件目に置く（重複しないよう固定ID）
     const seedText = route.query.seedText;
@@ -144,7 +146,11 @@ const send = async (preset) => {
       createdAt: serverTimestamp(), readBy: [myUid],
     });
     try {
-      await updateDoc(doc(db, 'threads', threadId), { lastMessage: text, updatedAt: serverTimestamp() });
+      await updateDoc(doc(db, 'threads', threadId), {
+        lastMessage: text, updatedAt: serverTimestamp(),
+        [`unread.${otherUid.value}`]: increment(1), // 相手の未読を+1
+        [`unread.${myUid}`]: 0,                      // 自分の未読は0
+      });
     } catch (e) {}
     // 相手へ「〜の件で返信」をお知らせ
     if (otherUid.value) {
