@@ -291,6 +291,9 @@ const notifyOpponent = async (it, type, message, userMessage) => {
     transactionId: it.id,
     type,
     message,
+    eventName: it.eventName || null, // 件名を具体的にするため（イベント名）
+    itemName: it.itemName || null,   // 取引名
+    amount: it.amount || 0,
     userMessage: userMessage || null, // 送信者が添えた自由メッセージ（任意）
     isRead: false,
     createdAt: serverTimestamp()

@@ -22,7 +22,11 @@ export function threadIdFor(uidA, uidB, key) {
 // 表示用の件ラベル。通知の種類・イベント名・品名・金額から
 // 「イベント〇〇の△△のお支払いの件」のように具体的に組み立てる。
 export function subjectLabel(notif) {
-  const ev = notif.eventName ? `イベント「${notif.eventName}」の` : '';
+  // イベント名が取引名と同じ（＝旧データでeventNameが取引名にフォールバック）や
+  // 汎用語のときは重複を避けて出さない。
+  const evName = notif.eventName;
+  const showEv = evName && evName !== notif.itemName && evName !== '精算' && evName !== 'イベント';
+  const ev = showEv ? `イベント「${evName}」の` : '';
   const item = notif.itemName ? `「${notif.itemName}」` : '';
   const amt = notif.amount ? `（¥${Number(notif.amount).toLocaleString()}）` : '';
   switch (notif.type) {
