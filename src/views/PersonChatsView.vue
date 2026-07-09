@@ -80,7 +80,7 @@ onUnmounted(() => { if (unsub) unsub(); });
 </script>
 
 <style scoped>
-.pchats__body { padding: 6px 0 24px; }
+.pchats__body { padding: 0 0 24px; background: var(--c-surface); min-height: 100%; }
 .trow {
   width: 100%; display: flex; align-items: center; gap: 12px;
   padding: 14px var(--pad); background: transparent; border: none; border-bottom: 1px solid var(--c-line);
