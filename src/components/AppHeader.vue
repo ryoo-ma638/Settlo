@@ -8,6 +8,12 @@
     <h1 class="topbar__brand" @click="navigate('/')">Settlo</h1>
 
     <div class="topbar__right">
+      <button class="topbar__pending" @click="navigate('/payment?tab=waiting')" aria-label="承認待ち">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+        </svg>
+        <span v-if="pendingCount > 0" class="topbar__pending-badge">{{ pendingCount > 99 ? '99+' : pendingCount }}</span>
+      </button>
       <button class="topbar__chat" @click="navigate('/chats')" aria-label="チャット">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 11.5a8.4 8.4 0 0 1-11.9 7.6L3 21l1.9-6.1A8.4 8.4 0 1 1 21 11.5z"/>
@@ -39,6 +45,7 @@ const notifRef = ref(null);
 const userName = ref("");
 const userPhoto = ref("");
 const chatUnread = ref(0); // チャットの合計未読件数
+const pendingCount = ref(0); // 承認待ち（自分が承認する側）の件数
 
 const initial = computed(() => (userName.value || "U").trim().charAt(0).toUpperCase());
 
@@ -62,6 +69,11 @@ onMounted(() => {
         snap.docs.forEach((d) => { const t = d.data(); n += (t.unread && t.unread[user.uid]) || 0; });
         chatUnread.value = n;
       }, () => {});
+      // 承認待ち（自分が受け取る側で、相手が「支払った」と申請中＝自分の承認待ち）
+      const pq = query(collection(db, "transactions"), where("paidToId", "==", user.uid));
+      onSnapshot(pq, (snap) => {
+        pendingCount.value = snap.docs.filter((d) => d.data().status === "awaiting_approval").length;
+      }, () => {});
     }
   });
 });
@@ -74,9 +86,9 @@ onMounted(() => {
   z-index: 1000;
   height: var(--header-h);
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: auto 1fr auto; /* アイコンが増えても右側が自然幅で収まる */
   align-items: center;
-  padding: 0 16px;
+  padding: 0 12px;
   background: var(--c-surface);
   border-bottom: 1px solid var(--c-line);
 }
@@ -102,33 +114,36 @@ onMounted(() => {
 }
 
 .topbar__brand {
-  font-size: 22px;
+  justify-self: center;
+  font-size: 20px;
   font-weight: var(--fw-black);
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   color: var(--c-brand-strong);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .topbar__right {
   justify-self: end;
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 0;
 }
 
-.topbar__help, .topbar__chat {
-  width: 38px; height: 38px;
+.topbar__help, .topbar__chat, .topbar__pending {
+  width: 34px; height: 34px;
   display: flex; align-items: center; justify-content: center;
   color: var(--c-text-sub);
   background: none; border: none;
   border-radius: 50%;
 }
-.topbar__help:active, .topbar__chat:active { background: var(--c-surface-2); transform: scale(0.94); }
-.topbar__chat { position: relative; }
-.topbar__chat-badge {
-  position: absolute; top: 2px; right: 2px;
+.topbar__help:active, .topbar__chat:active, .topbar__pending:active { background: var(--c-surface-2); transform: scale(0.94); }
+.topbar__chat, .topbar__pending { position: relative; }
+.topbar__chat-badge, .topbar__pending-badge {
+  position: absolute; top: 0; right: 0;
   min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
   background: var(--c-danger); color: #fff; font-size: 10px; font-weight: var(--fw-black);
   display: flex; align-items: center; justify-content: center; box-sizing: border-box;
 }
+.topbar__pending-badge { background: var(--c-pay-strong); }
 </style>
