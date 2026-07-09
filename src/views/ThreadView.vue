@@ -20,6 +20,14 @@
       </template>
     </main>
 
+    <div v-if="canApprove" class="thread__approve">
+      <p class="thread__approve-text">この支払いはあなたの承認待ちです。内容を確認したら、ここで承認・拒否できます。</p>
+      <div class="thread__approve-btns">
+        <button class="thread__approve-ok" :disabled="approving" @click="approveTx">承認する</button>
+        <button class="thread__approve-ng" :disabled="approving" @click="rejectTx">拒否する</button>
+      </div>
+    </div>
+
     <div class="thread__quick">
       <button v-for="q in QUICK_REPLIES" :key="q" class="quick-chip" :disabled="sending" @click="send(q)">{{ q }}</button>
     </div>
@@ -47,7 +55,7 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { db, auth } from '@/firebase';
 import {
-  collection, query, orderBy, onSnapshot, addDoc, doc, getDoc, setDoc, updateDoc, serverTimestamp, arrayUnion, increment,
+  collection, query, where, orderBy, onSnapshot, addDoc, getDocs, doc, getDoc, setDoc, updateDoc, serverTimestamp, arrayUnion, increment,
 } from 'firebase/firestore';
 import { computed } from 'vue';
 import PageHeader from '../components/PageHeader.vue';
@@ -82,6 +90,59 @@ const lastReadMineId = computed(() => {
   return id;
 });
 
+// 承認待ちの取引（返信画面から承認/拒否できるように）
+const txId = route.query.tx || '';
+const txData = ref(null);
+let unsubTx = null;
+const approving = ref(false);
+const canApprove = computed(() => txData.value && txData.value.status === 'awaiting_approval' && txData.value.paidToId === myUid);
+
+const clearApprovalNotif = async () => {
+  try {
+    const snap = await getDocs(query(collection(db, 'notifications'), where('toUserId', '==', myUid)));
+    for (const d of snap.docs) {
+      const n = d.data();
+      if (n.type === 'approval_request' && n.transactionId === txId) {
+        try { await updateDoc(doc(db, 'notifications', d.id), { isRead: true }); } catch (e) {}
+      }
+    }
+  } catch (e) {}
+};
+const approveTx = async () => {
+  if (!txId || approving.value) return;
+  approving.value = true;
+  try {
+    await updateDoc(doc(db, 'transactions', txId), { status: 'completed' });
+    if (otherUid.value) {
+      await addDoc(collection(db, 'notifications'), {
+        toUserId: otherUid.value, type: 'payment_completed',
+        message: '支払いが承認され、精算が完了しました。',
+        transactionId: txId, fromUserId: myUid, fromUserName: myName.value,
+        isRead: false, createdAt: serverTimestamp(),
+      });
+    }
+    await clearApprovalNotif();
+  } catch (e) { console.error('承認エラー:', e); }
+  finally { approving.value = false; }
+};
+const rejectTx = async () => {
+  if (!txId || approving.value) return;
+  approving.value = true;
+  try {
+    await updateDoc(doc(db, 'transactions', txId), { status: 'unpaid' });
+    if (otherUid.value) {
+      await addDoc(collection(db, 'notifications'), {
+        toUserId: otherUid.value, type: 'approval_rejected',
+        message: '承認リクエストが拒否されました。もう一度お支払い手続きをしてください。',
+        transactionId: txId, fromUserId: myUid, fromUserName: myName.value,
+        isRead: false, createdAt: serverTimestamp(),
+      });
+    }
+    await clearApprovalNotif();
+  } catch (e) { console.error('拒否エラー:', e); }
+  finally { approving.value = false; }
+};
+
 const scrollToBottom = () => nextTick(() => {
   const el = scrollArea.value;
   if (el) el.scrollTop = el.scrollHeight;
@@ -96,6 +157,11 @@ onMounted(async () => {
     await ensureThread(threadId, { myUid, myName: myName.value, otherUid: otherUid.value, otherName: otherName.value, label: label.value, eventId });
     // この会話を開いたので自分の未読を0に
     try { await updateDoc(doc(db, 'threads', threadId), { [`unread.${myUid}`]: 0 }); } catch (e) {}
+
+    // 承認待ちの取引なら、その状態を購読して承認/拒否バーを出す
+    if (txId) {
+      unsubTx = onSnapshot(doc(db, 'transactions', txId), (d) => { txData.value = d.exists() ? d.data() : null; }, () => {});
+    }
 
     // 最初の一言（お知らせに添えられたメッセージ）を種として1件目に置く（重複しないよう固定ID）
     const seedText = route.query.seedText;
@@ -132,7 +198,7 @@ onMounted(async () => {
   }
 });
 
-onUnmounted(() => { if (unsub) unsub(); });
+onUnmounted(() => { if (unsub) unsub(); if (unsubTx) unsubTx(); });
 
 const send = async (preset) => {
   const usePreset = typeof preset === 'string';
@@ -191,6 +257,14 @@ const send = async (preset) => {
 .msg--mine .msg__bubble { background: var(--c-brand); color: #fff; border-bottom-right-radius: 6px; }
 .msg--theirs .msg__bubble { background: var(--c-surface); color: var(--c-ink); border-bottom-left-radius: 6px; box-shadow: var(--shadow-card); }
 .msg__read { font-size: 10px; color: var(--c-text-faint); font-weight: var(--fw-bold); margin: 3px 4px 0; }
+
+.thread__approve { padding: 10px var(--pad); background: var(--c-brand-weak); border-top: 1px solid var(--c-line); }
+.thread__approve-text { margin: 0 0 8px; font-size: 12px; font-weight: var(--fw-bold); color: var(--c-brand-strong, var(--c-brand)); }
+.thread__approve-btns { display: flex; gap: 8px; }
+.thread__approve-ok, .thread__approve-ng { flex: 1; padding: 11px; border-radius: var(--r-md); font-size: 14px; font-weight: var(--fw-bold); border: none; }
+.thread__approve-ok { background: var(--c-brand); color: #fff; }
+.thread__approve-ng { background: var(--c-surface); color: var(--c-text-sub); border: 1px solid var(--c-line-bold); }
+.thread__approve-ok:disabled, .thread__approve-ng:disabled { opacity: 0.5; }
 
 .thread__quick { display: flex; gap: 8px; overflow-x: auto; padding: 8px var(--pad); background: var(--c-surface); border-top: 1px solid var(--c-line); }
 .quick-chip {

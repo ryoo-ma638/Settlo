@@ -189,6 +189,7 @@ const openThread = (req) => {
   router.push({ name: 'Thread', params: { id }, query: {
     label: subjectLabel(req), other: otherUid, otherName: req.fromUserName || '相手',
     eventId: req.eventId || '',
+    tx: req.transactionId || '', // 承認待ちの取引なら返信画面で承認/拒否できるように
     seedText: req.userMessage || '', seedFrom: otherUid, seedFromName: req.fromUserName || '相手',
   }});
 };
@@ -275,7 +276,7 @@ onMounted(() => {
 
 const goToPaymentDetail = async (req) => {
   try {
-    await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+    // 「詳細を見る／イベントを見る」だけでは通知を消さない（承認/拒否/確認したときだけ消える）
     showModal.value = false;
     // 編集/削除通知は該当イベントへ（対象の取引はもう無い/変わっているため）
     if (req.type === 'payment_edited' || req.type === 'payment_deleted') {

@@ -345,6 +345,22 @@ const sendReminder = async ({ deadline, message } = {}) => {
 };
 
 // 🌟 承認リクエストが届いている時に「承認して完了にする」を押した時の処理
+// この画面で承認/拒否したら、対応する承認リクエストのお知らせも消す（残らないように）
+const clearApprovalNotifs = async () => {
+  const myUid = auth.currentUser?.uid;
+  if (!myUid) return;
+  try {
+    const txIds = new Set(items.value.map(i => i.id));
+    const snap = await getDocs(query(collection(db, 'notifications'), where('toUserId', '==', myUid)));
+    for (const d of snap.docs) {
+      const n = d.data();
+      if (n.type === 'approval_request' && txIds.has(n.transactionId)) {
+        try { await updateDoc(doc(db, 'notifications', d.id), { isRead: true }); } catch (e) {}
+      }
+    }
+  } catch (e) { console.error('承認リクエスト通知のクリアに失敗:', e); }
+};
+
 const approvePayment = () => {
   showModal({
     type: 'warning', title: '支払いの承認',
@@ -356,6 +372,7 @@ const approvePayment = () => {
       submitting.value = true;
       try {
         await updateAllItems('completed');
+        await clearApprovalNotifs(); // お知らせの承認リクエストを消す
         // 🌟 支払った側へ「支払いが完了しました」を届ける
         for (const it of items.value) {
           try { await notifyOpponent(it, 'payment_completed', '支払いが承認され、精算が完了しました。', reason); } catch (e) {}
@@ -386,6 +403,7 @@ const rejectPayment = () => {
       submitting.value = true;
       try {
         await updateAllItems('unpaid'); // 未払いに戻す → 相手が再リクエスト可能
+        await clearApprovalNotifs(); // お知らせの承認リクエストを消す
         for (const it of items.value) {
           await notifyOpponent(it, 'approval_rejected', '承認リクエストが拒否されました。もう一度お支払い手続きをしてください。');
         }
