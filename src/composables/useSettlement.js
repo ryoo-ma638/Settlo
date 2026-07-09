@@ -29,6 +29,8 @@ export function useSettlement(eventData, myName) {
       const c = eventData.value.participants.find(p => p.name === nm)?.color;
       return (c && String(c).startsWith('http')) ? c : '';
     };
+    // 名前 → 参加者のUID（まとめて精算で相手を特定するのに使う）
+    const uidByName = (nm) => eventData.value.participants.find(p => p.name === nm)?.id || null;
     
     // 1. まず全ての「誰から誰へ、いくら」の生の借金データを洗い出す
     eventData.value.history.forEach(history => {
@@ -117,14 +119,20 @@ export function useSettlement(eventData, myName) {
         const fromColor = colorByName(finalFrom);
         const toColor = colorByName(finalTo);
         
+        // finalFrom＝債務者（払う側）/ finalTo＝債権者（受け取る側）。
+        // 自分が finalFrom なら「自分が払う側」。相手は逆側。
+        const iAmPayer = (finalFrom === me);
+        const opponentName = iAmPayer ? finalTo : finalFrom;
         aggregated.push({
           id: `${status}-${key}`,
           from: finalFrom, fromColor, fromPhoto: photoByName(finalFrom),
           to: finalTo, toColor, toPhoto: photoByName(finalTo),
           amount: finalAmount,
           status: status,
-          isMePayer: (finalTo === me),
+          isMePayer: iAmPayer,
           involvesMe: (finalFrom === me || finalTo === me),
+          opponentName,
+          opponentUid: uidByName(opponentName),
           details: details
         });
       });
