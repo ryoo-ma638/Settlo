@@ -834,6 +834,7 @@ const addHistory = async (newPayment) => {
         amount: amt,
         status: "unpaid",
         eventId: eventId,
+        eventName: eventData.value.name || '',  // 件名表示用にイベント名も保存
         itemName: newPayment.itemName,
         createdAt: serverTimestamp(),
       });
