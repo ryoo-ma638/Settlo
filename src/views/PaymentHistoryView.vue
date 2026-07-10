@@ -213,14 +213,14 @@ const goToDetail = (item) => {
   }
   .history-card:active { transform: scale(0.98); background-color: var(--c-surface-2); }
   
-  .card-left { display: flex; align-items: center; gap: 15px; }
+  .card-left { display: flex; align-items: center; gap: 15px; flex: 1; min-width: 0; }
   .avatar { width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-  .info { display: flex; flex-direction: column; gap: 4px; }
-  .name { font-size: 16px; font-weight: bold; color: var(--c-text); margin: 0; }
-  .details { font-size: 12px; color: var(--c-text-sub); margin: 0; display: flex; align-items: center; }
+  .info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .name { font-size: 16px; font-weight: bold; color: var(--c-text); margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .details { font-size: 12px; color: var(--c-text-sub); margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dot-separator { margin: 0 6px; font-size: 10px; opacity: 0.5; }
-  
-  .card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+
+  .card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; padding-left: 10px; }
   .amount { font-size: 18px; font-weight: 900; margin: 0; letter-spacing: -0.5px; }
   .blue-text { color: var(--c-receive); }
   .orange-text { color: var(--c-pay); }
