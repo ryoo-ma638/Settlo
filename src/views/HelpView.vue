@@ -7,6 +7,7 @@
 
       <!-- 1. イベント -->
       <section class="hcard">
+        <img class="hcard__img" src="/tutorial/event.jpg" alt="イベントの画面" />
         <div class="hcard__head">
           <div class="hcard__icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg></div>
           <h2>1. イベントをつくる・参加する</h2>
@@ -20,6 +21,7 @@
 
       <!-- 2. 支払いの記録 -->
       <section class="hcard">
+        <img class="hcard__img" src="/tutorial/payment.jpg" alt="支払いを追加する画面" />
         <div class="hcard__head">
           <div class="hcard__icon"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/></svg></div>
           <h2>2. 支払いを記録する（レシート読み取り）</h2>
@@ -59,11 +61,25 @@
         </ul>
       </section>
 
-      <!-- 5. ゴミ箱 -->
+      <!-- 5. チャット・承認待ち -->
+      <section class="hcard">
+        <img class="hcard__img" src="/tutorial/notify.jpg" alt="お知らせの画面" />
+        <div class="hcard__head">
+          <div class="hcard__icon"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-11.9 7.6L3 21l1.9-6.1A8.4 8.4 0 1 1 21 11.5z"/></svg></div>
+          <h2>5. チャット・承認待ち・催促</h2>
+        </div>
+        <ul>
+          <li>お知らせの「<b>返信</b>」から、その件（〇〇の支払いの件 など）について<b>チャット</b>で相談できます。ヘッダーの吹き出しアイコンで一覧を開け、<b>未読の数がバッジ</b>で出ます。承認・完了で解決すると、そのチャットは自動で片付きます。</li>
+          <li>ヘッダーの<b>時計アイコン＝承認待ち</b>。あなたが承認する分・相手の承認待ち・<b>承認/拒否の履歴</b>（消えずに残る）をまとめて確認でき、<b>催促されている支払いは一番上に赤く強調</b>されます。</li>
+          <li>まだ払っていない相手には「<b>催促する</b>」で通知を送れます（ひとことメッセージも添えられます）。</li>
+        </ul>
+      </section>
+
+      <!-- 6. ゴミ箱 -->
       <section class="hcard">
         <div class="hcard__head">
           <div class="hcard__icon"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg></div>
-          <h2>5. 間違えても大丈夫（ゴミ箱）</h2>
+          <h2>6. 間違えても大丈夫（ゴミ箱）</h2>
         </div>
         <ul>
           <li>削除した支払い・完了した決済・削除したイベントは<b>ゴミ箱（マイページ内）</b>に入ります。</li>
@@ -76,7 +92,7 @@
       <section class="hcard">
         <div class="hcard__head">
           <div class="hcard__icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 16v.01M12 13a2.5 2.5 0 1 0-2.5-2.5"/></svg></div>
-          <h2>6. よくある質問</h2>
+          <h2>7. よくある質問</h2>
         </div>
         <ul>
           <li><b>Q. スマホのアプリみたいに使いたい</b><br>A. ブラウザの共有メニューから「ホーム画面に追加」すると、アプリとして起動できます。</li>
@@ -112,6 +128,7 @@ const replayTour = () => {
   margin-bottom: 14px;
   box-shadow: var(--shadow-sm);
 }
+.hcard__img { display: block; width: 100%; max-width: 168px; margin: 0 auto 14px; border-radius: 14px; border: 1px solid var(--c-line); }
 .hcard__head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .hcard__icon {
   width: 36px; height: 36px; border-radius: 10px;
