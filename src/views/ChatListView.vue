@@ -17,6 +17,7 @@
               <span class="prow__name">{{ p.name }}</span>
               <span class="prow__time">{{ fmtTime(p.lastAt) }}</span>
             </span>
+            <span v-if="p.subject" class="prow__subject">{{ p.subject }}</span>
             <span class="prow__msg">{{ p.lastMessage || 'やりとりを開く' }}</span>
           </span>
           <span v-if="p.unread > 0" class="prow__badge">{{ p.unread > 99 ? '99+' : p.unread }}</span>
@@ -68,16 +69,17 @@ onMounted(() => {
     const byPerson = new Map();
     docsSorted.forEach((docSnap) => {
       const t = docSnap.data();
+      if ((t.hiddenBy || []).includes(myUid)) return; // 削除（非表示）したチャットは出さない
       const otherUid = (t.participants || []).find((u) => u !== myUid);
       if (!otherUid) return;
       const name = (t.participantNames && t.participantNames[otherUid]) || '相手';
       const unread = (t.unread && t.unread[myUid]) || 0;
       const prev = byPerson.get(otherUid);
       if (!prev) {
-        byPerson.set(otherUid, { uid: otherUid, name, unread, lastMessage: t.lastMessage || '', lastAt: t.updatedAt });
+        // 一覧は updatedAt 降順なので、最初に入った方が最新の件
+        byPerson.set(otherUid, { uid: otherUid, name, unread, subject: t.subjectLabel || '', lastMessage: t.lastMessage || '', lastAt: t.updatedAt });
       } else {
         prev.unread += unread;
-        // 一覧は updatedAt 降順なので、最初に入った方が最新
       }
     });
     people.value = [...byPerson.values()];
@@ -104,6 +106,7 @@ onUnmounted(() => { if (unsub) unsub(); });
 .prow__top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .prow__name { font-size: 15px; font-weight: var(--fw-bold); color: var(--c-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prow__time { flex-shrink: 0; font-size: 11px; color: var(--c-text-faint); font-weight: var(--fw-medium); }
+.prow__subject { font-size: 12px; font-weight: var(--fw-bold); color: var(--c-brand); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prow__msg { font-size: 13px; color: var(--c-text-sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prow__badge {
   flex-shrink: 0; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;

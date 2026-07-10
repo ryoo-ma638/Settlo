@@ -219,6 +219,7 @@ const send = async (preset) => {
         lastMessage: text, updatedAt: serverTimestamp(),
         [`unread.${otherUid.value}`]: increment(1), // 相手の未読を+1
         [`unread.${myUid}`]: 0,                      // 自分の未読は0
+        hiddenBy: [],                                // 新しいメッセージが来たら両者の非表示を解除
       });
     } catch (e) {}
     // 相手へ「〜の件で返信」をお知らせ
