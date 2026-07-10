@@ -1,5 +1,6 @@
 // src/composables/useSettlement.js
 import { computed, unref } from 'vue';
+import { auth } from '../firebase';
 
 // 名前から安定した淡い色を作る（写真URLしか持たない参加者の小アバター用フォールバック）
 function colorFromName(name) {
@@ -13,35 +14,54 @@ function colorFromName(name) {
 
 // 割り勘の計算を行う専用の関数（ツール）
 // myName は文字列でも ref でもOK（実データ取得後に反応できるよう unref で読む）
+//
+// 🌟 集計は「名前」ではなく「UID」で行う（同名の参加者や改名でも壊れないため）。
+//    債権者＝history.payerUid、債務者＝shares[].uid を正とし、
+//    無い古いデータだけ名前→UIDの逆引き（uidByName）にフォールバックする。
 export function useSettlement(eventData, myName) {
 
   const calculatedSummary = computed(() => {
-    const me = unref(myName);
-    const rawDebts = [];
+    const participants = eventData.value.participants || [];
 
-    // 小アバターは背景色で描くため、写真URL(http)を持つ人は名前ベースの色に置き換える
-    const colorByName = (nm) => {
-      const c = eventData.value.participants.find(p => p.name === nm)?.color;
-      return (c && !String(c).startsWith('http')) ? c : colorFromName(nm);
+    // 参加者UID → 表示名/色/写真（表示は常に「現在の参加者情報」を使う＝改名に追従）
+    const partByUid = (uid) => participants.find(p => p.id === uid);
+    const uidByName = (nm) => participants.find(p => p.name === nm)?.id || null;
+    // 集計の識別子：UIDがあればUID、無ければ名前ベースの擬似ID（古いデータ救済）
+    const idOf = (uid, name) => uid || (name ? `name:${name}` : null);
+    const nameOf = (id) => {
+      if (!id) return '?';
+      if (String(id).startsWith('name:')) return String(id).slice(5);
+      return partByUid(id)?.name || '?';
     };
-    // その人の写真URL（あれば実アイコンを表示するため）
-    const photoByName = (nm) => {
-      const c = eventData.value.participants.find(p => p.name === nm)?.color;
+    const rawColor = (id) => (String(id).startsWith('name:') ? null : partByUid(id)?.color);
+    const colorOf = (id) => {
+      const c = rawColor(id);
+      return (c && !String(c).startsWith('http')) ? c : colorFromName(nameOf(id));
+    };
+    const photoOf = (id) => {
+      const c = rawColor(id);
       return (c && String(c).startsWith('http')) ? c : '';
     };
-    // 名前 → 参加者のUID（まとめて精算で相手を特定するのに使う）
-    const uidByName = (nm) => eventData.value.participants.find(p => p.name === nm)?.id || null;
-    
-    // 1. まず全ての「誰から誰へ、いくら」の生の借金データを洗い出す
-    eventData.value.history.forEach(history => {
-      let creditor = history.payer;
 
-      // 🌟 shares（各メンバーの負担額）があれば、それを正として債務を作る（all/custom/item 全対応）
+    // 自分のUID（認証を正とし、取れなければ表示名から逆引き）
+    const myUid = auth.currentUser?.uid || uidByName(unref(myName));
+
+    const rawDebts = [];
+
+    // 1. まず全ての「誰から誰へ、いくら」の生の借金データを洗い出す（UIDで）
+    eventData.value.history.forEach(history => {
+      const creditorId = idOf(history.payerUid, history.payer);
+      if (!creditorId) return; // 債権者不明はスキップ
+
+      // 🌟 shares（各メンバーの負担額・uid付き）があれば、それを正として債務を作る
       if (Array.isArray(history.shares) && history.shares.length > 0) {
         history.shares.forEach(s => {
-          if (s && s.name && s.name !== creditor && Number(s.amount) > 0) {
+          if (!s) return;
+          const debtorId = idOf(s.uid, s.name);
+          if (debtorId && debtorId !== creditorId && Number(s.amount) > 0) {
             rawDebts.push({
-              from: s.name, to: creditor,
+              fromId: debtorId, toId: creditorId,
+              from: nameOf(debtorId), to: nameOf(creditorId),
               amount: Number(s.amount), itemName: history.itemName, status: history.status
             });
           }
@@ -49,26 +69,29 @@ export function useSettlement(eventData, myName) {
         return; // この履歴は shares で処理済み
       }
 
-      // 後方互換：shares が無い古い履歴は従来ロジック
+      // 後方互換：shares が無い古い履歴は従来ロジック（名前→UID逆引き）
       if (history.splitType === 'all' || history.splitType === '全員で割勘') {
-        const amountPerPerson = Math.floor(history.amount / eventData.value.participants.length);
-        eventData.value.participants.forEach(p => {
-          if (p.name !== creditor) {
+        const amountPerPerson = Math.floor(history.amount / participants.length);
+        participants.forEach(p => {
+          if (p.id !== creditorId) {
             rawDebts.push({
-              from: p.name, to: creditor,
+              fromId: p.id, toId: creditorId,
+              from: p.name, to: nameOf(creditorId),
               amount: amountPerPerson, itemName: history.itemName, status: history.status
             });
           }
         });
-      } 
+      }
       else if (history.splitType === 'item' && history.items) {
         history.items.forEach(item => {
           if (item.assignees && item.assignees.length > 0) {
             const itemAmount = Math.floor(item.price / item.assignees.length);
-            item.assignees.forEach(assignee => {
-              if (assignee !== creditor) {
+            item.assignees.forEach(assigneeName => {
+              const debtorId = idOf(uidByName(assigneeName), assigneeName);
+              if (debtorId && debtorId !== creditorId) {
                 rawDebts.push({
-                  from: assignee, to: creditor,
+                  fromId: debtorId, toId: creditorId,
+                  from: nameOf(debtorId), to: nameOf(creditorId),
                   amount: itemAmount, itemName: item.name, status: history.status
                 });
               }
@@ -78,66 +101,62 @@ export function useSettlement(eventData, myName) {
       }
     });
 
-    // 2. 洗い出した借金データを「ステータス」と「2人のペア」ごとにグループ化して相殺（ネット）する
+    // 2. 洗い出した借金データを「ステータス」と「2人のペア（UID）」ごとに相殺（ネット）する
     const aggregated = [];
     const statuses = ['unpaid', 'completed'];
-    
+
     statuses.forEach(status => {
       const debtsForStatus = rawDebts.filter(d => d.status === status);
-      const pairs = {}; 
-      
+      const pairs = {};
+
       debtsForStatus.forEach(debt => {
-        const personA = debt.from < debt.to ? debt.from : debt.to;
-        const personB = debt.from < debt.to ? debt.to : debt.from;
-        const key = `${personA}|${personB}`;
-        
+        const idA = debt.fromId < debt.toId ? debt.fromId : debt.toId;
+        const idB = debt.fromId < debt.toId ? debt.toId : debt.fromId;
+        const key = `${idA}|${idB}`;
+
         if (!pairs[key]) pairs[key] = { netA: 0, details: [] };
-        
-        if (debt.from === personA) {
+
+        if (debt.fromId === idA) {
           pairs[key].netA -= debt.amount;
         } else {
-          pairs[key].netA += debt.amount; 
+          pairs[key].netA += debt.amount;
         }
-        pairs[key].details.push(debt); 
+        pairs[key].details.push(debt);
       });
 
       // 3. 相殺された結果から、最終的な「サマリーカード」を生成
       Object.keys(pairs).forEach(key => {
-        const [personA, personB] = key.split('|');
+        const [idA, idB] = key.split('|');
         const netA = pairs[key].netA;
         const details = pairs[key].details;
-        
-        if (netA === 0) return; 
-        
-        let finalFrom, finalTo, finalAmount;
+
+        if (netA === 0) return;
+
+        let fromId, toId, finalAmount;
         if (netA < 0) {
-          finalFrom = personA; finalTo = personB; finalAmount = Math.abs(netA);
+          fromId = idA; toId = idB; finalAmount = Math.abs(netA);
         } else {
-          finalFrom = personB; finalTo = personA; finalAmount = netA;
+          fromId = idB; toId = idA; finalAmount = netA;
         }
-        
-        const fromColor = colorByName(finalFrom);
-        const toColor = colorByName(finalTo);
-        
-        // finalFrom＝債務者（払う側）/ finalTo＝債権者（受け取る側）。
-        // 自分が finalFrom なら「自分が払う側」。相手は逆側。
-        const iAmPayer = (finalFrom === me);
-        const opponentName = iAmPayer ? finalTo : finalFrom;
+
+        // fromId＝債務者（払う側）/ toId＝債権者（受け取る側）。自分が fromId なら「自分が払う側」。
+        const iAmPayer = (fromId === myUid);
+        const opponentId = iAmPayer ? toId : fromId;
         aggregated.push({
           id: `${status}-${key}`,
-          from: finalFrom, fromColor, fromPhoto: photoByName(finalFrom),
-          to: finalTo, toColor, toPhoto: photoByName(finalTo),
+          from: nameOf(fromId), fromColor: colorOf(fromId), fromPhoto: photoOf(fromId),
+          to: nameOf(toId), toColor: colorOf(toId), toPhoto: photoOf(toId),
           amount: finalAmount,
           status: status,
           isMePayer: iAmPayer,
-          involvesMe: (finalFrom === me || finalTo === me),
-          opponentName,
-          opponentUid: uidByName(opponentName),
+          involvesMe: (fromId === myUid || toId === myUid),
+          opponentName: nameOf(opponentId),
+          opponentUid: String(opponentId).startsWith('name:') ? null : opponentId,
           details: details
         });
       });
     });
-    
+
     return aggregated;
   });
 
