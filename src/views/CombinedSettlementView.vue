@@ -161,22 +161,30 @@ onMounted(async () => {
     return allEvents.value.filter(e => e.type === filterType.value);
   });
   
-  // 🌟 除外/追加 トグル機能
+  // 🌟 除外/追加 トグル機能（今回の精算に含めるかを切り替えるだけ・いつでも戻せる）
   const toggleInclude = (item) => {
-    const action = item.included ? '除外' : '追加';
-    if (confirm(`このイベントを今回の精算から${action}しますか？`)) {
-      item.included = !item.included;
-    }
+    item.included = !item.included;
   };
   
   // 詳細表示
   const selectedItem = ref(null);
   const openDetailOverlay = (item) => { selectedItem.value = item; };
   
-  // 🌟 新設した「相殺専用のアクションページ」へ遷移
+  // 🌟 相殺専用のアクションページへ遷移
+  //    除外を反映するため「今回精算する取引ID（included のみ）」を渡す＝表示と実精算を一致させる
   const goToActionPage = (actionType) => {
-    // 本来はIDや金額をパラメータで渡しますが、今回はシンプルに名前とタイプを渡します
-    router.push(`/combined-action/${route.params.name}?type=${actionType}&amount=${Math.abs(netBalance.value)}&uid=${route.query.uid || ''}`);
+    const ids = allEvents.value.filter(e => e.included).map(e => e.id);
+    if (ids.length === 0) {
+      alert('精算する取引がありません。除外を見直してください。');
+      return;
+    }
+    const q = new URLSearchParams({
+      type: actionType,
+      amount: String(Math.abs(netBalance.value)),
+      uid: route.query.uid || '',
+      ids: ids.join(','),
+    });
+    router.push(`/combined-action/${route.params.name}?${q.toString()}`);
   };
   </script>
   

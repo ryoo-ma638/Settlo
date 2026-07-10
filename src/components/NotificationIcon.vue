@@ -49,7 +49,7 @@
                       <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
                       <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
                     </template>
-                    <button v-if="req.type !== 'thread_reply' && req.fromUserId" class="mini-btn mini-btn--ghost" @click="openThread(req)">返信</button>
+                    <button v-if="req.type !== 'thread_reply' && req.fromUserId && !req.batch" class="mini-btn mini-btn--ghost" @click="openThread(req)">返信</button>
                   </div>
                 </div>
               </div>
@@ -116,7 +116,7 @@
                 <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
                 <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
               </template>
-              <button v-if="req.type !== 'thread_reply' && req.fromUserId" class="mini-btn mini-btn--ghost" @click="openThread(req)">返信</button>
+              <button v-if="req.type !== 'thread_reply' && req.fromUserId && !req.batch" class="mini-btn mini-btn--ghost" @click="openThread(req)">返信</button>
             </div>
           </div>
         </div>
@@ -228,6 +228,9 @@ const notifText = (req) => {
   if (req.type === 'event_left_check') return `さんがイベント「${req.eventName || ''}」から抜けました（自分の画面から削除）。これは正しいですか？`;
   if (req.type === 'event_left_rejected') return `さんは、あなたがイベント「${req.eventName || ''}」から抜けたのは正しくないと考えています。これは正しいですか？（正しい＝イベントに戻ります／正しくない＝削除を続けます）`;
   if (req.type === 'event_restore_rejected') return `さんが「正しくない」を選び、イベント「${req.eventName || ''}」をゴミ箱に戻しました。これは正しいですか？（正しくない＝もう一度復帰します）`;
+  if (req.type === 'approval_request' && (req.batch || (Array.isArray(req.transactionIds) && req.transactionIds.length > 1))) {
+    return `さんがまとめて精算しました（${req.count || req.transactionIds.length}件・¥${(req.amount || 0).toLocaleString()}）。受け取りを承認しますか？`;
+  }
   return 'さんから支払いの承認リクエストが届いています';
 };
 const notifAction = (req) => {
@@ -291,6 +294,11 @@ const goToPaymentDetail = async (req) => {
     }
     // 支払い完了のお知らせは既読にするだけ（取引はもう完了している）
     if (req.type === 'payment_completed') return;
+    // まとめ精算（複数取引）は単一の詳細が無いので、承認待ち一覧へ
+    if (req.batch || (Array.isArray(req.transactionIds) && req.transactionIds.length > 1) || !req.transactionId) {
+      router.push('/approvals');
+      return;
+    }
     // 承認リクエストだけ受け取る側（waiting-）。拒否・催促は支払う側（unpaid-）へ。
     const prefix = req.type === 'approval_request' || !req.type ? 'waiting' : 'unpaid';
     router.push(`/payment-detail/${prefix}-${req.transactionId}`);
@@ -413,37 +421,70 @@ const approveTx = async (req) => {
   acting.value = true;
   try {
     const myUid = auth.currentUser?.uid;
-    if (!myUid || !req.transactionId) return;
-    const t = await getDoc(doc(db, "transactions", req.transactionId));
-    if (!t.exists() || t.data().paidToId !== myUid) { // 受け取る側だけが承認できる
-      await updateDoc(doc(db, "notifications", req.id), { isRead: true });
-      return;
+    if (!myUid) return;
+    const otherUid = req.fromUserId; // 支払った相手（＝精算相手）
+    // 🌟 まとめ精算は複数取引（transactionIds）／単発は1件（transactionId）
+    const isBatch = Array.isArray(req.transactionIds) && req.transactionIds.length > 0;
+    const ids = isBatch ? req.transactionIds : (req.transactionId ? [req.transactionId] : []);
+    if (ids.length === 0) { await updateDoc(doc(db, "notifications", req.id), { isRead: true }); return; }
+
+    let completed = 0;
+    for (const tid of ids) {
+      try {
+        const t = await getDoc(doc(db, "transactions", tid));
+        if (!t.exists()) continue;
+        const d = t.data();
+        // 単発は「自分が受け取る側（債権者）」だけ承認可（従来通り）。まとめは当事者間なら相互清算OK
+        const ok = isBatch
+          ? ((d.paidById === myUid && d.paidToId === otherUid) || (d.paidById === otherUid && d.paidToId === myUid))
+          : (d.paidToId === myUid);
+        if (!ok) continue;
+        if ((d.status || 'unpaid') !== 'completed') { await updateDoc(doc(db, "transactions", tid), { status: 'completed' }); completed++; }
+        await resolveThreadForTx(myUid, otherUid, tid); // 解決したのでチャットを消す
+      } catch (e) { /* 1件失敗しても他を続ける */ }
     }
-    await updateDoc(doc(db, "transactions", req.transactionId), { status: 'completed' });
-    await addDoc(collection(db, "notifications"), {
-      toUserId: req.fromUserId, type: 'payment_completed',
-      message: '支払いが承認され、精算が完了しました。',
-      transactionId: req.transactionId,
-      fromUserId: myUid, fromUserName: await getMyName(),
-      isRead: false, createdAt: serverTimestamp(),
-    });
-    await logApprovalBoth({ myUid, myName: await getMyName(), otherUid: req.fromUserId, otherName: req.fromUserName, kind: 'payment', outcome: 'approved', itemName: req.itemName || '', amount: req.amount || 0 });
-    await resolveThreadForTx(myUid, req.fromUserId, req.transactionId); // 解決したのでチャットを消す
+
+    // 実際に完了できた取引があるときだけ、完了通知・履歴・ゴミ箱控えを作る
+    if (completed > 0) {
+      const myName = await getMyName();
+      await addDoc(collection(db, "notifications"), {
+        toUserId: otherUid, type: 'payment_completed',
+        message: isBatch ? `${completed}件の精算が承認され、完了しました。` : '支払いが承認され、精算が完了しました。',
+        transactionId: req.transactionId || null,
+        fromUserId: myUid, fromUserName: myName,
+        isRead: false, createdAt: serverTimestamp(),
+      });
+      // まとめ承認は「間違えたとき用」に共有ゴミ箱へ（7日以内なら未精算に戻せる）
+      if (isBatch) {
+        try {
+          await addDoc(collection(db, "trash"), {
+            type: 'settlement', participants: [myUid, otherUid],
+            createdBy: myUid, createdByName: myName,
+            trashedAt: serverTimestamp(), status: 'trashed', eventId: null,
+            eventName: `${req.fromUserName || '相手'}との精算`, historyId: null,
+            itemName: `${req.fromUserName || '相手'}との精算`, amount: req.amount || 0,
+            transactionIds: ids, counterparties: [{ uid: otherUid, name: req.fromUserName || '相手' }],
+          });
+        } catch (e) { console.error('ゴミ箱への記録に失敗:', e); }
+      }
+      await logApprovalBoth({ myUid, myName, otherUid, otherName: req.fromUserName, kind: 'payment', outcome: 'approved', itemName: req.itemName || '', amount: req.amount || 0 });
+    }
     await updateDoc(doc(db, "notifications", req.id), { isRead: true });
   } catch (e) { console.error("支払い承認エラー:", e); } finally { acting.value = false; }
 };
 
 // 🌟 支払いの承認リクエストを「拒否」＝未払いに戻して相手へ通知（相手は再リクエスト可）
 const rejectTx = (req) => {
-  askConfirm('支払いを拒否しますか？', 'この支払いは未払いに戻り、相手に通知が届きます（相手は再度お支払い手続きができます）。', async () => {
+  askConfirm('支払いを拒否しますか？', 'この精算は未払いに戻り、相手に通知が届きます（相手は再度お支払い手続きができます）。', async () => {
     try {
       const myUid = auth.currentUser?.uid;
-      if (!myUid || !req.transactionId) return;
-      await updateDoc(doc(db, "transactions", req.transactionId), { status: 'unpaid' });
+      if (!myUid) return;
+      const ids = Array.isArray(req.transactionIds) && req.transactionIds.length ? req.transactionIds : (req.transactionId ? [req.transactionId] : []);
+      for (const tid of ids) { try { await updateDoc(doc(db, "transactions", tid), { status: 'unpaid' }); } catch (e) { /* 続行 */ } }
       await addDoc(collection(db, "notifications"), {
         toUserId: req.fromUserId, type: 'approval_rejected',
-        message: '承認リクエストが拒否されました。もう一度お支払い手続きをしてください。',
-        transactionId: req.transactionId,
+        message: ids.length > 1 ? 'まとめ精算の承認リクエストが拒否されました。もう一度お手続きできます。' : '承認リクエストが拒否されました。もう一度お支払い手続きをしてください。',
+        transactionId: req.transactionId || null,
         fromUserId: myUid, fromUserName: await getMyName(),
         isRead: false, createdAt: serverTimestamp(),
       });
