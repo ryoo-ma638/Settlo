@@ -18,8 +18,8 @@
   
         <footer class="footer-actions">
           <h3 class="section-sub">手渡しの場合</h3>
-          <button class="method-btn cash" @click="confirmCash">
-            {{ isRemind ? '現金で受け取った (承認リクエスト)' : '現金で支払った (承認リクエスト)' }}
+          <button class="method-btn cash" :disabled="settling" @click="confirmCash">
+            {{ isRemind ? '現金で受け取った（精算を完了）' : '現金で支払った（相手に承認を依頼）' }}
           </button>
         </footer>
       </main>
@@ -44,7 +44,7 @@
   import { computed, reactive, ref } from 'vue'; // 🌟 reactiveを追加
   import { useRoute, useRouter } from 'vue-router';
   import { db, auth } from '@/firebase';
-  import { collection, query, where, getDocs, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+  import { collection, query, where, getDocs, getDoc, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
   import PayPayAction from '../components/PayPayAction.vue';
   import BaseModal from '../components/BaseModal.vue';
   import PageHeader from '../components/PageHeader.vue';
@@ -80,8 +80,8 @@
       type: 'warning',
       title: '現金で精算',
       message: isRemind.value
-        ? "この相手との貸し借りを現金で受け取って精算しますか？\nこの相手との未決済をすべて「完了」にします。"
-        : "この相手との貸し借りを現金で支払って精算しますか？\nこの相手との未決済をすべて「完了」にします。",
+        ? "現金を受け取りましたか？\n選んだ取引をまとめて「完了」にします。"
+        : "現金を支払いましたか？\n相手に承認をお願いし、相手が承認すると「完了」になります。",
       showCancel: true,
       confirmText: isRemind.value ? '受け取った' : '支払った',
       withReason: true,
@@ -96,62 +96,116 @@
             showModal({ type: 'error', title: 'エラー', message: '相手の情報が取得できませんでした。' });
             return;
           }
-          // この相手との未決済取引（両方向）をすべて完了にする＝ネット精算
-          const ids = new Set();
-          const s1 = await getDocs(query(collection(db, "transactions"), where("paidToId", "==", myUid)));
-          s1.forEach((d) => { const t = d.data(); if (t.paidById === friendUid && (t.status || 'unpaid') !== 'completed') ids.add(d.id); });
-          const s2 = await getDocs(query(collection(db, "transactions"), where("paidById", "==", myUid)));
-          s2.forEach((d) => { const t = d.data(); if (t.paidToId === friendUid && (t.status || 'unpaid') !== 'completed') ids.add(d.id); });
+          const friendName = route.params.name || '相手';
+          const myName = auth.currentUser?.displayName || 'メンバー';
 
-          const txIds = [...ids];
-          for (const id of txIds) {
-            await updateDoc(doc(db, "transactions", id), { status: 'completed' });
-            await resolveThreadForTx(myUid, friendUid, id); // 解決したのでチャットを消す
+          // 🌟 精算対象の取引ID＝前画面で「含める」を選んだものだけ（＝除外を反映）
+          let ids = String(route.query.ids || '').split(',').map((s) => s.trim()).filter(Boolean);
+          // フォールバック：ids未指定（古いリンク等）は相手との未決済を全件
+          if (ids.length === 0) {
+            const set = new Set();
+            const s1 = await getDocs(query(collection(db, "transactions"), where("paidToId", "==", myUid)));
+            s1.forEach((d) => { const t = d.data(); if (t.paidById === friendUid && (t.status || 'unpaid') !== 'completed') set.add(d.id); });
+            const s2 = await getDocs(query(collection(db, "transactions"), where("paidById", "==", myUid)));
+            s2.forEach((d) => { const t = d.data(); if (t.paidToId === friendUid && (t.status || 'unpaid') !== 'completed') set.add(d.id); });
+            ids = [...set];
+          }
+          // 検証：当事者間の未完了取引だけに絞る（不正なIDや完了済みを除外）＋向きを記録
+          //   iOwe=true … 自分が払う（paidById===自分）／false … 相手が自分に払う（paidToId===自分）
+          const valid = [];
+          for (const id of ids) {
+            try {
+              const snap = await getDoc(doc(db, "transactions", id));
+              if (!snap.exists()) continue;
+              const t = snap.data();
+              const iOwe = t.paidById === myUid && t.paidToId === friendUid;
+              const owedToMe = t.paidById === friendUid && t.paidToId === myUid;
+              if ((iOwe || owedToMe) && (t.status || 'unpaid') !== 'completed') valid.push({ id, iOwe });
+            } catch (e) { /* 取得できないIDはスキップ */ }
+          }
+          if (valid.length === 0) {
+            showModal({ type: 'info', title: '対象がありません', message: '精算できる未決済の取引が見つかりませんでした。' });
+            return;
           }
 
-          // 🌟 相手へ「精算が完了しました」を届ける
-          if (txIds.length > 0) {
+          // 「間違えたとき用」に共有ゴミ箱へ控える（7日以内なら未精算に戻せる）共通ヘルパー
+          const recordTrash = async (txIds) => {
+            if (!txIds.length) return;
             try {
-              await addDoc(collection(db, "notifications"), {
-                toUserId: friendUid,
-                fromUserId: myUid,
-                fromUserName: auth.currentUser?.displayName || 'メンバー',
-                type: 'payment_completed',
-                message: `${ids.size}件の取引がまとめて精算されました。`,
-                userMessage: reason || null,
-                isRead: false,
-                createdAt: serverTimestamp(),
-              });
-            } catch (e) { console.error('完了通知の送信に失敗:', e); }
-          }
-
-          // 🗑️ 間違えて精算した時のために、7日間はゴミ箱から「未精算に戻す」ことができるように（両当事者が見られる共有ゴミ箱）
-          if (txIds.length > 0) {
-            try {
-              const friendName = route.params.name || '相手';
               await addDoc(collection(db, "trash"), {
-                type: 'settlement',
-                participants: [myUid, friendUid],
-                createdBy: myUid,
-                createdByName: auth.currentUser?.displayName || 'メンバー',
-                trashedAt: serverTimestamp(),
-                status: 'trashed',
-                eventId: null,
-                eventName: `${friendName}との精算`,
-                historyId: null,
-                itemName: `${friendName}との精算`,
-                amount: Number(route.query.amount) || 0,
-                transactionIds: txIds,
-                counterparties: [{ uid: friendUid, name: friendName }],
+                type: 'settlement', participants: [myUid, friendUid],
+                createdBy: myUid, createdByName: myName,
+                trashedAt: serverTimestamp(), status: 'trashed',
+                eventId: null, eventName: `${friendName}との精算`, historyId: null,
+                itemName: `${friendName}との精算`, amount: Number(route.query.amount) || 0,
+                transactionIds: txIds, counterparties: [{ uid: friendUid, name: friendName }],
               });
             } catch (e) { console.error('ゴミ箱への記録に失敗:', e); }
-          }
+          };
 
-          showModal({
-            type: 'success', title: '精算完了',
-            message: `${ids.size}件の取引を完了にしました！（ゴミ箱から7日以内なら戻せます）`,
-            onConfirm: () => router.push('/')
-          });
+          if (isRemind.value) {
+            // ■ 自分が受け取る側＝現金を受け取った本人が確認するので、選んだ取引をその場で完了にする
+            const done = valid.map((v) => v.id);
+            for (const id of done) {
+              await updateDoc(doc(db, "transactions", id), { status: 'completed' });
+              await resolveThreadForTx(myUid, friendUid, id); // 解決したのでチャットを消す
+            }
+            try {
+              await addDoc(collection(db, "notifications"), {
+                toUserId: friendUid, fromUserId: myUid, fromUserName: myName,
+                type: 'payment_completed',
+                message: `${done.length}件の取引がまとめて精算されました。`,
+                userMessage: reason || null,
+                isRead: false, createdAt: serverTimestamp(),
+              });
+            } catch (e) { console.error('完了通知の送信に失敗:', e); }
+            await recordTrash(done);
+            showModal({
+              type: 'success', title: '精算完了',
+              message: `${done.length}件の取引を完了にしました！（ゴミ箱から7日以内なら戻せます）`,
+              onConfirm: () => router.push('/')
+            });
+          } else {
+            // ■ 自分が支払う側＝
+            //   ・自分が債権者の分（相手→自分）は受領扱いで即完了（自分の権限）
+            //   ・自分が債務者の分（自分→相手）は相手の承認待ちにして、まとめ承認リクエストを送る
+            const iOweIds = valid.filter((v) => v.iOwe).map((v) => v.id);
+            const owedToMeIds = valid.filter((v) => !v.iOwe).map((v) => v.id);
+            for (const id of owedToMeIds) {
+              await updateDoc(doc(db, "transactions", id), { status: 'completed' });
+              await resolveThreadForTx(myUid, friendUid, id);
+            }
+            if (owedToMeIds.length) await recordTrash(owedToMeIds);
+            for (const id of iOweIds) {
+              await updateDoc(doc(db, "transactions", id), { status: 'awaiting_approval' });
+            }
+            if (iOweIds.length) {
+              try {
+                await addDoc(collection(db, "notifications"), {
+                  toUserId: friendUid, fromUserId: myUid, fromUserName: myName,
+                  type: 'approval_request',
+                  batch: true, transactionIds: iOweIds, count: iOweIds.length,
+                  itemName: `${friendName}との精算`,
+                  amount: Number(route.query.amount) || 0,
+                  message: 'まとめて精算の承認リクエストが届きました。',
+                  userMessage: reason || null,
+                  isRead: false, createdAt: serverTimestamp(),
+                });
+              } catch (e) { console.error('承認リクエストの送信に失敗:', e); }
+              showModal({
+                type: 'success', title: '承認待ちにしました',
+                message: `${iOweIds.length}件の精算リクエストを送信しました。相手が承認すると完了します。`,
+                onConfirm: () => router.push('/')
+              });
+            } else {
+              // すべて「相手が自分に払う」分だった＝実質その場で完了
+              showModal({
+                type: 'success', title: '精算完了',
+                message: `${owedToMeIds.length}件の取引を完了にしました！（ゴミ箱から7日以内なら戻せます）`,
+                onConfirm: () => router.push('/')
+              });
+            }
+          }
         } catch (e) {
           console.error("精算エラー:", e);
           showModal({ type: 'error', title: 'エラー', message: '精算に失敗しました。電波状況を確認してください。' });
@@ -200,6 +254,7 @@
 
 .section-sub { font-size: 15px; font-weight: var(--fw-bold); margin: 18px 0 10px; color: var(--c-ink); }
 .method-btn { width: 100%; padding: 16px; border-radius: var(--r-md); border: none; font-weight: var(--fw-bold); font-size: 16px; cursor: pointer; }
+.method-btn:disabled { opacity: 0.5; cursor: default; }
 .cash { background-color: var(--c-brand); color: white; }
 .paypay { background-color: var(--c-paypay); color: white; }
 .footer-actions { margin-top: 26px; }
