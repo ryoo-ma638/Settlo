@@ -3,6 +3,19 @@
     <PageHeader title="承認待ち" fallback="/" />
 
     <main class="pend__body">
+      <!-- 催促されている支払い（強調・一番上） -->
+      <section v-if="reminded.length" class="pend__sec">
+        <h2 class="pend__title pend__title--alert">催促されています</h2>
+        <button v-for="t in reminded" :key="t.id" class="prow prow--alert" @click="openTx(t)">
+          <span class="prow__badge prow__badge--remind">催促{{ t.remindCount }}回</span>
+          <span class="prow__main">
+            <span class="prow__name">{{ t.opponentName }}さんへの支払い</span>
+            <span class="prow__sub">{{ t.label }}</span>
+          </span>
+          <span class="prow__amt tnum">¥{{ (t.amount || 0).toLocaleString() }}</span>
+        </button>
+      </section>
+
       <!-- あなたの承認待ち（相手が「支払った」と申請中・あなたが承認する） -->
       <section class="pend__sec">
         <h2 class="pend__title">あなたの承認待ち</h2>
@@ -56,6 +69,7 @@ const router = useRouter();
 const myUid = auth.currentUser?.uid || '';
 const toApprove = ref([]);   // 自分が承認する
 const waitingOther = ref([]); // 相手の承認待ち
+const reminded = ref([]);     // 自分が催促されている（早く払ってと促されている）
 const history = ref([]);
 const unsubs = [];
 
@@ -105,9 +119,18 @@ onMounted(() => {
   unsubs.push(onSnapshot(query(collection(db, 'transactions'), where('paidToId', '==', myUid)), async (snap) => {
     toApprove.value = await buildList(snap.docs, 'paidById');
   }, () => {}));
-  // 自分が支払う側＝相手の承認待ち
+  // 自分が支払う側＝「相手の承認待ち」と「催促されている（未払いで催促あり）」の両方を作る
   unsubs.push(onSnapshot(query(collection(db, 'transactions'), where('paidById', '==', myUid)), async (snap) => {
-    waitingOther.value = await buildList(snap.docs, 'paidToId');
+    const waiting = [], rem = [];
+    for (const d of snap.docs) {
+      const data = d.data();
+      if (data.status === 'completed') continue;
+      const base = { id: d.id, ...data, label: labelOf(data), opponentName: await resolveName(data.paidToId) };
+      if (data.status === 'awaiting_approval') waiting.push(base);
+      if ((data.remindCount || 0) > 0 && data.status === 'unpaid') rem.push(base);
+    }
+    waitingOther.value = waiting.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    reminded.value = rem.sort((a, b) => (b.lastRemindedAt?.seconds || 0) - (a.lastRemindedAt?.seconds || 0));
   }, () => {}));
   // 承認・拒否の履歴
   unsubs.push(onSnapshot(query(collection(db, 'approvalHistory'), where('userId', '==', myUid)), (snap) => {
@@ -133,6 +156,10 @@ onUnmounted(() => { unsubs.forEach((u) => u && u()); });
 .prow__badge { flex-shrink: 0; font-size: 10px; font-weight: var(--fw-black); padding: 3px 8px; border-radius: 999px; }
 .prow__badge--wait { background: var(--c-pay-weak, #fffbeb); color: var(--c-pay-strong); }
 .prow__badge--sent { background: var(--c-brand-weak); color: var(--c-brand); }
+.prow__badge--remind { background: var(--c-danger); color: #fff; }
+.pend__title--alert { color: var(--c-danger); }
+.prow--alert { background: var(--c-danger-weak); border-left: 4px solid var(--c-danger); }
+.prow--alert:active { background: #fde8e8; }
 .prow__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .prow__name { font-size: 14px; font-weight: var(--fw-bold); color: var(--c-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prow__sub { font-size: 12px; color: var(--c-text-sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
