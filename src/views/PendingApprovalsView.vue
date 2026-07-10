@@ -90,6 +90,7 @@ const buildList = async (docs, opponentField) => {
   for (const d of docs) {
     const data = d.data();
     if (data.status !== 'awaiting_approval') continue;
+    if (!data[opponentField]) continue; // 相手UIDが無い不正データは出さない
     out.push({ id: d.id, ...data, label: labelOf(data), opponentName: await resolveName(data[opponentField]) });
   }
   return out.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
@@ -125,6 +126,7 @@ onMounted(() => {
     for (const d of snap.docs) {
       const data = d.data();
       if (data.status === 'completed') continue;
+      if (!data.paidToId) continue; // 相手UIDが無い不正データは出さない
       const base = { id: d.id, ...data, label: labelOf(data), opponentName: await resolveName(data.paidToId) };
       if (data.status === 'awaiting_approval') waiting.push(base);
       if ((data.remindCount || 0) > 0 && data.status === 'unpaid') rem.push(base);
