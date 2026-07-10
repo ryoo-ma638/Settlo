@@ -10,10 +10,20 @@
         </transition>
         
         <div class="carousel-wrapper" ref="carousel" @scroll="handleScroll">
-          
-          <div 
+
+          <!-- 読み込み中スケルトン（データが届くまでカードの形だけ見せる） -->
+          <template v-if="loading">
+            <div v-for="n in 3" :key="'sk' + n" class="status-card white-bg">
+              <div class="skeleton skeleton--text" style="width:50%;height:13px;margin:0 auto 16px"></div>
+              <div class="skeleton skeleton--text" style="width:62%;height:34px;margin:0 auto 20px;border-radius:10px"></div>
+              <div class="skeleton" style="height:44px;border-radius:12px"></div>
+            </div>
+          </template>
+
+          <template v-else>
+          <div
             class="status-card detail-card blue-bg clickable-card"
-            @click="handleCardClick(0, '/payment?tab=waiting')" 
+            @click="handleCardClick(0, '/payment?tab=waiting')"
           > <div class="card-main">
               <span class="detail-label">お支払い待ち（受け取る）</span>
               <div class="price-large">¥{{ summary.receivableTotal.toLocaleString() }}</div>
@@ -93,9 +103,10 @@
               >他 {{ summary.payableList.length - 2 }} 件をすべて見る</button>
             </div>
           </div>
-  
+          </template>
+
         </div>
-  
+
         <transition name="fade">
           <button v-show="currentCard < 2" class="nav-arrow right-arrow" @click="scrollCarousel(1)">
             <span class="chevron right"></span>
@@ -110,9 +121,8 @@
   </template>
   
   <script setup>
-  import { ref, onMounted } from 'vue';
+  import { ref, onMounted, watch, nextTick, computed } from 'vue';
   import { useRouter } from 'vue-router';
-  import { computed } from 'vue'; // 合計や収支を計算するために追加
   
   const router = useRouter();
   const currentCard = ref(1);
@@ -130,7 +140,8 @@ const props = defineProps({
       receivableList: [],
       payableList: []
     })
-  }
+  },
+  loading: { type: Boolean, default: false } // 初回読込中はスケルトンを出す
 });
 
   // 🌟 データにIDを追加し、個別ページへ飛べるように修正
@@ -199,14 +210,17 @@ const props = defineProps({
     }
   };
   
-  onMounted(() => {
-    setTimeout(() => {
-      if (carousel.value) {
-        const cardWidth = carousel.value.children[0].offsetWidth;
-        const gap = window.innerWidth * 0.04;
-        carousel.value.scrollLeft = cardWidth + gap;
-      }
-    }, 100);
+  const centerToMiddle = () => {
+    if (carousel.value && carousel.value.children[0]) {
+      const cardWidth = carousel.value.children[0].offsetWidth;
+      const gap = window.innerWidth * 0.04;
+      carousel.value.scrollLeft = cardWidth + gap;
+    }
+  };
+  onMounted(() => { setTimeout(centerToMiddle, 100); });
+  // スケルトン→実データに切り替わったら中央カードへ戻す（差し替えでスクロールがリセットされるため）
+  watch(() => props.loading, (isLoading) => {
+    if (!isLoading) nextTick(() => setTimeout(centerToMiddle, 50));
   });
   </script>
   

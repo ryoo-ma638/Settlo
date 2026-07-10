@@ -48,7 +48,7 @@
 - [x] **(a) 基盤統一 第3弾**（PR#149）… グレーの二重系統を解消（slate系→トークン・新トークン2つ）／空状態の絵文字→ラインSVG／モーダル暗幕の色を `var(--c-overlay)` に一本化。
 - [ ] **(a) 仕上げ 第4弾以降**（見た目・挙動が変わる＝**実機確認とセット**で進める）:
   - [x] **非同期ボタンの二重送信ガード（お金の二重計上防止）**（2026-07-10・PR#189）… 取引を作成/再作成する経路を最優先で保護。支払い追加（AddPaymentModal→addHistory・両層ロック）／ゴミ箱からの支払い復元（TrashView.handleConfirm）／まとめ精算（CombinedActionView.confirmCash）／決済完了（doMarkAsCompleted）／お知らせの承認・拒否・受諾（NotificationIcon: approveTx/acceptInvite/approveRestore/acceptRequest＋doConfirm）／招待コード参加（joinEvent）。※既にPaymentDetailView・ThreadViewはガード済みだった。残: judgeOk直下のconfirmRestoreOk（冪等・無害）は対象外。
-  - [ ] 読込状態（スケルトン）の追加（MoneyPage/FriendView/PaymentHistory/Trash/PaymentCarousel）
+  - [x] **読込状態（スケルトン）の追加**（2026-07-10・PR#192）… 共通の `.skeleton`（シマー）を main.css に追加＋再利用部品 `SkeletonRows.vue`（アバター＋2行＋金額）。MoneyPage/FriendView/PaymentHistory は行スケルトン、Trash/PaymentCarousel はカードスケルトン。各画面に `loading` フラグ（初回スナップショットで解除）を入れ、読込中に空状態（「ありません」）が一瞬出るのを解消。
   - 共有モーダルシェル（BaseSheet）で暗幕・z-index・×閉じるを部品として一本化
   - ボタン/入力/トグルを共通クラス（.btn-brand 等）へ寄せる
   - `.section-title`/`.empty-box`/影の単一ソース化・外周余白を `.screen` に一本化
