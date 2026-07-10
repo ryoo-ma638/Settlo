@@ -61,10 +61,10 @@
         </section>
   
         <footer class="footer-actions">
-          <button v-if="netBalance >= 0" class="main-btn blue-btn" @click="goToActionPage('remind')">
+          <button v-if="netBalance >= 0" class="main-btn blue-btn" :disabled="!hasIncluded" @click="goToActionPage('remind')">
             ¥{{ Math.abs(netBalance).toLocaleString() }} をまとめて催促する
           </button>
-          <button v-else class="main-btn orange-btn" @click="goToActionPage('pay')">
+          <button v-else class="main-btn orange-btn" :disabled="!hasIncluded" @click="goToActionPage('pay')">
             ¥{{ Math.abs(netBalance).toLocaleString() }} をまとめて支払う
           </button>
         </footer>
@@ -89,6 +89,7 @@
   import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore'; // Firestore 用
   import PaymentReceipt from '../components/PaymentReceipt.vue'; // 🌟 コンポーネントをインポート
   import PageHeader from '../components/PageHeader.vue';
+  import { showToast } from '@/lib/toast';
   
   const route = useRoute();
   const router = useRouter();
@@ -153,6 +154,8 @@ onMounted(async () => {
   const waitingTotal = computed(() => allEvents.value.filter(e => e.type === 'waiting' && e.included).reduce((sum, e) => sum + e.amount, 0));
   const unpaidTotal = computed(() => allEvents.value.filter(e => e.type === 'pay' && e.included).reduce((sum, e) => sum + e.amount, 0));
   const netBalance = computed(() => waitingTotal.value - unpaidTotal.value);
+  // 精算対象（含める取引）が1件でもあるか。無ければ精算ボタンを無効化する
+  const hasIncluded = computed(() => allEvents.value.some(e => e.included));
   
   // 🌟 絞り込み機能
   const filterType = ref('all'); // 'all', 'waiting', 'pay'
@@ -175,7 +178,7 @@ onMounted(async () => {
   const goToActionPage = (actionType) => {
     const ids = allEvents.value.filter(e => e.included).map(e => e.id);
     if (ids.length === 0) {
-      alert('精算する取引がありません。除外を見直してください。');
+      showToast('精算する取引がありません。除外を見直してください');
       return;
     }
     const q = new URLSearchParams({
@@ -225,6 +228,7 @@ onMounted(async () => {
   .price { font-weight: bold; }
   
   .main-btn { width: 100%; padding: 18px; border-radius: 18px; border: none; font-weight: bold; font-size: 16px; color: white; cursor: pointer; margin-top: 20px; }
+  .main-btn:disabled { opacity: 0.45; cursor: default; }
   .blue-btn { background: var(--c-receive); }
   .orange-btn { background: var(--c-pay); }
   .close-btn { background: var(--c-surface-2); color: var(--c-text-sub); }

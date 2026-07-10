@@ -80,6 +80,7 @@ import { ref, onMounted } from "vue";
 import { doc, getDoc } from "firebase/firestore";
 import api from "../services/api";
 import PageHeader from "../components/PageHeader.vue";
+import { showToast } from "../lib/toast";
 
 const router = useRouter();
 const userName = ref("読み込み中...");
@@ -90,10 +91,10 @@ const copyMyId = async () => {
   if (!userUid.value) return;
   try {
     await navigator.clipboard.writeText(userUid.value);
-    alert("IDをコピーしました！: " + userUid.value);
+    showToast("IDをコピーしました");
   } catch (err) {
     console.error("コピーに失敗しました", err);
-    alert("コピーに失敗しました。");
+    showToast("コピーに失敗しました。もう一度お試しください");
   }
 };
 
