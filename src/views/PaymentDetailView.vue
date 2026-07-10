@@ -10,6 +10,7 @@
           <p class="summary-label">{{ modeLabel }}</p>
           <h2 class="total-amount">¥{{ totalAmount.toLocaleString() }}</h2>
           <p v-if="isBatch" class="count-badge">内訳: {{ items.length }}件</p>
+          <p v-if="remindCount > 0" class="remind-status">催促 {{ remindCount }}回 送信済み<template v-if="lastRemindedText">・最終 {{ lastRemindedText }}</template></p>
         </div>
 
         <PaymentReceipt v-if="!isBatch" :item="items[0]" />
@@ -163,6 +164,14 @@ const opponentName = computed(() => items.value[0]?.name || '相手');
 // 催促の送信回数（再送の確認や表示に使う）
 const remindCount = computed(() => Math.max(0, ...items.value.map(i => i.remindCount || 0), 0));
 const alreadyReminded = computed(() => remindCount.value > 0);
+// 催促の最終送信日（立替履歴からの詳細でも催促状況が分かるように）
+const lastRemindedText = computed(() => {
+  let latest = 0;
+  for (const it of items.value) { const s = it.lastRemindedAt?.seconds || 0; if (s > latest) latest = s; }
+  if (!latest) return '';
+  const d = new Date(latest * 1000);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+});
 
 const pageTitle = computed(() => {
   if (mode.value === 'remind') {
@@ -222,6 +231,7 @@ onMounted(async () => {
           itemName: data.itemName || 'イベント代',
           amount: data.amount || 0,
           remindCount: data.remindCount || 0,
+          lastRemindedAt: data.lastRemindedAt || null,
           itemsDetail: data.itemsDetail || [data.itemName]
         });
       }
@@ -256,6 +266,7 @@ onMounted(async () => {
           itemName: data.itemName,
           amount: data.amount || 0,
           remindCount: data.remindCount || 0,
+          lastRemindedAt: data.lastRemindedAt || null,
           itemsDetail: data.itemsDetail || [data.itemName]
         }];
       }
@@ -503,6 +514,7 @@ const confirmCash = () => {
 .blue-mode { background: var(--c-receive); }
 .orange-mode { background: var(--c-pay); }
 .total-amount { font-size: 36px; font-weight: bold; margin: 5px 0; }
+.remind-status { display: inline-block; margin-top: 8px; padding: 4px 12px; border-radius: 999px; background: rgba(255,255,255,0.22); font-size: 12px; font-weight: 800; }
 .section-sub { font-size: 16px; font-weight: bold; color: var(--c-text); margin: 20px 0 10px; text-align: left; }
 .footer-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 30px; }
 .method-btn { width: 100%; padding: 15px; border-radius: 14px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
