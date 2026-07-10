@@ -59,7 +59,7 @@ import {
 } from 'firebase/firestore';
 import { computed } from 'vue';
 import PageHeader from '../components/PageHeader.vue';
-import { ensureThread } from '@/lib/thread';
+import { ensureThread, resolveThreadForTx } from '@/lib/thread';
 import { logApprovalBoth } from '@/lib/approvalLog';
 
 // クイック返信の定型文
@@ -124,6 +124,7 @@ const approveTx = async () => {
     }
     await clearApprovalNotif();
     await logApprovalBoth({ myUid, myName: myName.value, otherUid: otherUid.value, otherName: otherName.value, kind: 'payment', outcome: 'approved', itemName: txData.value?.itemName || '', amount: txData.value?.amount || 0 });
+    await resolveThreadForTx(myUid, otherUid.value, txId); // 解決したのでチャットを消す
   } catch (e) { console.error('承認エラー:', e); }
   finally { approving.value = false; }
 };
