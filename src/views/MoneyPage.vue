@@ -6,14 +6,14 @@
 
     <div class="money__body">
       <div class="seg">
-        <button class="seg__item" :class="{ 'is-active': currentTab === 'waiting' }" @click="currentTab = 'waiting'">入金待ち</button>
+        <button class="seg__item" :class="{ 'is-active': currentTab === 'waiting' }" @click="currentTab = 'waiting'">お支払い待ち</button>
         <button class="seg__item" :class="{ 'is-active': currentTab === 'unpaid' }" @click="currentTab = 'unpaid'">未払い</button>
       </div>
 
       <!-- 入金待ち -->
       <div v-if="currentTab === 'waiting'">
         <div class="summary summary--receive">
-          <p class="summary__label">現在の入金待ち</p>
+          <p class="summary__label">現在のお支払い待ち</p>
           <div class="summary__amount tnum">¥{{ totalReceivable.toLocaleString() }}</div>
           <span class="summary__badge">{{ receivableList.length }}件</span>
         </div>
@@ -39,10 +39,10 @@
           </div>
         </template>
 
-        <h2 class="money__section">入金待ち詳細</h2>
+        <h2 class="money__section">お支払い待ち詳細</h2>
         <div class="stack">
           <SkeletonRows v-if="loading" :rows="4" />
-          <div v-else-if="receivableUnpaid.length === 0" class="empty-box">入金待ちはありません</div>
+          <div v-else-if="receivableUnpaid.length === 0" class="empty-box">お支払い待ちはありません</div>
           <div v-for="item in receivableUnpaid" :key="item.id" class="trow" @click="$router.push('/payment-detail/waiting-' + item.id)">
             <div class="trow__avatar">
               <img v-if="item.photo" :src="item.photo" />
@@ -287,7 +287,7 @@ watch(() => route.query.tab, (newTab) => {
 })
 
 // 取引ステータスの表示ラベル
-const txStatusLabel = (s) => s === 'awaiting_approval' ? '承認待ち' : (s === 'completed' ? '完了' : '未決済');
+const txStatusLabel = (s) => s === 'awaiting_approval' ? '承認待ち' : (s === 'completed' ? '精算済み' : '未払い');
 
 // 🌟 補助関数：FirestoreのTimestampを「3/12」形式に変換
 const formatTimestamp = (timestamp) => {
