@@ -164,7 +164,16 @@ const askConfirm = (title, message, onConfirm, opts = {}) => {
     onConfirm, show: true,
   });
 };
-const handleConfirm = (reason) => { const cb = alertState.onConfirm; alertState.show = false; if (cb) cb(reason); };
+// 🌟 確認モーダルの「確定」連打を防ぐ（復元＝取引の再作成が二重に走るのを防ぐ）
+const restoreBusy = ref(false);
+const handleConfirm = async (reason) => {
+  if (restoreBusy.value) return;
+  const cb = alertState.onConfirm;
+  alertState.show = false;
+  if (!cb) return;
+  restoreBusy.value = true;
+  try { await cb(reason); } finally { restoreBusy.value = false; }
+};
 
 // ---- イベントを元に戻す（相手が「正しくない」を選ぶとゴミ箱に戻る） ----
 // 復元は確認＋任意の理由つき（相手/参加者へ「正しいですか？」の判断が飛ぶため）

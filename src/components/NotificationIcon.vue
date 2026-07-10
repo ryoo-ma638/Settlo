@@ -328,11 +328,22 @@ const notice = (type, title, message) => { Object.assign(modalState, { type, tit
 
 // 招待の拒否時の二段階確認ダイアログ
 const confirmState = reactive({ show: false, title: '', message: '', onConfirm: null, withReason: false, reasonPlaceholder: '' });
+const acting = ref(false); // 🌟 承認/拒否/判断ボタンの二重送信ガード（重複通知・重複履歴を防ぐ）
 const askConfirm = (title, message, onConfirm, opts = {}) => { Object.assign(confirmState, { title, message, onConfirm, withReason: !!opts.withReason, reasonPlaceholder: opts.reasonPlaceholder || 'なぜそう思うか書けます（任意・相手に届きます）', show: true }); };
-const doConfirm = (reason) => { const cb = confirmState.onConfirm; confirmState.show = false; if (cb) cb(reason); };
+// 🌟 確認モーダルの「確定」連打を防ぐ（拒否・判断NG・再主張などすべてがここを通る）
+const doConfirm = async (reason) => {
+  if (acting.value) return;
+  const cb = confirmState.onConfirm;
+  confirmState.show = false;
+  if (!cb) return;
+  acting.value = true;
+  try { await cb(reason); } finally { acting.value = false; }
+};
 
 // 🌟 招待を承認＝自分をイベント参加者に追加＋既存メンバーへ「参加しました」通知
 const acceptInvite = async (req) => {
+  if (acting.value) return; // 🌟 連打で参加通知が重複するのを防ぐ
+  acting.value = true;
   try {
     const myUid = auth.currentUser?.uid;
     if (req.eventId && myUid) {
@@ -363,7 +374,7 @@ const acceptInvite = async (req) => {
     await updateDoc(doc(db, "notifications", req.id), { isRead: true });
     showModal.value = false;
     if (req.eventId) router.push(`/event/${req.eventId}`);
-  } catch (e) { console.error("招待承認エラー:", e); }
+  } catch (e) { console.error("招待承認エラー:", e); } finally { acting.value = false; }
 };
 
 // 🌟 招待を拒否＝二段階確認 → 招待した人へ「拒否された」通知
@@ -398,6 +409,8 @@ const getMyName = async () => {
 
 // 🌟 支払いの承認リクエストを「承認」＝取引を完了にして相手へ完了通知
 const approveTx = async (req) => {
+  if (acting.value) return; // 🌟 連打で「精算完了」通知・承認履歴が重複するのを防ぐ
+  acting.value = true;
   try {
     const myUid = auth.currentUser?.uid;
     if (!myUid || !req.transactionId) return;
@@ -417,7 +430,7 @@ const approveTx = async (req) => {
     await logApprovalBoth({ myUid, myName: await getMyName(), otherUid: req.fromUserId, otherName: req.fromUserName, kind: 'payment', outcome: 'approved', itemName: req.itemName || '', amount: req.amount || 0 });
     await resolveThreadForTx(myUid, req.fromUserId, req.transactionId); // 解決したのでチャットを消す
     await updateDoc(doc(db, "notifications", req.id), { isRead: true });
-  } catch (e) { console.error("支払い承認エラー:", e); }
+  } catch (e) { console.error("支払い承認エラー:", e); } finally { acting.value = false; }
 };
 
 // 🌟 支払いの承認リクエストを「拒否」＝未払いに戻して相手へ通知（相手は再リクエスト可）
@@ -442,6 +455,8 @@ const rejectTx = (req) => {
 
 // 🌟 「決済を未精算に戻す」リクエストを承認＝自分が当事者の取引を未精算へ戻す
 const approveRestore = async (req) => {
+  if (acting.value) return; // 🌟 連打で承認通知が重複するのを防ぐ
+  acting.value = true;
   try {
     const myUid = auth.currentUser?.uid;
     for (const tid of (req.transactionIds || [])) {
@@ -465,7 +480,7 @@ const approveRestore = async (req) => {
     // 🌟 共有ゴミ箱の控えを確定（復元完了なので消す）
     if (req.trashId) { try { await deleteDoc(doc(db, "trash", req.trashId)); } catch (e) {} }
     await updateDoc(doc(db, "notifications", req.id), { isRead: true });
-  } catch (e) { console.error("復元承認エラー:", e); }
+  } catch (e) { console.error("復元承認エラー:", e); } finally { acting.value = false; }
 };
 
 // 🌟 「決済を未精算に戻す」リクエストを拒否＝完了のまま・依頼者へ通知
@@ -857,6 +872,8 @@ const judgeNg = (req) => {
 
 const acceptRequest = async (request) => {
   if (!request.id || !request.formId) return;
+  if (acting.value) return; // 🌟 連打でフレンド承認・履歴が重複するのを防ぐ
+  acting.value = true;
   const myUid = auth.currentUser.uid;
   const friendUid = request.formId;
 
@@ -887,6 +904,8 @@ const acceptRequest = async (request) => {
     alert(`${request.formName}さんとフレンドになりました！`);
   } catch (error) {
     console.error("承認エラー:", error);
+  } finally {
+    acting.value = false;
   }
 };
 

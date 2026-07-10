@@ -252,7 +252,7 @@
         <div class="modal-footer">
           <MessageField v-if="editData" v-model="editNote" class="edit-note" label="変更のひとこと（任意）" placeholder="例：金額を打ち間違えたので直しました" />
 
-          <button class="submit-btn" @click="handleSubmit">{{ editData ? 'この内容で保存する' : 'この内容で追加する' }}</button>
+          <button class="submit-btn" :disabled="isSubmitting" @click="handleSubmit">{{ editData ? 'この内容で保存する' : 'この内容で追加する' }}</button>
         </div>
 
       </div>
@@ -398,6 +398,7 @@ const prefillFromEdit = (d) => {
 // 🌟 モーダルを開くたび、編集ならその内容を、新規なら初期状態に
 watch(() => props.isOpen, (open) => {
   if (!open) return;
+  isSubmitting.value = false; // 🌟 再オープン時にガードを解除（コンポーネントは破棄されず残るため）
   if (props.editData) prefillFromEdit(props.editData);
   else resetForm();
 });
@@ -573,6 +574,7 @@ const itemsTotal = computed(() => {
 const remainderBearer = ref(''); // 差額を負担する人の名前（空＝立替者）
 const remainderReason = ref(''); // 差額の理由（任意メモ）
 const editNote = ref(''); // 編集時に相手へ添えるひとこと（任意）
+const isSubmitting = ref(false); // 🌟 二重送信ガード（連打で支払いが二重計上されるのを防ぐ）
 
 // 内訳の合計（割り勘方法に応じて）
 const breakdownTotal = computed(() => {
@@ -695,6 +697,8 @@ const computeShares = () => {
 
 // 🌟 実際の送信処理（モーダルのOKボタンからも呼べるように分けたもの）
 const executeSubmit = () => {
+  if (isSubmitting.value) return; // 🌟 連打による二重送信（＝支払いの二重計上）を防ぐ
+  isSubmitting.value = true;      //    送信後はモーダルが閉じて破棄されるので解除は不要
   console.log("🔥 モーダル内の送信処理を開始"); // 🌟 これが出るか？
   
   // new Date().toLocaleTimeString... の部分でエラーが出ることがあるので
@@ -867,6 +871,7 @@ const executeSubmit = () => {
 .edit-note { margin-bottom: 24px; }
 .submit-btn { width: 100%; background-color: var(--c-brand); color: white; border: none; padding: 18px; border-radius: var(--r-pill); font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 8px 20px rgba(5,150,105,0.25); transition: 0.2s; }
 .submit-btn:active { transform: scale(0.96); }
+.submit-btn:disabled { opacity: 0.5; box-shadow: none; cursor: default; }
 
 .slide-in { animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
 @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
