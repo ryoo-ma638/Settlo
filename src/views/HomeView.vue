@@ -1,6 +1,6 @@
 <template>
   <div class="home">
-    <PaymentCarousel :summary="paymentSummary" />
+    <PaymentCarousel :summary="paymentSummary" :loading="summaryLoading" />
 
     <section class="ongoing">
       <div class="ongoing__head">
@@ -131,6 +131,7 @@ const paymentSummary = ref({
   payableTotal: 0,
   payableList: []
 });
+const summaryLoading = ref(true); // カルーセルの初回読込中は true（スケルトン表示）
 
 // ==========================================
 // 🌟 1. 名前とアイコン取得の効率化（mainブランチの機能）
@@ -230,6 +231,7 @@ onMounted(() => {
         }));
         paymentSummary.value.receivableTotal = total;
         paymentSummary.value.receivableList = list;
+        summaryLoading.value = false; // カルーセルの最初のデータが届いた
       });
 
       // 未払い
@@ -245,7 +247,10 @@ onMounted(() => {
         }));
         paymentSummary.value.payableTotal = total;
         paymentSummary.value.payableList = list;
+        summaryLoading.value = false; // カルーセルの最初のデータが届いた
       });
+    } else {
+      summaryLoading.value = false; // 未ログインなら待たない
     }
   });
 

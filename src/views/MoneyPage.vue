@@ -41,7 +41,8 @@
 
         <h2 class="money__section">入金待ち詳細</h2>
         <div class="stack">
-          <div v-if="receivableUnpaid.length === 0" class="empty-box">入金待ちはありません</div>
+          <SkeletonRows v-if="loading" :rows="4" />
+          <div v-else-if="receivableUnpaid.length === 0" class="empty-box">入金待ちはありません</div>
           <div v-for="item in receivableUnpaid" :key="item.id" class="trow" @click="$router.push('/payment-detail/waiting-' + item.id)">
             <div class="trow__avatar">
               <img v-if="item.photo" :src="item.photo" />
@@ -90,7 +91,8 @@
 
         <h2 class="money__section">支払い詳細</h2>
         <div class="stack">
-          <div v-if="payableUnpaid.length === 0" class="empty-box">未払いはありません</div>
+          <SkeletonRows v-if="loading" :rows="4" />
+          <div v-else-if="payableUnpaid.length === 0" class="empty-box">未払いはありません</div>
           <div v-for="item in payableUnpaid" :key="item.id" class="trow" @click="$router.push('/payment-detail/unpaid-' + item.id)">
             <div class="trow__avatar">
               <img v-if="item.photo" :src="item.photo" />
@@ -119,6 +121,7 @@ import { useRoute } from 'vue-router'
 import { db, auth } from '@/firebase' // 🌟 追加
 import { onAuthStateChanged } from 'firebase/auth' // 🌟 追加
 import { collection, query, where, onSnapshot, doc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore' // 🌟 追加
+import SkeletonRows from '../components/SkeletonRows.vue'
 
 const route = useRoute()
 const currentTab = ref('waiting')
@@ -126,6 +129,7 @@ const currentTab = ref('waiting')
 // --- 🌟 ダミーデータを空にして、Firestoreからの読み込み待ちにする ---
 const receivableList = ref([]) // 入金待ち（自分が受け取る）
 const payableList = ref([])    // 未払い（自分が支払う）
+const loading = ref(true)      // 最初のデータが届くまで true（スケルトン表示用）
 
 // 🌟 合計金額などを表示するための変数
 const totalReceivable = ref(0)
@@ -218,6 +222,7 @@ onMounted(() => {
 
         receivableList.value = list;
         totalReceivable.value = total;
+        loading.value = false; // 最初のスナップショットが届いたらスケルトン解除
       });
 
       // ==========================================
@@ -267,6 +272,7 @@ onMounted(() => {
 
         payableList.value = list;
         totalPayable.value = total;
+        loading.value = false; // 最初のスナップショットが届いたらスケルトン解除
       });
 
     } else {

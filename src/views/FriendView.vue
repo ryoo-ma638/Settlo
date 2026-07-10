@@ -43,15 +43,18 @@
       </div>
 
       <div class="friend__list">
-        <FriendCard
-          v-for="user in processedList"
-          :key="user.id"
-          :user="user"
-          @click="navigateToDetail(user)"
-        />
-        <div v-if="processedList.length === 0" class="empty-box">
-          該当するユーザーがいません
-        </div>
+        <SkeletonRows v-if="loading" :rows="5" :amount="false" />
+        <template v-else>
+          <FriendCard
+            v-for="user in processedList"
+            :key="user.id"
+            :user="user"
+            @click="navigateToDetail(user)"
+          />
+          <div v-if="processedList.length === 0" class="empty-box">
+            該当するユーザーがいません
+          </div>
+        </template>
       </div>
     </main>
 
@@ -95,6 +98,7 @@ import {
 
 import FriendAddModal from '@/components/FriendAddModal.vue';
 import FriendCard from '@/components/FriendCard.vue';
+import SkeletonRows from '@/components/SkeletonRows.vue';
 import FriendApproveModal from '@/components/FriendApproveModal.vue';
 import BaseModal from '@/components/BaseModal.vue';
 
@@ -142,6 +146,7 @@ const addTradingUserToList = async (targetUser) => {
 
 const friendData = ref([]);
 const pendingRequests = ref([]);
+const loading = ref(true); // フレンド一覧の初回読込中は true（スケルトン表示）
 
 onMounted(() => {
   onAuthStateChanged(auth, (user) => {
@@ -172,7 +177,10 @@ onMounted(() => {
             photo: data.photo || data.photoURL || ""
           };
         });
+        loading.value = false; // フレンド一覧が届いたらスケルトン解除
       });
+    } else {
+      loading.value = false; // 未ログインなら待たない
     }
   });
 });

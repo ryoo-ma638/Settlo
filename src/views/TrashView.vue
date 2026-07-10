@@ -26,7 +26,18 @@
 
     <!-- イベント / 取引 タブ（削除・完了したもの） -->
     <div v-if="tab === 'event' || tab === 'tx'" class="list">
-      <div v-if="currentItems.length === 0" class="empty">
+      <template v-if="loading">
+        <div v-for="n in 3" :key="'sk' + n" class="tcard tcard--sk">
+          <div class="tcard__head">
+            <span class="skeleton skeleton--text" style="width:60px;height:18px"></span>
+            <span class="skeleton skeleton--text" style="width:44px;height:14px"></span>
+          </div>
+          <div class="skeleton skeleton--text" style="width:65%;height:16px;margin:8px 0 6px"></div>
+          <div class="skeleton skeleton--text" style="width:40%;height:12px"></div>
+          <div class="skeleton" style="height:40px;margin-top:14px;border-radius:12px"></div>
+        </div>
+      </template>
+      <div v-if="!loading && currentItems.length === 0" class="empty">
         <span class="empty__icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M4 7h16" /><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
@@ -61,7 +72,7 @@
 
     <!-- 保留タブ（相手の承認待ち） -->
     <div v-else class="list">
-      <div v-if="pendingItems.length === 0" class="empty">
+      <div v-if="!loading && pendingItems.length === 0" class="empty">
         <span class="empty__icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" />
@@ -119,6 +130,7 @@ import BaseModal from '@/components/BaseModal.vue';
 const tab = ref('event');
 const userItems = ref([]);   // 自分専用（イベントの非表示など）
 const sharedItems = ref([]); // 共有ゴミ箱（取引・両当事者が見られる）
+const loading = ref(true);   // 初回読込中は true（スケルトン表示）
 const myName = ref('メンバー');
 const myUid = ref('');
 let unsubUser = null;
@@ -342,7 +354,7 @@ const askDeleteForever = (item) => {
 
 onMounted(() => {
   const uid = auth.currentUser?.uid;
-  if (!uid) return;
+  if (!uid) { loading.value = false; return; }
   myUid.value = uid;
   getDoc(doc(db, 'users', uid)).then(md => {
     if (md.exists() && md.data().name) myName.value = md.data().name;
@@ -353,12 +365,14 @@ onMounted(() => {
   unsubUser = onSnapshot(qUser, (snap) => {
     userItems.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     reconcileRestoredEvents(userItems.value); // 復元が「正しくない」で差し戻されていたらゴミ箱状態に戻す
-  }, (err) => { if (err?.code !== 'permission-denied') console.error('ゴミ箱の読み込みエラー:', err); });
+    loading.value = false;
+  }, (err) => { loading.value = false; if (err?.code !== 'permission-denied') console.error('ゴミ箱の読み込みエラー:', err); });
   // 共有ゴミ箱（取引・自分が当事者のもの）
   const qShared = query(collection(db, 'trash'), where('participants', 'array-contains', uid));
   unsubShared = onSnapshot(qShared, (snap) => {
     sharedItems.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  }, (err) => { if (err?.code !== 'permission-denied') console.error('共有ゴミ箱の読み込みエラー:', err); });
+    loading.value = false;
+  }, (err) => { loading.value = false; if (err?.code !== 'permission-denied') console.error('共有ゴミ箱の読み込みエラー:', err); });
 });
 onUnmounted(() => { if (unsubUser) unsubUser(); if (unsubShared) unsubShared(); });
 </script>

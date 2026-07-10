@@ -11,8 +11,9 @@
         </div>
   
         <div class="history-list-area">
-          <div 
-            v-for="item in filteredHistory" 
+          <SkeletonRows v-if="loading" :rows="6" />
+          <div
+            v-for="item in filteredHistory"
             :key="item.id" 
             class="history-card"
             @click="goToDetail(item)"
@@ -38,7 +39,7 @@
             </div>
           </div>
           
-          <div v-if="filteredHistory.length === 0" class="empty-box">
+          <div v-if="!loading && filteredHistory.length === 0" class="empty-box">
             該当する履歴がありません
           </div>
         </div>
@@ -53,10 +54,12 @@ import { db, auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import PageHeader from '@/components/PageHeader.vue';
+import SkeletonRows from '@/components/SkeletonRows.vue';
 
 const router = useRouter(); // ルーターを準備
 const currentFilter = ref('all');
 const historyData = ref([]);
+const loading = ref(true); // 履歴の初回読込中は true（スケルトン表示）
 
 // 🌟 修正ポイント：フォーマット関数を onMounted より「上」に配置！（これでエラーが消えます）
 const formatFullDate = (timestamp) => {
@@ -86,7 +89,7 @@ const statusLabel = (s) => s === 'completed' ? '決済完了' : (s === 'awaiting
 
 onMounted(() => {
   onAuthStateChanged(auth, (user) => {
-    if (!user) return;
+    if (!user) { loading.value = false; return; }
     const myUid = user.uid;
     // 🌟 複合インデックス不要・確実に「自分関連の全取引」をリアルタイム取得（払う側＋受け取る側）
     const payMap = {};   // 自分が払う側
@@ -95,6 +98,7 @@ onMounted(() => {
     const rebuild = () => {
       historyData.value = [...Object.values(payMap), ...Object.values(recvMap)]
         .sort((a, b) => (b._ts || 0) - (a._ts || 0));
+      loading.value = false; // 最初のスナップショットが届いたらスケルトン解除
     };
 
     onSnapshot(query(collection(db, "transactions"), where("paidById", "==", myUid)), async (snap) => {
