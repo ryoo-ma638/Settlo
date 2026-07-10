@@ -44,4 +44,22 @@ const router = createRouter({
   ]
 })
 
+// 🌟 遅延読み込みチャンクの取得失敗（デプロイでファイル名が変わり、開きっぱなしのタブが
+//    古いチャンクを参照）→ 画面遷移が無反応になるので、一度だけ自動リロードして復帰する。
+//    無限ループを避けるため、直近10秒以内にリロード済みなら何もしない。
+router.onError((error, to) => {
+  const msg = (error && error.message) || '';
+  const isChunkError = /dynamically imported module|Importing a module script failed|Failed to fetch/i.test(msg);
+  if (!isChunkError) return;
+  try {
+    const KEY = 'settlo_chunk_reload_at';
+    const now = Date.now();
+    const last = Number(sessionStorage.getItem(KEY) || 0);
+    if (now - last < 10000) return; // 直近でリロード済み＝これ以上は繰り返さない
+    sessionStorage.setItem(KEY, String(now));
+    if (to && to.fullPath) window.location.hash = to.fullPath; // 目的の画面に着地させる
+  } catch (e) { /* sessionStorage 不可でもリロードは行う */ }
+  window.location.reload();
+});
+
 export default router
