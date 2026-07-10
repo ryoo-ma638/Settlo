@@ -122,6 +122,7 @@ import { db, auth } from '@/firebase' // 🌟 追加
 import { onAuthStateChanged } from 'firebase/auth' // 🌟 追加
 import { collection, query, where, onSnapshot, doc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore' // 🌟 追加
 import SkeletonRows from '../components/SkeletonRows.vue'
+import { formatDate } from '../lib/format'
 
 const route = useRoute()
 const currentTab = ref('waiting')
@@ -290,13 +291,7 @@ watch(() => route.query.tab, (newTab) => {
 const txStatusLabel = (s) => s === 'awaiting_approval' ? '承認待ち' : (s === 'completed' ? '精算済み' : '未払い');
 
 // 🌟 補助関数：FirestoreのTimestampを「3/12」形式に変換
-const formatTimestamp = (timestamp) => {
-  if (!timestamp) return "";
-  const date = timestamp.toDate();
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  return `${month}/${day}`;
-}
+const formatTimestamp = (timestamp) => formatDate(timestamp);
 </script>
 
 <style scoped>

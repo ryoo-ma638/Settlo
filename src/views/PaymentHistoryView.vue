@@ -55,6 +55,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import PageHeader from '@/components/PageHeader.vue';
 import SkeletonRows from '@/components/SkeletonRows.vue';
+import { formatDate } from '@/lib/format';
 
 const router = useRouter(); // ルーターを準備
 const currentFilter = ref('all');
@@ -62,13 +63,7 @@ const historyData = ref([]);
 const loading = ref(true); // 履歴の初回読込中は true（スケルトン表示）
 
 // 🌟 修正ポイント：フォーマット関数を onMounted より「上」に配置！（これでエラーが消えます）
-const formatFullDate = (timestamp) => {
-  if (!timestamp || typeof timestamp.toDate !== 'function') {
-    return "日付未定"; // データが壊れている、または未作成の場合
-  }
-  const date = timestamp.toDate();
-  return `${date.getFullYear()}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')}`;
-};
+const formatFullDate = (timestamp) => formatDate(timestamp) || "日付未定";
 
 // 相手の名前・写真をキャッシュ付きで取得
 const userCache = {};
