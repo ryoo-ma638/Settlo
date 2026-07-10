@@ -426,6 +426,7 @@ const router = useRouter();
 const timelineSection = ref(null);
 // 🌟 自分の表示名は実データ（users/{uid}.name）から取得する
 const myName = ref('');
+const moneyBusy = ref(false); // 🌟 支払い保存・決済完了の二重送信ガード（取引の二重計上・重複記録を防ぐ）
 
 const modals = ref({ participants: false, historyDetail: false, summaryDetail: false, unpaidWarning: false, addPayment: false, invite: false, editEvent: false });
 const inviteUser = () => { modals.value.invite = true; };
@@ -724,6 +725,8 @@ const markAsCompleted = (id) => {
 };
 
 const doMarkAsCompleted = async (id) => {
+  if (moneyBusy.value) return; // 🌟 連打で完了処理・ゴミ箱記録が重複するのを防ぐ
+  moneyBusy.value = true;
   try {
     const eventId = route.params.id || "test-event-1";
     const myUid = auth.currentUser?.uid;
@@ -769,6 +772,8 @@ const doMarkAsCompleted = async (id) => {
   } catch (error) {
     console.error("更新エラー:", error);
     showAlert('error', '更新エラー', '決済の更新に失敗しました。電波状況を確認してください。');
+  } finally {
+    moneyBusy.value = false;
   }
 };
 
@@ -780,6 +785,8 @@ const addHistory = async (newPayment) => {
     showAlert('info', '終了済みのイベントです', 'このイベントは終了しています。新しい支払いの追加や編集はできません。');
     return;
   }
+  if (moneyBusy.value) return; // 🌟 連打で取引が二重作成されるのを防ぐ
+  moneyBusy.value = true;
   try {
     const eventId = route.params.id || "test-event-1";
     const myUid = auth.currentUser?.uid;
@@ -896,6 +903,8 @@ const addHistory = async (newPayment) => {
   } catch (error) {
     console.error("❌ 保存失敗:", error);
     showAlert('error', '保存エラー', 'データの保存に失敗しました。');
+  } finally {
+    moneyBusy.value = false;
   }
 };
 

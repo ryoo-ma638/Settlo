@@ -56,7 +56,7 @@
           <input v-model="joinCode" type="text" placeholder="例：A1B2C3" class="input input--code" maxlength="6" />
         </div>
         <div class="actions">
-          <button class="btn-brand" @click="joinEvent">参加する</button>
+          <button class="btn-brand" :disabled="loading" @click="joinEvent">参加する</button>
         </div>
       </div>
     </main>
@@ -166,6 +166,8 @@ const joinEvent = async () => {
     showModal({ type: 'error', title: 'エラー', message: 'ログイン状態が確認できません。' });
     return;
   }
+  if (loading.value) return; // 🌟 連打で参加通知が重複するのを防ぐ
+  loading.value = true;
   try {
     const snap = await getDocs(query(collection(db, "events"), where("invitationCode", "==", code)));
     if (snap.empty) {
@@ -197,6 +199,8 @@ const joinEvent = async () => {
   } catch (e) {
     console.error("参加エラー:", e);
     showModal({ type: 'error', title: 'エラー', message: '参加に失敗しました。電波状況を確認してください。' });
+  } finally {
+    loading.value = false;
   }
 };
 

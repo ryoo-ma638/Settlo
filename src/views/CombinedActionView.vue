@@ -41,7 +41,7 @@
   </template>
   
   <script setup>
-  import { computed, reactive } from 'vue'; // 🌟 reactiveを追加
+  import { computed, reactive, ref } from 'vue'; // 🌟 reactiveを追加
   import { useRoute, useRouter } from 'vue-router';
   import { db, auth } from '@/firebase';
   import { collection, query, where, getDocs, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -56,6 +56,7 @@
   const isRemind = computed(() => route.query.type === 'remind');
   const amount = computed(() => route.query.amount);
   const targetUid = computed(() => route.query.uid);
+  const settling = ref(false); // 🌟 まとめて精算の二重送信ガード（完了通知・ゴミ箱記録の重複を防ぐ）
   
   // 🌟 統一モーダルの状態管理
   const modalState = reactive({
@@ -86,6 +87,8 @@
       withReason: true,
       reasonPlaceholder: '相手へのひとこと（任意・お礼など）',
       onConfirm: async (reason) => {
+        if (settling.value) return; // 🌟 確定ボタン連打による重複精算を防ぐ
+        settling.value = true;
         try {
           const myUid = auth.currentUser?.uid;
           const friendUid = route.query.uid;
@@ -152,6 +155,8 @@
         } catch (e) {
           console.error("精算エラー:", e);
           showModal({ type: 'error', title: 'エラー', message: '精算に失敗しました。電波状況を確認してください。' });
+        } finally {
+          settling.value = false;
         }
       }
     });
