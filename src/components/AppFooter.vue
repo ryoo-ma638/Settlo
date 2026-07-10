@@ -1,25 +1,25 @@
 <template>
   <nav class="botnav">
-    <button class="botnav__tab" :class="{ 'is-active': isActive('/') }" @click="go('/')">
+    <button class="botnav__tab" data-tour="nav-home" :class="{ 'is-active': isActive('/') }" @click="go('/')">
       <svg viewBox="0 0 24 24" class="botnav__icon"><path d="M3 9.5 12 3l9 6.5"/><path d="M5 8.8V21h14V8.8"/></svg>
       <span>ホーム</span>
     </button>
 
-    <button class="botnav__tab" :class="{ 'is-active': isActive('/event') }" @click="go('/event')">
+    <button class="botnav__tab" data-tour="nav-event" :class="{ 'is-active': isActive('/event') }" @click="go('/event')">
       <svg viewBox="0 0 24 24" class="botnav__icon"><rect x="3.5" y="5" width="17" height="16" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>
       <span>イベント</span>
     </button>
 
-    <button class="botnav__fab" @click="go('/make-event')" aria-label="新規イベント作成">
+    <button class="botnav__fab" data-tour="nav-add" @click="go('/make-event')" aria-label="新規イベント作成">
       <svg viewBox="0 0 24 24" class="botnav__fab-icon"><path d="M12 6v12M6 12h12"/></svg>
     </button>
 
-    <button class="botnav__tab" :class="{ 'is-active': isActive('/payment') }" @click="go('/payment')">
+    <button class="botnav__tab" data-tour="nav-money" :class="{ 'is-active': isActive('/payment') }" @click="go('/payment')">
       <svg viewBox="0 0 24 24" class="botnav__icon"><rect x="2.5" y="5.5" width="19" height="13" rx="3"/><path d="M2.5 10h19"/></svg>
       <span>支払い</span>
     </button>
 
-    <button class="botnav__tab" :class="{ 'is-active': isActive('/friend') }" @click="go('/friend')">
+    <button class="botnav__tab" data-tour="nav-friend" :class="{ 'is-active': isActive('/friend') }" @click="go('/friend')">
       <svg viewBox="0 0 24 24" class="botnav__icon"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20v-1.2A4.3 4.3 0 0 1 7.8 14.5h2.4a4.3 4.3 0 0 1 4.3 4.3V20"/><path d="M16.5 5.2a3.4 3.4 0 0 1 0 6.4M17.4 14.6a4.3 4.3 0 0 1 3.1 4.2V20"/></svg>
       <span>フレンド</span>
     </button>

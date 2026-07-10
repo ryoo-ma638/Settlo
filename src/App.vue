@@ -16,6 +16,7 @@
       </main>
       <AppFooter />
       <OnboardingModal />
+      <ButtonTour />
     </div>
   </template>
 </template>
@@ -31,6 +32,7 @@ import { getMessaging, getToken, onMessage, isSupported } from "firebase/messagi
 import AppHeader from './components/AppHeader.vue'
 import AppFooter from './components/AppFooter.vue'
 import OnboardingModal from './components/OnboardingModal.vue'
+import ButtonTour from './components/ButtonTour.vue'
 
 const route = useRoute()
 const router = useRouter()

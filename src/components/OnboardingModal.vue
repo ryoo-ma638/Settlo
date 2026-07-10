@@ -32,8 +32,8 @@
           <!-- ボタン -->
           <div class="ob-actions">
             <button v-if="step < slides.length - 1" class="btn-brand ob-next" @click="step++">次へ</button>
-            <button v-else class="btn-brand ob-next" @click="finish">はじめる</button>
-            <button class="ob-skip" @click="finish">スキップ</button>
+            <button v-else class="btn-brand ob-next" @click="finish(true)">はじめる</button>
+            <button class="ob-skip" @click="finish(false)">スキップ</button>
           </div>
         </div>
       </div>
@@ -92,9 +92,13 @@ const slides = [
 
 const KEY = 'settlo_onboarding_done';
 
-const finish = () => {
+const finish = (startTour = false) => {
   show.value = false;
   try { localStorage.setItem(KEY, '1'); } catch (e) {}
+  // 「はじめる」で締めたら、続けてボタン1つ1つの説明ツアーへ
+  if (startTour) {
+    setTimeout(() => window.dispatchEvent(new CustomEvent('settlo:show-button-tour')), 350);
+  }
 };
 
 // ログイン済みかつ初回のみ表示（「もう一度見る」イベントでも表示）

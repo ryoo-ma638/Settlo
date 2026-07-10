@@ -1,6 +1,6 @@
 <template>
   <header class="topbar">
-    <button class="topbar__avatar" @click="navigate('/mypage')" aria-label="マイページ">
+    <button class="topbar__avatar" data-tour="avatar" @click="navigate('/mypage')" aria-label="マイページ">
       <img v-if="userPhoto" :src="userPhoto" alt="" />
       <span v-else class="topbar__avatar-fallback">{{ initial }}</span>
     </button>
@@ -8,19 +8,19 @@
     <h1 class="topbar__brand" @click="navigate('/')">Settlo</h1>
 
     <div class="topbar__right">
-      <button class="topbar__pending" @click="navigate('/approvals')" aria-label="承認待ち">
+      <button class="topbar__pending" data-tour="pending" @click="navigate('/approvals')" aria-label="承認待ち">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
         </svg>
         <span v-if="pendingCount > 0" class="topbar__pending-badge">{{ pendingCount > 99 ? '99+' : pendingCount }}</span>
       </button>
-      <button class="topbar__chat" @click="navigate('/chats')" aria-label="チャット">
+      <button class="topbar__chat" data-tour="chat" @click="navigate('/chats')" aria-label="チャット">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 11.5a8.4 8.4 0 0 1-11.9 7.6L3 21l1.9-6.1A8.4 8.4 0 1 1 21 11.5z"/>
         </svg>
         <span v-if="chatUnread > 0" class="topbar__chat-badge">{{ chatUnread > 99 ? '99+' : chatUnread }}</span>
       </button>
-      <button class="topbar__help" @click="navigate('/help')" aria-label="ヘルプ">
+      <button class="topbar__help" data-tour="help" @click="navigate('/help')" aria-label="ヘルプ">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="9"/>
           <path d="M9.6 9.2a2.5 2.5 0 1 1 3.6 2.6c-.8.5-1.2 1-1.2 1.9"/>
