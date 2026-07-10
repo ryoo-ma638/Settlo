@@ -548,7 +548,7 @@ const { calculatedSummary } = useSettlement(eventData, myName);
 
 const filteredSummary = computed(() => {
   return calculatedSummary.value.filter(s => {
-    const scopeMatch = sumFilterScope.value === 'all' || (s.from === myName.value || s.to === myName.value);
+    const scopeMatch = sumFilterScope.value === 'all' || s.involvesMe;
     const statusMatch = sharedFilterStatus.value === 'all' || s.status === sharedFilterStatus.value;
     return scopeMatch && statusMatch;
   });
