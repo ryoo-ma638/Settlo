@@ -140,8 +140,8 @@
                   </div>
 
                   <div class="history-text">
-                    <span class="history-item-name">{{ history.itemName }} <span class="split-type">{{ history.splitType }}</span></span>
-                    <span class="history-payer">{{ history.date }} {{ history.time }} • {{ history.payer }} が立替</span>
+                    <span class="history-item-name">{{ history.itemName }} <span class="split-type">{{ splitLabel(history.splitType) }}</span></span>
+                    <span class="history-payer">{{ history.date }} {{ history.time }} • {{ payerNameOf(history) }} が立替</span>
                   </div>
                 </div>
                 <div class="history-right">
@@ -277,7 +277,7 @@
               </div>
             </section>
             <template v-else>
-              <p class="s-hint">の支払いが残っています。</p>
+              <p class="s-hint"><strong>{{ selectedSummary.from }}</strong> さんの支払いが残っています。</p>
               <button class="action-btn main" @click="goToBatchPayment(selectedSummary)">
                 {{ selectedSummary.isMePayer ? 'まとめて支払う画面へ' : 'まとめて受け取る・催促へ' }}
               </button>
@@ -629,6 +629,14 @@ const openEditPayment = (h) => {
 // 🌟 支払いの変更を関係者（立替者＋負担者）へ通知（自分以外）
 // 割り勘方法の表示ラベル（差分表示用）
 const splitLabel = (t) => ({ all: '全員で均等', custom: '金額指定', item: '商品ごと' }[t] || t || 'なし');
+// 🌟 立替者名は payerUid から現在の参加者名で表示（改名に追従・精算サマリーと名前を揃える）
+const payerNameOf = (h) => {
+  if (h && h.payerUid) {
+    const p = eventData.value.participants.find(x => x.id === h.payerUid);
+    if (p && p.name) return p.name;
+  }
+  return (h && h.payer) || 'メンバー';
+};
 
 // 🌟 変更を参加者（自分以外）へ通知する汎用ヘルパー
 const notifyParticipants = async (uids, notifData) => {

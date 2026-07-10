@@ -222,7 +222,8 @@ onMounted(() => {
       const qReceivable = query(collection(db, "transactions"), where("paidToId", "==", myUid));
       unsubReceivable = onSnapshot(qReceivable, async (snapshot) => {
         let total = 0;
-        const docs = snapshot.docs.filter(d => (d.data().status || 'unpaid') !== 'completed');
+        // 相手UID(paidById)が無い不正データは除外（お支払い画面と合計を一致させる）
+        const docs = snapshot.docs.filter(d => (d.data().status || 'unpaid') !== 'completed' && d.data().paidById);
         const list = await Promise.all(docs.map(async (d) => {
           const data = d.data();
           total += data.amount || 0;
@@ -238,7 +239,8 @@ onMounted(() => {
       const qPayable = query(collection(db, "transactions"), where("paidById", "==", myUid));
       unsubPayable = onSnapshot(qPayable, async (snapshot) => {
         let total = 0;
-        const docs = snapshot.docs.filter(d => (d.data().status || 'unpaid') !== 'completed');
+        // 相手UID(paidToId)が無い不正データは除外（お支払い画面と合計を一致させる）
+        const docs = snapshot.docs.filter(d => (d.data().status || 'unpaid') !== 'completed' && d.data().paidToId);
         const list = await Promise.all(docs.map(async (d) => {
           const data = d.data();
           total += data.amount || 0;
