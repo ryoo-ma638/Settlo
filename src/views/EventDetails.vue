@@ -141,7 +141,7 @@
 
                   <div class="history-text">
                     <span class="history-item-name">{{ history.itemName }} <span class="split-type">{{ splitLabel(history.splitType) }}</span></span>
-                    <span class="history-payer">{{ history.date }} {{ history.time }} • {{ payerNameOf(history) }} が立替</span>
+                    <span class="history-payer">{{ formatDate(history.date) }} {{ history.time }} • {{ payerNameOf(history) }} が立替</span>
                   </div>
                 </div>
                 <div class="history-right">
@@ -355,7 +355,8 @@ const getUserInfo = async (uid) => {
 // 🌟 1. 2人の import を綺麗に合体！
 // ==========================================
 import { ref, computed, onMounted, onUnmounted, reactive } from 'vue'; // 🌟 reactiveを追加
-import { useRoute, useRouter } from 'vue-router'; 
+import { useRoute, useRouter } from 'vue-router';
+import { formatDate } from '@/lib/format';
 
 import AddPaymentModal from '@/components/AddPaymentModal.vue';
 import ReceiptPaymentModal from '@/components/ReceiptPaymentModal.vue';

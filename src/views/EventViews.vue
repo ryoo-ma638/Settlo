@@ -56,6 +56,7 @@ import { ref, onMounted } from 'vue';
 import { db, auth } from '@/firebase';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import GenreIcon from '@/components/GenreIcon.vue';
+import { formatDate } from '@/lib/format';
 
 const events = ref([]);
 const loading = ref(true);
@@ -99,8 +100,7 @@ const fetchEvents = async () => {
       .filter(event => !(event.hiddenBy || []).includes(myUid)); // 自分がゴミ箱に入れたイベントは非表示
 
     const formattedEvents = await Promise.all(rawEvents.map(async (event) => {
-      const dateObj = event.createdAt?.toDate ? event.createdAt.toDate() : new Date();
-      const formattedDate = `${dateObj.getFullYear()}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getDate().toString().padStart(2, '0')}`;
+      const formattedDate = formatDate(event.createdAt) || formatDate(new Date());
 
       const uids = event.participants || [];
       const photos = await Promise.all(

@@ -64,6 +64,7 @@ import { useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import PageHeader from '../components/PageHeader.vue';
+import { formatDate } from '../lib/format';
 
 const router = useRouter();
 const myUid = auth.currentUser?.uid || '';
@@ -96,11 +97,7 @@ const buildList = async (docs, opponentField) => {
   return out.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 };
 
-const fmtTime = (ts) => {
-  if (!ts?.toDate) return '';
-  const d = ts.toDate();
-  return `${d.getMonth() + 1}/${d.getDate()}`;
-};
+const fmtTime = (ts) => formatDate(ts);
 const historyText = (h) => {
   const kindLabel = h.kind === 'friend' ? 'フレンド申請' : (h.kind === 'settlement' ? '未精算戻し' : '支払い');
   const amt = h.amount ? `（¥${Number(h.amount).toLocaleString()}）` : '';
