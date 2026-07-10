@@ -103,6 +103,7 @@
       </section>
 
       <button class="btn-brand help__tour" @click="replayTour">はじめてガイドをもう一度見る</button>
+      <button class="btn-outline help__tour" @click="startButtonTour">画面のボタンの説明を見る</button>
     </main>
   </div>
 </template>
@@ -110,10 +111,20 @@
 <script setup>
 import PageHeader from '../components/PageHeader.vue';
 
+import { useRouter } from 'vue-router';
+const router = useRouter();
+
 // 初回チュートリアル（オンボーディング）をもう一度表示する
 const replayTour = () => {
   localStorage.removeItem('settlo_onboarding_done');
   window.dispatchEvent(new CustomEvent('settlo:show-onboarding'));
+};
+
+// 画面のボタン1つ1つを強調して説明するツアーを開始する
+// （ヘッダー・下部ナビが見えるホームに戻ってから起動）
+const startButtonTour = async () => {
+  if (router.currentRoute.value.path !== '/') await router.push('/');
+  setTimeout(() => window.dispatchEvent(new CustomEvent('settlo:show-button-tour')), 250);
 };
 </script>
 
