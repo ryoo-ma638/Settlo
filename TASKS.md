@@ -49,6 +49,7 @@
 - [ ] **(a) 仕上げ 第4弾以降**（見た目・挙動が変わる＝**実機確認とセット**で進める）:
   - [x] **非同期ボタンの二重送信ガード（お金の二重計上防止）**（2026-07-10・PR#189）… 取引を作成/再作成する経路を最優先で保護。支払い追加（AddPaymentModal→addHistory・両層ロック）／ゴミ箱からの支払い復元（TrashView.handleConfirm）／まとめ精算（CombinedActionView.confirmCash）／決済完了（doMarkAsCompleted）／お知らせの承認・拒否・受諾（NotificationIcon: approveTx/acceptInvite/approveRestore/acceptRequest＋doConfirm）／招待コード参加（joinEvent）。※既にPaymentDetailView・ThreadViewはガード済みだった。残: judgeOk直下のconfirmRestoreOk（冪等・無害）は対象外。
   - [x] **読込状態（スケルトン）の追加**（2026-07-10・PR#192）… 共通の `.skeleton`（シマー）を main.css に追加＋再利用部品 `SkeletonRows.vue`（アバター＋2行＋金額）。MoneyPage/FriendView/PaymentHistory は行スケルトン、Trash/PaymentCarousel はカードスケルトン。各画面に `loading` フラグ（初回スナップショットで解除）を入れ、読込中に空状態（「ありません」）が一瞬出るのを解消。
+  - [x] **実機UI/UX監査と修正**（2026-07-11・PR#193-198）… 本番をゲスト/実データで巡回し発見→修正。①案内文の頭欠け/割り勘の英語生値/立替者名の旧名/ホーム合計¥582ズレ(孤児取引)(PR#193) ②遅延チャンク取得失敗の自動リロード＋孤児取引を承認待ちから除外(PR#194) ③ネイティブalert廃止→共通トースト(lib/toast+GlobalToast)＋取引詳細の文言(PR#195) ④お支払い履歴の長い名前で金額が押し出される崩れ(PR#196) ⑤**用語統一**=お支払い待ち/未払い/精算済み(PR#197・本人確認) ⑥**日付統一**=共通formatDate(今年M/D・年跨ぎYYYY/M/D)(PR#198)。残の細かい点=マイページの承認待ち/履歴が同じ時計アイコン・チャットの旧件名「取引の件」・AppSidebarデッドコードの絵文字（削除は要合意）。
   - 共有モーダルシェル（BaseSheet）で暗幕・z-index・×閉じるを部品として一本化
   - ボタン/入力/トグルを共通クラス（.btn-brand 等）へ寄せる
   - `.section-title`/`.empty-box`/影の単一ソース化・外周余白を `.screen` に一本化
