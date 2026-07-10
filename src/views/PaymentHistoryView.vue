@@ -6,8 +6,8 @@
         <div class="seg">
           <button class="seg__item" :class="{ 'is-active': currentFilter === 'all' }" @click="currentFilter = 'all'">すべて</button>
           <button class="seg__item" :class="{ 'is-active': currentFilter === 'pay' }" @click="currentFilter = 'pay'">支払い</button>
-          <button class="seg__item" :class="{ 'is-active': currentFilter === 'receive' }" @click="currentFilter = 'receive'">受取</button>
-          <button class="seg__item" :class="{ 'is-active': currentFilter === 'completed' }" @click="currentFilter = 'completed'">完了</button>
+          <button class="seg__item" :class="{ 'is-active': currentFilter === 'receive' }" @click="currentFilter = 'receive'">受け取り</button>
+          <button class="seg__item" :class="{ 'is-active': currentFilter === 'completed' }" @click="currentFilter = 'completed'">精算済み</button>
         </div>
   
         <div class="history-list-area">
@@ -85,7 +85,7 @@ const getUser = async (uid) => {
   } catch { return { name: '相手', photo: '' }; }
 };
 
-const statusLabel = (s) => s === 'completed' ? '決済完了' : (s === 'awaiting_approval' ? '承認待ち' : '未払い');
+const statusLabel = (s) => s === 'completed' ? '精算済み' : (s === 'awaiting_approval' ? '承認待ち' : '未払い');
 
 onMounted(() => {
   onAuthStateChanged(auth, (user) => {

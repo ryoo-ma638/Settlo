@@ -396,7 +396,7 @@ const approvePayment = () => {
         }
         currentStatus.value = 'completed';
         showModal({
-          type: 'success', title: '決済完了', message: '支払いを承認し、精算が完了しました！',
+          type: 'success', title: '精算完了', message: '支払いを承認し、精算が完了しました。',
           onConfirm: () => router.push('/')
         });
       } catch (error) {
@@ -461,7 +461,7 @@ const confirmCash = () => {
           }
           currentStatus.value = 'completed';
           showModal({
-            type: 'success', title: '完了', message: '受け取りを完了しました！',
+            type: 'success', title: '精算完了', message: '受け取りを記録しました。',
             onConfirm: () => router.push('/')
           });
         } catch (error) {
@@ -488,7 +488,7 @@ const confirmCash = () => {
           }
           currentStatus.value = 'awaiting_approval'; // 画面のボタンを「承認待ち」に切り替える
           showModal({
-            type: 'success', title: '完了', message: '承認リクエストを送信しました！相手の確認を待ちます。',
+            type: 'success', title: '送信しました', message: '承認リクエストを送信しました。相手の確認を待ちます。',
             onConfirm: () => router.push('/')
           });
         } catch (error) {

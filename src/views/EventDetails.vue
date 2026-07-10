@@ -71,7 +71,7 @@
           </div>
           <div class="custom-select-wrapper">
             <select v-model="sharedFilterStatus" class="ios-select">
-              <option value="unpaid">未決済のみ</option>
+              <option value="unpaid">未払いのみ</option>
               <option value="all">すべて</option>
               <option value="completed">精算済み</option>
             </select>
@@ -90,7 +90,7 @@
               <span class="name">{{ sum.to }}</span>
             </div>
             <div class="amount-right">
-              <span v-if="sum.status === 'completed'" class="badge paid">完了</span>
+              <span v-if="sum.status === 'completed'" class="badge paid">精算済み</span>
               <div class="amount" :class="sum.isMePayer ? 'orange-text' : 'blue-text'">
                 ¥{{ sum.amount.toLocaleString() }} <span class="arrow-icon">›</span>
               </div>
@@ -112,7 +112,7 @@
           </div>
           <div class="custom-select-wrapper auto-width">
             <select v-model="sharedFilterStatus" class="ios-select">
-              <option value="unpaid">未決済のみ</option>
+              <option value="unpaid">未払いのみ</option>
               <option value="all">すべて</option>
               <option value="completed">精算済み</option>
             </select>
@@ -146,10 +146,10 @@
                 </div>
                 <div class="history-right">
                   <span class="history-price">¥{{ history.amount.toLocaleString() }}</span>
-                  <span v-if="history.status !== 'unpaid'" class="badge paid">精算済</span>
-                  <span v-else-if="isMyPayment(history)" class="badge receive">受取待ち ¥{{ myReceivableOf(history).toLocaleString() }}</span>
+                  <span v-if="history.status !== 'unpaid'" class="badge paid">精算済み</span>
+                  <span v-else-if="isMyPayment(history)" class="badge receive">お支払い待ち ¥{{ myReceivableOf(history).toLocaleString() }}</span>
                   <span v-else-if="myShareOf(history) > 0" class="badge owe">あなた ¥{{ myShareOf(history).toLocaleString() }}</span>
-                  <span v-else class="badge pending">未精算</span>
+                  <span v-else class="badge pending">未払い</span>
                 </div>
               </div>
             </div>

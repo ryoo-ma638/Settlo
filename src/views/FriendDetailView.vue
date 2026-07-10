@@ -156,7 +156,7 @@ onMounted(async () => {
     }
 
     // 🌟 この相手との取引を実データから取得し、各リスト・履歴・残高を構築（複合index回避）
-    const statusLabel = (s) => s === 'completed' ? '完了' : (s === 'awaiting_approval' ? '承認待ち' : '未決済');
+    const statusLabel = (s) => s === 'completed' ? '精算済み' : (s === 'awaiting_approval' ? '承認待ち' : '未払い');
     const recvList = [], payList = [], histList = [];
     let recvSum = 0, paySum = 0;
 
