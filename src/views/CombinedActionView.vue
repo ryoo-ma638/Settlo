@@ -48,6 +48,7 @@
   import PayPayAction from '../components/PayPayAction.vue';
   import BaseModal from '../components/BaseModal.vue';
   import PageHeader from '../components/PageHeader.vue';
+  import { resolveThreadForTx } from '@/lib/thread';
 
 
   const route = useRoute();
@@ -102,6 +103,7 @@
           const txIds = [...ids];
           for (const id of txIds) {
             await updateDoc(doc(db, "transactions", id), { status: 'completed' });
+            await resolveThreadForTx(myUid, friendUid, id); // 解決したのでチャットを消す
           }
 
           // 🌟 相手へ「精算が完了しました」を届ける

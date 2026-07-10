@@ -1,7 +1,7 @@
 // 件（matter）ごとの会話スレッドの共通ユーティリティ
 // 「〜の件」を一意に決め、両当事者が同じ threadId に辿り着けるようにする。
 import { db } from '@/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 // 通知（お知らせ）から「件」を一意に決めるキー。
 // 両者の通知は同じ実体（イベント/履歴/取引/ゴミ箱）を指すので同じキーになる。
@@ -56,6 +56,21 @@ export function subjectLabel(notif) {
       if (item) return `${ev}${item}${amt}の件`;
       return notif.eventName ? `イベント「${notif.eventName}」の件` : '取引の件';
   }
+}
+
+// 取引が解決（完了）したら、その取引のスレッド（t-取引ID）を両者の一覧から消す。
+// 支払い系の通知（催促・承認）は transactionId で鍵付くので一意にたどれる。
+// 新しいメッセージが来たら hiddenBy が [] に戻るので再表示される。
+export async function resolveThreadForTx(myUid, otherUid, txId) {
+  if (!myUid || !otherUid || !txId) return;
+  try {
+    const ref = doc(db, 'threads', threadIdFor(myUid, otherUid, `t-${txId}`));
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      const parts = snap.data().participants || [myUid, otherUid];
+      await updateDoc(ref, { hiddenBy: parts, resolved: true });
+    }
+  } catch (e) { /* スレッドが無ければ何もしない */ }
 }
 
 // スレッド本体を用意（無ければ作成・あれば更新）

@@ -175,7 +175,7 @@ import {
   collection, query, where, onSnapshot, getDocs,
   doc, getDoc, setDoc, deleteDoc, updateDoc, addDoc, serverTimestamp, arrayUnion, arrayRemove, increment
 } from 'firebase/firestore';
-import { subjectKey, threadIdFor, subjectLabel } from '@/lib/thread';
+import { subjectKey, threadIdFor, subjectLabel, resolveThreadForTx } from '@/lib/thread';
 import { logApprovalBoth } from '@/lib/approvalLog';
 
 const router = useRouter();
@@ -415,6 +415,7 @@ const approveTx = async (req) => {
       isRead: false, createdAt: serverTimestamp(),
     });
     await logApprovalBoth({ myUid, myName: await getMyName(), otherUid: req.fromUserId, otherName: req.fromUserName, kind: 'payment', outcome: 'approved', itemName: req.itemName || '', amount: req.amount || 0 });
+    await resolveThreadForTx(myUid, req.fromUserId, req.transactionId); // 解決したのでチャットを消す
     await updateDoc(doc(db, "notifications", req.id), { isRead: true });
   } catch (e) { console.error("支払い承認エラー:", e); }
 };

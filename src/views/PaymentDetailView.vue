@@ -119,6 +119,7 @@ import BaseModal from '../components/BaseModal.vue';
 import RemindModal from '../components/RemindModal.vue';
 import PageHeader from '../components/PageHeader.vue';
 import { logApprovalBoth } from '@/lib/approvalLog';
+import { resolveThreadForTx } from '@/lib/thread';
 
 const route = useRoute();
 const router = useRouter(); 
@@ -387,6 +388,7 @@ const approvePayment = () => {
         await clearApprovalNotifs(); // お知らせの承認リクエストを消す
         for (const it of items.value) {
           await logApprovalBoth({ myUid: auth.currentUser?.uid, myName: auth.currentUser?.displayName || 'あなた', otherUid: it.opponentUid, otherName: it.name, kind: 'payment', outcome: 'approved', itemName: it.itemName, amount: it.amount });
+          await resolveThreadForTx(auth.currentUser?.uid, it.opponentUid, it.id); // 解決したのでチャットを消す
         }
         // 🌟 支払った側へ「支払いが完了しました」を届ける
         for (const it of items.value) {
@@ -455,6 +457,7 @@ const confirmCash = () => {
           // 🌟 支払った側へ「支払いが完了しました」を届ける
           for (const it of items.value) {
             try { await notifyOpponent(it, 'payment_completed', '受け取りが確認され、精算が完了しました。', reason); } catch (e) {}
+            await resolveThreadForTx(auth.currentUser?.uid, it.opponentUid, it.id); // 解決したのでチャットを消す
           }
           currentStatus.value = 'completed';
           showModal({
