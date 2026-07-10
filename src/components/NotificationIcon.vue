@@ -177,6 +177,7 @@ import {
 } from 'firebase/firestore';
 import { subjectKey, threadIdFor, subjectLabel, resolveThreadForTx } from '@/lib/thread';
 import { logApprovalBoth } from '@/lib/approvalLog';
+import { showToast } from '@/lib/toast';
 
 const router = useRouter();
 
@@ -942,7 +943,7 @@ const acceptRequest = async (request) => {
 
     await logApprovalBoth({ myUid, myName, otherUid: friendUid, otherName: request.formName, kind: 'friend', outcome: 'approved' });
     await deleteDoc(doc(db, "friendRequests", request.id));
-    alert(`${request.formName}さんとフレンドになりました！`);
+    showToast(`${request.formName}さんとフレンドになりました`);
   } catch (error) {
     console.error("承認エラー:", error);
   } finally {

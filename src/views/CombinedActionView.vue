@@ -154,7 +154,7 @@
               await addDoc(collection(db, "notifications"), {
                 toUserId: friendUid, fromUserId: myUid, fromUserName: myName,
                 type: 'payment_completed',
-                message: `${done.length}件の取引がまとめて精算されました。`,
+                message: `${myName}さんが${done.length}件をまとめて精算しました。`,
                 userMessage: reason || null,
                 isRead: false, createdAt: serverTimestamp(),
               });
@@ -162,7 +162,7 @@
             await recordTrash(done);
             showModal({
               type: 'success', title: '精算完了',
-              message: `${done.length}件の取引を完了にしました！（ゴミ箱から7日以内なら戻せます）`,
+              message: `${done.length}件を完了にしました（ゴミ箱から7日以内なら戻せます）`,
               onConfirm: () => router.push('/')
             });
           } else {
@@ -201,7 +201,7 @@
               // すべて「相手が自分に払う」分だった＝実質その場で完了
               showModal({
                 type: 'success', title: '精算完了',
-                message: `${owedToMeIds.length}件の取引を完了にしました！（ゴミ箱から7日以内なら戻せます）`,
+                message: `${owedToMeIds.length}件を完了にしました（ゴミ箱から7日以内なら戻せます）`,
                 onConfirm: () => router.push('/')
               });
             }

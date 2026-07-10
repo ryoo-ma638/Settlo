@@ -17,6 +17,7 @@
       <AppFooter />
       <OnboardingModal />
       <ButtonTour />
+      <GlobalToast />
     </div>
   </template>
 </template>
@@ -33,6 +34,7 @@ import AppHeader from './components/AppHeader.vue'
 import AppFooter from './components/AppFooter.vue'
 import OnboardingModal from './components/OnboardingModal.vue'
 import ButtonTour from './components/ButtonTour.vue'
+import GlobalToast from './components/GlobalToast.vue'
 
 const route = useRoute()
 const router = useRouter()

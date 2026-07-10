@@ -10,7 +10,7 @@
         <div class="receipt-body">
           <div class="r-icon"><GenreIcon :type="history.category || 'その他'" /></div>
           <h2>{{ history.itemName }}</h2>
-          <p class="r-date">{{ history.date }} {{ history.time }} • {{ history.splitType }}</p>
+          <p class="r-date">{{ history.date }} {{ history.time }} • {{ splitLabel(history.splitType) }}</p>
           <h1 class="r-amount">¥{{ (myAmount != null ? myAmount : history.amount).toLocaleString() }}</h1>
           <p v-if="myRole === 'payer'" class="r-role">あなたが ¥{{ history.amount.toLocaleString() }} を立替（受け取り待ち）</p>
           <p v-else-if="myRole === 'debtor'" class="r-role">あなたの負担分（全体 ¥{{ history.amount.toLocaleString() }}）</p>
@@ -42,12 +42,12 @@
             <div class="completed-card">
               <span class="completed-icon"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#059669" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>
               <h3 class="completed-title">この取引は完了しています</h3>
-              <p class="completed-date">支払い完了日: {{ history.date }} {{ history.time }}</p>
+              <p class="completed-date">取引完了日: {{ history.date }} {{ history.time }}</p>
             </div>
           </section>
 
           <template v-else>
-            <div class="r-status unpaid">未完済の取引です</div>
+            <div class="r-status unpaid">未精算の取引です</div>
             <div class="payment-actions">
               <p class="hint">この画面から決済を完了できます</p>
               
@@ -56,7 +56,7 @@
                 :opponentUid="history.paidById || history.paidToId" 
               />
               
-              <button class="method-btn cash" @click="handlePayment('cash')">{{ myRole === 'payer' ? '受け取りを記録する' : '支払った／受け取った' }}</button>
+              <button class="method-btn cash" @click="handlePayment('cash')">{{ myRole === 'payer' ? '受け取りを記録する' : '支払いを記録する' }}</button>
             </div>
           </template>
 
@@ -88,6 +88,9 @@ const props = defineProps({
   myRole: { type: String, default: 'none' }   // 'payer' | 'debtor' | 'none'
 });
 const emit = defineEmits(['close', 'complete', 'edit', 'delete']);
+
+// 割り勘方法を日本語で表示（生値 all/custom/item をそのまま出さない）
+const splitLabel = (t) => ({ all: '全員で均等', custom: '金額指定', item: '商品ごと' }[t] || t || '');
 
 const handlePayment = () => {
   // 確認は親（EventDetails）側の統一モーダルで1回だけ行う
