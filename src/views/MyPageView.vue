@@ -38,6 +38,24 @@
           <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
         </button>
 
+        <button class="menu__item" @click="$router.push('/approvals')">
+          <svg class="menu__icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <span class="menu__label">承認待ち</span>
+          <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+
+        <button class="menu__item" @click="$router.push('/chats')">
+          <svg class="menu__icon" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-11.9 7.6L3 21l1.9-6.1A8.4 8.4 0 1 1 21 11.5z"/></svg>
+          <span class="menu__label">チャット</span>
+          <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+
+        <button class="menu__item" @click="$router.push('/help')">
+          <svg class="menu__icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 1 1 3.6 2.6c-.8.5-1.2 1-1.2 1.9"/><path d="M12 17h.01"/></svg>
+          <span class="menu__label">アプリの使い方</span>
+          <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+
         <button class="menu__item" @click="$router.push('/trash')">
           <svg class="menu__icon" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12"/></svg>
           <span class="menu__label">ゴミ箱</span>
