@@ -75,15 +75,15 @@ export async function resolveThreadForTx(myUid, otherUid, txId) {
 
 // スレッド本体を用意（無ければ作成・あれば更新）
 export async function ensureThread(threadId, { myUid, myName, otherUid, otherName, label, eventId }) {
-  await setDoc(
-    doc(db, 'threads', threadId),
-    {
-      participants: [myUid, otherUid],
-      participantNames: { [myUid]: myName || 'あなた', [otherUid]: otherName || '相手' },
-      subjectLabel: label || '取引の件',
-      eventId: eventId || null,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+  const payload = {
+    participants: [myUid, otherUid],
+    participantNames: { [myUid]: myName || 'あなた', [otherUid]: otherName || '相手' },
+    eventId: eventId || null,
+    updatedAt: serverTimestamp(),
+  };
+  // 🌟 具体的な件名があるときだけ subjectLabel を更新する。
+  //    汎用の「取引の件」や空で上書きすると、一覧から開いて送信しただけで
+  //    せっかくの件名が汎用に降格してしまうため（merge で毎回書かれる）。
+  if (label && label !== '取引の件') payload.subjectLabel = label;
+  await setDoc(doc(db, 'threads', threadId), payload, { merge: true });
 }

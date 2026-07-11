@@ -33,7 +33,7 @@
         </button>
 
         <button class="menu__item" @click="$router.push('/payment-history')">
-          <svg class="menu__icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+          <svg class="menu__icon" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
           <span class="menu__label">お支払い履歴</span>
           <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
         </button>
