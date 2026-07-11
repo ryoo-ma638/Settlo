@@ -158,6 +158,20 @@ onMounted(async () => {
     // 自分の表示名を実データで補完
     try { const me = await getDoc(doc(db, 'users', myUid)); if (me.exists() && me.data().name) myName.value = me.data().name; } catch (e) {}
 
+    // 🌟 既存スレッドの件名を優先（一覧から開いて query に件名が無い/汎用のときは保存済みを使う）
+    try {
+      const existing = await getDoc(doc(db, 'threads', threadId));
+      if (existing.exists()) {
+        const saved = existing.data().subjectLabel;
+        if (saved && saved !== '取引の件' && (!route.query.label || route.query.label === '取引の件')) {
+          label.value = saved;
+        }
+        // 相手名も保存済みから補完（query に無いとき）
+        const savedName = existing.data().participantNames?.[otherUid.value];
+        if (savedName && (!route.query.otherName || otherName.value === '相手')) otherName.value = savedName;
+      }
+    } catch (e) {}
+
     await ensureThread(threadId, { myUid, myName: myName.value, otherUid: otherUid.value, otherName: otherName.value, label: label.value, eventId });
     // この会話を開いたので自分の未読を0に
     try { await updateDoc(doc(db, 'threads', threadId), { [`unread.${myUid}`]: 0 }); } catch (e) {}
