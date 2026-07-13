@@ -1,11 +1,12 @@
 <template>
   <div class="events">
     <header class="screen-head">
-      <h1 class="screen-head__title">進行中のイベント</h1>
-      <button class="screen-head__action" @click="$router.push('/payment')">精算を確認</button>
+      <h1 class="screen-head__title">{{ pickPayment ? '支払いを追加するイベント' : '進行中のイベント' }}</h1>
+      <button v-if="!pickPayment" class="screen-head__action" @click="$router.push('/payment')">精算を確認</button>
     </header>
 
     <main class="events__list">
+      <p v-if="pickPayment" class="events__pickhint">立て替えを記録するイベントを選んでください。</p>
       <div v-if="loading" class="empty-box">読み込み中…</div>
 
       <template v-else>
@@ -13,7 +14,7 @@
           class="evcard"
           v-for="event in events"
           :key="event.id"
-          @click="$router.push(`/event/${event.id}`)"
+          @click="openEvent(event.id)"
         >
           <div class="evcard__top">
             <span class="tag tag--icon">
@@ -52,11 +53,21 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import GenreIcon from '@/components/GenreIcon.vue';
 import { formatDate } from '@/lib/format';
+
+const route = useRoute();
+const router = useRouter();
+// 🌟「お支払いを追加」からイベントを選ぶモード（?pick=payment）
+const pickPayment = computed(() => route.query.pick === 'payment');
+const openEvent = (id) => {
+  // 支払い追加モードならイベント詳細で支払い追加モーダルを直接開く
+  router.push(pickPayment.value ? `/event/${id}?addPayment=1` : `/event/${id}`);
+};
 
 const events = ref([]);
 const loading = ref(true);
@@ -134,6 +145,7 @@ onMounted(() => {
   flex-direction: column;
   gap: 10px;
 }
+.events__pickhint { font-size: 13px; color: var(--c-text-sub); margin: 4px 2px 6px; }
 
 .evcard {
   background: var(--c-surface);

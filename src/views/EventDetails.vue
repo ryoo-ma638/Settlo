@@ -354,7 +354,7 @@ const getUserInfo = async (uid) => {
 // ==========================================
 // 🌟 1. 2人の import を綺麗に合体！
 // ==========================================
-import { ref, computed, onMounted, onUnmounted, reactive } from 'vue'; // 🌟 reactiveを追加
+import { ref, computed, watch, onMounted, onUnmounted, reactive } from 'vue'; // 🌟 reactiveを追加
 import { useRoute, useRouter } from 'vue-router';
 import { formatDate } from '@/lib/format';
 
@@ -621,6 +621,16 @@ const openSummaryDetail = (s) => { selectedSummary.value = s; modals.value.summa
 // 🌟 支払いの編集：詳細を閉じて、編集モードで支払いモーダルを開く
 const editingHistory = ref(null);
 const openNewPayment = () => { editingHistory.value = null; modals.value.addPayment = true; };
+
+// 🌟「＋→お支払いを追加→イベント選択」で来たら（?addPayment=1）、参加者が揃い次第
+//    支払い追加モーダルを自動で開く。開いたら一度きり。
+let autoAddOpened = false;
+watch(() => (eventData.value.participants || []).length, (n) => {
+  if (route.query.addPayment === '1' && !autoAddOpened && n > 0 && !eventData.value.ended) {
+    autoAddOpened = true;
+    openNewPayment();
+  }
+}, { immediate: true });
 const openEditPayment = (h) => {
   editingHistory.value = h;
   modals.value.historyDetail = false;

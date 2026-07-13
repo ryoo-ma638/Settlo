@@ -10,9 +10,38 @@
       <span>イベント</span>
     </button>
 
-    <button class="botnav__fab" data-tour="nav-add" @click="go('/make-event')" aria-label="新規イベント作成">
+    <button class="botnav__fab" data-tour="nav-add" @click="showAddSheet = true" aria-label="追加">
       <svg viewBox="0 0 24 24" class="botnav__fab-icon"><path d="M12 6v12M6 12h12"/></svg>
     </button>
+
+    <!-- ＋ の選択シート：イベント作成 / お支払い追加 -->
+    <Teleport to="body">
+      <transition name="sheet-fade">
+        <div v-if="showAddSheet" class="addsheet" @click.self="showAddSheet = false">
+          <div class="addsheet__panel">
+            <button class="addsheet__item" @click="pick('/make-event')">
+              <span class="addsheet__ic addsheet__ic--brand">
+                <svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="16" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>
+              </span>
+              <span class="addsheet__txt">
+                <b>イベントを作成</b>
+                <small>旅行・飲み会などをつくる</small>
+              </span>
+            </button>
+            <button class="addsheet__item" @click="pick('/event?pick=payment')">
+              <span class="addsheet__ic addsheet__ic--pay">
+                <svg viewBox="0 0 24 24"><rect x="2.5" y="5.5" width="19" height="13" rx="3"/><path d="M2.5 10h19"/></svg>
+              </span>
+              <span class="addsheet__txt">
+                <b>お支払いを追加</b>
+                <small>イベントを選んで立て替えを記録</small>
+              </span>
+            </button>
+            <button class="addsheet__cancel" @click="showAddSheet = false">キャンセル</button>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
 
     <button class="botnav__tab" data-tour="nav-money" :class="{ 'is-active': isActive('/payment') }" @click="go('/payment')">
       <svg viewBox="0 0 24 24" class="botnav__icon"><rect x="2.5" y="5.5" width="19" height="13" rx="3"/><path d="M2.5 10h19"/></svg>
@@ -27,12 +56,16 @@
 </template>
 
 <script setup>
+import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 const route = useRoute();
 const router = useRouter();
+const showAddSheet = ref(false);
 
 const go = (path) => { if (route.path !== path) router.push(path); };
+// 選択シートから遷移（クエリ付きも確実に飛べるよう router.push を使う）
+const pick = (path) => { showAddSheet.value = false; router.push(path); };
 
 const isActive = (path) => {
   if (path === '/') return route.path === '/';
@@ -103,4 +136,44 @@ const isActive = (path) => {
   stroke-width: 2.4;
   stroke-linecap: round;
 }
+
+/* ＋ の選択シート */
+.addsheet {
+  position: fixed; inset: 0; z-index: 3000;
+  background: var(--c-overlay, rgba(15, 23, 42, 0.5));
+  display: flex; align-items: flex-end; justify-content: center;
+  padding: 16px;
+}
+.addsheet__panel {
+  width: 100%; max-width: var(--app-max, 480px);
+  background: var(--c-surface); border-radius: 22px;
+  padding: 10px; margin-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+  box-shadow: var(--shadow-pop);
+}
+.addsheet__item {
+  width: 100%; display: flex; align-items: center; gap: 14px;
+  padding: 16px 14px; border-radius: 16px; text-align: left;
+}
+.addsheet__item:active { background: var(--c-surface-2); }
+.addsheet__ic {
+  width: 44px; height: 44px; border-radius: 13px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.addsheet__ic svg { width: 24px; height: 24px; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.addsheet__ic--brand { background: var(--c-brand-weak); }
+.addsheet__ic--brand svg { stroke: var(--c-brand); }
+.addsheet__ic--pay { background: var(--c-pay-weak, #fff7ed); }
+.addsheet__ic--pay svg { stroke: var(--c-pay-strong); }
+.addsheet__txt { display: flex; flex-direction: column; gap: 2px; }
+.addsheet__txt b { font-size: 15px; font-weight: var(--fw-black); color: var(--c-ink); }
+.addsheet__txt small { font-size: 12px; color: var(--c-text-sub); }
+.addsheet__cancel {
+  width: 100%; padding: 14px; margin-top: 4px;
+  font-size: 14px; font-weight: var(--fw-bold); color: var(--c-text-sub);
+  border-radius: 14px;
+}
+.addsheet__cancel:active { background: var(--c-surface-2); }
+
+.sheet-fade-enter-active, .sheet-fade-leave-active { transition: opacity 0.2s ease; }
+.sheet-fade-enter-from, .sheet-fade-leave-to { opacity: 0; }
 </style>
