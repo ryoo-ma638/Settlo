@@ -14,6 +14,10 @@
       </div>
     </div>
 
+    <span v-if="user.net" class="fcard__bal" :class="user.net < 0 ? 'is-pay' : 'is-receive'">
+      {{ user.net < 0 ? '支払う' : '受け取る' }}
+      <span class="fcard__bal-amt tnum">¥{{ Math.abs(user.net).toLocaleString() }}</span>
+    </span>
     <svg class="fcard__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
   </div>
 </template>
@@ -51,6 +55,14 @@ defineEmits(['click']);
 .chip--alert { background: #fee2e2; color: var(--c-danger); }
 .chip--brand { background: var(--c-brand-weak); color: var(--c-brand-strong); }
 .chip--muted { background: var(--c-surface-2); color: var(--c-text-sub); }
+
+.fcard__bal {
+  flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25;
+  font-size: 10.5px; font-weight: var(--fw-bold);
+}
+.fcard__bal.is-pay { color: var(--c-pay-strong); }
+.fcard__bal.is-receive { color: var(--c-receive); }
+.fcard__bal-amt { font-size: 15px; font-weight: var(--fw-black); }
 
 .fcard__chevron {
   width: 20px; height: 20px; flex-shrink: 0;

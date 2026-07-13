@@ -147,6 +147,15 @@ const addTradingUserToList = async (targetUser) => {
 const friendData = ref([]);
 const pendingRequests = ref([]);
 const loading = ref(true); // フレンド一覧の初回読込中は true（スケルトン表示）
+const balanceByUid = ref({}); // 相手UID → net（>0=受け取る / <0=支払う。全イベント横断）
+// 相手ごとの受取/支払を集計して net を更新
+const recvByUid = {}; const payByUid = {};
+const rebuildBalance = () => {
+  const out = {};
+  const uids = new Set([...Object.keys(recvByUid), ...Object.keys(payByUid)]);
+  uids.forEach(uid => { out[uid] = (recvByUid[uid] || 0) - (payByUid[uid] || 0); });
+  balanceByUid.value = out;
+};
 
 onMounted(() => {
   onAuthStateChanged(auth, (user) => {
@@ -166,6 +175,18 @@ onMounted(() => {
           };
         });
       });
+
+      // 相手ごとの残高（受取＝相手が自分に払う／支払＝自分が相手に払う・未完了のみ）
+      onSnapshot(query(collection(db, "transactions"), where("paidToId", "==", user.uid)), (snap) => {
+        for (const k in recvByUid) delete recvByUid[k];
+        snap.docs.forEach(d => { const t = d.data(); if (t.paidById && (t.status || 'unpaid') !== 'completed') recvByUid[t.paidById] = (recvByUid[t.paidById] || 0) + (t.amount || 0); });
+        rebuildBalance();
+      }, () => {});
+      onSnapshot(query(collection(db, "transactions"), where("paidById", "==", user.uid)), (snap) => {
+        for (const k in payByUid) delete payByUid[k];
+        snap.docs.forEach(d => { const t = d.data(); if (t.paidToId && (t.status || 'unpaid') !== 'completed') payByUid[t.paidToId] = (payByUid[t.paidToId] || 0) + (t.amount || 0); });
+        rebuildBalance();
+      }, () => {});
 
       const qFriends = collection(db, "users", user.uid, "friends");
       onSnapshot(qFriends, (snapshot) => {
@@ -275,14 +296,16 @@ const processedList = computed(() => {
     list = list.filter(u => u.isFriend === false || u.isFriend === undefined);
   }
 
-  return [...list].sort((a, b) => {
-    if (currentSort.value === 'kana_asc') {
-      return (a.kana || "").localeCompare(b.kana || "", 'ja');
-    }
-    const timeA = a.addedAt?.seconds || 0;
-    const timeB = b.addedAt?.seconds || 0;
-    return timeB - timeA;
-  });
+  return [...list]
+    .map(u => ({ ...u, net: balanceByUid.value[u.uid || u.id] || 0 })) // 相手ごとの残高を付与
+    .sort((a, b) => {
+      if (currentSort.value === 'kana_asc') {
+        return (a.kana || "").localeCompare(b.kana || "", 'ja');
+      }
+      const timeA = a.addedAt?.seconds || 0;
+      const timeB = b.addedAt?.seconds || 0;
+      return timeB - timeA;
+    });
 });
 
 const navigateToDetail = (friend) => {
