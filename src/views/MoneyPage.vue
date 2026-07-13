@@ -5,6 +5,26 @@
     </header>
 
     <div class="money__body">
+      <!-- 🌟 まとめて精算（全イベント横断・人ごと。一番上に固定） -->
+      <section v-if="settleByPerson.length" class="settle">
+        <h2 class="settle__title">まとめて精算</h2>
+        <p class="settle__lead">全部のイベントを合算した、その人との差し引きです。</p>
+        <div class="settle__list">
+          <button v-for="m in settleByPerson" :key="m.uid" class="scard" @click="goSettle(m)">
+            <div class="scard__avatar">
+              <img v-if="m.photo" :src="m.photo" alt="" />
+              <div v-else class="scard__ph"></div>
+            </div>
+            <span class="scard__name">{{ m.name }}</span>
+            <span class="scard__action" :class="m.net < 0 ? 'is-pay' : 'is-receive'">
+              {{ m.net < 0 ? '支払う' : '受け取る' }}
+              <span class="scard__amt tnum">¥{{ Math.abs(m.net).toLocaleString() }}</span>
+            </span>
+            <svg class="scard__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+      </section>
+
       <div class="seg">
         <button class="seg__item" :class="{ 'is-active': currentTab === 'waiting' }" @click="currentTab = 'waiting'">お支払い待ち</button>
         <button class="seg__item" :class="{ 'is-active': currentTab === 'unpaid' }" @click="currentTab = 'unpaid'">未払い</button>
@@ -117,7 +137,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { db, auth } from '@/firebase' // 🌟 追加
 import { onAuthStateChanged } from 'firebase/auth' // 🌟 追加
 import { collection, query, where, onSnapshot, doc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore' // 🌟 追加
@@ -125,6 +145,7 @@ import SkeletonRows from '../components/SkeletonRows.vue'
 import { formatDate } from '../lib/format'
 
 const route = useRoute()
+const router = useRouter()
 const currentTab = ref('waiting')
 
 // --- 🌟 ダミーデータを空にして、Firestoreからの読み込み待ちにする ---
@@ -135,6 +156,28 @@ const loading = ref(true)      // 最初のデータが届くまで true（ス�
 // 🌟 合計金額などを表示するための変数
 const totalReceivable = ref(0)
 const totalPayable = ref(0)
+
+// 🌟 全イベント横断で「人ごと」に相殺した、まとめて精算できる相手の一覧
+//    net > 0 = その人から受け取る（催促）／ net < 0 = その人へ支払う
+const settleByPerson = computed(() => {
+  const map = {}
+  const bump = (uid, name, photo, key, amt) => {
+    if (!uid) return
+    const m = map[uid] || (map[uid] = { uid, name, photo, receive: 0, pay: 0 })
+    m[key] += amt || 0
+    if ((!m.name || m.name === '不明なユーザー') && name) m.name = name
+    if (!m.photo && photo) m.photo = photo
+  }
+  receivableList.value.forEach(i => bump(i.opponentUid, i.name, i.photo, 'receive', i.amount))
+  payableList.value.forEach(i => bump(i.opponentUid, i.name, i.photo, 'pay', i.amount))
+  return Object.values(map)
+    .map(m => ({ ...m, net: m.receive - m.pay }))
+    .filter(m => m.net !== 0)
+    .sort((a, b) => Math.abs(b.net) - Math.abs(a.net))
+})
+const goSettle = (m) => {
+  router.push(`/combined-settlement/${encodeURIComponent(m.name || '相手')}?uid=${m.uid}`)
+}
 
 // 🌟 承認待ちと通常分を分けて表示するための算出プロパティ
 const receivableAwaiting = computed(() => receivableList.value.filter(i => i.status === 'awaiting_approval'))
@@ -209,6 +252,7 @@ onMounted(() => {
 
           list.push({
             id: transactionDoc.id,
+            opponentUid: otherUid,
             date: formatTimestamp(data.createdAt),
             name: otherName,
             itemName: data.itemName || "イベント代",
@@ -260,6 +304,7 @@ onMounted(() => {
 
           list.push({
             id: transactionDoc.id,
+            opponentUid: otherUid,
             date: formatTimestamp(data.createdAt),
             name: otherName,
             itemName: data.itemName || "イベント代",
@@ -334,6 +379,28 @@ const formatTimestamp = (timestamp) => formatDate(timestamp);
 .money__section--action { color: var(--c-brand-strong); }
 .trow--action { border: 1.5px solid var(--c-brand); }
 .trow--muted { opacity: 0.82; }
+
+/* まとめて精算（人ごと） */
+.settle { margin: 6px 0 8px; }
+.settle__title { font-size: 15px; font-weight: var(--fw-black); color: var(--c-ink); margin: 6px 0 2px; }
+.settle__lead { font-size: 12px; color: var(--c-text-sub); margin: 0 0 10px; }
+.settle__list { display: flex; flex-direction: column; gap: 10px; }
+.scard {
+  width: 100%; display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; background: var(--c-surface);
+  border: 1px solid var(--c-line); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm); text-align: left;
+}
+.scard:active { transform: scale(0.99); background: var(--c-surface-2); }
+.scard__avatar { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: var(--c-brand-tint); }
+.scard__avatar img { width: 100%; height: 100%; object-fit: cover; }
+.scard__ph { width: 100%; height: 100%; background: var(--c-brand-tint); }
+.scard__name { flex: 1; min-width: 0; font-size: 15px; font-weight: var(--fw-bold); color: var(--c-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scard__action { flex-shrink: 0; display: flex; align-items: baseline; gap: 6px; font-size: 12px; font-weight: var(--fw-bold); }
+.scard__action.is-pay { color: var(--c-pay-strong); }
+.scard__action.is-receive { color: var(--c-receive); }
+.scard__amt { font-size: 17px; font-weight: var(--fw-black); }
+.scard__chevron { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: var(--c-text-faint); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 /* 取引行 */
 .trow {
