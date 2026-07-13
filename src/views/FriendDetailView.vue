@@ -9,24 +9,28 @@
       </PageHeader>
 
     <main class="scroll-content">
-      <section class="total-balance-card" 
-        @click="$router.push({ 
-          path: '/combined-settlement/' + $route.params.name, 
-          query: { uid: route.params.uid } 
-        })"
+      <section class="total-balance-card" :class="{ 'is-flat': netBalance === 0 }"
+        @click="netBalance !== 0 && $router.push({ path: '/combined-settlement/' + $route.params.name, query: { uid: route.params.uid } })"
       >
     <div class="balance-label">トータルの貸し借り</div>
-    <div class="balance-main">
-      <h2 class="balance-amount" :class="netBalance >= 0 ? 'blue-text' : 'orange-text'">
-        {{ netBalance >= 0 ? '受け取る' : '支払う' }} ¥{{ Math.abs(netBalance).toLocaleString() }}
-      </h2>
-      <span class="arrow-icon">›</span>
-    </div>
-    <div class="balance-sub-info">
-      <div class="sub-item"><span class="dot blue-dot"></span> お支払い待ち: ¥{{ waitingTotal.toLocaleString() }}</div>
-      <div class="sub-item"><span class="dot orange-dot"></span> 未払い: ¥{{ unpaidTotal.toLocaleString() }}</div>
-    </div>
-  </section> 
+    <template v-if="netBalance !== 0">
+      <div class="balance-main">
+        <h2 class="balance-amount" :class="netBalance >= 0 ? 'blue-text' : 'orange-text'">
+          {{ netBalance >= 0 ? '受け取る' : '支払う' }} ¥{{ Math.abs(netBalance).toLocaleString() }}
+        </h2>
+      </div>
+      <div class="balance-sub-info">
+        <div class="sub-item"><span class="dot blue-dot"></span> お支払い待ち: ¥{{ waitingTotal.toLocaleString() }}</div>
+        <div class="sub-item"><span class="dot orange-dot"></span> 未払い: ¥{{ unpaidTotal.toLocaleString() }}</div>
+      </div>
+      <!-- 初見でも「押せる」と分かるように、はっきりしたボタンを出す -->
+      <div class="balance-cta" :class="netBalance >= 0 ? 'cta-recv' : 'cta-pay'">
+        <span>{{ netBalance >= 0 ? 'まとめて受け取る・催促する' : 'まとめて支払う' }}</span>
+        <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+    </template>
+    <p v-else class="balance-none">今は貸し借りがありません</p>
+  </section>
   <h2 class="section-title">{{ friend.name }} さんとのお支払い状況</h2>
 
       <section class="tx-section" v-if="receivableItems.length">
@@ -270,8 +274,21 @@ const handleDeleteFriend = async () => {
 .balance-label { font-size: 13px; font-weight: 800; color: var(--c-text-sub); margin-bottom: 12px; }
 .balance-main { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 16px; }
 .balance-amount { font-size: 36px; font-weight: 900; margin: 0; letter-spacing: -1px; }
-.arrow-icon { font-size: 24px; color: var(--c-line-strong); }
 .balance-sub-info { font-size: 11px; color: var(--c-text-faint); display: flex; justify-content: center; gap: 15px; background: var(--c-surface-2); padding: 8px; border-radius: 12px; }
+/* 初見向け: はっきりした「まとめて精算」ボタン */
+.balance-cta {
+  margin-top: 16px; width: 100%;
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  padding: 14px; border-radius: var(--r-pill); color: #fff;
+  font-size: 15px; font-weight: var(--fw-black);
+}
+.balance-cta svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.balance-cta.cta-recv { background: var(--c-receive); }
+.balance-cta.cta-pay { background: var(--c-pay); }
+.total-balance-card:active { transform: scale(0.99); }
+.total-balance-card.is-flat { cursor: default; }
+.total-balance-card.is-flat:active { transform: none; }
+.balance-none { font-size: 13px; color: var(--c-text-faint); font-weight: var(--fw-bold); margin: 8px 0 2px; }
 .sub-item { display: flex; align-items: center; gap: 5px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; }
 .blue-dot { background-color: #3b82f6; }
