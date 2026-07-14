@@ -20,11 +20,11 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 
 // ヘッダー・下部ナビの各ボタンを1つずつ強調して説明する
 const steps = [
-  { sel: '[data-tour="avatar"]', title: 'マイページ', desc: 'プロフィール・お支払い履歴・ゴミ箱・承認待ち・チャットの入口です。' },
+  { sel: '[data-tour="avatar"]', title: 'マイページ', desc: 'プロフィール・お支払い履歴・ゴミ箱・承認待ち・チャット・使い方の入口です。' },
   { sel: '[data-tour="pending"]', title: '承認待ち', desc: 'あなたが承認する分・相手の承認待ち・承認/拒否の履歴。催促されている支払いは一番上に赤く強調されます。' },
   { sel: '[data-tour="chat"]', title: 'チャット', desc: 'その件について相談できます。未読の数がバッジで出て、解決すると自動で片付きます。' },
-  { sel: '[data-tour="help"]', title: '使い方', desc: 'アプリの使い方。このガイドをもう一度見ることもできます。' },
   { sel: '[data-tour="bell"]', title: 'お知らせ', desc: '承認依頼・催促・「これは正しいですか？」の確認が届きます。' },
+  { sel: '[data-tour="assist"]', title: 'お支払いアシスタント', desc: '押すと開いて、いま承認する・支払う・催促する相手を金額つきで教えてくれます。どの画面からでも開けます。' },
   { sel: '[data-tour="nav-home"]', title: 'ホーム', desc: '受け取る額・支払う額など、貸し借りがひと目でわかります。' },
   { sel: '[data-tour="nav-event"]', title: 'イベント', desc: '旅行・飲み会ごとに立て替えをまとめて精算します。' },
   { sel: '[data-tour="nav-add"]', title: '追加（＋）', desc: '新しいイベントや支払いをここから追加します。' },
