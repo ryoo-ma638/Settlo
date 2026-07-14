@@ -45,7 +45,7 @@
             <path d="M10 11v6" /><path d="M14 11v6" />
           </svg>
         </span>
-        <p>{{ tab === 'event' ? '削除したイベントはありません' : '削除・完了した取引はありません' }}</p>
+        <p>{{ tab === 'event' ? '削除したイベントはありません' : '削除した取引はありません' }}</p>
       </div>
 
       <div v-for="item in currentItems" :key="item._loc + item.id" class="tcard">

@@ -41,9 +41,10 @@
           <section v-if="history.status === 'completed'" class="completed-section">
             <div class="completed-card">
               <span class="completed-icon"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#059669" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>
-              <h3 class="completed-title">この取引は完了しています</h3>
+              <h3 class="completed-title">この取引は精算済みです</h3>
               <p class="completed-date">取引完了日: {{ history.date }} {{ history.time }}</p>
             </div>
+            <button class="revert-btn" @click="$emit('revert', history)">未精算に戻す（間違えたとき）</button>
           </section>
 
           <template v-else>
@@ -87,7 +88,7 @@ const props = defineProps({
   myAmount: { type: Number, default: null }, // 閲覧者にとっての金額（払う/受け取る）
   myRole: { type: String, default: 'none' }   // 'payer' | 'debtor' | 'none'
 });
-const emit = defineEmits(['close', 'complete', 'edit', 'delete']);
+const emit = defineEmits(['close', 'complete', 'edit', 'delete', 'revert']);
 
 // 割り勘方法を日本語で表示（生値 all/custom/item をそのまま出さない）
 const splitLabel = (t) => ({ all: '全員で均等', custom: '金額指定', item: '商品ごと' }[t] || t || '');
@@ -181,6 +182,8 @@ const handlePayment = () => {
 
 .completed-section { margin-top: 15px; margin-bottom: 15px; }
 .completed-card { background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 16px; padding: 20px; text-align: center; color: #166534; box-shadow: 0 4px 10px rgba(0,0,0,0.02); }
+.revert-btn { width: 100%; margin-top: 10px; padding: 12px; border-radius: 12px; border: 1px solid var(--c-line-bold); background: var(--c-surface); color: var(--c-text-sub); font-size: 13px; font-weight: 700; cursor: pointer; }
+.revert-btn:active { background: var(--c-surface-2); }
 .completed-icon { font-size: 32px; display: block; margin-bottom: 8px; }
 .completed-title { font-size: 15px; font-weight: 900; margin: 0 0 4px 0; }
 .completed-date { font-size: 12px; opacity: 0.8; margin: 0; font-weight: 700; }
