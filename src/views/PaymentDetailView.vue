@@ -119,7 +119,7 @@ import BaseModal from '../components/BaseModal.vue';
 import RemindModal from '../components/RemindModal.vue';
 import PageHeader from '../components/PageHeader.vue';
 import { logApprovalBoth } from '@/lib/approvalLog';
-import { resolveThreadForTx } from '@/lib/thread';
+import { resolveThreadForTx, postPaymentEventByTx, resolvePaymentThreadByTx } from '@/lib/thread';
 
 const route = useRoute();
 const router = useRouter(); 
@@ -345,6 +345,9 @@ const sendReminder = async ({ deadline, message } = {}) => {
         lastRemindedAt: serverTimestamp()
       });
       it.remindCount = (it.remindCount || 0) + 1; // 画面表示も即更新
+      // グループチャットに経緯を流す（○回目の催促）
+      const n = it.remindCount;
+      await postPaymentEventByTx(it.id, { text: `${it.name || '相手'}さんへ${n}回目の催促を送りました`, kind: 'reminded', actorUid: auth.currentUser?.uid });
     }
     remindModalOpen.value = false;
     showModal({ type: 'success', title: '催促を送信しました', message: `相手に支払いの催促通知を送りました（通算 ${remindCount.value} 回）。` });
@@ -388,7 +391,10 @@ const approvePayment = () => {
         await clearApprovalNotifs(); // お知らせの承認リクエストを消す
         for (const it of items.value) {
           await logApprovalBoth({ myUid: auth.currentUser?.uid, myName: auth.currentUser?.displayName || 'あなた', otherUid: it.opponentUid, otherName: it.name, kind: 'payment', outcome: 'approved', itemName: it.itemName, amount: it.amount });
-          await resolveThreadForTx(auth.currentUser?.uid, it.opponentUid, it.id); // 解決したのでチャットを消す
+          await resolveThreadForTx(auth.currentUser?.uid, it.opponentUid, it.id); // 1対1チャットを消す
+          // グループチャットに経緯を流す＋全員完了なら片付ける
+          await postPaymentEventByTx(it.id, { text: `${it.name || '相手'}さんの支払いを承認し、精算しました`, kind: 'approved', actorUid: auth.currentUser?.uid });
+          await resolvePaymentThreadByTx(it.id);
         }
         // 🌟 支払った側へ「支払いが完了しました」を届ける
         for (const it of items.value) {
@@ -423,6 +429,7 @@ const rejectPayment = () => {
         await clearApprovalNotifs(); // お知らせの承認リクエストを消す
         for (const it of items.value) {
           await logApprovalBoth({ myUid: auth.currentUser?.uid, myName: auth.currentUser?.displayName || 'あなた', otherUid: it.opponentUid, otherName: it.name, kind: 'payment', outcome: 'rejected', itemName: it.itemName, amount: it.amount });
+          await postPaymentEventByTx(it.id, { text: `${it.name || '相手'}さんの支払いを差し戻しました（未払いに戻りました）`, kind: 'rejected', actorUid: auth.currentUser?.uid });
         }
         for (const it of items.value) {
           await notifyOpponent(it, 'approval_rejected', '承認リクエストが拒否されました。もう一度お支払い手続きをしてください。');
@@ -454,10 +461,13 @@ const confirmCash = () => {
         submitting.value = true;
         try {
           await updateAllItems('completed');
+          const myNm = auth.currentUser?.displayName || 'メンバー';
           // 🌟 支払った側へ「支払いが完了しました」を届ける
           for (const it of items.value) {
             try { await notifyOpponent(it, 'payment_completed', '受け取りが確認され、精算が完了しました。', reason); } catch (e) {}
-            await resolveThreadForTx(auth.currentUser?.uid, it.opponentUid, it.id); // 解決したのでチャットを消す
+            await resolveThreadForTx(auth.currentUser?.uid, it.opponentUid, it.id); // 1対1チャットを消す
+            await postPaymentEventByTx(it.id, { text: `${myNm}さんが現金で受け取り、精算しました`, kind: 'completed', actorUid: auth.currentUser?.uid });
+            await resolvePaymentThreadByTx(it.id);
           }
           currentStatus.value = 'completed';
           showModal({
@@ -483,8 +493,10 @@ const confirmCash = () => {
         submitting.value = true;
         try {
           await updateAllItems('awaiting_approval');
+          const myNm = auth.currentUser?.displayName || 'メンバー';
           for (const it of items.value) {
             await notifyOpponent(it, 'approval_request', '支払いの承認リクエストが届きました。', reason);
+            await postPaymentEventByTx(it.id, { text: `${myNm}さんが支払いました（相手の承認待ち）`, kind: 'paid', actorUid: auth.currentUser?.uid });
           }
           currentStatus.value = 'awaiting_approval'; // 画面のボタンを「承認待ち」に切り替える
           showModal({

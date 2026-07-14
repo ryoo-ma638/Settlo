@@ -357,6 +357,7 @@ const getUserInfo = async (uid) => {
 import { ref, computed, watch, onMounted, onUnmounted, reactive } from 'vue'; // 🌟 reactiveを追加
 import { useRoute, useRouter } from 'vue-router';
 import { formatDate } from '@/lib/format';
+import { ensurePaymentThread, postPaymentEventByTx, resolvePaymentThreadByTx } from '@/lib/thread';
 
 import AddPaymentModal from '@/components/AddPaymentModal.vue';
 import ReceiptPaymentModal from '@/components/ReceiptPaymentModal.vue';
@@ -751,10 +752,14 @@ const doMarkAsCompleted = async (id) => {
     const myUid = auth.currentUser?.uid;
     const hist = eventData.value.history.find(h => h.id === id);
     const txIds = hist?.transactionIds || [];
+    const myNm = myName.value || '立替者';
     // 🌟 紐づく取引(transactions)を完了にする（履歴/サマリーのstatusはここから導出される）
     for (const tid of txIds) {
       await updateDoc(doc(db, "transactions", tid), { status: 'completed' });
+      await postPaymentEventByTx(tid, { text: `${myNm}さんが精算済みにしました`, kind: 'completed', actorUid: myUid });
     }
+    // 全員完了ならグループチャットを片付ける
+    if (txIds[0]) await resolvePaymentThreadByTx(txIds[0]);
     // 履歴ドキュメントのstatusもキャッシュとして更新
     await updateDoc(doc(db, "events", eventId, "history", id), { status: 'completed' });
     if (hist) hist.status = 'completed'; // ローカルにも即反映
@@ -850,6 +855,7 @@ const addHistory = async (newPayment) => {
     // 🌟 1. 立替者以外の「負担した人」ごとに、指定額どおりの transactions を生成
     //       （HomeView/MoneyPage が読む正データ。均等割りはしない）
     const transactionIds = [];
+    const debtorUids = []; // この立て替えで支払う人（グループチャットの参加者に使う）
     for (const s of shares) {
       if (!s || s.uid === creditorUid) continue;   // 立替者自身は自己負担なので作らない
       const amt = Number(s.amount) || 0;
@@ -865,6 +871,7 @@ const addHistory = async (newPayment) => {
         createdAt: serverTimestamp(),
       });
       transactionIds.push(txRef.id);
+      debtorUids.push(s.uid);
     }
 
     // 🌟 2. このイベント内の「立て替え履歴」サブコレクションへ保存
@@ -887,6 +894,25 @@ const addHistory = async (newPayment) => {
       items: newPayment.items || [],
       transactionIds: transactionIds // 🌟 決済完了時に transactions 側も更新するための紐付け（A-7で使用）
     });
+
+    // 🌟 各取引に historyId を紐づける（経緯をグループチャットに流すとき特定に使う）
+    const historyId = docRef.id;
+    for (const tid of transactionIds) {
+      try { await updateDoc(doc(db, "transactions", tid), { historyId }); } catch (e) { /* 続行 */ }
+    }
+    // 🌟 支払いグループチャットを作成（立て替えを追加した瞬間に「件」ができる）
+    if (debtorUids.length > 0) {
+      try {
+        const parts = [creditorUid, ...debtorUids];
+        const nameOfP = (uid) => (eventData.value.participants.find(p => p.id === uid)?.name) || 'メンバー';
+        const pNames = {}; parts.forEach(u => { pNames[u] = nameOfP(u); });
+        await ensurePaymentThread(historyId, {
+          participants: parts, participantNames: pNames, creditorUid,
+          eventId, eventName: eventData.value.name || '', itemName: newPayment.itemName,
+          amount: Number(newPayment.amount), transactionIds,
+        });
+      } catch (e) { console.error('支払いチャットの作成に失敗:', e); }
+    }
 
     // 🌟 3. イベント本体の合計金額(totalAmount)を更新
     const eventDocRef = doc(db, "events", eventId);
