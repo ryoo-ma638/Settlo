@@ -22,7 +22,7 @@
           <svg v-else viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
         </span>
         <span class="gact__text">{{ a.text }}</span>
-        <button class="gact__btn" @click="$router.push(a.to)">{{ a.cta }}</button>
+        <button class="gact__btn" @click="$emit('navigate'); $router.push(a.to)">{{ a.cta }}</button>
       </div>
       <p v-if="actions.length > 3" class="guide__more">ほか {{ actions.length - 3 }} 件あります</p>
     </div>
@@ -33,6 +33,7 @@
 <script setup>
 // actions: [{ kind: 'approve'|'pay'|'remind', text, cta, to }]
 defineProps({ actions: { type: Array, default: () => [] } });
+defineEmits(['navigate']); // アクションを押して遷移したら親（パネル）を閉じる
 </script>
 
 <style scoped>
