@@ -1,5 +1,6 @@
 <template>
   <div class="home">
+    <ActionGuide v-if="!summaryLoading" :actions="guideActions" />
     <PaymentCarousel :summary="paymentSummary" :loading="summaryLoading" />
 
     <section class="ongoing">
@@ -99,6 +100,7 @@ import { db, auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, onSnapshot, getDoc, doc, getDocs, deleteDoc, updateDoc, addDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import PaymentCarousel from '@/components/PaymentCarousel.vue';
+import ActionGuide from '@/components/ActionGuide.vue';
 import BaseModal from '@/components/BaseModal.vue'; // 🌟 Eventブランチの統一モーダル
 import api from '@/services/api';
 
@@ -132,6 +134,27 @@ const paymentSummary = ref({
   payableList: []
 });
 const summaryLoading = ref(true); // カルーセルの初回読込中は true（スケルトン表示）
+
+// 🌟 お支払いアシスタント：今の状態から「次にやること」を組み立てる（優先度順）
+const guideActions = computed(() => {
+  const acts = [];
+  const recv = paymentSummary.value.receivableList || [];
+  const pay = paymentSummary.value.payableList || [];
+  const yen = (v) => `¥${(Number(v) || 0).toLocaleString()}`;
+  // ① 相手が支払い済みで、あなたの承認待ち（相手を待たせている＝最優先）
+  recv.filter(i => i.status === 'awaiting_approval').forEach(i => {
+    acts.push({ kind: 'approve', text: `${i.name}さんの支払い ${yen(i.amount)} を承認してください`, cta: '承認する', to: `/payment-detail/waiting-${i.id}` });
+  });
+  // ② 自分の未払い（払う）
+  pay.filter(i => i.status === 'unpaid').forEach(i => {
+    acts.push({ kind: 'pay', text: `${i.name}さんに ${yen(i.amount)} の未払いがあります`, cta: '支払う', to: `/payment-detail/unpaid-${i.id}` });
+  });
+  // ③ 相手が未払い（催促できる）
+  recv.filter(i => i.status === 'unpaid').forEach(i => {
+    acts.push({ kind: 'remind', text: `${i.name}さんが ${yen(i.amount)} 未払いです`, cta: '催促する', to: `/payment-detail/waiting-${i.id}` });
+  });
+  return acts;
+});
 
 // ==========================================
 // 🌟 1. 名前とアイコン取得の効率化（mainブランチの機能）
