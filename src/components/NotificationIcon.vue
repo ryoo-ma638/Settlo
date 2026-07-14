@@ -175,7 +175,7 @@ import {
   collection, query, where, onSnapshot, getDocs,
   doc, getDoc, setDoc, deleteDoc, updateDoc, addDoc, serverTimestamp, arrayUnion, arrayRemove, increment
 } from 'firebase/firestore';
-import { subjectKey, threadIdFor, subjectLabel, resolveThreadForTx } from '@/lib/thread';
+import { subjectKey, threadIdFor, subjectLabel, resolveThreadForTx, postPaymentEventByTx, resolvePaymentThreadByTx } from '@/lib/thread';
 import { logApprovalBoth } from '@/lib/approvalLog';
 import { showToast } from '@/lib/toast';
 
@@ -441,7 +441,10 @@ const approveTx = async (req) => {
           : (d.paidToId === myUid);
         if (!ok) continue;
         if ((d.status || 'unpaid') !== 'completed') { await updateDoc(doc(db, "transactions", tid), { status: 'completed' }); completed++; }
-        await resolveThreadForTx(myUid, otherUid, tid); // 解決したのでチャットを消す
+        await resolveThreadForTx(myUid, otherUid, tid); // 1対1チャットを消す
+        // グループチャットに経緯を流し、全員完了なら片付ける
+        await postPaymentEventByTx(tid, { text: `${req.fromUserName || '相手'}さんの支払いを承認し、精算しました`, kind: 'approved', actorUid: myUid });
+        await resolvePaymentThreadByTx(tid);
       } catch (e) { /* 1件失敗しても他を続ける */ }
     }
 
@@ -481,7 +484,10 @@ const rejectTx = (req) => {
       const myUid = auth.currentUser?.uid;
       if (!myUid) return;
       const ids = Array.isArray(req.transactionIds) && req.transactionIds.length ? req.transactionIds : (req.transactionId ? [req.transactionId] : []);
-      for (const tid of ids) { try { await updateDoc(doc(db, "transactions", tid), { status: 'unpaid' }); } catch (e) { /* 続行 */ } }
+      for (const tid of ids) {
+        try { await updateDoc(doc(db, "transactions", tid), { status: 'unpaid' }); } catch (e) { /* 続行 */ }
+        await postPaymentEventByTx(tid, { text: `${req.fromUserName || '相手'}さんの支払いを差し戻しました（未払いに戻りました）`, kind: 'rejected', actorUid: myUid });
+      }
       await addDoc(collection(db, "notifications"), {
         toUserId: req.fromUserId, type: 'approval_rejected',
         message: ids.length > 1 ? 'まとめ精算の承認リクエストが拒否されました。もう一度お手続きできます。' : '承認リクエストが拒否されました。もう一度お支払い手続きをしてください。',

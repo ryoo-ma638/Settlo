@@ -5,17 +5,35 @@
     <main ref="scrollArea" class="thread__body">
       <div v-if="loading" class="thread__empty">読み込み中…</div>
       <template v-else>
-        <p class="thread__hint">この「{{ label }}」についてのやりとりです。</p>
-        <div
-          v-for="m in messages"
-          :key="m.id"
-          class="msg"
-          :class="m.fromUid === myUid ? 'msg--mine' : 'msg--theirs'"
-        >
-          <span v-if="m.fromUid !== myUid" class="msg__name">{{ m.fromName || '相手' }}</span>
-          <div class="msg__bubble">{{ m.text }}</div>
-          <span v-if="m.id === lastReadMineId" class="msg__read">既読</span>
-        </div>
+        <!-- グループ（みんなの精算）の進捗：誰が払ったか・X/Y -->
+        <section v-if="isGroup" class="gprog">
+          <div class="gprog__head">
+            <span class="gprog__count">{{ progressTotal }}人中 {{ progressDone }}人が精算済み</span>
+            <button class="gprog__link" @click="goToPayScreen">支払い画面へ ›</button>
+          </div>
+          <div class="gprog__bar"><div class="gprog__fill" :style="{ width: progressTotal ? (progressDone / progressTotal * 100) + '%' : '0%' }"></div></div>
+          <div class="gprog__people">
+            <span v-for="p in payStatus" :key="p.uid" class="gperson" :class="{ 'is-done': p.done }">
+              <svg v-if="p.done" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
+              <svg v-else viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/></svg>
+              {{ p.name }}
+            </span>
+          </div>
+        </section>
+
+        <p v-else class="thread__hint">この「{{ label }}」についてのやりとりです。</p>
+        <button v-if="!isGroup && txId" class="thread__paylink" @click="goToPayScreen">この件の支払い画面へ ›</button>
+
+        <template v-for="m in messages" :key="m.id">
+          <!-- システム行（経緯：催促・支払い・承認・拒否・完了） -->
+          <div v-if="m.system" class="sysmsg">{{ m.text }}</div>
+          <!-- 通常メッセージ -->
+          <div v-else class="msg" :class="m.fromUid === myUid ? 'msg--mine' : 'msg--theirs'">
+            <span v-if="m.fromUid !== myUid" class="msg__name">{{ m.fromName || '相手' }}</span>
+            <div class="msg__bubble">{{ m.text }}</div>
+            <span v-if="m.id === lastReadMineId" class="msg__read">既読</span>
+          </div>
+        </template>
         <div v-if="messages.length === 0" class="thread__empty">まだメッセージはありません。</div>
       </template>
     </main>
@@ -52,7 +70,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
 import {
   collection, query, where, orderBy, onSnapshot, addDoc, getDocs, doc, getDoc, setDoc, updateDoc, serverTimestamp, arrayUnion, increment,
@@ -66,6 +84,7 @@ import { logApprovalBoth } from '@/lib/approvalLog';
 const QUICK_REPLIES = ['ありがとう！', '確認しました', 'もう少し待って', 'OKです'];
 
 const route = useRoute();
+const router = useRouter();
 const threadId = route.params.id;
 const label = ref(route.query.label || '取引の件');
 const otherUid = ref(route.query.other || '');
@@ -96,7 +115,16 @@ const txId = route.query.tx || '';
 const txData = ref(null);
 let unsubTx = null;
 const approving = ref(false);
-const canApprove = computed(() => txData.value && txData.value.status === 'awaiting_approval' && txData.value.paidToId === myUid);
+const canApprove = computed(() => !isGroup.value && txData.value && txData.value.status === 'awaiting_approval' && txData.value.paidToId === myUid);
+
+// 🌟 グループ（支払い1件＝みんなの精算）チャットの状態
+const isGroup = ref(false);
+const groupParticipants = ref([]);
+const payEventId = ref(null);
+const progressDone = ref(0);
+const progressTotal = ref(0);
+const payStatus = ref([]); // 誰が払ったか [{ uid, name, done }]
+let unsubPay = null;
 
 const clearApprovalNotif = async () => {
   try {
@@ -158,26 +186,46 @@ onMounted(async () => {
     // 自分の表示名を実データで補完
     try { const me = await getDoc(doc(db, 'users', myUid)); if (me.exists() && me.data().name) myName.value = me.data().name; } catch (e) {}
 
-    // 🌟 既存スレッドの件名を優先（一覧から開いて query に件名が無い/汎用のときは保存済みを使う）
+    // 🌟 既存スレッドを読み、グループ（支払い1件）チャットかどうかを判定
+    let existingData = null;
     try {
       const existing = await getDoc(doc(db, 'threads', threadId));
       if (existing.exists()) {
-        const saved = existing.data().subjectLabel;
-        if (saved && saved !== '取引の件' && (!route.query.label || route.query.label === '取引の件')) {
-          label.value = saved;
-        }
-        // 相手名も保存済みから補完（query に無いとき）
-        const savedName = existing.data().participantNames?.[otherUid.value];
+        existingData = existing.data();
+        const saved = existingData.subjectLabel;
+        if (saved && saved !== '取引の件' && (!route.query.label || route.query.label === '取引の件')) label.value = saved;
+        const savedName = existingData.participantNames?.[otherUid.value];
         if (savedName && (!route.query.otherName || otherName.value === '相手')) otherName.value = savedName;
+        // グループ判定
+        if (existingData.type === 'payment' || (existingData.participants || []).length > 2) {
+          isGroup.value = true;
+          groupParticipants.value = existingData.participants || [];
+          payEventId.value = existingData.eventId || null;
+        }
       }
     } catch (e) {}
 
-    await ensureThread(threadId, { myUid, myName: myName.value, otherUid: otherUid.value, otherName: otherName.value, label: label.value, eventId });
+    // グループチャットは既に存在するので ensureThread（1対1用）は呼ばない
+    if (!isGroup.value) {
+      await ensureThread(threadId, { myUid, myName: myName.value, otherUid: otherUid.value, otherName: otherName.value, label: label.value, eventId });
+    }
     // この会話を開いたので自分の未読を0に
     try { await updateDoc(doc(db, 'threads', threadId), { [`unread.${myUid}`]: 0 }); } catch (e) {}
 
-    // 承認待ちの取引なら、その状態を購読して承認/拒否バーを出す
-    if (txId) {
+    // グループチャット：紐づく取引を購読して進捗（誰が払ったか・X/Y）を出す
+    if (isGroup.value && threadId.startsWith('pay-')) {
+      const hid = threadId.slice(4);
+      const names = existingData?.participantNames || {};
+      unsubPay = onSnapshot(query(collection(db, 'transactions'), where('historyId', '==', hid)), (snap) => {
+        const txs = snap.docs.map((d) => d.data());
+        progressTotal.value = txs.length;
+        progressDone.value = txs.filter((t) => (t.status || 'unpaid') === 'completed').length;
+        payStatus.value = txs.map((t) => ({ uid: t.paidById, name: names[t.paidById] || '相手', done: (t.status || 'unpaid') === 'completed' }));
+      }, () => {});
+    }
+
+    // 承認待ちの取引なら、その状態を購読して承認/拒否バーを出す（1対1のみ）
+    if (txId && !isGroup.value) {
       unsubTx = onSnapshot(doc(db, 'transactions', txId), (d) => { txData.value = d.exists() ? d.data() : null; }, () => {});
     }
 
@@ -216,7 +264,19 @@ onMounted(async () => {
   }
 });
 
-onUnmounted(() => { if (unsub) unsub(); if (unsubTx) unsubTx(); });
+onUnmounted(() => { if (unsub) unsub(); if (unsubTx) unsubTx(); if (unsubPay) unsubPay(); });
+
+// この件の支払い画面へ：グループはイベント詳細、1対1はその取引の決済詳細へ
+const goToPayScreen = () => {
+  if (isGroup.value) {
+    if (payEventId.value) router.push(`/event/${payEventId.value}`);
+    return;
+  }
+  if (txId) {
+    const prefix = txData.value && txData.value.paidToId === myUid ? 'waiting' : 'unpaid';
+    router.push(`/payment-detail/${prefix}-${txId}`);
+  }
+};
 
 const send = async (preset) => {
   const usePreset = typeof preset === 'string';
@@ -230,15 +290,17 @@ const send = async (preset) => {
       createdAt: serverTimestamp(), readBy: [myUid],
     });
     try {
-      await updateDoc(doc(db, 'threads', threadId), {
-        lastMessage: text, updatedAt: serverTimestamp(),
-        [`unread.${otherUid.value}`]: increment(1), // 相手の未読を+1
-        [`unread.${myUid}`]: 0,                      // 自分の未読は0
-        hiddenBy: [],                                // 新しいメッセージが来たら両者の非表示を解除
-      });
+      const patch = { lastMessage: text, updatedAt: serverTimestamp(), [`unread.${myUid}`]: 0, hiddenBy: [] };
+      if (isGroup.value) {
+        // グループは自分以外の全参加者の未読を+1
+        groupParticipants.value.forEach((u) => { if (u && u !== myUid) patch[`unread.${u}`] = increment(1); });
+      } else {
+        patch[`unread.${otherUid.value}`] = increment(1); // 相手の未読を+1
+      }
+      await updateDoc(doc(db, 'threads', threadId), patch);
     } catch (e) {}
-    // 相手へ「〜の件で返信」をお知らせ
-    if (otherUid.value) {
+    // 相手へ「〜の件で返信」をお知らせ（1対1のみ・グループは通知を増やしすぎない）
+    if (otherUid.value && !isGroup.value) {
       try {
         await addDoc(collection(db, 'notifications'), {
           toUserId: otherUid.value, type: 'thread_reply',
@@ -264,6 +326,32 @@ const send = async (preset) => {
 .thread__body { flex: 1; overflow-y: auto; padding: 12px var(--pad) 16px; display: flex; flex-direction: column; gap: 10px; }
 .thread__hint { text-align: center; font-size: 12px; color: var(--c-text-faint); font-weight: var(--fw-medium); margin: 4px 0 10px; }
 .thread__empty { text-align: center; color: var(--c-text-faint); font-size: 14px; padding: 32px 0; }
+
+/* この件の支払い画面へ（1対1） */
+.thread__paylink {
+  align-self: center; margin: 2px 0 8px; padding: 7px 16px;
+  background: var(--c-brand-weak); color: var(--c-brand-strong);
+  border-radius: var(--r-pill); font-size: 12.5px; font-weight: var(--fw-bold);
+}
+
+/* グループ（みんなの精算）の進捗カード */
+.gprog { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-lg); padding: 14px; margin-bottom: 8px; }
+.gprog__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.gprog__count { font-size: 13px; font-weight: var(--fw-black); color: var(--c-ink); }
+.gprog__link { font-size: 12px; font-weight: var(--fw-bold); color: var(--c-brand-strong); flex-shrink: 0; }
+.gprog__bar { height: 7px; background: var(--c-surface-2); border-radius: 999px; overflow: hidden; }
+.gprog__fill { height: 100%; background: var(--c-brand); border-radius: 999px; transition: width 0.3s ease; }
+.gprog__people { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; }
+.gperson { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: var(--fw-bold); color: var(--c-text-sub); }
+.gperson.is-done { color: var(--c-brand-strong); }
+.gperson svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* システム行（経緯） */
+.sysmsg {
+  align-self: center; max-width: 90%; text-align: center;
+  font-size: 12px; font-weight: var(--fw-medium); color: var(--c-text-sub);
+  background: var(--c-surface-2); border-radius: 12px; padding: 6px 14px; margin: 2px 0;
+}
 
 .msg { display: flex; flex-direction: column; max-width: 78%; }
 .msg--mine { align-self: flex-end; align-items: flex-end; }
