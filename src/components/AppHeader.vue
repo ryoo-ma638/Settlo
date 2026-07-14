@@ -85,16 +85,16 @@ onMounted(() => {
   top: 0;
   z-index: 1000;
   height: var(--header-h);
-  display: grid;
-  grid-template-columns: auto 1fr auto; /* アイコンが増えても右側が自然幅で収まる */
+  display: flex;                     /* 左＝アバター / 右＝アイコン群を両端に */
   align-items: center;
+  justify-content: space-between;
   padding: 0 12px;
   background: var(--c-surface);
   border-bottom: 1px solid var(--c-line);
 }
 
 .topbar__avatar {
-  justify-self: start;
+  flex-shrink: 0;
   width: 36px;
   height: 36px;
   border-radius: 50%;
@@ -114,7 +114,11 @@ onMounted(() => {
 }
 
 .topbar__brand {
-  justify-self: center;
+  /* 左右のアイコン数が違っても画面の真ん中に来るよう、絶対配置で中央寄せ */
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   font-size: 20px;
   font-weight: var(--fw-black);
   letter-spacing: 0.02em;
@@ -124,7 +128,7 @@ onMounted(() => {
 }
 
 .topbar__right {
-  justify-self: end;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 0;
