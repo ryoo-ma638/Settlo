@@ -128,21 +128,6 @@
             return;
           }
 
-          // 「間違えたとき用」に共有ゴミ箱へ控える（7日以内なら未精算に戻せる）共通ヘルパー
-          const recordTrash = async (txIds) => {
-            if (!txIds.length) return;
-            try {
-              await addDoc(collection(db, "trash"), {
-                type: 'settlement', participants: [myUid, friendUid],
-                createdBy: myUid, createdByName: myName,
-                trashedAt: serverTimestamp(), status: 'trashed',
-                eventId: null, eventName: `${friendName}との精算`, historyId: null,
-                itemName: `${friendName}との精算`, amount: Number(route.query.amount) || 0,
-                transactionIds: txIds, counterparties: [{ uid: friendUid, name: friendName }],
-              });
-            } catch (e) { console.error('ゴミ箱への記録に失敗:', e); }
-          };
-
           if (isRemind.value) {
             // ■ 自分が受け取る側＝現金を受け取った本人が確認するので、選んだ取引をその場で完了にする
             const done = valid.map((v) => v.id);
@@ -159,10 +144,9 @@
                 isRead: false, createdAt: serverTimestamp(),
               });
             } catch (e) { console.error('完了通知の送信に失敗:', e); }
-            await recordTrash(done);
             showModal({
               type: 'success', title: '精算完了',
-              message: `${done.length}件を完了にしました（ゴミ箱から7日以内なら戻せます）`,
+              message: `${done.length}件を精算済みにしました。お支払い履歴から確認できます。`,
               onConfirm: () => router.push('/')
             });
           } else {
@@ -175,7 +159,6 @@
               await updateDoc(doc(db, "transactions", id), { status: 'completed' });
               await resolveThreadForTx(myUid, friendUid, id);
             }
-            if (owedToMeIds.length) await recordTrash(owedToMeIds);
             for (const id of iOweIds) {
               await updateDoc(doc(db, "transactions", id), { status: 'awaiting_approval' });
             }
@@ -201,7 +184,7 @@
               // すべて「相手が自分に払う」分だった＝実質その場で完了
               showModal({
                 type: 'success', title: '精算完了',
-                message: `${owedToMeIds.length}件を完了にしました（ゴミ箱から7日以内なら戻せます）`,
+                message: `${owedToMeIds.length}件を精算済みにしました。お支払い履歴から確認できます。`,
                 onConfirm: () => router.push('/')
               });
             }

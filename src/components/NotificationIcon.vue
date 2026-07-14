@@ -222,6 +222,7 @@ const notifText = (req) => {
   if (req.type === 'settlement_restore_approved') return `さんが「${req.itemName || ''}」を未精算に戻すことを承認しました`;
   if (req.type === 'settlement_restore_rejected') return `さんが「${req.itemName || ''}」を未精算に戻すことを拒否しました。これは正しいですか？（正しくない＝もう一度依頼します）`;
   if (req.type === 'payment_completed') return 'さんとの支払いが完了しました！';
+  if (req.type === 'payment_reverted') return `さんが「${req.itemName || ''}」を未精算に戻しました（未払いに戻りました）`;
   if (req.type === 'profile_updated') return 'さんがプロフィールを更新しました';
   if (req.type === 'restore_check') return `さんが「${req.itemName || ''}」（¥${(req.amount || 0).toLocaleString()}）をゴミ箱から元に戻しました。こちらで正しいですか？`;
   if (req.type === 'restore_reverted') return `さんが「正しくない」を選び、「${req.itemName || ''}」をゴミ箱に戻しました。これは正しいですか？（正しくない＝もう一度元に戻します）`;
@@ -237,13 +238,13 @@ const notifText = (req) => {
 const notifAction = (req) => {
   if (req.type === 'approval_rejected') return 'もう一度支払う';
   if (req.type === 'payment_reminder') return '支払う';
-  if (['payment_edited', 'event_edited', 'invite_rejected', 'event_joined', 'settlement_restore_approved', 'settlement_restore_rejected', 'event_left_rejected', 'event_restore_rejected'].includes(req.type)) return 'イベントを見る';
+  if (['payment_edited', 'payment_reverted', 'event_edited', 'invite_rejected', 'event_joined', 'settlement_restore_approved', 'settlement_restore_rejected', 'event_left_rejected', 'event_restore_rejected'].includes(req.type)) return 'イベントを見る';
   if (req.type === 'payment_deleted' || req.type === 'payment_completed') return '確認';
   return '詳細を確認する';
 };
 const notifClass = (req) => {
   if (['approval_rejected', 'invite_rejected', 'settlement_restore_rejected', 'restore_reverted', 'event_left_rejected', 'event_restore_rejected'].includes(req.type)) return 'notif-item--reject';
-  if (['payment_edited', 'payment_deleted', 'event_edited', 'event_joined', 'event_restored', 'settlement_restore_approved', 'payment_completed', 'profile_updated'].includes(req.type)) return 'notif-item--info';
+  if (['payment_edited', 'payment_reverted', 'payment_deleted', 'event_edited', 'event_joined', 'event_restored', 'settlement_restore_approved', 'payment_completed', 'profile_updated'].includes(req.type)) return 'notif-item--info';
   return 'notif-item--pay';
 };
 
@@ -289,7 +290,7 @@ const goToPaymentDetail = async (req) => {
       return;
     }
     // 編集/削除/イベント編集/招待拒否/参加/復元/決済戻し結果は該当イベントへ（対象の取引はもう無い/変わっているため）
-    if (['payment_edited', 'payment_deleted', 'event_edited', 'invite_rejected', 'event_joined', 'event_restored', 'settlement_restore_approved', 'settlement_restore_rejected', 'restore_reverted', 'event_left_rejected', 'event_restore_rejected'].includes(req.type)) {
+    if (['payment_edited', 'payment_reverted', 'payment_deleted', 'event_edited', 'invite_rejected', 'event_joined', 'event_restored', 'settlement_restore_approved', 'settlement_restore_rejected', 'restore_reverted', 'event_left_rejected', 'event_restore_rejected'].includes(req.type)) {
       if (req.eventId) router.push(`/event/${req.eventId}`);
       return;
     }
@@ -458,19 +459,7 @@ const approveTx = async (req) => {
         fromUserId: myUid, fromUserName: myName,
         isRead: false, createdAt: serverTimestamp(),
       });
-      // まとめ承認は「間違えたとき用」に共有ゴミ箱へ（7日以内なら未精算に戻せる）
-      if (isBatch) {
-        try {
-          await addDoc(collection(db, "trash"), {
-            type: 'settlement', participants: [myUid, otherUid],
-            createdBy: myUid, createdByName: myName,
-            trashedAt: serverTimestamp(), status: 'trashed', eventId: null,
-            eventName: `${req.fromUserName || '相手'}との精算`, historyId: null,
-            itemName: `${req.fromUserName || '相手'}との精算`, amount: req.amount || 0,
-            transactionIds: ids, counterparties: [{ uid: otherUid, name: req.fromUserName || '相手' }],
-          });
-        } catch (e) { console.error('ゴミ箱への記録に失敗:', e); }
-      }
+      // 完了した精算はお支払い履歴に「精算済み」で残る（ゴミ箱には入れない）
       await logApprovalBoth({ myUid, myName, otherUid, otherName: req.fromUserName, kind: 'payment', outcome: 'approved', itemName: req.itemName || '', amount: req.amount || 0 });
     }
     await updateDoc(doc(db, "notifications", req.id), { isRead: true });

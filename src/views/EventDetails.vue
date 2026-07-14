@@ -243,7 +243,7 @@
         </div>
       </div>
 
-      <ReceiptPaymentModal :isOpen="modals.historyDetail" :history="selectedHistory" :myAmount="selectedMyAmount" :myRole="selectedMyRole" @close="modals.historyDetail = false" @complete="markAsCompleted" @edit="openEditPayment" @delete="deletePayment" />
+      <ReceiptPaymentModal :isOpen="modals.historyDetail" :history="selectedHistory" :myAmount="selectedMyAmount" :myRole="selectedMyRole" @close="modals.historyDetail = false" @complete="markAsCompleted" @edit="openEditPayment" @delete="deletePayment" @revert="revertSettlement" />
 
       <div v-if="modals.summaryDetail && selectedSummary" class="modal-overlay" @click.self="modals.summaryDetail = false">
         <div class="modal-content slide-up">
@@ -738,7 +738,7 @@ const markAsCompleted = (id) => {
   const hist = eventData.value.history.find(h => h.id === id);
   showConfirm(
     '決済を完了しますか？',
-    `「${hist?.itemName || '決済'}」を完了として記録します。\n間違えた場合はゴミ箱から7日以内なら戻せます。`,
+    `「${hist?.itemName || '決済'}」を完了として記録します。\n間違えたときは、この決済の詳細から「未精算に戻す」で戻せます。`,
     () => doMarkAsCompleted(id),
     { confirmText: '完了する', cancelText: 'やめる' }
   );
@@ -764,38 +764,55 @@ const doMarkAsCompleted = async (id) => {
     await updateDoc(doc(db, "events", eventId, "history", id), { status: 'completed' });
     if (hist) hist.status = 'completed'; // ローカルにも即反映
 
-    // 🗑️ 間違えて完了した時のために、7日間はゴミ箱から「未精算に戻す」ことができるようにする
-    if (myUid && hist) {
-      const others = [];
-      const seen = new Set();
-      const addOther = (uid, name) => {
-        if (uid && uid !== myUid && !seen.has(uid)) { seen.add(uid); others.push({ uid, name: name || 'メンバー' }); }
-      };
-      if (hist.payerUid) addOther(hist.payerUid, hist.payer);
-      (hist.shares || []).forEach(s => addOther(s.uid, s.name));
-      try {
-        await addDoc(collection(db, "trash"), {
-          type: 'settlement',
-          participants: [myUid, ...others.map(o => o.uid)], // 🌟 両当事者が見られる共有ゴミ箱
-          createdBy: myUid,
-          createdByName: myName.value || 'メンバー',
-          trashedAt: serverTimestamp(),
-          status: 'trashed',
-          eventId,
-          eventName: eventData.value.name || 'イベント',
-          historyId: id,
-          itemName: hist.itemName || '決済',
-          amount: Number(hist.amount) || 0,
-          transactionIds: txIds,
-          counterparties: others,
-        });
-      } catch (e) { console.error('ゴミ箱への記録に失敗:', e); }
-    }
+    // 完了した決済は「精算済み」として履歴に残る。間違えたときは決済の詳細から
+    // 「未精算に戻す」で戻せる（ゴミ箱には入れない）。
     modals.value.historyDetail = false;
-    showToast('決済を完了しました（ゴミ箱から7日以内なら戻せます）');
+    showToast('決済を完了しました（決済の詳細から未精算に戻せます）');
   } catch (error) {
     console.error("更新エラー:", error);
     showAlert('error', '更新エラー', '決済の更新に失敗しました。電波状況を確認してください。');
+  } finally {
+    moneyBusy.value = false;
+  }
+};
+
+// 🌟 精算済みを「未精算に戻す」（間違えて完了にしたとき用・決済の詳細から）
+const revertSettlement = (hist) => {
+  modals.value.historyDetail = false;
+  showConfirm(
+    '未精算に戻しますか？',
+    `「${hist?.itemName || '決済'}」を未払いに戻します。関係する人に通知が届きます。`,
+    () => doRevertSettlement(hist),
+    { confirmText: '未精算に戻す', cancelText: 'やめる' }
+  );
+};
+const doRevertSettlement = async (hist) => {
+  if (moneyBusy.value || !hist) return;
+  moneyBusy.value = true;
+  try {
+    const eventId = route.params.id || "test-event-1";
+    const myUid = auth.currentUser?.uid;
+    const myNm = myName.value || '立替者';
+    const txIds = hist.transactionIds || [];
+    for (const tid of txIds) {
+      await updateDoc(doc(db, "transactions", tid), { status: 'unpaid' });
+      await postPaymentEventByTx(tid, { text: `${myNm}さんが精算を取り消しました（未払いに戻りました）`, kind: 'reverted', actorUid: myUid });
+    }
+    await updateDoc(doc(db, "events", eventId, "history", hist.id), { status: 'unpaid' });
+    if (hist) hist.status = 'unpaid';
+    // 関係者（自分以外）に通知
+    const others = [];
+    const seen = new Set();
+    const addOther = (uid) => { if (uid && uid !== myUid && !seen.has(uid)) { seen.add(uid); others.push(uid); } };
+    if (hist.payerUid) addOther(hist.payerUid);
+    (hist.shares || []).forEach(s => addOther(s.uid));
+    if (others.length) {
+      await notifyParticipants(others, { type: 'payment_reverted', itemName: hist.itemName || '', amount: Number(hist.amount) || 0, eventName: eventData.value.name || '' });
+    }
+    showToast('未精算に戻しました');
+  } catch (error) {
+    console.error('未精算戻しエラー:', error);
+    showAlert('error', 'エラー', '未精算に戻せませんでした。電波状況を確認してください。');
   } finally {
     moneyBusy.value = false;
   }
