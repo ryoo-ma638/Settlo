@@ -12,11 +12,14 @@
             <button class="gprog__link" @click="goToPayScreen">支払い画面へ ›</button>
           </div>
           <div class="gprog__bar"><div class="gprog__fill" :style="{ width: progressTotal ? (progressDone / progressTotal * 100) + '%' : '0%' }"></div></div>
+          <p class="gprog__split">割り勘の内訳（1人ずつの負担額）</p>
           <div class="gprog__people">
             <span v-for="p in payStatus" :key="p.uid" class="gperson" :class="{ 'is-done': p.done }">
               <svg v-if="p.done" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
               <svg v-else viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/></svg>
-              {{ p.name }}
+              <span class="gperson__name">{{ p.name }}</span>
+              <span class="gperson__amt tnum">¥{{ (p.amount || 0).toLocaleString() }}</span>
+              <span class="gperson__tag">{{ p.done ? '精算済み' : '未払い' }}</span>
             </span>
           </div>
         </section>
@@ -123,7 +126,8 @@ const groupParticipants = ref([]);
 const payEventId = ref(null);
 const progressDone = ref(0);
 const progressTotal = ref(0);
-const payStatus = ref([]); // 誰が払ったか [{ uid, name, done }]
+const payStatus = ref([]); // 誰が払ったか [{ uid, name, amount, done }]
+const payTxs = ref([]);    // この件の取引（支払い画面への遷移に使う）
 let unsubPay = null;
 
 const clearApprovalNotif = async () => {
@@ -217,10 +221,11 @@ onMounted(async () => {
       const hid = threadId.slice(4);
       const names = existingData?.participantNames || {};
       unsubPay = onSnapshot(query(collection(db, 'transactions'), where('historyId', '==', hid)), (snap) => {
-        const txs = snap.docs.map((d) => d.data());
+        const txs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        payTxs.value = txs;
         progressTotal.value = txs.length;
         progressDone.value = txs.filter((t) => (t.status || 'unpaid') === 'completed').length;
-        payStatus.value = txs.map((t) => ({ uid: t.paidById, name: names[t.paidById] || '相手', done: (t.status || 'unpaid') === 'completed' }));
+        payStatus.value = txs.map((t) => ({ uid: t.paidById, name: names[t.paidById] || '相手', amount: t.amount || 0, done: (t.status || 'unpaid') === 'completed' }));
       }, () => {});
     }
 
@@ -266,10 +271,15 @@ onMounted(async () => {
 
 onUnmounted(() => { if (unsub) unsub(); if (unsubTx) unsubTx(); if (unsubPay) unsubPay(); });
 
-// この件の支払い画面へ：グループはイベント詳細、1対1はその取引の決済詳細へ
+// この件の「支払いできる画面」へ。イベント詳細ではなく決済詳細（払う/受け取る画面）に飛ばす。
 const goToPayScreen = () => {
   if (isGroup.value) {
-    if (payEventId.value) router.push(`/event/${payEventId.value}`);
+    // 自分が払う側なら自分の取引の支払い画面へ、受け取る側なら相手の取引（催促/承認）画面へ
+    const mine = payTxs.value.find((t) => t.paidById === myUid && (t.status || 'unpaid') !== 'completed');
+    if (mine) { router.push(`/payment-detail/unpaid-${mine.id}`); return; }
+    const owed = payTxs.value.find((t) => t.paidToId === myUid && (t.status || 'unpaid') !== 'completed');
+    if (owed) { router.push(`/payment-detail/waiting-${owed.id}`); return; }
+    router.push('/payment'); // 全部完了なら支払い画面トップへ
     return;
   }
   if (txId) {
@@ -341,10 +351,15 @@ const send = async (preset) => {
 .gprog__link { font-size: 12px; font-weight: var(--fw-bold); color: var(--c-brand-strong); flex-shrink: 0; }
 .gprog__bar { height: 7px; background: var(--c-surface-2); border-radius: 999px; overflow: hidden; }
 .gprog__fill { height: 100%; background: var(--c-brand); border-radius: 999px; transition: width 0.3s ease; }
-.gprog__people { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; }
-.gperson { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: var(--fw-bold); color: var(--c-text-sub); }
+.gprog__split { font-size: 11px; color: var(--c-text-faint); font-weight: var(--fw-bold); margin: 12px 0 6px; }
+.gprog__people { display: flex; flex-direction: column; gap: 2px; }
+.gperson { display: flex; align-items: center; gap: 8px; padding: 6px 2px; font-size: 13px; font-weight: var(--fw-bold); color: var(--c-text-sub); }
 .gperson.is-done { color: var(--c-brand-strong); }
-.gperson svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.gperson svg { width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.gperson__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gperson__amt { flex-shrink: 0; font-size: 14px; font-weight: var(--fw-black); color: var(--c-ink); }
+.gperson__tag { flex-shrink: 0; font-size: 10.5px; font-weight: var(--fw-bold); padding: 2px 8px; border-radius: 999px; background: var(--c-surface-2); color: var(--c-text-sub); }
+.gperson.is-done .gperson__tag { background: var(--c-brand-weak); color: var(--c-brand-strong); }
 
 /* システム行（経緯） */
 .sysmsg {
