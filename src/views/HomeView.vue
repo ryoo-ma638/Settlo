@@ -94,7 +94,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, reactive } from 'vue';
+import { ref, computed, onMounted, onUnmounted, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
