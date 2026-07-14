@@ -5,10 +5,6 @@
         <img v-if="userPhoto" :src="userPhoto" alt="" />
         <span v-else class="topbar__avatar-fallback">{{ initial }}</span>
       </button>
-      <h1 class="topbar__brand" @click="navigate('/')">Settlo</h1>
-    </div>
-
-    <div class="topbar__right">
       <button class="topbar__pending" data-tour="pending" @click="navigate('/approvals')" aria-label="承認待ち">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
@@ -21,13 +17,11 @@
         </svg>
         <span v-if="chatUnread > 0" class="topbar__chat-badge">{{ chatUnread > 99 ? '99+' : chatUnread }}</span>
       </button>
-      <button class="topbar__help" data-tour="help" @click="navigate('/help')" aria-label="ヘルプ">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="9"/>
-          <path d="M9.6 9.2a2.5 2.5 0 1 1 3.6 2.6c-.8.5-1.2 1-1.2 1.9"/>
-          <path d="M12 17h.01"/>
-        </svg>
-      </button>
+    </div>
+
+    <h1 class="topbar__brand" @click="navigate('/')">Settlo</h1>
+
+    <div class="topbar__right">
       <NotificationIcon ref="notifRef" />
       <button class="topbar__assist" :class="{ 'is-open': showAssistant }" data-tour="assist" @click="showAssistant = !showAssistant" aria-label="お支払いアシスタント">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -125,7 +119,7 @@ onMounted(() => {
 .topbar__left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -150,7 +144,11 @@ onMounted(() => {
 }
 
 .topbar__brand {
-  /* PayPay風に、ロゴはアバターの隣（左寄せ）。操作アイコンは右にまとめる。 */
+  /* ロゴは画面中央に固定（左＝アバター＋承認待ち＋チャット / 右＝お知らせ＋アシスタント）。 */
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   font-size: 20px;
   font-weight: var(--fw-black);
   letter-spacing: 0.02em;
@@ -166,14 +164,14 @@ onMounted(() => {
   gap: 0;
 }
 
-.topbar__help, .topbar__chat, .topbar__pending, .topbar__assist {
+.topbar__chat, .topbar__pending, .topbar__assist {
   width: 34px; height: 34px;
   display: flex; align-items: center; justify-content: center;
   color: var(--c-text-sub);
   background: none; border: none;
   border-radius: 50%;
 }
-.topbar__help:active, .topbar__chat:active, .topbar__pending:active, .topbar__assist:active { background: var(--c-surface-2); transform: scale(0.94); }
+.topbar__chat:active, .topbar__pending:active, .topbar__assist:active { background: var(--c-surface-2); transform: scale(0.94); }
 .topbar__chat, .topbar__pending, .topbar__assist { position: relative; }
 .topbar__chat-badge, .topbar__pending-badge, .topbar__assist-badge {
   position: absolute; top: 0; right: 0;
