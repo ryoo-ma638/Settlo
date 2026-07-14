@@ -5,29 +5,10 @@
     </header>
 
     <div class="money__body">
-      <!-- 🌟 まとめて精算（全イベント横断・人ごと。一番上に固定） -->
-      <section v-if="settleByPerson.length" class="settle">
-        <h2 class="settle__title">まとめて精算</h2>
-        <p class="settle__lead">全部のイベントを合算した、その人との差し引きです。</p>
-        <div class="settle__list">
-          <button v-for="m in settleByPerson" :key="m.uid" class="scard" @click="goSettle(m)">
-            <div class="scard__avatar">
-              <img v-if="m.photo" :src="m.photo" alt="" />
-              <div v-else class="scard__ph"></div>
-            </div>
-            <span class="scard__name">{{ m.name }}</span>
-            <span class="scard__action" :class="m.net < 0 ? 'is-pay' : 'is-receive'">
-              {{ m.net < 0 ? '支払う' : '受け取る' }}
-              <span class="scard__amt tnum">¥{{ Math.abs(m.net).toLocaleString() }}</span>
-            </span>
-            <svg class="scard__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
-          </button>
-        </div>
-      </section>
-
-      <div class="seg">
+      <div class="seg seg--3">
         <button class="seg__item" :class="{ 'is-active': currentTab === 'waiting' }" @click="currentTab = 'waiting'">お支払い待ち</button>
         <button class="seg__item" :class="{ 'is-active': currentTab === 'unpaid' }" @click="currentTab = 'unpaid'">未払い</button>
+        <button class="seg__item" :class="{ 'is-active': currentTab === 'settle' }" @click="currentTab = 'settle'">まとめて</button>
       </div>
 
       <!-- 入金待ち -->
@@ -81,7 +62,7 @@
       </div>
 
       <!-- 未払い -->
-      <div v-else>
+      <div v-else-if="currentTab === 'unpaid'">
         <div class="summary summary--pay">
           <p class="summary__label">現在の未払い</p>
           <div class="summary__amount tnum">¥{{ totalPayable.toLocaleString() }}</div>
@@ -127,6 +108,27 @@
               <svg class="trow__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- まとめて（全イベント横断・人ごと） -->
+      <div v-else-if="currentTab === 'settle'">
+        <p class="settle__lead">全部のイベントを合算した、その人との差し引きです。タップでまとめて精算できます。</p>
+        <SkeletonRows v-if="loading" :rows="3" />
+        <div v-else-if="settleByPerson.length === 0" class="empty-box">まとめて精算できる相手はいません</div>
+        <div v-else class="settle__list">
+          <button v-for="m in settleByPerson" :key="m.uid" class="scard" @click="goSettle(m)">
+            <div class="scard__avatar">
+              <img v-if="m.photo" :src="m.photo" alt="" />
+              <div v-else class="scard__ph"></div>
+            </div>
+            <span class="scard__name">{{ m.name }}</span>
+            <span class="scard__action" :class="m.net < 0 ? 'is-pay' : 'is-receive'">
+              {{ m.net < 0 ? '支払う' : '受け取る' }}
+              <span class="scard__amt tnum">¥{{ Math.abs(m.net).toLocaleString() }}</span>
+            </span>
+            <svg class="scard__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
         </div>
       </div>
 
@@ -380,10 +382,9 @@ const formatTimestamp = (timestamp) => formatDate(timestamp);
 .trow--action { border: 1.5px solid var(--c-brand); }
 .trow--muted { opacity: 0.82; }
 
-/* まとめて精算（人ごと） */
-.settle { margin: 6px 0 8px; }
-.settle__title { font-size: 15px; font-weight: var(--fw-black); color: var(--c-ink); margin: 6px 0 2px; }
-.settle__lead { font-size: 12px; color: var(--c-text-sub); margin: 0 0 10px; }
+/* まとめて精算（人ごと・3つ目のタブ） */
+.seg--3 .seg__item { font-size: 12.5px; padding: 9px 2px; letter-spacing: -0.01em; }
+.settle__lead { font-size: 12.5px; color: var(--c-text-sub); margin: 16px 2px 12px; line-height: 1.6; }
 .settle__list { display: flex; flex-direction: column; gap: 10px; }
 .scard {
   width: 100%; display: flex; align-items: center; gap: 12px;
