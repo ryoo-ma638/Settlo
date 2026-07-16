@@ -5,7 +5,7 @@
     </header>
 
     <div class="money__body">
-      <div class="seg seg--3">
+      <div class="seg seg--3" data-tour="pay-tabs">
         <button class="seg__item" :class="{ 'is-active': currentTab === 'waiting' }" @click="currentTab = 'waiting'">お支払い待ち</button>
         <button class="seg__item" :class="{ 'is-active': currentTab === 'unpaid' }" @click="currentTab = 'unpaid'">未払い</button>
         <button class="seg__item" :class="{ 'is-active': currentTab === 'settle' }" @click="currentTab = 'settle'">まとめて</button>
@@ -132,7 +132,7 @@
         </div>
       </div>
 
-      <button class="money__history" @click="$router.push('/payment-history')">すべての履歴を見る</button>
+      <button class="money__history" data-tour="pay-history" @click="$router.push('/payment-history')">すべての履歴を見る</button>
     </div>
   </div>
 </template>

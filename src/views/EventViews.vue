@@ -2,7 +2,7 @@
   <div class="events">
     <header class="screen-head">
       <h1 class="screen-head__title">{{ pickPayment ? '支払いを追加するイベント' : '進行中のイベント' }}</h1>
-      <button v-if="!pickPayment" class="screen-head__action" @click="$router.push('/payment')">精算を確認</button>
+      <button v-if="!pickPayment" class="screen-head__action" data-tour="event-check" @click="$router.push('/payment')">精算を確認</button>
     </header>
 
     <main class="events__list">

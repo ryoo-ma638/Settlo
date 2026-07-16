@@ -5,7 +5,7 @@
     </header>
 
     <main class="friend__body">
-      <button class="btn-brand friend__add" @click="isModalOpen = true">
+      <button class="btn-brand friend__add" data-tour="friend-add" @click="isModalOpen = true">
         <svg class="friend__add-icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
         友達を追加する
       </button>
