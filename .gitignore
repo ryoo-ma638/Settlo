@@ -52,3 +52,4 @@ service-account.json
 .firebase/
 # ローカル用の開発メモ（公開リポでは 開発メモ.md を使う）
 CLAUDE.md
+task.md

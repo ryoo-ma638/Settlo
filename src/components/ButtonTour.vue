@@ -17,19 +17,31 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { useRouter } from 'vue-router';
 
-// ヘッダー・下部ナビの各ボタンを1つずつ強調して説明する
+const router = useRouter();
+
+// ヘッダー・下部ナビ・各画面のボタンを1つずつ強調して説明する。
+// route を持つステップは、まずその画面に移動してから対象を光らせる（画面遷移しながら案内）。
 const steps = [
-  { sel: '[data-tour="avatar"]', title: 'マイページ', desc: 'プロフィール・お支払い履歴・ゴミ箱・承認待ち・チャット・使い方の入口です。' },
-  { sel: '[data-tour="pending"]', title: '承認待ち', desc: 'あなたが承認する分・相手の承認待ち・承認/拒否の履歴。催促されている支払いは一番上に赤く強調されます。' },
-  { sel: '[data-tour="chat"]', title: 'チャット', desc: 'その件について相談できます。未読の数がバッジで出て、解決すると自動で片付きます。' },
-  { sel: '[data-tour="bell"]', title: 'お知らせ', desc: '承認依頼・催促・「これは正しいですか？」の確認が届きます。' },
-  { sel: '[data-tour="assist"]', title: 'お支払いアシスタント', desc: '押すと開いて、いま承認する・支払う・催促する相手を金額つきで教えてくれます。どの画面からでも開けます。' },
-  { sel: '[data-tour="nav-home"]', title: 'ホーム', desc: '受け取る額・支払う額など、貸し借りがひと目でわかります。' },
-  { sel: '[data-tour="nav-event"]', title: 'イベント', desc: '旅行・飲み会ごとに立て替えをまとめて精算します。' },
-  { sel: '[data-tour="nav-add"]', title: '追加（＋）', desc: '新しいイベントや支払いをここから追加します。' },
-  { sel: '[data-tour="nav-money"]', title: '支払い', desc: '受け取る額・支払う額・お支払い待ちの一覧です。' },
-  { sel: '[data-tour="nav-friend"]', title: 'フレンド', desc: '友だちの追加・管理をします。' },
+  // ── ヘッダー（ホームで）
+  { route: '/', sel: '[data-tour="avatar"]', title: 'マイページ（顔アイコン）', desc: 'プロフィール・お支払い履歴・ゴミ箱・承認待ち・チャット・使い方の入口です。' },
+  { route: '/', sel: '[data-tour="pending"]', title: '承認待ち（時計）', desc: 'あなたが承認する分・相手の承認待ち・承認/拒否の履歴。催促されている支払いは一番上に赤く強調されます。' },
+  { route: '/', sel: '[data-tour="chat"]', title: 'チャット（吹き出し）', desc: 'その件について相談できます。未読の数がバッジで出て、解決すると自動で片付きます。' },
+  { route: '/', sel: '[data-tour="bell"]', title: 'お知らせ（ベル）', desc: '承認依頼・催促・「これは正しいですか？」の確認が届きます。' },
+  { route: '/', sel: '[data-tour="assist"]', title: 'お支払いアシスタント（ロボット）', desc: '押すと開いて、いま承認する・支払う・催促する相手を金額つきで教えてくれます。どの画面からでも開けます。' },
+  // ── 下部ナビ
+  { route: '/', sel: '[data-tour="nav-home"]', title: 'ホーム', desc: '受け取る額・支払う額など、貸し借りがひと目でわかります。' },
+  { route: '/', sel: '[data-tour="nav-event"]', title: 'イベント', desc: '旅行・飲み会ごとに立て替えをまとめて精算します。' },
+  { route: '/', sel: '[data-tour="nav-add"]', title: '追加（＋）', desc: '押すと選べます：「イベントを作成」で新しいイベント、「お支払いを追加」でイベントを選んで立て替えを記録。' },
+  { route: '/', sel: '[data-tour="nav-money"]', title: '支払い', desc: '受け取る額・支払う額・お支払い待ちの一覧です。' },
+  { route: '/', sel: '[data-tour="nav-friend"]', title: 'フレンド', desc: '友だちの追加・管理をします。' },
+  // ── ここから実際に画面をめぐる
+  { route: '/payment', sel: '[data-tour="pay-tabs"]', title: '支払い・精算の3タブ', desc: '「お支払い待ち（受け取る）」「未払い（支払う）」「まとめて」。まとめては相手ごとに貸し借りを相殺して、最小回数で精算できます。' },
+  { route: '/payment', sel: '[data-tour="pay-history"]', title: 'すべての履歴を見る', desc: 'これまでの支払い・受け取り・精算済みを、まとめて時系列で確認できます。' },
+  { route: '/event', sel: '[data-tour="event-check"]', title: 'イベントから精算へ', desc: 'イベント一覧の右上。ここから精算の確認へ。イベントカードを押すと、その立て替え履歴・精算・支払い追加に入れます。' },
+  { route: '/friend', sel: '[data-tour="friend-add"]', title: '友達を追加する', desc: '名前かIDで検索して申請。同じイベントの人は候補に出ます。カードを押すと、その相手との貸し借りをまとめて見られます。' },
+  { route: '/mypage', sel: '[data-tour="mypage-menu"]', title: 'マイページの入口', desc: 'プロフィール変更・承認待ち・チャット・お支払い履歴・ゴミ箱、そして「アプリの使い方」。困ったらここに戻ってきてください。' },
 ];
 
 const active = ref(false);
@@ -37,16 +49,40 @@ const index = ref(0);
 const rect = ref(null);
 const step = computed(() => steps[index.value] || {});
 
-const measure = () => {
+// 現在ステップの対象要素を探して光らせる（見つからなければ次へ）。画面遷移はしない。
+const locate = () => {
+  const st = steps[index.value];
+  if (!st) { end(); return; }
   let tries = 0;
   const find = () => {
-    const el = document.querySelector(step.value.sel);
-    if (el) { rect.value = el.getBoundingClientRect(); return; }
-    // 見つからないステップは飛ばす（多くても数個先まで）
-    if (tries++ < steps.length) { index.value = (index.value + 1); if (index.value >= steps.length) { end(); return; } find(); }
-    else end();
+    if (!active.value) return;
+    const el = document.querySelector(st.sel);
+    if (el) {
+      try { el.scrollIntoView({ block: 'center' }); } catch (e) {}
+      rect.value = el.getBoundingClientRect();
+      // スクロール後の位置に微調整
+      setTimeout(() => { if (active.value && steps[index.value] === st) rect.value = el.getBoundingClientRect(); }, 90);
+      return;
+    }
+    // まだ描画されていないかもしれないので少し待って再試行
+    if (tries++ < 15) { setTimeout(find, 120); return; }
+    // それでも無ければこのステップは飛ばす
+    if (index.value >= steps.length - 1) { end(); return; }
+    index.value++;
+    goToStep();
   };
   find();
+};
+
+// 必要なら画面を移動してから対象を光らせる
+const goToStep = async () => {
+  const st = steps[index.value];
+  if (!st) { end(); return; }
+  if (st.route && router.currentRoute.value.path !== st.route) {
+    try { await router.push(st.route); } catch (e) {}
+  }
+  await nextTick();
+  locate();
 };
 
 const spotStyle = computed(() => {
@@ -60,7 +96,6 @@ const spotStyle = computed(() => {
 const popStyle = computed(() => {
   const r = rect.value; if (!r) return { display: 'none' };
   const below = r.top < window.innerHeight / 2; // 対象が上半分なら吹き出しは下、下半分なら上に
-  // 左右16pxの余白を確保しつつ最大440pxで画面中央に。px実測で確実に収める
   const margin = 16;
   const w = Math.min(440, window.innerWidth - margin * 2);
   const left = (window.innerWidth - w) / 2;
@@ -73,12 +108,25 @@ const popStyle = computed(() => {
 const next = () => {
   if (index.value >= steps.length - 1) { end(); return; }
   index.value++;
-  nextTick(measure);
+  goToStep();
 };
-const end = () => { active.value = false; };
-const start = () => { index.value = 0; active.value = true; nextTick(() => setTimeout(measure, 60)); };
+const end = () => {
+  active.value = false;
+  // ツアーの締めはホームに戻す
+  if (router.currentRoute.value.path !== '/') router.push('/');
+};
+const start = () => {
+  index.value = 0;
+  active.value = true;
+  nextTick(() => setTimeout(goToStep, 60));
+};
 
-const onResize = () => { if (active.value) measure(); };
+// リサイズ時は移動せず、今の対象だけ測り直す
+const onResize = () => {
+  if (!active.value) return;
+  const el = document.querySelector(steps[index.value]?.sel);
+  if (el) rect.value = el.getBoundingClientRect();
+};
 onMounted(() => {
   window.addEventListener('settlo:show-button-tour', start);
   window.addEventListener('resize', onResize);

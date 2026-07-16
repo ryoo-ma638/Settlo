@@ -19,7 +19,7 @@
         <p class="profile__type">Google アカウント</p>
       </section>
 
-      <section class="menu">
+      <section class="menu" data-tour="mypage-menu">
         <button class="menu__item" @click="$router.push('/edit-profile')">
           <svg class="menu__icon" viewBox="0 0 24 24"><path d="M4 20h4L18 10l-4-4L4 16z"/><path d="M13 7l4 4"/></svg>
           <span class="menu__label">プロフィールを変更</span>
