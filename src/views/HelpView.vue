@@ -9,7 +9,6 @@
       <h2 class="help__h2">まずはこの流れ</h2>
 
       <section class="hcard">
-        <img class="hcard__img" src="/tutorial/event.jpg" alt="イベントの画面" />
         <div class="hcard__head">
           <div class="hcard__icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg></div>
           <h3>1. イベントをつくる・参加する</h3>
@@ -22,7 +21,6 @@
       </section>
 
       <section class="hcard">
-        <img class="hcard__img" src="/tutorial/payment.jpg" alt="支払いを追加する画面" />
         <div class="hcard__head">
           <div class="hcard__icon"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/></svg></div>
           <h3>2. 支払いを記録する（レシート読み取り）</h3>
@@ -49,7 +47,6 @@
       </section>
 
       <section class="hcard">
-        <img class="hcard__img" src="/tutorial/notify.jpg" alt="お知らせの画面" />
         <div class="hcard__head">
           <div class="hcard__icon"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
           <h3>4. 通知・承認で食い違わない</h3>
@@ -116,7 +113,7 @@
 
       <!-- ============ ガイド再生 ============ -->
       <button class="btn-brand help__tour" @click="replayTour">はじめてガイドをもう一度見る</button>
-      <button class="btn-outline help__tour" @click="startButtonTour">画面のボタンの説明を見る（画面をめぐります）</button>
+      <button class="btn-outline help__tour" @click="startButtonTour">ボタンをタップして使い方を見る（説明モード）</button>
     </main>
   </div>
 </template>
@@ -126,7 +123,7 @@ import PageHeader from '../components/PageHeader.vue';
 import { useRouter } from 'vue-router';
 const router = useRouter();
 
-// ボタン説明ツアーは、実画面をめぐりながらボタンを1つずつ光らせて説明する
+// 説明モード：ホームに戻ってから起動。以後は各ボタンをタップするとその使い方が出る（自動移動なし）
 const startButtonTour = async () => {
   if (router.currentRoute.value.path !== '/') await router.push('/');
   setTimeout(() => window.dispatchEvent(new CustomEvent('settlo:show-button-tour')), 250);
@@ -422,7 +419,7 @@ const screenGroups = [
   display: flex; align-items: center; justify-content: center;
 }
 .screen__ic svg { width: 19px; height: 19px; fill: none; stroke: var(--c-brand); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.screen__title { flex: 1; min-width: 0; font-size: 14px; font-weight: var(--fw-bold); color: var(--c-ink); display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; }
+.screen__title { flex: 1; min-width: 0; font-size: 14px; font-weight: var(--fw-bold); color: var(--c-ink); display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; overflow-wrap: anywhere; }
 .screen__route { font-size: 11px; font-weight: var(--fw-bold); color: var(--c-text-faint); font-family: ui-monospace, monospace; }
 .screen__chev { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: var(--c-text-faint); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transition: transform .18s ease; }
 .screen[open] .screen__chev { transform: rotate(90deg); }

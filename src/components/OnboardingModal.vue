@@ -32,7 +32,7 @@
           <!-- ボタン -->
           <div class="ob-actions">
             <button v-if="step < slides.length - 1" class="btn-brand ob-next" @click="step++">次へ</button>
-            <button v-else class="btn-brand ob-next" @click="finish(true)">はじめる</button>
+            <button v-else class="btn-brand ob-next" @click="finish(false)">はじめる</button>
             <button class="ob-skip" @click="finish(false)">スキップ</button>
           </div>
         </div>
