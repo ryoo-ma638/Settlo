@@ -7,8 +7,8 @@
         <button class="xmode__bar-end" @click="end">終了</button>
       </div>
 
-      <!-- タップしたボタンの説明ふきだし（必ず画面内に収める） -->
-      <div v-if="current" class="xmode__pop" :style="popStyle">
+      <!-- タップしたボタンの説明（画面下の中央に固定＝ヘッダーに被らず必ず見やすい位置） -->
+      <div v-if="current" class="xmode__pop">
         <p class="xmode__pop-title">{{ current.title }}</p>
         <p class="xmode__pop-desc">{{ current.desc }}</p>
         <div class="xmode__pop-actions">
@@ -21,13 +21,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
 const active = ref(false);
 const current = ref(null);      // 表示中の説明 {title, desc, to?, goLabel?}
-const anchor = ref(null);       // タップした要素の位置
 
 // data-tour の目印ごとの説明。to があれば「この画面へ進む」を出す。
 const REGISTRY = {
@@ -57,24 +56,10 @@ const onCapture = (e) => {
   const el = e.target.closest('[data-tour]');
   if (el && REGISTRY[el.getAttribute('data-tour')]) {
     current.value = REGISTRY[el.getAttribute('data-tour')];
-    anchor.value = el.getBoundingClientRect();
   } else {
     current.value = null; // 対象外をタップ＝ふきだしを閉じる
   }
 };
-
-const popStyle = computed(() => {
-  const r = anchor.value; if (!r) return { display: 'none' };
-  const vw = window.innerWidth, vh = window.innerHeight;
-  const w = Math.min(320, vw - 24);
-  let left = r.left + r.width / 2 - w / 2;
-  left = Math.max(12, Math.min(left, vw - w - 12)); // 左右を画面内に収める
-  const below = r.bottom < vh * 0.55;               // 対象が上寄りなら下に、下寄りなら上に
-  const s = { left: `${Math.round(left)}px`, width: `${w}px` };
-  if (below) s.top = `${Math.round(r.bottom + 12)}px`;
-  else s.bottom = `${Math.round(vh - r.top + 12)}px`;
-  return s;
-});
 
 const go = (to) => { current.value = null; router.push(to); }; // 移動しても説明モードは続く
 const start = () => {
@@ -130,13 +115,17 @@ body.xmode-active [data-tour] {
 
 .xmode__pop {
   position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--nav-h, 66px) + 64px);
+  width: min(360px, calc(100vw - 24px));
   z-index: 5001;
   box-sizing: border-box;
-  max-height: 60vh; overflow-y: auto;
+  max-height: 50vh; overflow-y: auto;
   background: var(--c-surface, #fff);
   border-radius: 16px;
   padding: 14px 16px;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.3);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.28);
   border: 1px solid var(--c-line, #e5e7eb);
 }
 .xmode__pop-title { font-size: 14.5px; font-weight: 800; color: var(--c-ink, #0f172a); margin: 0 0 6px; }
