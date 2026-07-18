@@ -3,59 +3,21 @@
     <PageHeader title="ヘルプ・使い方" fallback="/" />
 
     <main class="help__body">
-      <p class="help__lead">Settlo（セトロ）は、旅行や飲み会の立て替えをかんたんに記録して、まとめて精算できる割り勘アプリです。まずは大きな流れ、そのあと画面ごとのボタンを1つずつ説明します。</p>
+      <p class="help__lead">Settlo（セトロ）は、旅行や飲み会の立て替えをかんたんに記録して、まとめて精算できる割り勘アプリです。実際のデモ画面で、使い方を順番に見ていきましょう。</p>
 
-      <!-- ============ 大きな流れ ============ -->
-      <h2 class="help__h2">まずはこの流れ</h2>
+      <!-- ============ 実際の画面で使い方（図解ステップ） ============ -->
+      <h2 class="help__h2">実際の画面で、使い方</h2>
+      <p class="help__note">よく使う流れを、実際のデモ画面で1手ずつ説明します。（画面の名前や金額はデモ用のサンプルです）</p>
 
-      <section class="hcard">
-        <div class="hcard__head">
-          <div class="hcard__icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg></div>
-          <h3>1. イベントをつくる・参加する</h3>
+      <section v-for="(st, i) in steps" :key="i" class="step">
+        <img class="step__img" :src="`/tutorial/${st.img}.jpg`" :alt="st.title" loading="lazy" />
+        <div class="step__body">
+          <h3 class="step__title">{{ st.title }}</h3>
+          <p class="step__text" v-html="st.body"></p>
+          <ul v-if="st.points" class="step__points">
+            <li v-for="(p, j) in st.points" :key="j" v-html="p"></li>
+          </ul>
         </div>
-        <ul>
-          <li>下の「<b>＋</b>」から <b>イベントを作成</b>（旅行・飲み会など）。</li>
-          <li>メンバーは「<b>＋ 招待</b>」か <b>招待コード</b> の共有で参加してもらいます。</li>
-          <li>招待は <b>承認制</b>。相手が「参加する」を選ぶまで勝手に追加されません。</li>
-        </ul>
-      </section>
-
-      <section class="hcard">
-        <div class="hcard__head">
-          <div class="hcard__icon"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/></svg></div>
-          <h3>2. 支払いを記録する（レシート読み取り）</h3>
-        </div>
-        <ul>
-          <li>イベント内の「<b>＋ 支払いを追加</b>」から立て替えを記録。</li>
-          <li><b>レシートを撮ると、AIが店名・金額・商品・消費税まで自動入力</b>（税込/税抜・8%/10%も自動判定）。</li>
-          <li>割り勘は「<b>全員で均等</b>」「<b>金額を指定</b>」「<b>商品ごとに指定</b>」の3種類。</li>
-          <li>1円単位のずれが出たら、<b>誰が負担するか</b>を選んで理由も残せます。</li>
-        </ul>
-      </section>
-
-      <section class="hcard">
-        <div class="hcard__head">
-          <div class="hcard__icon"><svg viewBox="0 0 24 24"><path d="M7 10l-3 3 3 3M17 4l3 3-3 3"/><path d="M4 13h13M20 7H7"/></svg></div>
-          <h3>3. まとめて精算する</h3>
-        </div>
-        <ul>
-          <li>「<b>まとめて</b>」タブや相手ごとの精算が、貸し借りを自動で相殺し <b>最小回数の送金</b> にまとめます。</li>
-          <li>支払いは <b>PayPayリンク</b>（相手が登録していれば）か <b>現金</b> で。</li>
-          <li>現金で払ったら「支払った」→ 相手が承認すると <b>完了</b>。双方に通知が届きます。</li>
-          <li>旅行の終わりは「<b>イベントを終了する</b>」で締められます。</li>
-        </ul>
-      </section>
-
-      <section class="hcard">
-        <div class="hcard__head">
-          <div class="hcard__icon"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
-          <h3>4. 通知・承認で食い違わない</h3>
-        </div>
-        <ul>
-          <li>申請・催促・変更は <b>お知らせ（ベル）</b> に届きます。アプリを閉じていても <b>プッシュ通知</b>（許可した場合）。</li>
-          <li>誰かが取引を削除・復元すると「<b>これは正しいですか？</b>」の確認が届き、<b>どちらかが認めるまで交互に確認</b>。勝手な変更でデータが食い違いません。</li>
-          <li>間違えても <b>ゴミ箱から7日以内なら元に戻せます</b>。</li>
-        </ul>
       </section>
 
       <!-- ============ 画面ごとの詳しい説明 ============ -->
@@ -133,6 +95,22 @@ const replayTour = () => {
   localStorage.removeItem('settlo_onboarding_done');
   window.dispatchEvent(new CustomEvent('settlo:show-onboarding'));
 };
+
+// 実際の画面つきの使い方ステップ（画像は public/tutorial/g-*.jpg）
+const steps = [
+  { img: 'g-home', title: '① ホームで貸し借りがひと目', body: '受け取る額・支払う額・今月の収支がひと目でわかります。進行中のイベントもここから開けます。' },
+  { img: 'g-event', title: '② イベントで立て替えを管理', body: '旅行や飲み会ごとにイベントを作り、<b>「＋ 招待」</b>か<b>招待コード</b>で仲間を集めます。未精算の残り・参加者・精算の進み具合がまとまります。' },
+  { img: 'g-addpay', title: '③ お支払いを追加する', body: 'イベント内の<b>「＋ 支払いを追加」</b>から立て替えを記録します。', points: [
+    '<b>レシートを撮ると、AIが店名・金額・消費税まで自動入力</b>（手入力もOK）',
+    '<b>立替えた人</b>を選ぶ（自分／デモ太郎 など）',
+    '<b>割り勘の方法</b>：全員で均等／金額を指定／商品ごとに指定',
+    '最後に<b>「この内容で追加する」</b>で登録',
+  ] },
+  { img: 'g-settle', title: '④ まとめて精算する', body: '<b>「支払い」→「まとめて」</b>タブ。相手ごとに全イベントの貸し借りを相殺し、受け取る／支払う額を最小回数にまとめます。タップで精算へ。' },
+  { img: 'g-remind', title: '⑤ 催促・受け取り・承認', body: 'PayPayリンクで請求、または<b>「支払いを催促する」</b>で通知。現金でやり取りしたら<b>「受け取った／支払った」</b>→ 相手の承認で完了。双方に通知が届きます。' },
+  { img: 'g-assistant', title: '⑥ アシスタントが次の一手を教える', body: 'ヘッダー右のロボットから。いま<b>支払う・催促する・承認する</b>相手を金額つきで表示。どの画面からでも開けます。' },
+  { img: 'g-friend', title: '⑦ フレンドを追加・承認', body: '<b>「友達を追加する」</b>から名前かIDで検索して申請。届いた<b>友達申請</b>は「確認」から承認。友達ごとの貸し借りもまとまります。' },
+];
 
 // アイコン（1〜2本のパスで表現。svg は viewBox 0 0 24 24）
 const icons = {
@@ -370,6 +348,27 @@ const screenGroups = [
 .help__lead { font-size: 14px; color: var(--c-text-sub); line-height: 1.7; margin: 4px 0 18px; }
 .help__h2 { font-size: 15px; font-weight: var(--fw-black); color: var(--c-ink); margin: 26px 2px 10px; }
 .help__note { font-size: 12.5px; color: var(--c-text-faint); line-height: 1.6; margin: 0 2px 12px; }
+
+/* 図解ステップ（画像＋説明） */
+.step {
+  display: flex; gap: 13px;
+  background: var(--c-surface);
+  border-radius: 14px;
+  padding: 13px;
+  margin-bottom: 11px;
+  box-shadow: var(--shadow-sm);
+}
+.step__img {
+  width: 124px; flex-shrink: 0; align-self: flex-start;
+  border-radius: 12px; border: 1px solid var(--c-line);
+  display: block;
+}
+.step__body { flex: 1; min-width: 0; }
+.step__title { font-size: 14px; font-weight: var(--fw-bold); color: var(--c-ink); margin: 2px 0 7px; line-height: 1.4; }
+.step__text { font-size: 12.5px; color: var(--c-text-sub); line-height: 1.65; margin: 0; }
+.step__text b, .step__points b { color: var(--c-ink); font-weight: var(--fw-bold); }
+.step__points { margin: 8px 0 0; padding-left: 15px; display: flex; flex-direction: column; gap: 5px; }
+.step__points li { font-size: 12px; color: var(--c-text-sub); line-height: 1.55; }
 
 /* 大きな流れカード */
 .hcard {
