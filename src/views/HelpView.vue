@@ -64,24 +64,24 @@
 
       <div v-for="group in screenGroups" :key="group.title" class="sgroup">
         <p class="sgroup__title">{{ group.title }}</p>
-        <details v-for="s in group.screens" :key="s.name" class="screen">
-          <summary class="screen__sum">
-            <span class="screen__ic"><svg viewBox="0 0 24 24"><path v-for="(d, i) in icons[s.icon]" :key="i" :d="d" /></svg></span>
-            <span class="screen__title">
+        <details v-for="s in group.screens" :key="s.name" class="hacc">
+          <summary class="hacc__sum">
+            <span class="hacc__ic"><svg viewBox="0 0 24 24"><path v-for="(d, i) in icons[s.icon]" :key="i" :d="d" /></svg></span>
+            <span class="hacc__title">
               {{ s.name }}
-              <span v-if="s.route" class="screen__route">{{ s.route }}</span>
+              <span v-if="s.route" class="hacc__route">{{ s.route }}</span>
             </span>
-            <svg class="screen__chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+            <svg class="hacc__chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
           </summary>
-          <div class="screen__body">
-            <p class="screen__purpose">{{ s.purpose }}</p>
-            <ul class="screen__items">
+          <div class="hacc__body">
+            <p class="hacc__purpose">{{ s.purpose }}</p>
+            <ul class="hacc__items">
               <li v-for="(it, i) in s.items" :key="i">
                 <b>{{ it.b }}</b>
-                <span v-if="it.act" class="screen__act">{{ it.act }}</span>
+                <span v-if="it.act" class="hacc__act">{{ it.act }}</span>
               </li>
             </ul>
-            <p v-if="s.tip" class="screen__tip">{{ s.tip }}</p>
+            <p v-if="s.tip" class="hacc__tip">{{ s.tip }}</p>
           </div>
         </details>
       </div>
@@ -398,38 +398,38 @@ const screenGroups = [
 /* 画面ごとアコーディオン */
 .sgroup { margin-bottom: 16px; }
 .sgroup__title { font-size: 12px; font-weight: var(--fw-black); color: var(--c-brand-strong); letter-spacing: .04em; margin: 0 2px 8px; }
-.screen {
+.hacc {
   background: var(--c-surface);
   border-radius: 14px;
   box-shadow: var(--shadow-sm);
   margin-bottom: 8px;
   overflow: hidden;
 }
-.screen__sum {
+.hacc__sum {
   list-style: none;
   display: flex; align-items: center; gap: 11px;
   padding: 13px 14px;
   cursor: pointer;
   user-select: none;
 }
-.screen__sum::-webkit-details-marker { display: none; }
-.screen__ic {
+.hacc__sum::-webkit-details-marker { display: none; }
+.hacc__ic {
   width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
   background: var(--c-brand-weak);
   display: flex; align-items: center; justify-content: center;
 }
-.screen__ic svg { width: 19px; height: 19px; fill: none; stroke: var(--c-brand); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.screen__title { flex: 1; min-width: 0; font-size: 14px; font-weight: var(--fw-bold); color: var(--c-ink); display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; overflow-wrap: anywhere; }
-.screen__route { font-size: 11px; font-weight: var(--fw-bold); color: var(--c-text-faint); font-family: ui-monospace, monospace; }
-.screen__chev { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: var(--c-text-faint); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transition: transform .18s ease; }
-.screen[open] .screen__chev { transform: rotate(90deg); }
-.screen__body { padding: 0 14px 15px; }
-.screen__purpose { font-size: 13px; color: var(--c-text-sub); line-height: 1.65; margin: 0 0 11px; padding-top: 3px; }
-.screen__items { margin: 0; padding: 11px 0 0; list-style: none; display: flex; flex-direction: column; gap: 9px; border-top: 1px solid var(--c-line); }
-.screen__items li { font-size: 13px; line-height: 1.55; }
-.screen__items b { display: block; color: var(--c-ink); font-weight: var(--fw-bold); }
-.screen__act { display: block; color: var(--c-text-sub); font-size: 12.5px; margin-top: 1px; }
-.screen__tip { font-size: 12px; color: var(--c-text-faint); line-height: 1.6; margin: 11px 0 0; padding: 9px 11px; background: var(--c-surface-2); border-radius: 9px; }
+.hacc__ic svg { width: 19px; height: 19px; fill: none; stroke: var(--c-brand); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.hacc__title { flex: 1; min-width: 0; font-size: 14px; font-weight: var(--fw-bold); color: var(--c-ink); display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; overflow-wrap: anywhere; }
+.hacc__route { font-size: 11px; font-weight: var(--fw-bold); color: var(--c-text-faint); font-family: ui-monospace, monospace; }
+.hacc__chev { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: var(--c-text-faint); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transition: transform .18s ease; }
+.hacc[open] .hacc__chev { transform: rotate(90deg); }
+.hacc__body { padding: 0 14px 15px; }
+.hacc__purpose { font-size: 13px; color: var(--c-text-sub); line-height: 1.65; margin: 0 0 11px; padding-top: 3px; }
+.hacc__items { margin: 0; padding: 11px 0 0; list-style: none; display: flex; flex-direction: column; gap: 9px; border-top: 1px solid var(--c-line); }
+.hacc__items li { font-size: 13px; line-height: 1.55; }
+.hacc__items b { display: block; color: var(--c-ink); font-weight: var(--fw-bold); }
+.hacc__act { display: block; color: var(--c-text-sub); font-size: 12.5px; margin-top: 1px; }
+.hacc__tip { font-size: 12px; color: var(--c-text-faint); line-height: 1.6; margin: 11px 0 0; padding: 9px 11px; background: var(--c-surface-2); border-radius: 9px; }
 
 /* 画面遷移マップ */
 .map { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
