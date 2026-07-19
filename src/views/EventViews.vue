@@ -12,8 +12,9 @@
       <template v-else>
         <div
           class="evcard"
-          v-for="event in events"
+          v-for="(event, index) in events"
           :key="event.id"
+          :data-tour="index === 0 ? 'event-card' : null"
           @click="openEvent(event.id)"
         >
           <div class="evcard__top">

@@ -19,7 +19,7 @@
       <transition name="sheet-fade">
         <div v-if="showAddSheet" class="addsheet" @click.self="showAddSheet = false">
           <div class="addsheet__panel">
-            <button class="addsheet__item" @click="pick('/make-event')">
+            <button class="addsheet__item" data-tour="sheet-event" @click="pick('/make-event')">
               <span class="addsheet__ic addsheet__ic--brand">
                 <svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="16" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>
               </span>
@@ -28,7 +28,7 @@
                 <small>旅行・飲み会などをつくる</small>
               </span>
             </button>
-            <button class="addsheet__item" @click="pick('/event?pick=payment')">
+            <button class="addsheet__item" data-tour="sheet-payment" @click="pick('/event?pick=payment')">
               <span class="addsheet__ic addsheet__ic--pay">
                 <svg viewBox="0 0 24 24"><rect x="2.5" y="5.5" width="19" height="13" rx="3"/><path d="M2.5 10h19"/></svg>
               </span>
@@ -37,7 +37,7 @@
                 <small>イベントを選んで立て替えを記録</small>
               </span>
             </button>
-            <button class="addsheet__cancel" @click="showAddSheet = false">キャンセル</button>
+            <button class="addsheet__cancel" data-tour="sheet-cancel" @click="showAddSheet = false">キャンセル</button>
           </div>
         </div>
       </transition>

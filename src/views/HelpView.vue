@@ -75,7 +75,7 @@
 
       <!-- ============ ガイド再生 ============ -->
       <button class="btn-brand help__tour" @click="replayTour">はじめてガイドをもう一度見る</button>
-      <button class="btn-outline help__tour" @click="startButtonTour">ボタンをタップして使い方を見る（説明モード）</button>
+      <button class="btn-outline help__tour" @click="startButtonTour">使い方ツアーを始める（ボタンを順番にご案内）</button>
     </main>
   </div>
 </template>
@@ -85,7 +85,7 @@ import PageHeader from '../components/PageHeader.vue';
 import { useRouter } from 'vue-router';
 const router = useRouter();
 
-// 説明モード：ホームに戻ってから起動。以後は各ボタンをタップするとその使い方が出る（自動移動なし）
+// 使い方ツアー：ホームに戻ってから起動。スポットライトでボタンを1つずつ順番に案内する
 const startButtonTour = async () => {
   if (router.currentRoute.value.path !== '/') await router.push('/');
   setTimeout(() => window.dispatchEvent(new CustomEvent('settlo:show-button-tour')), 250);
