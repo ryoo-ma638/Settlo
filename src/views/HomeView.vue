@@ -1,8 +1,11 @@
 <template>
   <div class="home">
-    <PaymentCarousel :summary="paymentSummary" :loading="summaryLoading" />
+    <!-- お支払い状況（ツアーの案内対象） -->
+    <section data-tour="home-status">
+      <PaymentCarousel :summary="paymentSummary" :loading="summaryLoading" />
+    </section>
 
-    <section class="ongoing">
+    <section class="ongoing" data-tour="home-events">
       <div class="ongoing__head">
         <h2 class="section-title">進行中のイベント</h2>
         <button class="ongoing__all" @click="$router.push('/event')">すべて見る</button>

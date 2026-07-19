@@ -48,7 +48,7 @@
                 +{{ eventData.participants.length - 5 }}
               </div>
             </div>
-            <button class="invite-pill-btn" @click.stop="inviteUser">
+            <button class="invite-pill-btn" data-tour="ev-invite" @click.stop="inviteUser">
               <span class="icon">＋</span> 招待
             </button>
           </div>
@@ -61,7 +61,7 @@
         </div>
       </div>
 
-      <div class="settlement-summary-section">
+      <div class="settlement-summary-section" data-tour="ev-summary">
         <h3 class="section-title">精算サマリー</h3>
         
         <div class="filter-wrapper">
@@ -102,7 +102,7 @@
       <div class="history-section" ref="timelineSection">
         <div class="section-header">
           <h3 class="section-title">立て替え履歴</h3>
-          <button class="add-payment-btn" @click="openNewPayment">＋ 支払いを追加</button>
+          <button class="add-payment-btn" data-tour="ev-addpay" @click="openNewPayment">＋ 支払いを追加</button>
         </div>
 
         <div class="filter-wrapper">
