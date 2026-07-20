@@ -6,7 +6,10 @@
     </button>
 
     <button class="botnav__tab" data-tour="nav-event" :class="{ 'is-active': isActive('/event') }" @click="go('/event')">
-      <svg viewBox="0 0 24 24" class="botnav__icon"><rect x="3.5" y="5" width="17" height="16" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>
+      <span class="botnav__ico-wrap">
+        <svg viewBox="0 0 24 24" class="botnav__icon"><rect x="3.5" y="5" width="17" height="16" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>
+        <NotifBadge :count="counts.event" />
+      </span>
       <span>イベント</span>
     </button>
 
@@ -44,12 +47,18 @@
     </Teleport>
 
     <button class="botnav__tab" data-tour="nav-money" :class="{ 'is-active': isActive('/payment') }" @click="go('/payment')">
-      <svg viewBox="0 0 24 24" class="botnav__icon"><rect x="2.5" y="5.5" width="19" height="13" rx="3"/><path d="M2.5 10h19"/></svg>
+      <span class="botnav__ico-wrap">
+        <svg viewBox="0 0 24 24" class="botnav__icon"><rect x="2.5" y="5.5" width="19" height="13" rx="3"/><path d="M2.5 10h19"/></svg>
+        <NotifBadge :count="counts.payment" />
+      </span>
       <span>支払い</span>
     </button>
 
     <button class="botnav__tab" data-tour="nav-friend" :class="{ 'is-active': isActive('/friend') }" @click="go('/friend')">
-      <svg viewBox="0 0 24 24" class="botnav__icon"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20v-1.2A4.3 4.3 0 0 1 7.8 14.5h2.4a4.3 4.3 0 0 1 4.3 4.3V20"/><path d="M16.5 5.2a3.4 3.4 0 0 1 0 6.4M17.4 14.6a4.3 4.3 0 0 1 3.1 4.2V20"/></svg>
+      <span class="botnav__ico-wrap">
+        <svg viewBox="0 0 24 24" class="botnav__icon"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20v-1.2A4.3 4.3 0 0 1 7.8 14.5h2.4a4.3 4.3 0 0 1 4.3 4.3V20"/><path d="M16.5 5.2a3.4 3.4 0 0 1 0 6.4M17.4 14.6a4.3 4.3 0 0 1 3.1 4.2V20"/></svg>
+        <NotifBadge :count="counts.friend" />
+      </span>
       <span>フレンド</span>
     </button>
   </nav>
@@ -58,10 +67,15 @@
 <script setup>
 import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import NotifBadge from './NotifBadge.vue';
+import { useNotificationCounts } from '../composables/useNotificationCounts';
 
 const route = useRoute();
 const router = useRouter();
 const showAddSheet = ref(false);
+
+// フレンド/支払い/イベントの未読件数（リアルタイム）を下ナビのバッジに出す
+const { counts } = useNotificationCounts();
 
 const go = (path) => { if (route.path !== path) router.push(path); };
 // 選択シートから遷移（クエリ付きも確実に飛べるよう router.push を使う）
@@ -100,6 +114,17 @@ const isActive = (path) => {
   transition: color 0.15s ease;
 }
 .botnav__tab.is-active { color: var(--c-brand); font-weight: var(--fw-bold); }
+
+/* アイコンを基準にバッジを右上へ重ねるためのラッパー */
+.botnav__ico-wrap {
+  position: relative;
+  display: inline-flex;
+}
+/* アイコンを隠さないよう、少し外側の右上へ出す */
+.botnav__ico-wrap :deep(.notif-badge) {
+  top: -5px;
+  right: -8px;
+}
 
 .botnav__icon {
   width: 24px;
