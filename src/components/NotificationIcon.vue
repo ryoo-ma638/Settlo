@@ -5,7 +5,7 @@
         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
         <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
       </svg>
-      <span v-if="totalNotifs > 0" class="notification-dot"></span>
+      <NotifBadge :count="totalNotifs" />
     </button>
 
     <Teleport to="body" v-if="!isStatic">
@@ -170,6 +170,7 @@
 import { ref, computed, onMounted, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import BaseModal from './BaseModal.vue';
+import NotifBadge from './NotifBadge.vue';
 import { db, auth } from '@/firebase';
 import {
   collection, query, where, onSnapshot, getDocs,
@@ -976,11 +977,6 @@ defineExpose({ open });
   color: var(--c-text);
 }
 .icon-btn:active { transform: scale(0.9); }
-.notification-dot {
-  position: absolute; top: 2px; right: 3px;
-  width: 9px; height: 9px; background-color: var(--c-danger);
-  border-radius: 50%; border: 2px solid var(--c-surface);
-}
 
 /* モーダル */
 .modal-overlay {
