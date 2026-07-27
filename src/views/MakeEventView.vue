@@ -53,7 +53,7 @@
       <div v-else>
         <div class="field">
           <label class="field__label">招待コードを入力</label>
-          <input v-model="joinCode" type="text" placeholder="例：A1B2C3" class="input input--code" maxlength="6" />
+          <input v-model="joinCode" type="text" placeholder="例：A1B2C3" class="input input--code" maxlength="8" />
         </div>
         <div class="actions">
           <button class="btn-brand" :disabled="loading" @click="joinEvent">参加する</button>
