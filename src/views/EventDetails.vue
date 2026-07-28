@@ -59,6 +59,20 @@
           <span class="icb-code">{{ eventData.invitationCode }}</span>
           <button class="icb-copy" @click="copyInviteCode">コピー</button>
         </div>
+
+        <div v-if="eventData.locked || isLeader" class="lock-bar">
+          <span v-if="eventData.locked" class="lock-chip">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="4" y="10" width="16" height="10" rx="2"></rect>
+              <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+            </svg>
+            承認制
+          </span>
+          <span v-else class="lock-note">コードを知っていれば誰でも参加できます</span>
+          <button v-if="isLeader" class="lock-toggle" @click="toggleLock">
+            {{ eventData.locked ? '承認制をやめる' : '承認制にする' }}
+          </button>
+        </div>
       </div>
 
       <div class="settlement-summary-section" data-tour="ev-summary">
@@ -209,7 +223,7 @@
                 class="avatar-medium"
                 :style="{ backgroundColor: p.color || '#cbd5e1' }"
               ></div>
-              <span class="item-name">{{ p.name }} <span v-if="p.isMe" class="me-badge">自分</span></span>
+              <span class="item-name">{{ p.name }} <span v-if="p.isMe" class="me-badge">自分</span> <span v-if="eventData.leaderUid && p.id === eventData.leaderUid" class="leader-badge">リーダー</span></span>
               <button v-if="!p.isMe && friendStatus[p.id] === 'none'" class="p-friend-btn" @click="sendFriendRequestTo(p)">フレンド申請</button>
               <span v-else-if="!p.isMe && friendStatus[p.id] === 'friend'" class="p-friend-tag">フレンド</span>
               <span v-else-if="!p.isMe && friendStatus[p.id] === 'requested'" class="p-friend-tag is-wait">申請済み</span>
@@ -541,9 +555,27 @@ const eventData = ref({
   invitationCode: '------',
   tag: 'その他', // 🌟 イベントのジャンル
   ended: false, // 🌟 終了済み（精算を締めた状態・削除とは別）
+  leaderUid: null, // 🌟 リーダー（作った人）。古いイベントには無いので null
+  locked: false,   // 🌟 鍵付き＝参加にリーダーの承認が必要
   participants: [],
   history: []
 });
+
+// 🌟 自分がリーダーか（リーダーの情報が無い古いイベントでは常に false）
+const isLeader = computed(() => !!eventData.value.leaderUid && eventData.value.leaderUid === auth.currentUser?.uid);
+
+// 🌟 鍵付きの切り替え（リーダーだけ）
+const toggleLock = async () => {
+  if (!isLeader.value) return;
+  const next = !eventData.value.locked;
+  try {
+    await updateDoc(doc(db, 'events', route.params.id), { locked: next });
+    showToast(next ? '承認制にしました' : '承認制をやめました');
+  } catch (e) {
+    console.error('承認制の切り替えエラー:', e);
+    showAlert('error', 'エラー', '設定を変更できませんでした。');
+  }
+};
 
 const sumFilterScope = ref('all'); 
 const histFilterScope = ref('all'); 
@@ -1003,6 +1035,8 @@ onMounted(async () => {
       eventData.value.tag = data.tag || 'その他';
       eventData.value.ended = !!data.ended; // 🌟 終了済みフラグ
       eventData.value.invitationCode = data.invitationCode || "------";
+      eventData.value.leaderUid = data.leaderUid || null;
+      eventData.value.locked = !!data.locked;
 
       // 参加者情報の取得（名前＋アイコンを実データから）
       const uids = data.participants || [];
@@ -1288,6 +1322,13 @@ onMounted(() => {
 .icb-copy { background: var(--c-brand); color: #fff; border: none; padding: 8px 16px; border-radius: 12px; font-size: 12px; font-weight: 800; cursor: pointer; transition: 0.2s; white-space: nowrap; }
 .icb-copy:active { transform: scale(0.95); }
 
+/* 鍵付き（承認制）の表示とリーダー用の切り替え */
+.lock-bar { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 0 4px; }
+.lock-chip { display: inline-flex; align-items: center; gap: 5px; background: var(--c-brand-weak); color: var(--c-brand-strong, var(--c-brand)); padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+.lock-note { flex: 1; font-size: 11px; font-weight: 700; color: var(--c-text-faint); }
+.lock-toggle { margin-left: auto; background: none; border: 1px solid var(--c-line-bold); color: var(--c-text-sub); padding: 6px 12px; border-radius: 999px; font-size: 11px; font-weight: 800; cursor: pointer; }
+.lock-toggle:active { transform: scale(0.95); }
+
 .section-title { font-size: 18px; font-weight: 900; color: var(--c-ink); margin: 0 0 16px 0; }
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .add-payment-btn { background: var(--c-brand); color: white; border: none; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px rgba(5,150,105,0.25); transition: 0.2s; }
@@ -1425,6 +1466,7 @@ onMounted(() => {
 .p-friend-tag { background: var(--c-brand-weak); color: var(--c-brand); padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; flex-shrink: 0; }
 .p-friend-tag.is-wait { background: #fffbeb; color: #b45309; }
 .me-badge { font-size: 10px; background: var(--c-brand); color: white; padding: 2px 8px; border-radius: 10px; font-weight: 800; }
+.leader-badge { font-size: 10px; background: var(--c-brand-weak); color: var(--c-brand-strong, var(--c-brand)); padding: 2px 8px; border-radius: 10px; font-weight: 800; }
 .p-remove-btn { flex-shrink: 0; width: 34px; height: 34px; border: none; background: var(--c-danger-weak); color: var(--c-danger); border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .p-remove-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .p-remove-btn:active { transform: scale(0.92); }

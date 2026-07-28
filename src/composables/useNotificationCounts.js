@@ -12,6 +12,7 @@ const EVENT_TYPES = new Set([
   'event_invite', 'event_edited', 'invite_rejected', 'event_joined',
   'event_restored', 'event_restore_rejected', 'event_left_check', 'event_left_rejected',
   'event_member_removed', 'event_rejoin_request', 'event_rejoin_approved', 'event_rejoin_rejected',
+  'event_join_request', 'event_join_approved', 'event_join_rejected',
 ]);
 
 // フレンド関連の通知タイプ。友達申請の件数（下記 qF）と同じフレンドバッジに足す。

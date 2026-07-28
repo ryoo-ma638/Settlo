@@ -43,6 +43,22 @@
           </div>
         </div>
 
+        <div class="field">
+          <button class="lock-row" :class="{ 'is-on': isLocked }" @click="isLocked = !isLocked">
+            <span class="lock-row__icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="10" width="16" height="10" rx="2"></rect>
+                <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+              </svg>
+            </span>
+            <span class="lock-row__text">
+              <span class="lock-row__title">鍵付きにする</span>
+              <span class="lock-row__desc">参加にはリーダーの承認が必要になります</span>
+            </span>
+            <span class="lock-row__switch" aria-hidden="true"><span class="lock-row__knob"></span></span>
+          </button>
+        </div>
+
         <div class="actions">
           <button class="btn-brand" :disabled="loading" @click="createEvent">
             {{ loading ? '作成中…' : '作成する' }}
@@ -82,10 +98,12 @@
 import { ref, watch, reactive } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, getDoc, doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import BaseModal from '@/components/BaseModal.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import GenreIcon from '@/components/GenreIcon.vue';
+import { getMyName } from '@/lib/userName';
+import { showToast } from '@/lib/toast';
 
 const route = useRoute();
 const router = useRouter();
@@ -96,6 +114,10 @@ const eventMemo = ref('');
 const selectedIcon = ref('食事');
 const joinCode = ref('');
 const loading = ref(false);
+// 鍵付き＝参加にリーダーの承認が必要なイベント（既定はオフ＝これまで通り誰でも参加できる）
+const isLocked = ref(false);
+// 参加リクエストを送ったイベント（この画面にいる間は重ねて送らない）
+const requestedEventIds = ref(new Set());
 
 const invitationCode = ref(Math.random().toString(36).substring(2, 8).toUpperCase());
 
@@ -143,6 +165,8 @@ const createEvent = async () => {
       tag: selectedIcon.value,
       invitationCode: invitationCode.value,
       participants: [myUid],
+      leaderUid: myUid,        // 作った人がリーダー（鍵付きの承認をする人）
+      locked: isLocked.value,  // true＝招待コードでの参加はリーダーの承認待ちになる
       totalAmount: 0,
       createdAt: serverTimestamp()
     });
@@ -182,10 +206,27 @@ const joinEvent = async () => {
       showModal({ type: 'info', title: '参加済み', message: 'すでにこのイベントに参加しています。', onConfirm: () => router.push(`/event/${evDoc.id}`) });
       return;
     }
+    const myName = await getMyName();
+
+    // 🌟 鍵付きイベントは、すぐには参加せずリーダーへ参加リクエストを送る
+    if (data.locked === true && data.leaderUid) {
+      if (requestedEventIds.value.has(evDoc.id)) {
+        showToast('すでにリクエスト中です。リーダーの承認をお待ちください');
+        return;
+      }
+      await addDoc(collection(db, "notifications"), {
+        toUserId: data.leaderUid, type: 'event_join_request',
+        eventId: evDoc.id, eventName: data.name || '',
+        fromUserId: myUid, fromUserName: myName,
+        isRead: false, createdAt: serverTimestamp(),
+      });
+      requestedEventIds.value.add(evDoc.id);
+      showToast('リーダーの承認待ちです');
+      return;
+    }
+
     await updateDoc(doc(db, "events", evDoc.id), { participants: arrayUnion(myUid) });
     // 既存メンバーへ「参加しました」お知らせ
-    let myName = auth.currentUser?.displayName || 'メンバー';
-    try { const md = await getDoc(doc(db, "users", myUid)); if (md.exists() && md.data().name) myName = md.data().name; } catch (e) {}
     for (const uid of (data.participants || [])) {
       if (uid === myUid) continue;
       try {
@@ -308,6 +349,49 @@ watch(isJoinMode, () => {
   font-weight: var(--fw-bold);
 }
 .invite__copy:active { transform: scale(0.96); }
+
+/* 鍵付き（承認制）トグル */
+.lock-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  background: var(--c-surface);
+  border: 1.5px solid var(--c-line-bold);
+  border-radius: var(--r-md);
+  padding: 14px;
+  color: var(--c-text-sub);
+  transition: all 0.15s ease;
+}
+.lock-row.is-on {
+  border-color: var(--c-brand);
+  background: var(--c-brand-weak);
+  color: var(--c-brand-strong);
+}
+.lock-row__icon { flex-shrink: 0; display: flex; }
+.lock-row__text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.lock-row__title { font-size: 14px; font-weight: var(--fw-bold); }
+.lock-row__desc { font-size: 11px; font-weight: var(--fw-medium); color: var(--c-text-faint); }
+.lock-row.is-on .lock-row__desc { color: var(--c-brand-strong); }
+.lock-row__switch {
+  flex-shrink: 0;
+  width: 44px; height: 26px;
+  border-radius: 999px;
+  background: var(--c-line-bold);
+  padding: 3px;
+  display: flex;
+  transition: background 0.15s ease;
+}
+.lock-row.is-on .lock-row__switch { background: var(--c-brand); }
+.lock-row__knob {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  transition: transform 0.15s ease;
+}
+.lock-row.is-on .lock-row__knob { transform: translateX(18px); }
 
 /* アクション */
 .actions {

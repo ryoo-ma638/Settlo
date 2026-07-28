@@ -66,9 +66,11 @@ service cloud.firestore {
       allow read: if isSignedIn();          // 招待コード検索でjoinするため
       allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants;
       // 既存参加者の編集 or「自分を参加者に追加する更新（join）」を許可
+      // 鍵付き（locked=true）のイベントは自分での追加を認めない＝リーダーの承認が必要
       allow update: if isSignedIn()
                       && (request.auth.uid in resource.data.participants
-                          || request.auth.uid in request.resource.data.participants);
+                          || (request.auth.uid in request.resource.data.participants
+                              && resource.data.get('locked', false) != true));
       allow delete: if isSignedIn() && request.auth.uid in resource.data.participants;
 
       // 立替履歴：そのイベントの参加者のみ
