@@ -204,6 +204,7 @@ import {
 } from 'firebase/firestore';
 import { subjectKey, threadIdFor, subjectLabel, resolveThreadForTx, postPaymentEventByTx, resolvePaymentThreadByTx } from '@/lib/thread';
 import { logApprovalBoth } from '@/lib/approvalLog';
+import { revertCounterTransactions, COUNTER_REVERT_TEXT } from '@/lib/settlement';
 import { showToast } from '@/lib/toast';
 import { getMyName, getUserName, isSelfName } from '@/lib/userName';
 
@@ -284,7 +285,10 @@ const notifText = (req) => {
   if (req.type === 'event_left_rejected') return `さんは、あなたがイベント「${req.eventName || ''}」から抜けたのは正しくないと考えています。これは正しいですか？（正しい＝イベントに戻ります／正しくない＝削除を続けます）`;
   if (req.type === 'event_restore_rejected') return `さんが「正しくない」を選び、イベント「${req.eventName || ''}」をゴミ箱に戻しました。これは正しいですか？（正しくない＝もう一度復帰します）`;
   if (req.type === 'approval_request' && (req.batch || (Array.isArray(req.transactionIds) && req.transactionIds.length > 1))) {
-    return `さんがまとめて精算しました（${req.count || req.transactionIds.length}件・¥${(req.amount || 0).toLocaleString()}）。受け取りを承認しますか？`;
+    // 双方向のまとめ精算は、あなたの支払い分と相殺されている（拒否すると両方向が未払いに戻る）
+    const counter = Array.isArray(req.counterTransactionIds) ? req.counterTransactionIds.length : 0;
+    const offset = counter ? `・あなたの支払い${counter}件と相殺` : '';
+    return `さんがまとめて精算しました（${req.count || req.transactionIds.length}件・¥${(req.amount || 0).toLocaleString()}${offset}）。受け取りを承認しますか？`;
   }
   return 'さんから支払いの承認リクエストが届いています';
 };
@@ -553,8 +557,13 @@ const approveTx = async (req) => {
 };
 
 // 🌟 支払いの承認リクエストを「拒否」＝未払いに戻して相手へ通知（相手は再リクエスト可）
+//    双方向のまとめ精算は、相手がその場で完了にした逆方向の取引（counterTransactionIds）も一緒に戻す。
 const rejectTx = (req) => {
-  askConfirm('支払いを拒否しますか？', 'この精算は未払いに戻り、相手に通知が届きます（相手は再度お支払い手続きができます）。', async () => {
+  const counterIds = Array.isArray(req.counterTransactionIds) ? req.counterTransactionIds : [];
+  const confirmText = counterIds.length
+    ? 'このまとめ精算は未払いに戻り、相手に通知が届きます（相手が受け取った分も含め、双方向すべてが未払いに戻ります）。'
+    : 'この精算は未払いに戻り、相手に通知が届きます（相手は再度お支払い手続きができます）。';
+  askConfirm('支払いを拒否しますか？', confirmText, async () => {
     try {
       const myUid = auth.currentUser?.uid;
       if (!myUid) return;
@@ -563,9 +572,16 @@ const rejectTx = (req) => {
         try { await updateDoc(doc(db, "transactions", tid), { status: 'unpaid' }); } catch (e) { /* 続行 */ }
         await postPaymentEventByTx(tid, { text: `${senderName(req)}さんの支払いを差し戻しました（未払いに戻りました）`, kind: 'rejected', actorUid: myUid });
       }
+      // 🌟 逆方向（相手が受け取り扱いで即完了にした分）も未払いに戻す。
+      //    記録が無い古いお知らせは空配列＝従来どおり自分が払う分だけ戻る。
+      const revertedCounter = await revertCounterTransactions({
+        myUid, otherUid: req.fromUserId, ids: counterIds, skipIds: ids, text: COUNTER_REVERT_TEXT,
+      });
       await addDoc(collection(db, "notifications"), {
         toUserId: req.fromUserId, type: 'approval_rejected',
-        message: ids.length > 1 ? 'まとめ精算の承認リクエストが拒否されました。もう一度お手続きできます。' : '承認リクエストが拒否されました。もう一度お支払い手続きをしてください。',
+        message: revertedCounter.length
+          ? 'まとめ精算の承認リクエストが拒否されました。双方向の精算がすべて未払いに戻っています。もう一度お手続きできます。'
+          : (ids.length > 1 ? 'まとめ精算の承認リクエストが拒否されました。もう一度お手続きできます。' : '承認リクエストが拒否されました。もう一度お支払い手続きをしてください。'),
         transactionId: req.transactionId || null,
         fromUserId: myUid, fromUserName: await getMyName(),
         isRead: false, createdAt: serverTimestamp(),
