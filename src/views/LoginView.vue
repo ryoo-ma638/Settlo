@@ -3,7 +3,7 @@
     <div class="login__inner">
       <div class="brand">
         <div class="brand__mark" aria-hidden="true">
-          <span>¥</span>
+          <img :src="logoMark" alt="">
         </div>
         <h1 class="brand__name">Settlo</h1>
         <p class="brand__tag">割り勘を、もっとスマートに。</p>
@@ -42,6 +42,7 @@ import { signInWithPopup, signInWithRedirect, getRedirectResult, signInAnonymous
 import { httpsCallable } from "firebase/functions";
 import { onMounted } from "vue";
 import { saveUser } from "../user";
+import logoMark from "../assets/logo-mark.png";
 
 const router = useRouter();
 
@@ -145,20 +146,16 @@ const loginAsGuest = async () => {
 .brand__mark {
   width: 76px;
   height: 76px;
-  border-radius: 22px;
-  background: var(--c-brand);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 10px 24px rgba(5, 150, 105, 0.32);
   margin-bottom: 22px;
 }
-.brand__mark span {
-  color: #fff;
-  font-size: 40px;
-  font-weight: var(--fw-black);
-  line-height: 1;
-  transform: translateY(-1px);
+.brand__mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 24px rgba(5, 150, 105, 0.32));
 }
 
 .brand__name {

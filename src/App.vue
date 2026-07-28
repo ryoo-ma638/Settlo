@@ -1,6 +1,6 @@
 <template>
   <div v-if="!authChecked" class="app-loading">
-    <div class="app-loading__mark">¥</div>
+    <img class="app-loading__mark" :src="logoMark" alt="" aria-hidden="true">
     <p class="app-loading__text">Settlo を読み込み中…</p>
   </div>
 
@@ -35,6 +35,7 @@ import AppFooter from './components/AppFooter.vue'
 import OnboardingModal from './components/OnboardingModal.vue'
 import ButtonTour from './components/ButtonTour.vue'
 import GlobalToast from './components/GlobalToast.vue'
+import logoMark from './assets/logo-mark.png'
 
 const route = useRoute()
 const router = useRouter()
@@ -100,15 +101,8 @@ onMounted(() => {
 .app-loading__mark {
   width: 64px;
   height: 64px;
-  border-radius: 18px;
-  background: var(--c-brand);
-  color: #fff;
-  font-size: 34px;
-  font-weight: var(--fw-black);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 10px 24px rgba(5, 150, 105, 0.3);
+  object-fit: contain;
+  filter: drop-shadow(0 10px 24px rgba(5, 150, 105, 0.3));
 }
 .app-loading__text {
   font-size: 13px;
