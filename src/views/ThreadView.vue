@@ -83,6 +83,7 @@ import PageHeader from '../components/PageHeader.vue';
 import { ensureThread, resolveThreadForTx, postPaymentEventByTx } from '@/lib/thread';
 import { getUserName } from '@/lib/userName';
 import { logApprovalBoth } from '@/lib/approvalLog';
+import { findBatchApprovalRequests, revertCounterTransactions, COUNTER_REVERT_TEXT } from '@/lib/settlement';
 
 // クイック返信の定型文
 const QUICK_REPLIES = ['ありがとう！', '確認しました', 'もう少し待って', 'OKです'];
@@ -167,10 +168,21 @@ const rejectTx = async () => {
   approving.value = true;
   try {
     await updateDoc(doc(db, 'transactions', txId), { status: 'unpaid' });
+    // 🌟 双方向のまとめ精算なら、相手がその場で完了にした逆方向の取引も未払いに戻す
+    let revertedCounter = 0;
+    for (const n of await findBatchApprovalRequests(myUid, [txId])) {
+      const done = await revertCounterTransactions({
+        myUid, otherUid: n.fromUserId, ids: n.counterTransactionIds, skipIds: [txId], text: COUNTER_REVERT_TEXT,
+      });
+      revertedCounter += done.length;
+      try { await updateDoc(doc(db, 'notifications', n.id), { isRead: true }); } catch (e) {}
+    }
     if (otherUid.value) {
       await addDoc(collection(db, 'notifications'), {
         toUserId: otherUid.value, type: 'approval_rejected',
-        message: '承認リクエストが拒否されました。もう一度お支払い手続きをしてください。',
+        message: revertedCounter
+          ? '承認リクエストが拒否されました。双方向の精算がすべて未払いに戻っています。もう一度お手続きできます。'
+          : '承認リクエストが拒否されました。もう一度お支払い手続きをしてください。',
         transactionId: txId, fromUserId: myUid, fromUserName: myName.value,
         isRead: false, createdAt: serverTimestamp(),
       });

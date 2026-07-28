@@ -173,6 +173,9 @@
                   toUserId: friendUid, fromUserId: myUid, fromUserName: myName,
                   type: 'approval_request',
                   batch: true, transactionIds: iOweIds, count: iOweIds.length,
+                  // 🌟 双方向のときに「その場で完了」にした逆方向の取引（相手→自分）を記録しておく。
+                  //    拒否されたら、この分も未払いに戻して片側だけ完了で残らないようにする。
+                  counterTransactionIds: owedToMeIds,
                   itemName: `${friendName}との精算`,
                   amount: Number(route.query.amount) || 0,
                   message: 'まとめて精算の承認リクエストが届きました。',
@@ -182,7 +185,9 @@
               } catch (e) { console.error('承認リクエストの送信に失敗:', e); }
               showModal({
                 type: 'success', title: '承認待ちにしました',
-                message: `${iOweIds.length}件の精算リクエストを送信しました。相手が承認すると完了します。`,
+                message: owedToMeIds.length
+                  ? `${iOweIds.length}件の精算リクエストを送信しました。相手が承認すると完了します。\n受け取る${owedToMeIds.length}件も、拒否された場合は未払いに戻ります。`
+                  : `${iOweIds.length}件の精算リクエストを送信しました。相手が承認すると完了します。`,
                 onConfirm: () => router.push('/')
               });
             } else {

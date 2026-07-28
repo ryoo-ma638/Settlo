@@ -121,6 +121,7 @@ import PageHeader from '../components/PageHeader.vue';
 import { logApprovalBoth } from '@/lib/approvalLog';
 import { resolveThreadForTx, postPaymentEventByTx, resolvePaymentThreadByTx } from '@/lib/thread';
 import { getMyName } from '@/lib/userName';
+import { findBatchApprovalRequests, revertCounterTransactions, COUNTER_REVERT_TEXT } from '@/lib/settlement';
 
 const route = useRoute();
 const router = useRouter(); 
@@ -378,6 +379,27 @@ const clearApprovalNotifs = async () => {
   } catch (e) { console.error('承認リクエスト通知のクリアに失敗:', e); }
 };
 
+// 🌟 この画面から拒否したときも、双方向のまとめ精算で「その場で完了」にされた
+//    逆方向の取引を未払いに戻す（お知らせの拒否ボタンと同じ結果にする）。
+//    逆方向の記録が無い（＝単発や古い）お知らせは対象にならず、従来どおりの動き。
+const revertBatchCounterparts = async () => {
+  const myUid = auth.currentUser?.uid;
+  if (!myUid) return 0;
+  const txIds = items.value.map(i => i.id);
+  let reverted = 0;
+  try {
+    const reqs = await findBatchApprovalRequests(myUid, txIds);
+    for (const n of reqs) {
+      const done = await revertCounterTransactions({
+        myUid, otherUid: n.fromUserId, ids: n.counterTransactionIds, skipIds: txIds, text: COUNTER_REVERT_TEXT,
+      });
+      reverted += done.length;
+      try { await updateDoc(doc(db, 'notifications', n.id), { isRead: true }); } catch (e) {}
+    }
+  } catch (e) { console.error('まとめ精算の差し戻しに失敗:', e); }
+  return reverted;
+};
+
 const approvePayment = () => {
   showModal({
     type: 'warning', title: '支払いの承認',
@@ -428,16 +450,22 @@ const rejectPayment = () => {
       try {
         await updateAllItems('unpaid'); // 未払いに戻す → 相手が再リクエスト可能
         await clearApprovalNotifs(); // お知らせの承認リクエストを消す
+        const revertedCounter = await revertBatchCounterparts(); // 双方向のまとめ精算なら逆方向も戻す
         for (const it of items.value) {
           await logApprovalBoth({ myUid: auth.currentUser?.uid, myName: await getMyName(), otherUid: it.opponentUid, otherName: it.name, kind: 'payment', outcome: 'rejected', itemName: it.itemName, amount: it.amount });
           await postPaymentEventByTx(it.id, { text: `${it.name || '相手'}さんの支払いを差し戻しました（未払いに戻りました）`, kind: 'rejected', actorUid: auth.currentUser?.uid });
         }
         for (const it of items.value) {
-          await notifyOpponent(it, 'approval_rejected', '承認リクエストが拒否されました。もう一度お支払い手続きをしてください。');
+          await notifyOpponent(it, 'approval_rejected', revertedCounter
+            ? '承認リクエストが拒否されました。双方向の精算がすべて未払いに戻っています。もう一度お手続きできます。'
+            : '承認リクエストが拒否されました。もう一度お支払い手続きをしてください。');
         }
         currentStatus.value = 'unpaid';
         showModal({
-          type: 'info', title: '拒否しました', message: 'リクエストを拒否し、相手に通知を送りました。',
+          type: 'info', title: '拒否しました',
+          message: revertedCounter
+            ? 'リクエストを拒否し、相手に通知を送りました。まとめ精算のため、相手が受け取った分も未払いに戻しました。'
+            : 'リクエストを拒否し、相手に通知を送りました。',
           onConfirm: () => router.push('/')
         });
       } catch (error) {
