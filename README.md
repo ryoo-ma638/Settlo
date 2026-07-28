@@ -9,6 +9,17 @@
 
 ---
 
+## 📸 スクリーンショット
+
+| ホーム | レシートAI読み取り | まとめて精算 | 通知・催促 |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/screenshots/home.jpg" alt="ホーム画面" width="200"> | <img src="docs/screenshots/receipt-ai.jpg" alt="レシートAI読み取り" width="200"> | <img src="docs/screenshots/settle.jpg" alt="まとめて精算" width="200"> | <img src="docs/screenshots/notifications.jpg" alt="通知・催促" width="200"> |
+| 支払い状況と進行中のイベントをひと目で確認 | 撮影するだけで店名・金額を自動入力 | 相手ごとの貸し借りを合算してまとめて精算 | 催促や友達申請をその場で処理 |
+
+※ 画面はゲストデモ環境のサンプルデータです。
+
+---
+
 ## ✨ 主な機能
 
 - 🧾 **レシートAI読み取り** — 撮影するだけで店名・金額・品目を自動入力（Gemini OCR）
