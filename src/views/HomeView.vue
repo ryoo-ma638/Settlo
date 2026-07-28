@@ -14,29 +14,43 @@
       <div class="ongoing__list">
         <div v-if="loading" class="ongoing__empty">読み込み中…</div>
 
-        <div v-else-if="ongoingEvents.length === 0" class="ongoing__empty">
-          進行中のイベントはありません
-        </div>
+        <template v-else>
+          <!-- 届いている招待（ベルを開かなくてもここから参加できる） -->
+          <InviteCard
+            v-for="invite in pendingInvites"
+            :key="invite.id"
+            :invite="invite"
+            @handled="onInviteHandled"
+          />
 
-        <div v-else class="ev" v-for="event in ongoingEvents" :key="event.id" @click="goToEventDetail(event.id)">
-          <span class="ev__tag">{{ event.tag }}</span>
-          <div class="ev__info">
-            <h3 class="ev__name">{{ event.name }}</h3>
-            <div class="ev__members">
-              <template v-for="(photo, index) in (event.participantsPhotos || []).slice(0, 4)" :key="index">
-                <img v-if="photo.startsWith('http')" :src="photo" class="ev__circle" :style="{ zIndex: 5 - index }" />
-                <div v-else class="ev__circle" :style="{ backgroundColor: photo, zIndex: 5 - index }"></div>
-              </template>
-              <div v-if="(event.participants || []).length > 4" class="ev__more">
-                +{{ (event.participants || []).length - 4 }}
-              </div>
+          <div v-if="ongoingEvents.length === 0 && pendingInvites.length === 0" class="ongoing__empty">
+            <p class="ongoing__empty-text">進行中のイベントはありません</p>
+            <div class="empty-actions">
+              <button class="btn-brand" @click="router.push('/make-event')">イベントを作成する</button>
+              <button class="btn-outline" @click="router.push('/make-event?join=1')">コードで参加する</button>
             </div>
           </div>
-          <div class="ev__amount">
-            <span class="ev__amount-label">合計金額</span>
-            <span class="ev__amount-value tnum">{{ event.amount }}</span>
+
+          <div class="ev" v-for="event in ongoingEvents" :key="event.id" @click="goToEventDetail(event.id)">
+            <span class="ev__tag">{{ event.tag }}</span>
+            <div class="ev__info">
+              <h3 class="ev__name">{{ event.name }}</h3>
+              <div class="ev__members">
+                <template v-for="(photo, index) in (event.participantsPhotos || []).slice(0, 4)" :key="index">
+                  <img v-if="photo.startsWith('http')" :src="photo" class="ev__circle" :style="{ zIndex: 5 - index }" />
+                  <div v-else class="ev__circle" :style="{ backgroundColor: photo, zIndex: 5 - index }"></div>
+                </template>
+                <div v-if="(event.participants || []).length > 4" class="ev__more">
+                  +{{ (event.participants || []).length - 4 }}
+                </div>
+              </div>
+            </div>
+            <div class="ev__amount">
+              <span class="ev__amount-label">合計金額</span>
+              <span class="ev__amount-value tnum">{{ event.amount }}</span>
+            </div>
           </div>
-        </div>
+        </template>
       </div>
     </section>
 
@@ -96,13 +110,15 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, reactive } from 'vue';
+import { ref, computed, onMounted, onUnmounted, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, onSnapshot, getDoc, doc, getDocs, deleteDoc, updateDoc, addDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import PaymentCarousel from '@/components/PaymentCarousel.vue';
 import BaseModal from '@/components/BaseModal.vue'; // 🌟 Eventブランチの統一モーダル
+import InviteCard from '@/components/InviteCard.vue';
+import { subscribePendingInvites } from '@/lib/invite';
 import api from '@/services/api';
 import { getMyName } from '@/lib/userName';
 
@@ -110,6 +126,17 @@ const router = useRouter();
 const ongoingEvents = ref([]);
 const selectedEvent = ref(null);
 const loading = ref(true);
+
+// 届いている招待（未読の event_invite）。参加済みのイベントぶんは出さない。
+const invites = ref([]);
+const handledInviteIds = ref([]);
+const pendingInvites = computed(() => {
+  const joined = new Set(ongoingEvents.value.map(e => e.id));
+  return invites.value.filter(n => !handledInviteIds.value.includes(n.id) && !joined.has(n.eventId));
+});
+const onInviteHandled = (id) => {
+  handledInviteIds.value = [...handledInviteIds.value, id];
+};
 
 const openDetail = (event) => {
   selectedEvent.value = event;
@@ -218,11 +245,17 @@ const fetchEvents = async () => {
 // --- 取引情報の監視ロジック ---
 let unsubReceivable = null;
 let unsubPayable = null;
+let unsubInvites = null;
 
 onMounted(() => {
   onAuthStateChanged(auth, (user) => {
+    if (unsubInvites) { unsubInvites(); unsubInvites = null; }
+    if (!user) invites.value = [];
     if (user) {
       const myUid = user.uid;
+
+      // 届いている招待を監視（イベント一覧と同じ内容を先頭に出す）
+      unsubInvites = subscribePendingInvites(myUid, (list) => { invites.value = list; });
 
       // 入金待ち
       const qReceivable = query(collection(db, "transactions"), where("paidToId", "==", myUid));
@@ -268,6 +301,7 @@ onMounted(() => {
 onUnmounted(() => {
   if (unsubReceivable) unsubReceivable();
   if (unsubPayable) unsubPayable();
+  if (unsubInvites) unsubInvites();
 });
 
 // 🌟 コピー完了の alert を美しいモーダルに！ (Eventブランチの機能)
@@ -372,6 +406,18 @@ const goToEventDetail = (id) => {
   border-radius: var(--r-lg);
   border: 1px dashed var(--c-line-bold);
 }
+.ongoing__empty-text { margin-bottom: 16px; }
+
+/* 0件のときの導線 */
+.empty-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 260px;
+  margin: 0 auto;
+}
+.empty-actions .btn-brand { font-size: 15px; padding: 13px 16px; }
+.empty-actions .btn-outline { font-size: 14px; padding: 12px 16px; }
 
 /* イベントカード */
 .ev {
