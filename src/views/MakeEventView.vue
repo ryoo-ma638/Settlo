@@ -80,15 +80,17 @@
 
 <script setup>
 import { ref, watch, reactive } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, getDoc, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import BaseModal from '@/components/BaseModal.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import GenreIcon from '@/components/GenreIcon.vue';
 
+const route = useRoute();
 const router = useRouter();
-const isJoinMode = ref(false);
+// 「コードで参加」から来たときは、最初から参加タブを開く（?join=1）
+const isJoinMode = ref(route.query.join === '1');
 const eventName = ref('');
 const eventMemo = ref('');
 const selectedIcon = ref('食事');
