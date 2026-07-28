@@ -101,13 +101,9 @@ const loginAsGuest = async () => {
   try {
     await signInAnonymously(auth);
     const setup = httpsCallable(functions, "setupGuestDemo");
-    const res = await setup({});
-    // デモイベントへ直接案内（生成完了後なのでデータが揃っている）
-    if (res.data && res.data.eventId) {
-      router.replace(`/event/${res.data.eventId}`);
-    } else {
-      router.replace("/");
-    }
+    await setup({});
+    // 準備が終わったらホームから体験を始めてもらう
+    router.replace("/");
   } catch (error) {
     console.error("ゲストログイン失敗", error);
     guestError.value = "ゲストログインに失敗しました。時間をおいてもう一度お試しください。";
