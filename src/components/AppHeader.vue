@@ -89,7 +89,11 @@ onMounted(() => {
       const tq = query(collection(db, "threads"), where("participants", "array-contains", user.uid));
       onSnapshot(tq, (snap) => {
         let n = 0;
-        snap.docs.forEach((d) => { const t = d.data(); n += (t.unread && t.unread[user.uid]) || 0; });
+        snap.docs.forEach((d) => {
+          const t = d.data();
+          if ((t.hiddenBy || []).includes(user.uid)) return; // 片付け済み＝一覧に無いので数えない
+          n += (t.unread && t.unread[user.uid]) || 0;
+        });
         chatUnread.value = n;
       }, () => {});
       // 承認待ち（自分が受け取る側で、相手が「支払った」と申請中＝自分の承認待ち）

@@ -358,6 +358,7 @@ import { ref, computed, watch, onMounted, onUnmounted, reactive } from 'vue'; //
 import { useRoute, useRouter } from 'vue-router';
 import { formatDate } from '@/lib/format';
 import { ensurePaymentThread, postPaymentEventByTx, resolvePaymentThreadByTx } from '@/lib/thread';
+import { getMyName } from '@/lib/userName';
 
 import AddPaymentModal from '@/components/AddPaymentModal.vue';
 import ReceiptPaymentModal from '@/components/ReceiptPaymentModal.vue';
@@ -517,6 +518,12 @@ const removeParticipant = (p) => {
   showConfirm('参加者を外す', `${p.name} さんをこのイベントから外しますか？`, async () => {
     try {
       await updateDoc(doc(db, 'events', route.params.id), { participants: arrayRemove(p.id) });
+      // 外された本人にお知らせを届ける（自分の画面からイベントが消えるため）
+      await notifyParticipants([p.id], {
+        type: 'event_member_removed',
+        eventName: eventData.value.name || '',
+        message: 'このイベントは一覧から消えます。心当たりがなければ、相手に確認してください。',
+      });
       showToast(`${p.name} さんを外しました`);
     } catch (e) {
       console.error('参加者削除エラー:', e);
@@ -653,7 +660,7 @@ const payerNameOf = (h) => {
 // 🌟 変更を参加者（自分以外）へ通知する汎用ヘルパー
 const notifyParticipants = async (uids, notifData) => {
   const myUid = auth.currentUser?.uid;
-  const fromName = myName.value || auth.currentUser?.displayName || 'メンバー';
+  const fromName = myName.value || await getMyName();
   const seen = new Set();
   for (const uid of uids) {
     if (!uid || uid === myUid || seen.has(uid)) continue;
@@ -981,8 +988,8 @@ onMounted(async () => {
   if (me) {
     try {
       const md = await getDoc(doc(db, "users", me.uid));
-      myName.value = (md.exists() && md.data().name) ? md.data().name : (me.displayName || '自分');
-    } catch (e) { myName.value = me.displayName || '自分'; }
+      myName.value = (md.exists() && md.data().name) ? md.data().name : await getMyName();
+    } catch (e) { myName.value = await getMyName(); }
   }
 
   const eventId = route.params.id;

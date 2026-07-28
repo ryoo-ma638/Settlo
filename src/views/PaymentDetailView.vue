@@ -120,6 +120,7 @@ import RemindModal from '../components/RemindModal.vue';
 import PageHeader from '../components/PageHeader.vue';
 import { logApprovalBoth } from '@/lib/approvalLog';
 import { resolveThreadForTx, postPaymentEventByTx, resolvePaymentThreadByTx } from '@/lib/thread';
+import { getMyName } from '@/lib/userName';
 
 const route = useRoute();
 const router = useRouter(); 
@@ -300,7 +301,7 @@ const notifyOpponent = async (it, type, message, userMessage) => {
   await addDoc(collection(db, "notifications"), {
     toUserId,
     fromUserId: auth.currentUser?.uid || "unknown",
-    fromUserName: auth.currentUser?.displayName || "あなた",
+    fromUserName: await getMyName(), // 一人称（あなた）が相手の画面に出ないよう users の名前を使う
     transactionId: it.id,
     type,
     message,
@@ -390,7 +391,7 @@ const approvePayment = () => {
         await updateAllItems('completed');
         await clearApprovalNotifs(); // お知らせの承認リクエストを消す
         for (const it of items.value) {
-          await logApprovalBoth({ myUid: auth.currentUser?.uid, myName: auth.currentUser?.displayName || 'あなた', otherUid: it.opponentUid, otherName: it.name, kind: 'payment', outcome: 'approved', itemName: it.itemName, amount: it.amount });
+          await logApprovalBoth({ myUid: auth.currentUser?.uid, myName: await getMyName(), otherUid: it.opponentUid, otherName: it.name, kind: 'payment', outcome: 'approved', itemName: it.itemName, amount: it.amount });
           await resolveThreadForTx(auth.currentUser?.uid, it.opponentUid, it.id); // 1対1チャットを消す
           // グループチャットに経緯を流す＋全員完了なら片付ける
           await postPaymentEventByTx(it.id, { text: `${it.name || '相手'}さんの支払いを承認し、精算しました`, kind: 'approved', actorUid: auth.currentUser?.uid });
@@ -428,7 +429,7 @@ const rejectPayment = () => {
         await updateAllItems('unpaid'); // 未払いに戻す → 相手が再リクエスト可能
         await clearApprovalNotifs(); // お知らせの承認リクエストを消す
         for (const it of items.value) {
-          await logApprovalBoth({ myUid: auth.currentUser?.uid, myName: auth.currentUser?.displayName || 'あなた', otherUid: it.opponentUid, otherName: it.name, kind: 'payment', outcome: 'rejected', itemName: it.itemName, amount: it.amount });
+          await logApprovalBoth({ myUid: auth.currentUser?.uid, myName: await getMyName(), otherUid: it.opponentUid, otherName: it.name, kind: 'payment', outcome: 'rejected', itemName: it.itemName, amount: it.amount });
           await postPaymentEventByTx(it.id, { text: `${it.name || '相手'}さんの支払いを差し戻しました（未払いに戻りました）`, kind: 'rejected', actorUid: auth.currentUser?.uid });
         }
         for (const it of items.value) {
@@ -461,7 +462,7 @@ const confirmCash = () => {
         submitting.value = true;
         try {
           await updateAllItems('completed');
-          const myNm = auth.currentUser?.displayName || 'メンバー';
+          const myNm = await getMyName();
           // 🌟 支払った側へ「支払いが完了しました」を届ける
           for (const it of items.value) {
             try { await notifyOpponent(it, 'payment_completed', '受け取りが確認され、精算が完了しました。', reason); } catch (e) {}
@@ -493,7 +494,7 @@ const confirmCash = () => {
         submitting.value = true;
         try {
           await updateAllItems('awaiting_approval');
-          const myNm = auth.currentUser?.displayName || 'メンバー';
+          const myNm = await getMyName();
           for (const it of items.value) {
             await notifyOpponent(it, 'approval_request', '支払いの承認リクエストが届きました。', reason);
             await postPaymentEventByTx(it.id, { text: `${myNm}さんが支払いました（相手の承認待ち）`, kind: 'paid', actorUid: auth.currentUser?.uid });

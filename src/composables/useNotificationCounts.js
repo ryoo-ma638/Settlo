@@ -7,10 +7,16 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 // 下ナビ（AppFooter）のバッジ用。多重カウントを避けるため、1タイプ＝1カテゴリに固定する。
 // 判断が曖昧なタイプ（承認・チャット返信など）は最も自然な支払い/イベントに寄せる。
 
-// イベント関連の通知タイプ
+// イベント関連の通知タイプ（イベントから外された知らせもここ）
 const EVENT_TYPES = new Set([
   'event_invite', 'event_edited', 'invite_rejected', 'event_joined',
   'event_restored', 'event_restore_rejected', 'event_left_check', 'event_left_rejected',
+  'event_member_removed',
+]);
+
+// フレンド関連の通知タイプ。友達申請の件数（下記 qF）と同じフレンドバッジに足す。
+const FRIEND_TYPES = new Set([
+  'friend_removed',
 ]);
 
 // 支払い関連の通知タイプ（承認依頼・未精算戻しなど）。
@@ -31,7 +37,12 @@ export function useNotificationCounts() {
   let unsubFriend = null;
   let unsubAuth = null;
 
+  // フレンドバッジ＝「未対応の友達申請」＋「フレンド関連の未読お知らせ」
+  let friendReqCount = 0;
+  let friendNotifCount = 0;
+
   const recalcTotal = () => {
+    counts.friend = friendReqCount + friendNotifCount;
     counts.total = counts.friend + counts.payment + counts.event;
   };
 
@@ -39,6 +50,7 @@ export function useNotificationCounts() {
     if (unsubNotif) { unsubNotif(); unsubNotif = null; }
     if (unsubFriend) { unsubFriend(); unsubFriend = null; }
     if (!user) {
+      friendReqCount = friendNotifCount = 0;
       counts.friend = counts.payment = counts.event = counts.total = 0;
       return;
     }
@@ -53,13 +65,16 @@ export function useNotificationCounts() {
     unsubNotif = onSnapshot(qN, (snap) => {
       let pay = 0;
       let ev = 0;
+      let fr = 0;
       snap.docs.forEach((d) => {
         const t = d.data().type;
         if (EVENT_TYPES.has(t)) ev += 1;
         else if (PAYMENT_TYPES.has(t)) pay += 1;
+        else if (FRIEND_TYPES.has(t)) fr += 1;
       });
       counts.payment = pay;
       counts.event = ev;
+      friendNotifCount = fr;
       recalcTotal();
     }, () => {});
 
@@ -70,7 +85,7 @@ export function useNotificationCounts() {
       where('status', '==', 'pending'),
     );
     unsubFriend = onSnapshot(qF, (snap) => {
-      counts.friend = snap.size;
+      friendReqCount = snap.size;
       recalcTotal();
     }, () => {});
   });

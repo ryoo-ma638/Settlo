@@ -9,17 +9,10 @@ import {
   collection, doc, addDoc, getDoc, updateDoc,
   query, where, onSnapshot, arrayUnion, serverTimestamp,
 } from 'firebase/firestore';
+import { getMyName, getUserName } from './userName';
 
-// 自分の表示名（通知の差出人名に使う）
-const myDisplayName = async (uid) => {
-  let name = auth.currentUser?.displayName || 'メンバー';
-  if (!uid) return name;
-  try {
-    const md = await getDoc(doc(db, 'users', uid));
-    if (md.exists() && md.data().name) name = md.data().name;
-  } catch (e) { /* 名前が取れなくても処理は続ける */ }
-  return name;
-};
+// 自分の表示名（通知の差出人名に使う）。解決方法は src/lib/userName.js に集約している。
+const myDisplayName = async (uid) => (uid ? await getUserName(uid) : await getMyName());
 
 // 未処理（未読）のイベント招待を監視する。
 // クエリ条件はお知らせベルと同じ（toUserId + isRead）にして、種類の絞り込みは受け取り側で行う。

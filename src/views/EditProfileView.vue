@@ -67,6 +67,7 @@ import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "fire
 import { useRouter } from "vue-router";
 import PageHeader from "../components/PageHeader.vue";
 import BaseModal from "../components/BaseModal.vue";
+import { clearUserNameCache } from "@/lib/userName";
 
 const router = useRouter();
 const newName = ref("");
@@ -171,6 +172,8 @@ const saveProfile = async () => {
     }
 
     await setDoc(doc(db, "users", user.uid), payload, { merge: true });
+
+    clearUserNameCache(user.uid); // 名前を変えたので、表示名のキャッシュを捨てる
 
     // 🌟 変更内容をフレンド全員へお知らせ（名前変更・画像変更）
     const nameChanged = originalName.value && nameToSave !== originalName.value;

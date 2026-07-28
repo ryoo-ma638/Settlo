@@ -111,8 +111,9 @@
 import { ref, computed, onMounted, reactive } from 'vue'; // 🌟 reactive追加
 import { useRoute, useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
-import { doc, deleteDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, deleteDoc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import BaseModal from '@/components/BaseModal.vue'; // 🌟 統一モーダル追加
+import { getMyName } from '@/lib/userName';
 import PageHeader from '@/components/PageHeader.vue';
 
 const waitingTotal = ref(0); // この相手から受け取る未決済合計
@@ -216,6 +217,19 @@ const handleDeleteFriend = async () => {
       try {
         await deleteDoc(doc(db, "users", myUid, "friends", friendUid));
         await deleteDoc(doc(db, "users", friendUid, "friends", myUid));
+
+        // 相手のリストからも消えるので、された側にお知らせを届ける
+        try {
+          await addDoc(collection(db, "notifications"), {
+            toUserId: friendUid,
+            fromUserId: myUid,
+            fromUserName: await getMyName(),
+            type: 'friend_removed',
+            message: 'フレンド一覧から外れました。もう一度つながるには、フレンド申請を送ってください。',
+            isRead: false,
+            createdAt: serverTimestamp(),
+          });
+        } catch (e) { console.error("削除通知の送信に失敗:", e); }
 
         // 削除成功したら完了モーダルを出して、OKを押したら一覧に戻る
         showModal({

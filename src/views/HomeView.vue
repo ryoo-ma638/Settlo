@@ -120,6 +120,7 @@ import BaseModal from '@/components/BaseModal.vue'; // 🌟 Eventブランチの
 import InviteCard from '@/components/InviteCard.vue';
 import { subscribePendingInvites } from '@/lib/invite';
 import api from '@/services/api';
+import { getMyName } from '@/lib/userName';
 
 const router = useRouter();
 const ongoingEvents = ref([]);
@@ -347,6 +348,7 @@ const deleteEvent = async (id) => {
           status: 'trashed',
         });
         // 他の参加者へ「抜けました。正しいですか？」を届ける
+        const myNm = await getMyName();
         const evDoc = await getDoc(doc(db, "events", id));
         const parts = evDoc.exists() ? (evDoc.data().participants || []) : [];
         for (const uid of parts) {
@@ -356,7 +358,7 @@ const deleteEvent = async (id) => {
               toUserId: uid, type: 'event_left_check',
               eventId: id, eventName: ev.name || 'イベント',
               trashId: evTrashRef.id,
-              fromUserId: myUid, fromUserName: auth.currentUser?.displayName || 'メンバー',
+              fromUserId: myUid, fromUserName: myNm,
               userMessage: reason || null,
               isRead: false, createdAt: serverTimestamp(),
             });

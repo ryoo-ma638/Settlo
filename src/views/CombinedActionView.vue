@@ -48,7 +48,8 @@
   import PayPayAction from '../components/PayPayAction.vue';
   import BaseModal from '../components/BaseModal.vue';
   import PageHeader from '../components/PageHeader.vue';
-  import { resolveThreadForTx } from '@/lib/thread';
+  import { resolveThreadForTx, postPaymentEventByTx } from '@/lib/thread';
+  import { getMyName } from '@/lib/userName';
 
 
   const route = useRoute();
@@ -97,7 +98,7 @@
             return;
           }
           const friendName = route.params.name || '相手';
-          const myName = auth.currentUser?.displayName || 'メンバー';
+          const myName = await getMyName();
 
           // 🌟 精算対象の取引ID＝前画面で「含める」を選んだものだけ（＝除外を反映）
           let ids = String(route.query.ids || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -133,6 +134,8 @@
             const done = valid.map((v) => v.id);
             for (const id of done) {
               await updateDoc(doc(db, "transactions", id), { status: 'completed' });
+              // 支払いのチャットに経緯を残す（相手の未読が点く）
+              await postPaymentEventByTx(id, { text: `${myName}さんがまとめて受け取り、精算しました`, kind: 'completed', actorUid: myUid });
               await resolveThreadForTx(myUid, friendUid, id); // 解決したのでチャットを消す
             }
             try {
@@ -157,10 +160,12 @@
             const owedToMeIds = valid.filter((v) => !v.iOwe).map((v) => v.id);
             for (const id of owedToMeIds) {
               await updateDoc(doc(db, "transactions", id), { status: 'completed' });
+              await postPaymentEventByTx(id, { text: `${myName}さんがまとめて受け取り、精算しました`, kind: 'completed', actorUid: myUid });
               await resolveThreadForTx(myUid, friendUid, id);
             }
             for (const id of iOweIds) {
               await updateDoc(doc(db, "transactions", id), { status: 'awaiting_approval' });
+              await postPaymentEventByTx(id, { text: `${myName}さんがまとめて支払いました（相手の承認待ち）`, kind: 'paid', actorUid: myUid });
             }
             if (iOweIds.length) {
               try {
