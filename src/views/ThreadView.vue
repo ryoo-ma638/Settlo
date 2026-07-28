@@ -80,7 +80,8 @@ import {
 } from 'firebase/firestore';
 import { computed } from 'vue';
 import PageHeader from '../components/PageHeader.vue';
-import { ensureThread, resolveThreadForTx } from '@/lib/thread';
+import { ensureThread, resolveThreadForTx, postPaymentEventByTx } from '@/lib/thread';
+import { getUserName } from '@/lib/userName';
 import { logApprovalBoth } from '@/lib/approvalLog';
 
 // クイック返信の定型文
@@ -95,7 +96,7 @@ const otherName = ref(route.query.otherName || '相手');
 const eventId = route.query.eventId || null;
 
 const myUid = auth.currentUser?.uid || '';
-const myName = ref(auth.currentUser?.displayName || 'あなた');
+const myName = ref('メンバー'); // 実際の名前は onMounted で users から入れる
 
 const messages = ref([]);
 const draft = ref('');
@@ -156,6 +157,7 @@ const approveTx = async () => {
     }
     await clearApprovalNotif();
     await logApprovalBoth({ myUid, myName: myName.value, otherUid: otherUid.value, otherName: otherName.value, kind: 'payment', outcome: 'approved', itemName: txData.value?.itemName || '', amount: txData.value?.amount || 0 });
+    await postPaymentEventByTx(txId, { text: `${otherName.value}さんの支払いを承認し、精算しました`, kind: 'approved', actorUid: myUid });
     await resolveThreadForTx(myUid, otherUid.value, txId); // 解決したのでチャットを消す
   } catch (e) { console.error('承認エラー:', e); }
   finally { approving.value = false; }
@@ -175,6 +177,7 @@ const rejectTx = async () => {
     }
     await clearApprovalNotif();
     await logApprovalBoth({ myUid, myName: myName.value, otherUid: otherUid.value, otherName: otherName.value, kind: 'payment', outcome: 'rejected', itemName: txData.value?.itemName || '', amount: txData.value?.amount || 0 });
+    await postPaymentEventByTx(txId, { text: `${otherName.value}さんの支払いを差し戻しました（未払いに戻りました）`, kind: 'rejected', actorUid: myUid });
   } catch (e) { console.error('拒否エラー:', e); }
   finally { approving.value = false; }
 };
@@ -188,7 +191,7 @@ onMounted(async () => {
   if (!myUid || !threadId) { loading.value = false; return; }
   try {
     // 自分の表示名を実データで補完
-    try { const me = await getDoc(doc(db, 'users', myUid)); if (me.exists() && me.data().name) myName.value = me.data().name; } catch (e) {}
+    myName.value = await getUserName(myUid);
 
     // 🌟 既存スレッドを読み、グループ（支払い1件）チャットかどうかを判定
     let existingData = null;
@@ -198,6 +201,12 @@ onMounted(async () => {
         existingData = existing.data();
         const saved = existingData.subjectLabel;
         if (saved && saved !== '取引の件' && (!route.query.label || route.query.label === '取引の件')) label.value = saved;
+        // チャット一覧から開いたときは相手UIDが渡ってこないので、参加者から補う
+        // （空のまま ensureThread を呼ぶと participants が壊れ、相手の一覧から会話が消える）
+        if (!otherUid.value) {
+          const found = (existingData.participants || []).find((u) => u && u !== myUid);
+          if (found) otherUid.value = found;
+        }
         const savedName = existingData.participantNames?.[otherUid.value];
         if (savedName && (!route.query.otherName || otherName.value === '相手')) otherName.value = savedName;
         // グループ判定
@@ -210,7 +219,8 @@ onMounted(async () => {
     } catch (e) {}
 
     // グループチャットは既に存在するので ensureThread（1対1用）は呼ばない
-    if (!isGroup.value) {
+    // 相手が分からないときも作らない（participants が [自分, ''] になるのを防ぐ）
+    if (!isGroup.value && otherUid.value) {
       await ensureThread(threadId, { myUid, myName: myName.value, otherUid: otherUid.value, otherName: otherName.value, label: label.value, eventId });
     }
     // この会話を開いたので自分の未読を0に

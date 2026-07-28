@@ -293,6 +293,8 @@ const PUSH_TEXT = {
   event_left_rejected: "退出に「正しくない」が選ばれました",
   restore_check: "取引が元に戻されました。確認してください",
   restore_reverted: "取引がゴミ箱に戻されました",
+  friend_removed: "フレンドから削除されました",
+  event_member_removed: "イベントから外されました",
   settlement_restore_request: "未精算に戻す依頼が届きました",
   settlement_restore_approved: "未精算に戻す依頼が承認されました",
   settlement_restore_rejected: "未精算に戻す依頼が拒否されました",

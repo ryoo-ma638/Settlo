@@ -1,7 +1,8 @@
 // 件（matter）ごとの会話スレッドの共通ユーティリティ
 // 「〜の件」を一意に決め、両当事者が同じ threadId に辿り着けるようにする。
-import { db } from '@/firebase';
-import { doc, setDoc, getDoc, updateDoc, serverTimestamp, collection, addDoc, increment } from 'firebase/firestore';
+import { db, auth } from '@/firebase';
+import { doc, setDoc, getDoc, getDocs, updateDoc, serverTimestamp, collection, addDoc, increment, query, where } from 'firebase/firestore';
+import { getUserName } from './userName';
 
 // 通知（お知らせ）から「件」を一意に決めるキー。
 // 両者の通知は同じ実体（イベント/履歴/取引/ゴミ箱）を指すので同じキーになる。
@@ -45,6 +46,7 @@ export function subjectLabel(notif) {
     case 'event_left_rejected':
     case 'event_restored':
     case 'event_restore_rejected':
+    case 'event_member_removed':
       return notif.eventName ? `イベント「${notif.eventName}」の件` : 'イベントの件';
     case 'settlement_restore_request':
     case 'settlement_restore_rejected':
@@ -77,7 +79,8 @@ export async function resolveThreadForTx(myUid, otherUid, txId) {
 export async function ensureThread(threadId, { myUid, myName, otherUid, otherName, label, eventId }) {
   const payload = {
     participants: [myUid, otherUid],
-    participantNames: { [myUid]: myName || 'あなた', [otherUid]: otherName || '相手' },
+    // 相手の一覧にはここの名前がそのまま出るので、一人称（あなた/自分）は入れない
+    participantNames: { [myUid]: myName || 'メンバー', [otherUid]: otherName || '相手' },
     eventId: eventId || null,
     updatedAt: serverTimestamp(),
   };
@@ -129,36 +132,81 @@ export async function ensurePaymentThread(historyId, info) {
   return id;
 }
 
+// チャットにシステムメッセージ（経緯）を1件流す共通処理。
+// 投稿者以外の未読を+1し、片付け（hiddenBy）を解除して一覧に浮上させる。
+// 流せたら true、チャットが無ければ false を返す（呼び出し側が次の手段に進める）。
+async function postSystemRow(threadId, { text, kind, actorUid }) {
+  const ref = doc(db, 'threads', threadId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return false;
+  const parts = snap.data().participants || [];
+  await addDoc(collection(db, 'threads', threadId, 'messages'), {
+    system: true, kind: kind || 'info', text,
+    fromUid: actorUid || null,
+    createdAt: serverTimestamp(),
+    readBy: actorUid ? [actorUid] : [],
+  });
+  const patch = { lastMessage: text, updatedAt: serverTimestamp(), hiddenBy: [], resolved: false };
+  parts.forEach((u) => { if (u && u !== actorUid) patch[`unread.${u}`] = increment(1); });
+  if (actorUid) patch[`unread.${actorUid}`] = 0; // 自分の操作なので自分は既読
+  await updateDoc(ref, patch);
+  return true;
+}
+
+// 取引IDから、その取引を含む支払いグループチャットを探す（historyId が無い古い取引の保険）
+// ※ array-contains は1クエリに1つまでなので、自分のチャットを引いてから絞り込む
+async function findPaymentThreadByTx(txId, myUid) {
+  if (!txId || !myUid) return null;
+  try {
+    const snap = await getDocs(query(collection(db, 'threads'), where('participants', 'array-contains', myUid)));
+    const hit = snap.docs.find((d) => (d.data().transactionIds || []).includes(txId));
+    return hit ? hit.id : null;
+  } catch (e) { return null; }
+}
+
+// グループチャットが無い取引（古いデータ・デモデータなど）は、当事者2人の「件」チャットに流す。
+// これで「催促されました」「お支払いしました」が必ず相手のチャットに残り、未読バッジも点く。
+async function postToPairThread(txId, tx, { text, kind, actorUid }) {
+  const debtor = tx.paidById;
+  const creditor = tx.paidToId;
+  if (!debtor || !creditor || !actorUid) return false;
+  if (actorUid !== debtor && actorUid !== creditor) return false; // 当事者以外は書けない
+  const otherUid = actorUid === debtor ? creditor : debtor;
+  const id = threadIdFor(actorUid, otherUid, `t-${txId}`);
+  const [myName, otherName] = await Promise.all([getUserName(actorUid), getUserName(otherUid, '相手')]);
+  await ensureThread(id, {
+    myUid: actorUid, myName, otherUid, otherName,
+    label: paymentSubject({ eventName: tx.eventName, itemName: tx.itemName, amount: tx.amount }),
+    eventId: tx.eventId || null,
+  });
+  return await postSystemRow(id, { text, kind, actorUid });
+}
+
 // 取引ID(txId)から historyId を引いて、グループチャットに経緯を流す
-export async function postPaymentEventByTx(txId, opts) {
-  if (!txId) return;
+export async function postPaymentEventByTx(txId, opts = {}) {
+  if (!txId || !opts.text) return false;
+  const actorUid = opts.actorUid || auth.currentUser?.uid || null;
+  const payload = { ...opts, actorUid };
   try {
     const t = await getDoc(doc(db, 'transactions', txId));
-    if (!t.exists() || !t.data().historyId) return;
-    await postPaymentEvent(t.data().historyId, opts);
-  } catch (e) { /* 失敗しても本処理は止めない */ }
+    if (!t.exists()) return false;
+    const tx = t.data();
+    // 1) 本来のルート：historyId → 支払いグループチャット
+    if (tx.historyId && await postPaymentEvent(tx.historyId, payload)) return true;
+    // 2) historyId が無い取引：transactionIds からグループチャットを探す
+    const found = await findPaymentThreadByTx(txId, actorUid);
+    if (found && await postSystemRow(found, payload)) return true;
+    // 3) どちらも無ければ当事者2人の「件」チャットへ
+    return await postToPairThread(txId, tx, payload);
+  } catch (e) { return false; /* 失敗しても本処理は止めない */ }
 }
 
 // グループチャットにシステムメッセージ（経緯）を1件流す
 export async function postPaymentEvent(historyId, { text, kind, actorUid } = {}) {
-  if (!historyId || !text) return;
-  const id = paymentThreadId(historyId);
+  if (!historyId || !text) return false;
   try {
-    const ref = doc(db, 'threads', id);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return; // グループチャットが無ければ何もしない
-    const parts = snap.data().participants || [];
-    await addDoc(collection(db, 'threads', id, 'messages'), {
-      system: true, kind: kind || 'info', text,
-      fromUid: actorUid || null,
-      createdAt: serverTimestamp(),
-      readBy: actorUid ? [actorUid] : [],
-    });
-    // プレビュー更新＋自分以外の未読を増やす＋片付けを解除（新しい動きがあったので再表示）
-    const patch = { lastMessage: text, updatedAt: serverTimestamp(), hiddenBy: [], resolved: false };
-    parts.forEach(u => { if (u !== actorUid) patch[`unread.${u}`] = increment(1); });
-    await updateDoc(ref, patch);
-  } catch (e) { /* 失敗しても本処理は止めない */ }
+    return await postSystemRow(paymentThreadId(historyId), { text, kind, actorUid });
+  } catch (e) { return false; /* 失敗しても本処理は止めない */ }
 }
 
 // 取引ID経由で「全部完了なら片付ける」

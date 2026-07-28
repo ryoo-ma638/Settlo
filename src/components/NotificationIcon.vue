@@ -17,7 +17,7 @@
 
               <div v-for="req in paymentReqs" :key="req.id" class="notif-item" :class="notifClass(req)">
                 <div class="notif-body">
-                  <p><strong>{{ req.fromUserName }}</strong>{{ notifText(req) }}</p>
+                  <p><strong>{{ senderName(req) }}</strong>{{ notifText(req) }}</p>
                   <p v-if="req.message" class="notif-sub">{{ req.message }}</p>
                   <p v-if="req.userMessage" class="notif-msg">{{ req.userMessage }}</p>
                   <p v-if="req.changes" class="notif-changes">{{ req.changes }}</p>
@@ -35,7 +35,7 @@
                       <button class="mini-btn mini-btn--ghost" @click="rejectTx(req)">拒否する</button>
                       <button class="mini-btn mini-btn--ghost" @click="goToPaymentDetail(req)">詳細</button>
                     </template>
-                    <template v-else-if="req.type === 'payment_completed' || req.type === 'profile_updated'">
+                    <template v-else-if="isInfoOnly(req.type)">
                       <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
                     </template>
                     <template v-else-if="isJudgeType(req.type)">
@@ -49,7 +49,7 @@
                       <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
                       <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
                     </template>
-                    <button v-if="req.type !== 'thread_reply' && req.fromUserId && !req.batch" class="mini-btn mini-btn--ghost" @click="openThread(req)">返信</button>
+                    <button v-if="canReply(req)" class="mini-btn mini-btn--ghost" @click="openThread(req)">返信</button>
                   </div>
                 </div>
               </div>
@@ -84,7 +84,7 @@
       <div class="notification-list">
         <div v-for="req in paymentReqs" :key="req.id" class="notif-item" :class="notifClass(req)">
           <div class="notif-body">
-            <p><strong>{{ req.fromUserName }}</strong>{{ notifText(req) }}</p>
+            <p><strong>{{ senderName(req) }}</strong>{{ notifText(req) }}</p>
             <p v-if="req.message" class="notif-sub">{{ req.message }}</p>
             <p v-if="req.userMessage" class="notif-msg">{{ req.userMessage }}</p>
             <p v-if="req.changes" class="notif-changes">{{ req.changes }}</p>
@@ -102,7 +102,7 @@
                 <button class="mini-btn mini-btn--ghost" @click="rejectTx(req)">拒否する</button>
                 <button class="mini-btn mini-btn--ghost" @click="goToPaymentDetail(req)">詳細</button>
               </template>
-              <template v-else-if="req.type === 'payment_completed' || req.type === 'profile_updated'">
+              <template v-else-if="isInfoOnly(req.type)">
                 <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
               </template>
               <template v-else-if="isJudgeType(req.type)">
@@ -116,7 +116,7 @@
                 <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
                 <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
               </template>
-              <button v-if="req.type !== 'thread_reply' && req.fromUserId && !req.batch" class="mini-btn mini-btn--ghost" @click="openThread(req)">返信</button>
+              <button v-if="canReply(req)" class="mini-btn mini-btn--ghost" @click="openThread(req)">返信</button>
             </div>
           </div>
         </div>
@@ -179,8 +179,25 @@ import {
 import { subjectKey, threadIdFor, subjectLabel, resolveThreadForTx, postPaymentEventByTx, resolvePaymentThreadByTx } from '@/lib/thread';
 import { logApprovalBoth } from '@/lib/approvalLog';
 import { showToast } from '@/lib/toast';
+import { getMyName, getUserName, isSelfName } from '@/lib/userName';
 
 const router = useRouter();
+
+// 送信者名の表示。保存された名前が空や一人称（あなた/自分）のときは
+// users から本当の名前を引き直して出す（古いお知らせの「あなたさん」対策）。
+const nameFix = reactive({});
+const senderName = (req) => {
+  if (!isSelfName(req.fromUserName)) return req.fromUserName;
+  return nameFix[req.fromUserId] || '相手';
+};
+const repairSenderNames = async (list) => {
+  const uids = [...new Set(list.filter((r) => r.fromUserId && isSelfName(r.fromUserName)).map((r) => r.fromUserId))];
+  for (const uid of uids) {
+    if (nameFix[uid]) continue;
+    const name = await getUserName(uid, '');
+    if (name) nameFix[uid] = name;
+  }
+};
 
 // 件（〜の件）の会話スレッドを開く（無ければ ThreadView 側で作られる）
 const openThread = (req) => {
@@ -189,11 +206,12 @@ const openThread = (req) => {
   if (!myUid || !otherUid) return;
   const id = threadIdFor(myUid, otherUid, subjectKey(req));
   showModal.value = false;
+  const other = senderName(req);
   router.push({ name: 'Thread', params: { id }, query: {
-    label: subjectLabel(req), other: otherUid, otherName: req.fromUserName || '相手',
+    label: subjectLabel(req), other: otherUid, otherName: other,
     eventId: req.eventId || '',
     tx: req.transactionId || '', // 承認待ちの取引なら返信画面で承認/拒否できるように
-    seedText: req.userMessage || '', seedFrom: otherUid, seedFromName: req.fromUserName || '相手',
+    seedText: req.userMessage || '', seedFrom: otherUid, seedFromName: other,
   }});
 };
 // 「〜の件で返信」のお知らせから会話を開く
@@ -201,7 +219,7 @@ const openThreadFromReply = async (req) => {
   showModal.value = false;
   try { await updateDoc(doc(db, 'notifications', req.id), { isRead: true }); } catch (e) {}
   router.push({ name: 'Thread', params: { id: req.threadId }, query: {
-    label: req.threadLabel || '取引の件', other: req.fromUserId, otherName: req.fromUserName || '相手',
+    label: req.threadLabel || '取引の件', other: req.fromUserId, otherName: senderName(req),
   }});
 };
 const friendReqs = ref([]);
@@ -223,6 +241,8 @@ const notifText = (req) => {
   if (req.type === 'settlement_restore_approved') return `さんが「${req.itemName || ''}」を未精算に戻すことを承認しました`;
   if (req.type === 'settlement_restore_rejected') return `さんが「${req.itemName || ''}」を未精算に戻すことを拒否しました。これは正しいですか？（正しくない＝もう一度依頼します）`;
   if (req.type === 'payment_completed') return 'さんとの支払いが完了しました！';
+  if (req.type === 'friend_removed') return 'さんがあなたをフレンドから削除しました';
+  if (req.type === 'event_member_removed') return `さんがあなたをイベント「${req.eventName || ''}」から外しました`;
   if (req.type === 'payment_reverted') return `さんが「${req.itemName || ''}」を未精算に戻しました（未払いに戻りました）`;
   if (req.type === 'profile_updated') return 'さんがプロフィールを更新しました';
   if (req.type === 'restore_check') return `さんが「${req.itemName || ''}」（¥${(req.amount || 0).toLocaleString()}）をゴミ箱から元に戻しました。こちらで正しいですか？`;
@@ -243,9 +263,14 @@ const notifAction = (req) => {
   if (req.type === 'payment_deleted' || req.type === 'payment_completed') return '確認';
   return '詳細を確認する';
 };
+// 「確認」だけで閉じるお知らせ（行き先の画面が無い・見るものが無いもの）
+const INFO_ONLY_TYPES = ['payment_completed', 'profile_updated', 'friend_removed', 'event_member_removed'];
+const isInfoOnly = (t) => INFO_ONLY_TYPES.includes(t);
+// 返信できるお知らせ（フレンドを解除された相手には返信の入口を出さない）
+const canReply = (req) => req.type !== 'thread_reply' && req.type !== 'friend_removed' && !!req.fromUserId && !req.batch;
 const notifClass = (req) => {
   if (['approval_rejected', 'invite_rejected', 'settlement_restore_rejected', 'restore_reverted', 'event_left_rejected', 'event_restore_rejected'].includes(req.type)) return 'notif-item--reject';
-  if (['payment_edited', 'payment_reverted', 'payment_deleted', 'event_edited', 'event_joined', 'event_restored', 'settlement_restore_approved', 'payment_completed', 'profile_updated'].includes(req.type)) return 'notif-item--info';
+  if (['payment_edited', 'payment_reverted', 'payment_deleted', 'event_edited', 'event_joined', 'event_restored', 'settlement_restore_approved', 'payment_completed', 'profile_updated', 'friend_removed', 'event_member_removed'].includes(req.type)) return 'notif-item--info';
   return 'notif-item--pay';
 };
 
@@ -277,6 +302,7 @@ onMounted(() => {
       paymentReqs.value = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
         .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)); // 新しい順
+      repairSenderNames(paymentReqs.value); // 名前が壊れているお知らせを補正
     });
   });
 });
@@ -410,14 +436,6 @@ const rejectInvite = (req) => {
   });
 };
 
-// 自分の表示名を取得（通知の差出人名に使う）
-const getMyName = async () => {
-  const myUid = auth.currentUser?.uid;
-  let name = auth.currentUser?.displayName || 'メンバー';
-  try { const md = await getDoc(doc(db, "users", myUid)); if (md.exists() && md.data().name) name = md.data().name; } catch (e) {}
-  return name;
-};
-
 // 🌟 支払いの承認リクエストを「承認」＝取引を完了にして相手へ完了通知
 const approveTx = async (req) => {
   if (acting.value) return; // 🌟 連打で「精算完了」通知・承認履歴が重複するのを防ぐ
@@ -445,7 +463,7 @@ const approveTx = async (req) => {
         if ((d.status || 'unpaid') !== 'completed') { await updateDoc(doc(db, "transactions", tid), { status: 'completed' }); completed++; }
         await resolveThreadForTx(myUid, otherUid, tid); // 1対1チャットを消す
         // グループチャットに経緯を流し、全員完了なら片付ける
-        await postPaymentEventByTx(tid, { text: `${req.fromUserName || '相手'}さんの支払いを承認し、精算しました`, kind: 'approved', actorUid: myUid });
+        await postPaymentEventByTx(tid, { text: `${senderName(req)}さんの支払いを承認し、精算しました`, kind: 'approved', actorUid: myUid });
         await resolvePaymentThreadByTx(tid);
       } catch (e) { /* 1件失敗しても他を続ける */ }
     }
@@ -461,7 +479,7 @@ const approveTx = async (req) => {
         isRead: false, createdAt: serverTimestamp(),
       });
       // 完了した精算はお支払い履歴に「精算済み」で残る（ゴミ箱には入れない）
-      await logApprovalBoth({ myUid, myName, otherUid, otherName: req.fromUserName, kind: 'payment', outcome: 'approved', itemName: req.itemName || '', amount: req.amount || 0 });
+      await logApprovalBoth({ myUid, myName, otherUid, otherName: senderName(req), kind: 'payment', outcome: 'approved', itemName: req.itemName || '', amount: req.amount || 0 });
     }
     await updateDoc(doc(db, "notifications", req.id), { isRead: true });
   } catch (e) { console.error("支払い承認エラー:", e); } finally { acting.value = false; }
@@ -476,7 +494,7 @@ const rejectTx = (req) => {
       const ids = Array.isArray(req.transactionIds) && req.transactionIds.length ? req.transactionIds : (req.transactionId ? [req.transactionId] : []);
       for (const tid of ids) {
         try { await updateDoc(doc(db, "transactions", tid), { status: 'unpaid' }); } catch (e) { /* 続行 */ }
-        await postPaymentEventByTx(tid, { text: `${req.fromUserName || '相手'}さんの支払いを差し戻しました（未払いに戻りました）`, kind: 'rejected', actorUid: myUid });
+        await postPaymentEventByTx(tid, { text: `${senderName(req)}さんの支払いを差し戻しました（未払いに戻りました）`, kind: 'rejected', actorUid: myUid });
       }
       await addDoc(collection(db, "notifications"), {
         toUserId: req.fromUserId, type: 'approval_rejected',
@@ -485,7 +503,7 @@ const rejectTx = (req) => {
         fromUserId: myUid, fromUserName: await getMyName(),
         isRead: false, createdAt: serverTimestamp(),
       });
-      await logApprovalBoth({ myUid, myName: await getMyName(), otherUid: req.fromUserId, otherName: req.fromUserName, kind: 'payment', outcome: 'rejected', itemName: req.itemName || '', amount: req.amount || 0 });
+      await logApprovalBoth({ myUid, myName: await getMyName(), otherUid: req.fromUserId, otherName: senderName(req), kind: 'payment', outcome: 'rejected', itemName: req.itemName || '', amount: req.amount || 0 });
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
     } catch (e) { console.error("支払い拒否エラー:", e); }
   });
@@ -591,7 +609,7 @@ const confirmRestoreNg = (req) => {
 
 // 🌟 「〇〇さんが抜けました」に「正しくない」＝削除した人へ再確認を促す通知
 const rejectEventLeft = (req) => {
-  askConfirm('「正しくない」を選びますか？', `${req.fromUserName || '相手'}さんに「削除が正しいか再確認してください」と通知します（ゴミ箱から戻せます）。`, async (reason) => {
+  askConfirm('「正しくない」を選びますか？', `${senderName(req)}さんに「削除が正しいか再確認してください」と通知します（ゴミ箱から戻せます）。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;
       await addDoc(collection(db, "notifications"), {
@@ -609,7 +627,7 @@ const rejectEventLeft = (req) => {
 
 // 🌟 「〇〇さんが復元しました（戻ってきました）」に「正しくない」＝イベントを実際にゴミ箱へ戻す
 const rejectEventRestore = (req) => {
-  askConfirm('「正しくない」を選びますか？', `イベント「${req.eventName || ''}」を${req.fromUserName || '相手'}さんの画面から再び非表示にし、ゴミ箱に戻します。相手に通知が届きます。`, async (reason) => {
+  askConfirm('「正しくない」を選びますか？', `イベント「${req.eventName || ''}」を${senderName(req)}さんの画面から再び非表示にし、ゴミ箱に戻します。相手に通知が届きます。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;
       // 復元した人の画面から再び非表示に（本人のゴミ箱側は自己修復で trashed に戻る）
@@ -723,7 +741,7 @@ const restoreEventAgain = async (req) => {
 // --- 支払い削除の判断ループ ---
 // 「削除は正しくない」と返す（削除された側）
 const rejectPaymentDelete = (req) => {
-  askConfirm('「正しくない」を選びますか？', `${req.fromUserName || '相手'}さんに「この削除は正しくない」と伝えます。相手が認めるとゴミ箱から元に戻ります。`, async (reason) => {
+  askConfirm('「正しくない」を選びますか？', `${senderName(req)}さんに「この削除は正しくない」と伝えます。相手が認めるとゴミ箱から元に戻ります。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;
       await addDoc(collection(db, "notifications"), {
@@ -736,7 +754,7 @@ const rejectPaymentDelete = (req) => {
         isRead: false, createdAt: serverTimestamp(),
       });
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
-      notice('success', '相手に伝えました', `${req.fromUserName || '相手'}さんに「削除は正しくない」と伝えました。相手の判断をお待ちください。`);
+      notice('success', '相手に伝えました', `${senderName(req)}さんに「削除は正しくない」と伝えました。相手の判断をお待ちください。`);
     } catch (e) {
       console.error("削除への異議通知エラー:", e);
       notice('error', 'エラー', '通知の送信に失敗しました。もう一度お試しください。');
@@ -764,7 +782,7 @@ const acceptDeleteRejection = (req) => {
 
 // 「いや、削除で正しい」と再主張（削除した側）→ 相手にまた判断が飛ぶ
 const reassertDelete = (req) => {
-  askConfirm('削除を続けますか？', `${req.fromUserName || '相手'}さんに、もう一度「削除は正しい」と確認を送ります。`, async (reason) => {
+  askConfirm('削除を続けますか？', `${senderName(req)}さんに、もう一度「削除は正しい」と確認を送ります。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;
       await addDoc(collection(db, "notifications"), {
@@ -816,7 +834,7 @@ const acceptLeftRejection = (req) => {
 
 // 「いや、抜けるで正しい」と再主張（削除した側）→ 相手にまた判断が飛ぶ
 const reassertLeft = (req) => {
-  askConfirm('削除（退出）を続けますか？', `${req.fromUserName || '相手'}さんに、もう一度「退出は正しい」と確認を送ります。`, async (reason) => {
+  askConfirm('削除（退出）を続けますか？', `${senderName(req)}さんに、もう一度「退出は正しい」と確認を送ります。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;
       await addDoc(collection(db, "notifications"), {
@@ -849,7 +867,7 @@ const reRestoreEvent = (req) => {
 // --- 未精算戻しの判断ループ ---
 // 拒否（settlement_restore_rejected）に「正しくない」＝もう一度依頼を送る
 const reRequestRestore = (req) => {
-  askConfirm('もう一度依頼しますか？', `「${req.itemName || ''}」を未精算に戻す依頼を、もう一度 ${req.fromUserName || '相手'}さんに送ります。`, async (reason) => {
+  askConfirm('もう一度依頼しますか？', `「${req.itemName || ''}」を未精算に戻す依頼を、もう一度 ${senderName(req)}さんに送ります。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;
       const found = await resolveTrashDoc(req); // 古い通知で trashId が無くても控えを探す
@@ -865,7 +883,7 @@ const reRequestRestore = (req) => {
         isRead: false, createdAt: serverTimestamp(),
       });
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
-      notice('success', '依頼を送りました', `${req.fromUserName || '相手'}さんに、もう一度依頼を送りました。`);
+      notice('success', '依頼を送りました', `${senderName(req)}さんに、もう一度依頼を送りました。`);
     } catch (e) {
       console.error("再依頼エラー:", e);
       notice('error', 'エラー', '依頼の送信に失敗しました。もう一度お試しください。');
