@@ -5,11 +5,25 @@
       <button v-if="!pickPayment" class="screen-head__action" data-tour="event-check" @click="$router.push('/payment')">精算を確認</button>
     </header>
 
+    <!-- 下の＋ボタンを使わなくても、ここから作成／参加できる -->
+    <div v-if="!pickPayment" class="events__actions">
+      <button class="ev-action ev-action--primary" @click="goCreate">＋ イベントを作成</button>
+      <button class="ev-action" @click="goJoin">コードで参加</button>
+    </div>
+
     <main class="events__list">
       <p v-if="pickPayment" class="events__pickhint">立て替えを記録するイベントを選んでください。</p>
       <div v-if="loading" class="empty-box">読み込み中…</div>
 
       <template v-else>
+        <!-- 届いている招待（ベルを開かなくてもここから参加できる） -->
+        <InviteCard
+          v-for="invite in pendingInvites"
+          :key="invite.id"
+          :invite="invite"
+          @handled="onInviteHandled"
+        />
+
         <div
           class="evcard"
           v-for="(event, index) in events"
@@ -45,8 +59,12 @@
           </div>
         </div>
 
-        <div v-if="events.length === 0" class="empty-box">
-          進行中のイベントはありません
+        <div v-if="events.length === 0 && pendingInvites.length === 0" class="empty-box">
+          <p class="empty-box__text">進行中のイベントはありません</p>
+          <div class="empty-actions">
+            <button class="btn-brand" @click="goCreate">イベントを作成する</button>
+            <button class="btn-outline" @click="goJoin">コードで参加する</button>
+          </div>
         </div>
       </template>
     </main>
@@ -54,12 +72,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import GenreIcon from '@/components/GenreIcon.vue';
+import InviteCard from '@/components/InviteCard.vue';
 import { formatDate } from '@/lib/format';
+import { subscribePendingInvites } from '@/lib/invite';
 
 const route = useRoute();
 const router = useRouter();
@@ -69,9 +90,23 @@ const openEvent = (id) => {
   // 支払い追加モードならイベント詳細で支払い追加モーダルを直接開く
   router.push(pickPayment.value ? `/event/${id}?addPayment=1` : `/event/${id}`);
 };
+const goCreate = () => router.push('/make-event');
+const goJoin = () => router.push('/make-event?join=1');
 
 const events = ref([]);
 const loading = ref(true);
+
+// 届いている招待（未読の event_invite）
+const invites = ref([]);
+const handledInviteIds = ref([]); // 参加/辞退した直後に消すための控え
+const pendingInvites = computed(() => {
+  if (pickPayment.value) return []; // 支払い先を選ぶ画面では出さない
+  const joined = new Set(events.value.map(e => e.id));
+  return invites.value.filter(n => !handledInviteIds.value.includes(n.id) && !joined.has(n.eventId));
+});
+const onInviteHandled = (id) => {
+  handledInviteIds.value = [...handledInviteIds.value, id];
+};
 
 // 🌟 キャッシュ用オブジェクト（同じユーザーを何度も取得しない）
 const userCache = {};
@@ -134,8 +169,21 @@ const fetchEvents = async () => {
   }
 };
 
+let unsubInvites = null;
+let unsubAuth = null;
+
 onMounted(() => {
   fetchEvents();
+  unsubAuth = onAuthStateChanged(auth, (user) => {
+    if (unsubInvites) { unsubInvites(); unsubInvites = null; }
+    if (!user) { invites.value = []; return; }
+    unsubInvites = subscribePendingInvites(user.uid, (list) => { invites.value = list; });
+  });
+});
+
+onUnmounted(() => {
+  if (unsubInvites) unsubInvites();
+  if (unsubAuth) unsubAuth();
 });
 </script>
 
@@ -147,6 +195,47 @@ onMounted(() => {
   gap: 10px;
 }
 .events__pickhint { font-size: 13px; color: var(--c-text-sub); margin: 4px 2px 6px; }
+
+/* 一覧上部の作成／参加ボタン（スマホ幅でも折り返さない小さめサイズ） */
+.events__actions {
+  display: flex;
+  gap: 8px;
+  padding: 4px var(--pad) 0;
+}
+.ev-action {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 6px;
+  border-radius: var(--r-pill);
+  background: var(--c-surface);
+  border: 1.5px solid var(--c-line-bold);
+  color: var(--c-text-sub);
+  font-size: 13px;
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: transform 0.12s ease, background-color 0.2s ease;
+}
+.ev-action:active { transform: scale(0.98); background: var(--c-surface-2); }
+.ev-action--primary {
+  background: var(--c-brand);
+  border-color: var(--c-brand);
+  color: #fff;
+}
+.ev-action--primary:active { background: var(--c-brand-strong); }
+
+/* 0件のときの導線 */
+.empty-box__text { margin-bottom: 16px; }
+.empty-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 260px;
+  margin: 0 auto;
+}
+.empty-actions .btn-brand { font-size: 15px; padding: 13px 16px; }
+.empty-actions .btn-outline { font-size: 14px; padding: 12px 16px; }
 
 .evcard {
   background: var(--c-surface);
