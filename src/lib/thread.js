@@ -50,6 +50,9 @@ export function subjectLabel(notif) {
     case 'event_rejoin_request':
     case 'event_rejoin_approved':
     case 'event_rejoin_rejected':
+    case 'event_join_request':
+    case 'event_join_approved':
+    case 'event_join_rejected':
       return notif.eventName ? `イベント「${notif.eventName}」の件` : 'イベントの件';
     case 'settlement_restore_request':
     case 'settlement_restore_rejected':

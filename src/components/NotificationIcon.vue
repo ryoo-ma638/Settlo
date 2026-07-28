@@ -34,6 +34,10 @@
                       <button class="mini-btn" @click="approveRejoin(req)">承認する</button>
                       <button class="mini-btn mini-btn--ghost" @click="rejectRejoin(req)">拒否する</button>
                     </template>
+                    <template v-else-if="req.type === 'event_join_request'">
+                      <button class="mini-btn" @click="approveJoin(req)">承認する</button>
+                      <button class="mini-btn mini-btn--ghost" @click="rejectJoin(req)">拒否する</button>
+                    </template>
                     <template v-else-if="req.type === 'approval_request' || (!req.type && req.transactionId)">
                       <button class="mini-btn" @click="approveTx(req)">承認する</button>
                       <button class="mini-btn mini-btn--ghost" @click="rejectTx(req)">拒否する</button>
@@ -109,6 +113,10 @@
               <template v-else-if="req.type === 'event_rejoin_request'">
                 <button class="mini-btn" @click="approveRejoin(req)">承認する</button>
                 <button class="mini-btn mini-btn--ghost" @click="rejectRejoin(req)">拒否する</button>
+              </template>
+              <template v-else-if="req.type === 'event_join_request'">
+                <button class="mini-btn" @click="approveJoin(req)">承認する</button>
+                <button class="mini-btn mini-btn--ghost" @click="rejectJoin(req)">拒否する</button>
               </template>
               <template v-else-if="req.type === 'approval_request' || (!req.type && req.transactionId)">
                 <button class="mini-btn" @click="approveTx(req)">承認する</button>
@@ -264,6 +272,9 @@ const notifText = (req) => {
   if (req.type === 'event_rejoin_request') return `さんがイベント「${req.eventName || ''}」に参加したいとリクエストしています`;
   if (req.type === 'event_rejoin_approved') return `さんがイベント「${req.eventName || ''}」への参加を承認しました`;
   if (req.type === 'event_rejoin_rejected') return `さんがイベント「${req.eventName || ''}」への参加リクエストを拒否しました`;
+  if (req.type === 'event_join_request') return `さんがイベント「${req.eventName || ''}」に参加をリクエストしています`;
+  if (req.type === 'event_join_approved') return `さんがイベント「${req.eventName || ''}」への参加を承認しました`;
+  if (req.type === 'event_join_rejected') return `さんがイベント「${req.eventName || ''}」への参加リクエストを拒否しました`;
   if (req.type === 'payment_reverted') return `さんが「${req.itemName || ''}」を未精算に戻しました（未払いに戻りました）`;
   if (req.type === 'profile_updated') return 'さんがプロフィールを更新しました';
   if (req.type === 'restore_check') return `さんが「${req.itemName || ''}」（¥${(req.amount || 0).toLocaleString()}）をゴミ箱から元に戻しました。こちらで正しいですか？`;
@@ -280,12 +291,12 @@ const notifText = (req) => {
 const notifAction = (req) => {
   if (req.type === 'approval_rejected') return 'もう一度支払う';
   if (req.type === 'payment_reminder') return '支払う';
-  if (['payment_edited', 'payment_reverted', 'event_edited', 'invite_rejected', 'event_joined', 'settlement_restore_approved', 'settlement_restore_rejected', 'event_left_rejected', 'event_restore_rejected', 'event_rejoin_approved'].includes(req.type)) return 'イベントを見る';
+  if (['payment_edited', 'payment_reverted', 'event_edited', 'invite_rejected', 'event_joined', 'settlement_restore_approved', 'settlement_restore_rejected', 'event_left_rejected', 'event_restore_rejected', 'event_rejoin_approved', 'event_join_approved'].includes(req.type)) return 'イベントを見る';
   if (req.type === 'payment_deleted' || req.type === 'payment_completed') return '確認';
   return '詳細を確認する';
 };
 // 「確認」だけで閉じるお知らせ（行き先の画面が無い・見るものが無いもの）
-const INFO_ONLY_TYPES = ['payment_completed', 'profile_updated', 'event_rejoin_rejected'];
+const INFO_ONLY_TYPES = ['payment_completed', 'profile_updated', 'event_rejoin_rejected', 'event_join_rejected'];
 const isInfoOnly = (t) => INFO_ONLY_TYPES.includes(t);
 // 削除された・外されたお知らせ（正しい／正しくない／確認 の3択で答える）
 const REMOVED_TYPES = ['friend_removed', 'event_member_removed'];
@@ -293,8 +304,8 @@ const isRemovedType = (t) => REMOVED_TYPES.includes(t);
 // 返信できるお知らせ（フレンドを解除された相手には返信の入口を出さない）
 const canReply = (req) => req.type !== 'thread_reply' && req.type !== 'friend_removed' && !!req.fromUserId && !req.batch;
 const notifClass = (req) => {
-  if (['approval_rejected', 'invite_rejected', 'settlement_restore_rejected', 'restore_reverted', 'event_left_rejected', 'event_restore_rejected', 'event_rejoin_rejected'].includes(req.type)) return 'notif-item--reject';
-  if (['payment_edited', 'payment_reverted', 'payment_deleted', 'event_edited', 'event_joined', 'event_restored', 'settlement_restore_approved', 'payment_completed', 'profile_updated', 'friend_removed', 'event_member_removed', 'event_rejoin_approved'].includes(req.type)) return 'notif-item--info';
+  if (['approval_rejected', 'invite_rejected', 'settlement_restore_rejected', 'restore_reverted', 'event_left_rejected', 'event_restore_rejected', 'event_rejoin_rejected', 'event_join_rejected'].includes(req.type)) return 'notif-item--reject';
+  if (['payment_edited', 'payment_reverted', 'payment_deleted', 'event_edited', 'event_joined', 'event_restored', 'settlement_restore_approved', 'payment_completed', 'profile_updated', 'friend_removed', 'event_member_removed', 'event_rejoin_approved', 'event_join_approved'].includes(req.type)) return 'notif-item--info';
   return 'notif-item--pay';
 };
 
@@ -341,7 +352,7 @@ const goToPaymentDetail = async (req) => {
       return;
     }
     // 編集/削除/イベント編集/招待拒否/参加/復元/決済戻し結果は該当イベントへ（対象の取引はもう無い/変わっているため）
-    if (['payment_edited', 'payment_reverted', 'payment_deleted', 'event_edited', 'invite_rejected', 'event_joined', 'event_restored', 'settlement_restore_approved', 'settlement_restore_rejected', 'restore_reverted', 'event_left_rejected', 'event_restore_rejected', 'event_rejoin_approved'].includes(req.type)) {
+    if (['payment_edited', 'payment_reverted', 'payment_deleted', 'event_edited', 'invite_rejected', 'event_joined', 'event_restored', 'settlement_restore_approved', 'settlement_restore_rejected', 'restore_reverted', 'event_left_rejected', 'event_restore_rejected', 'event_rejoin_approved', 'event_join_approved'].includes(req.type)) {
       if (req.eventId) router.push(`/event/${req.eventId}`);
       return;
     }
@@ -421,14 +432,36 @@ const acceptInvite = async (req) => {
       // 追加前の参加者を取得（この人たちに参加をお知らせする）
       let existing = [];
       let evName = req.eventName || '';
+      let evLocked = false;
+      let evLeaderUid = null;
       try {
         const ev = await getDoc(doc(db, "events", req.eventId));
-        if (ev.exists()) { existing = ev.data().participants || []; evName = ev.data().name || evName; }
+        if (ev.exists()) {
+          const d = ev.data();
+          existing = d.participants || [];
+          evName = d.name || evName;
+          evLocked = d.locked === true;
+          evLeaderUid = d.leaderUid || null;
+        }
       } catch (e) {}
+      const myName = await getMyName();
+
+      // 🌟 承認制のイベントは自分では参加者に入れない。リーダーへ参加リクエストを送って待つ
+      if (evLocked && evLeaderUid && !existing.includes(myUid)) {
+        await addDoc(collection(db, "notifications"), {
+          toUserId: evLeaderUid, type: 'event_join_request',
+          eventId: req.eventId, eventName: evName,
+          fromUserId: myUid, fromUserName: myName,
+          userMessage: req.userMessage || null,
+          isRead: false, createdAt: serverTimestamp(),
+        });
+        await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+        showModal.value = false;
+        showToast('リーダーの承認待ちです');
+        return;
+      }
+
       await updateDoc(doc(db, "events", req.eventId), { participants: arrayUnion(myUid) });
-      // 自分の表示名
-      let myName = auth.currentUser?.displayName || 'メンバー';
-      try { const md = await getDoc(doc(db, "users", myUid)); if (md.exists() && md.data().name) myName = md.data().name; } catch (e) {}
       // 既存メンバーへ通知
       for (const uid of existing) {
         if (uid === myUid) continue;
@@ -1091,6 +1124,74 @@ const rejectRejoin = (req) => {
       const myUid = auth.currentUser?.uid;
       await addDoc(collection(db, "notifications"), {
         toUserId: req.fromUserId, type: 'event_rejoin_rejected',
+        eventId: req.eventId || null, eventName: req.eventName || '',
+        fromUserId: myUid, fromUserName: await getMyName(),
+        userMessage: reason || null,
+        isRead: false, createdAt: serverTimestamp(),
+      });
+      await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+      showToast(`${senderName(req)}さんに拒否を伝えました`);
+    } catch (e) {
+      console.error("参加リクエストの拒否エラー:", e);
+      notice('error', 'エラー', '通知の送信に失敗しました。もう一度お試しください。');
+    }
+  }, { withReason: true });
+};
+
+// --- 鍵付きイベント（承認制）への参加リクエスト ---
+// 🌟 参加リクエストを承認＝その人を参加者に追加し、本人と既存メンバーへお知らせ
+const approveJoin = async (req) => {
+  if (acting.value) return; // 🌟 連打で参加のお知らせが重複するのを防ぐ
+  acting.value = true;
+  try {
+    const myUid = auth.currentUser?.uid;
+    const memberUid = req.fromUserId;
+    if (myUid && memberUid && req.eventId) {
+      let existing = [];
+      let evName = req.eventName || '';
+      try {
+        const ev = await getDoc(doc(db, "events", req.eventId));
+        if (ev.exists()) { existing = ev.data().participants || []; evName = ev.data().name || evName; }
+      } catch (e) {}
+      if (!existing.includes(memberUid)) {
+        await updateDoc(doc(db, "events", req.eventId), { participants: arrayUnion(memberUid) });
+      }
+      const myName = await getMyName();
+      // 本人へ「参加できました」のお知らせ
+      await addDoc(collection(db, "notifications"), {
+        toUserId: memberUid, type: 'event_join_approved',
+        eventId: req.eventId, eventName: evName,
+        fromUserId: myUid, fromUserName: myName,
+        isRead: false, createdAt: serverTimestamp(),
+      });
+      // 既存メンバーへ「参加しました」のお知らせ（招待の承認と同じ流儀）
+      for (const uid of existing) {
+        if (uid === myUid || uid === memberUid) continue;
+        try {
+          await addDoc(collection(db, "notifications"), {
+            toUserId: uid, type: 'event_joined',
+            eventId: req.eventId, eventName: evName,
+            fromUserId: memberUid, fromUserName: senderName(req),
+            isRead: false, createdAt: serverTimestamp(),
+          });
+        } catch (e) {}
+      }
+    }
+    await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+    showToast(`${senderName(req)}さんをイベントに追加しました`);
+  } catch (e) {
+    console.error("参加リクエストの承認エラー:", e);
+    notice('error', 'エラー', 'イベントに追加できませんでした。もう一度お試しください。');
+  } finally { acting.value = false; }
+};
+
+// 🌟 参加リクエストを拒否＝参加者は変えず、本人へ理由つきで通知
+const rejectJoin = (req) => {
+  askConfirm('参加のリクエストを拒否しますか？', `${senderName(req)}さんはイベント「${req.eventName || ''}」に参加できません。相手に通知が届きます。`, async (reason) => {
+    try {
+      const myUid = auth.currentUser?.uid;
+      await addDoc(collection(db, "notifications"), {
+        toUserId: req.fromUserId, type: 'event_join_rejected',
         eventId: req.eventId || null, eventName: req.eventName || '',
         fromUserId: myUid, fromUserName: await getMyName(),
         userMessage: reason || null,
