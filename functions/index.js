@@ -9,8 +9,138 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 // =================================================================
-// 1. レシート解析AI機能 (今まで通り！)
+// 1. レシート解析AI機能（レシート画像 → 会計データ）
 // =================================================================
+// 返してほしいJSONの形をモデルに強制する（構造化出力）。
+// これを付けると型が保証され、素のテキストを JSON.parse する不安定さが無くなる。
+const RECEIPT_SCHEMA = {
+  type: "object",
+  properties: {
+    storeName: { type: "string", nullable: true, description: "店名（支店名は含めない）。読めなければ null" },
+    date: { type: "string", nullable: true, description: "YYYY-MM-DD。印字が無ければ null" },
+    time: { type: "string", nullable: true, description: "HH:MM（24時間）。印字が無ければ null" },
+    currency: { type: "string", nullable: true, description: "通貨コード。日本円なら JPY、$なら USD。判断できなければ null" },
+    totalAmount: { type: "number", nullable: true, description: "税込の最終請求額（ポイント充当前）。読めなければ null" },
+    pointsUsed: { type: "number", nullable: true, description: "ポイント・商品券で充当された金額（正の数）。無ければ null" },
+    taxIncluded: { type: "boolean", nullable: true, description: "品目の金額が税込表示なら true、税抜表示なら false" },
+    registrationNumber: { type: "string", nullable: true, description: "インボイス登録番号 T+13桁。無ければ null" },
+    items: {
+      type: "array",
+      description: "レシートの明細行",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string", nullable: true, description: "品目名" },
+          lineTotal: { type: "number", nullable: true, description: "その行に印字されている金額（行の合計。単価ではない）。値引・返品はマイナス" },
+          quantity: { type: "integer", nullable: true, description: "明示された数量。表記が無ければ 1" },
+          taxRate: { type: "number", nullable: true, description: "その行に適用される税率の数値（8 / 10 など）" },
+        },
+        required: ["name", "lineTotal", "quantity", "taxRate"],
+      },
+    },
+  },
+  required: [
+    "storeName", "date", "time", "currency",
+    "totalAmount", "pointsUsed", "taxIncluded", "registrationNumber", "items",
+  ],
+};
+
+const RECEIPT_PROMPT = `
+あなたはレシート画像から会計データを読み取る担当です。指定されたJSONだけを出力してください。
+
+【最重要ルール：推測しない】
+- 画像から読み取れない項目は、絶対に推測・創作せず null を入れてください。
+  例）時刻の印字が無ければ "time" は null（00:00 のような値を作らない）。登録番号が無ければ null。
+- 数値はレシートに印字されている数字をそのまま使います（通貨換算・単位変換・四捨五入をしない）。
+
+【金額の定義】
+- "currency"：レシートの通貨コード。日本円なら "JPY"、$表記なら "USD"。判断できなければ null。
+- "totalAmount"：値引・クーポン適用後の【税込の最終請求額】。
+  ポイント・商品券・金券で支払いを充当する【前】の金額です。
+  「合計」と「お支払金額」が違う場合は、必ず充当前（大きい方）を "totalAmount" にします。
+- "pointsUsed"：ポイントや商品券で充当された金額（正の数）。無ければ null。
+  例）合計 ¥3,300 ／ ポイント利用 -500 ／ お支払金額 ¥2,800
+      → "totalAmount": 3300, "pointsUsed": 500
+
+【品目 items】
+- レシートの明細1行 = items の1要素です。
+- "lineTotal"：その行に印字されている金額（＝その行の合計）。単価ではありません。
+  例）「日替りランチ ×2  1,760」→ "lineTotal": 1760（880 ではない）
+  税抜表示のレシートなら税抜のまま、税込表示なら税込のまま。換算しないでください。
+- "quantity"：「×2」「2点」「2コ」のように【数量として明示された表記】だけを数量にします。
+  商品名の一部である内容量は数量ではありません。
+  例）「たまご 10個」「米 5kg」「スポンジ 3個」「養生テープ 3個入」→ すべて "quantity": 1
+  数量の表記が無い行は 1 です。
+- 値引・クーポン・返品など、商品計から差し引かれる行も【マイナスの lineTotal を持つ品目】として必ず items に含めます。
+  例）「店内クーポン値引 -300」→ { "name": "店内クーポン値引", "lineTotal": -300, "quantity": 1 }
+- ただし「ポイント利用」「商品券」など支払いを充当する行は items に入れず "pointsUsed" に入れてください（二重に引かれるため）。
+- 小計・消費税・合計・お預り・お釣り・ポイント残高の行は items に入れません。
+
+【税】
+- "taxIncluded"：品目の金額欄が税込表示（品目の単純合算＝最終合計）なら true。
+  税抜表示（小計のあとに消費税が加算されている）なら false。
+  「外税」「税抜」「消費税 ¥xxx」の加算行があれば false、「内税」「税込」表記なら true。
+- "taxRate"（品目ごと）：その行に実際に適用されている税率の数値。
+  日本のレシートでは「※」「*」「軽」が付く行が 8、それ以外が 10 です。
+  日本のレシートで判別できない場合のみ、食品・飲料は 8、それ以外は 10 と推定して構いません。
+  日本以外（外貨）のレシートは、印字されている実際の税率（例 7.5）をそのまま入れてください。
+
+【その他】
+- "storeName"：店名。支店名（○○店）は含めません。
+- "date"："YYYY-MM-DD"。年の印字が無ければ推測せず null。
+- "time"："HH:MM"（24時間表記）。印字が無ければ null。
+- "registrationNumber"：インボイス登録番号。「T」＋13桁（例 T1234567890123）。無ければ null。
+`;
+
+// --- 返ってきた値をアプリが扱える形にそろえる（型の揺れを吸収する） ---
+const toNum = (v) => {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+const toStr = (v) => {
+  if (typeof v !== 'string') return null;
+  const s = v.trim();
+  return s === '' ? null : s;
+};
+
+function normalizeReceipt(data) {
+  const src = data && typeof data === 'object' ? data : {};
+
+  const items = (Array.isArray(src.items) ? src.items : []).slice(0, 100).map((raw) => {
+    const it = raw && typeof raw === 'object' ? raw : {};
+    // lineTotal が無い＝旧仕様の出力。そのときは price を行合計として扱う（後方互換）
+    const lineTotal = toNum(it.lineTotal !== undefined && it.lineTotal !== null ? it.lineTotal : it.price);
+    const q = toNum(it.quantity);
+    const quantity = q !== null && q >= 1 ? Math.round(q) : 1;
+    return {
+      name: toStr(it.name),
+      lineTotal,
+      // 旧フロント（ブラウザにキャッシュされた古いJS）は price × quantity で行の合計を出す。
+      // そこで price には「単価」を入れておく＝掛け算しても行の合計に戻り、金額が膨らまない。
+      price: lineTotal === null ? null : (quantity > 1 ? Math.round(lineTotal / quantity) : lineTotal),
+      quantity,
+      taxRate: toNum(it.taxRate),
+    };
+  });
+
+  const currencyRaw = toStr(src.currency);
+  const currency = currencyRaw && /^[A-Za-z]{3}$/.test(currencyRaw) ? currencyRaw.toUpperCase() : null;
+  const points = toNum(src.pointsUsed);
+
+  return {
+    storeName: toStr(src.storeName),
+    date: toStr(src.date),
+    time: toStr(src.time),
+    currency,
+    totalAmount: toNum(src.totalAmount),
+    pointsUsed: points !== null && points !== 0 ? Math.abs(points) : null,
+    taxIncluded: typeof src.taxIncluded === 'boolean' ? src.taxIncluded : null,
+    registrationNumber: toStr(src.registrationNumber),
+    items,
+  };
+}
+
 exports.analyzeReceipt = onCall(
   {
     region: "asia-northeast1",
@@ -18,76 +148,64 @@ exports.analyzeReceipt = onCall(
     // 🔐 Gemini APIキーは Secret Manager から注入（コード/リポジトリには絶対に置かない）
     //   事前に: firebase functions:secrets:set GEMINI_API_KEY
     secrets: ["GEMINI_API_KEY"],
+    // 品目20行のレシートは50秒以上かかることがあるため、既定の60秒では足りない
+    timeoutSeconds: 120,
   },
   async (request) => {
+    // ログインチェック（Gemini の課金に直結するので、未ログインは受け付けない）
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "ログインが必要です。");
+    }
+    if (!request.data || typeof request.data.image !== 'string') {
+      throw new HttpsError('invalid-argument', '画像データが送られてきませんでした。');
+    }
+
+    const base64Image = request.data.image;
+    const mimeTypeMatch = base64Image.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,/);
+    if (!mimeTypeMatch) {
+      throw new HttpsError('invalid-argument', '画像のデータ形式が正しくありません。');
+    }
+    const mimeType = mimeTypeMatch[1];
+    const base64Data = base64Image.slice(mimeTypeMatch[0].length);
+
     try {
-      // 🌟 AIライブラリの読み込み自体を「関数の中」に移動！（タイムアウト対策の最終奥義）
+      // 🌟 AIライブラリの読み込み自体を「関数の中」に移動（起動を軽くするため）
       const { GoogleGenerativeAI } = require("@google/generative-ai");
-      const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-      const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-      console.log("初期化");
-      if (!request.data || !request.data.image) {
-        throw new HttpsError('invalid-argument', '画像データが送られてきませんでした。');
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+      const callModel = async (useSchema) => {
+        const model = genAI.getGenerativeModel({
+          model: "gemini-2.5-flash",
+          generationConfig: {
+            // 同じ画像なら同じ答えを返させる（実行ごとの揺れを抑える）
+            temperature: 0,
+            responseMimeType: "application/json",
+            ...(useSchema ? { responseSchema: RECEIPT_SCHEMA } : {}),
+          },
+        });
+        const result = await model.generateContent([
+          RECEIPT_PROMPT,
+          { inlineData: { data: base64Data, mimeType: mimeType } }
+        ]);
+        return result.response.text();
+      };
+
+      let responseText;
+      try {
+        responseText = await callModel(true);
+      } catch (schemaError) {
+        // 構造化出力が受け付けられなかったときも読み取りは止めない（プロンプトだけで再試行）
+        console.error("構造化出力に失敗したのでスキーマなしで再試行:", schemaError);
+        responseText = await callModel(false);
       }
-      console.log("初期化2");
-      const base64Image = request.data.image; 
-      const mimeTypeMatch = base64Image.match(/data:(.*?);base64/);
-      console.log("初期化3");
-      if (!mimeTypeMatch) {
-        throw new HttpsError('invalid-argument', '画像のデータ形式が正しくありません。');
-      }
-      console.log("初期化4");
-      const mimeType = mimeTypeMatch[1];
-      const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, "");
-
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-      console.log("初期化5");
-      const prompt = `
-        レシート画像から以下の情報を抽出し、必ず指定されたJSON形式のみで出力してください。
-        同じ商品が複数ある場合や「×3」などの記載がある場合は、個数をカウントしてください。
-
-        【最重要ルール】
-        - "totalAmount" は「レシートに印字された、実際に支払った最終合計（税込）」。ここが最も正確な正データです。
-        - 各商品の "price" は【換算せず、レシートに印字されている単価そのまま】を入れてください（税込表示なら税込のまま・税抜表示なら税抜のまま）。
-
-        【税の判定】
-        - "taxIncluded"：商品の価格欄が税込表示（合計＝商品の単純合算）なら true。
-          税抜表示（小計の後に消費税額が加算されている）なら false。
-          判定方法：レシートに「外税」「税抜」「消費税 ¥xxx」など小計への課税行があれば false。
-          「内税」「税込」表記や、商品合算＝最終合計ならば true。
-        - 各商品の "taxRate"：適用税率が判別できれば 8（軽減税率・食品/飲料のテイクアウト等）か 10（標準）を入れる。
-          レシートの「※」「*」「軽」マークは軽減税率8%の印であることが多い。
-          判別できない場合は、食品・飲料なら 8、それ以外は 10 と推定して入れる。
-
-        "registrationNumber" は「事業者登録番号（インボイス登録番号）」です。
-        レシート上の「登録番号」や「T」で始まる13桁の番号（例: T1234567890123）を探し、
-        見つかれば "T" を含む形の文字列で入れてください。見つからなければ null にしてください。
-        {
-          "storeName": "店名",
-          "date": "YYYY-MM-DD",
-          "time": "HH:MM",
-          "totalAmount": 実際に支払った最終合計(税込・数値),
-          "taxIncluded": true または false,
-          "registrationNumber": "事業者登録番号(例 T1234567890123 / 無ければ null)",
-          "items": [
-            { "name": "商品名", "price": 印字どおりの単価×数量の合計(数値・換算しない), "quantity": 個数(数値、不明な場合は1), "taxRate": 8または10 }
-          ]
-        }
-      `;
-
-      const result = await model.generateContent([
-        prompt,
-        { inlineData: { data: base64Data, mimeType: mimeType } }
-      ]);
-      
-      const responseText = result.response.text();
+      // 構造化出力なので素のJSONで返るはずだが、念のためコードフェンスを剥がす
       const jsonString = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
-      console.log("初期化6");
-      return JSON.parse(jsonString);
+      return normalizeReceipt(JSON.parse(jsonString));
 
     } catch (error) {
-      console.error("AI解析エラー詳細:", error);
-      throw new HttpsError('internal', 'AI解析エラー: ' + error.message);
+      // 内部の事情（APIキー・スタック・モデル名）を利用者に見せない。詳細はログにだけ残す。
+      console.error("レシート解析エラー詳細:", error);
+      throw new HttpsError('internal', 'レシートの読み取りに失敗しました。時間をおいて、もう一度お試しください。');
     }
   }
 );
