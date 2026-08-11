@@ -51,6 +51,11 @@
             </div>
           </div>
 
+          <!-- 🌟 レシート読み取りの注意（通貨がちがう・ポイント利用など、金額の扱いに関わることだけ出す） -->
+          <div v-if="receiptNotices.length" class="ocr-notice">
+            <p v-for="(n, i) in receiptNotices" :key="i" class="ocr-notice-line">{{ n }}</p>
+          </div>
+
           <div class="basic-info-card">
             <div class="input-row amount-row">
               <label>合計金額</label>
@@ -155,7 +160,7 @@
           <div v-if="formData.splitType === 'item'" class="dynamic-section slide-in">
             <div class="item-split-header">
               <div class="header-left">
-                <p class="section-desc">商品ごとに支払う人を選べます。</p>
+                <p class="section-desc">商品ごとに支払う人を選べます。金額欄はその行の合計（数量ぶん込み）です。</p>
                 <p class="match-status" :class="{'matched': itemsTotal === Number(formData.amount), 'error': itemsTotal !== Number(formData.amount)}">
                   内訳合計: ¥{{ itemsTotal.toLocaleString() }} / 全体: ¥{{ Number(formData.amount).toLocaleString() }}
                 </p>
@@ -192,12 +197,11 @@
                 
                 <div class="item-math-row">
                   <div class="price-input-wrapper">
-                    <span>¥</span><input v-model="item.price" type="tel" class="item-price-input" placeholder="単価">
+                    <span>¥</span><input v-model="item.price" type="tel" class="item-price-input" placeholder="金額">
                   </div>
-                  <span class="math-sign">×</span>
                   <div class="qty-control">
                     <button @click="item.qty > 1 && item.qty--">-</button>
-                    <span>{{ item.qty }}</span>
+                    <span>{{ item.qty }}点</span>
                     <button @click="item.qty++">+</button>
                   </div>
                   <button v-if="taxMode !== 'included'" class="tax-toggle-btn" :class="'tax-' + item.taxRate" @click="toggleTax(item)">
@@ -330,6 +334,9 @@ const participants = computed(() => props.participants || []);
 
 const receiptItems = ref([]);
 
+// 🌟 レシート読み取りの注意書き（通貨がちがう／ポイント利用など、本人に判断してほしいこと）
+const receiptNotices = ref([]);
+
 const customSplitAmounts = ref({});
 
 // 🌟 参加者が変わるたびに、金額指定の入力欄と「立替えた人」の初期値を作り直す
@@ -358,6 +365,7 @@ const resetForm = () => {
   remainderBearer.value = '';
   remainderReason.value = '';
   receiptItems.value = [];
+  receiptNotices.value = [];
   uploadedImage.value = null;
   isAnalyzing.value = false;
   const next = {};
@@ -386,11 +394,16 @@ const prefillFromEdit = (d) => {
   customSplitAmounts.value = next;
   receiptItems.value = (d.items || []).map(it => ({
     name: it.name || '',
-    price: it.rawPrice != null ? it.rawPrice : (it.price || 0), // 印字価格があればそれを復元
+    // 金額欄は「行の合計（印字どおり）」。
+    // lineTotal を持たない古い記録は rawPrice が単価なので、数量を掛けて行の合計に戻す。
+    price: it.lineTotal != null
+      ? it.lineTotal
+      : (it.rawPrice != null ? Number(it.rawPrice) * (it.qty || 1) : (it.price || 0)),
     qty: it.qty || 1,
     taxRate: it.taxRate != null ? it.taxRate : 0,
     assignees: it.assignees || [],
   }));
+  receiptNotices.value = [];
   uploadedImage.value = null;
   isAnalyzing.value = false;
 };
@@ -454,6 +467,8 @@ const resetUpload = () => {
   uploadedImage.value = null;
   isAnalyzing.value = false;
   receiptItems.value = [];
+  receiptNotices.value = [];
+  remainderReason.value = '';
   participants.value.forEach(p => customSplitAmounts.value[p.name] = '');
 };
 
@@ -490,13 +505,37 @@ const processImage = (file) => {
       };
       const safeText = (v, len) => (typeof v === 'string' ? v.trim().slice(0, len) : '');
 
+      const notices = [];
+
       formData.value.itemName = safeText(data.storeName, 60) || '不明な店舗';
+
+      // 🌟 通貨のチェック：日本円でなければ金額を自動入力しない（外貨がそのまま円になる事故を防ぐ）
+      const currency = safeText(data.currency, 8).toUpperCase();
+      const isForeign = currency !== '' && currency !== 'JPY';
       const total = safeNum(data.totalAmount, 0, 99999999, 0);
-      formData.value.amount = total > 0 ? String(total) : '';
+      if (isForeign) {
+        formData.value.amount = '';
+        notices.push(`日本円以外のレシートの可能性があります（通貨: ${currency}）。合計金額は自動入力していません。`);
+      } else {
+        formData.value.amount = total > 0 ? String(total) : '';
+      }
+
       if (typeof data.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.date)) formData.value.date = data.date;
-      if (typeof data.time === 'string' && /^\d{1,2}:\d{2}$/.test(data.time)) formData.value.time = data.time;
+      // 🌟 時刻はレシートに印字が無ければ空のまま（読めなかった時刻を勝手に埋めない）
+      formData.value.time = (typeof data.time === 'string' && /^\d{1,2}:\d{2}$/.test(data.time)) ? data.time : '';
       const regNo = safeText(data.registrationNumber, 20);
       formData.value.registrationNumber = /^T\d{13}$/.test(regNo) ? regNo : ''; // 事業者登録番号（T+13桁のみ受理）
+
+      // 🌟 ポイント利用があっても合計は「ポイントを引く前」のまま。事実だけメモに残す
+      const points = safeNum(data.pointsUsed, 0, 99999999, 0);
+      if (points > 0) {
+        const memo = `ポイント利用 ¥${points.toLocaleString()}`;
+        notices.push(`${memo}。合計はポイントを引く前の金額を入れています。`);
+        // 同じレシートを読み直しても二重に足さない
+        if (!remainderReason.value.includes(memo)) {
+          remainderReason.value = remainderReason.value ? `${remainderReason.value} / ${memo}` : memo;
+        }
+      }
 
       // 🌟 税込/税抜をAIの判定から自動セット（税抜なら「合計してから課税」方式に）
       taxMode.value = data.taxIncluded === false ? 'aggregate' : 'included';
@@ -505,13 +544,17 @@ const processImage = (file) => {
       if (Array.isArray(data.items) && data.items.length > 0) {
         receiptItems.value = data.items.slice(0, 100).map(item => ({
           name: safeText(item.name, 60) || '不明な商品',
-          price: safeNum(item.price, 0, 9999999, 0),
+          // 金額は「その行の合計」。lineTotal が無い古い応答は price を行の合計として扱う（後方互換）
+          // 値引・クーポン・返品はマイナスなので、下限を0にせず負の金額も受け取る
+          price: safeNum(item.lineTotal != null ? item.lineTotal : item.price, -9999999, 9999999, 0),
           qty: safeNum(item.quantity, 1, 999, 1),
           taxRate: item.taxRate === 8 ? 8 : (item.taxRate === 10 ? 10 : (data.taxIncluded === false ? 10 : 8)),
           assignees: []
         }));
         formData.value.splitType = 'item'; // 商品タブに自動で切り替え
       }
+
+      receiptNotices.value = notices;
     } catch (error) {
       console.error("読み取りエラー:", error);
       showModal({ type: 'error', title: '読み取りエラー', message: 'レシートの読み取りに失敗しました。手動で入力してください。' });
@@ -541,16 +584,20 @@ const taxModeDesc = computed(() => {
   return '商品1つずつに消費税をかけてから合算します。';
 });
 
+// 🌟 商品1行の金額＝入力欄の値そのもの（＝その行の合計。数量ぶんは既に含まれている）
+//    数量を掛けると二重計上になるので掛けない。数量は表示のためだけに持つ。
+const itemBase = (item) => Number(item.price) || 0;
+
 // 🌟 小計・合計の計算ロジック（taxMode に応じて切替）
 const calcItemTotal = (item) => {
-  const base = (Number(item.price) || 0) * (item.qty || 1);
+  const base = itemBase(item);
   if (taxMode.value === 'perItem') return Math.floor(base * (1 + (Number(item.taxRate) || 0) / 100));
   return Math.round(base); // included: 税込そのまま / aggregate: 税抜のまま表示（課税は合計側で）
 };
 
 // 割り勘の負担額に使う「税込換算後」の商品金額
 const itemShareAmount = (item) => {
-  const base = (Number(item.price) || 0) * (item.qty || 1);
+  const base = itemBase(item);
   if (taxMode.value === 'included') return Math.round(base);
   return Math.floor(base * (1 + (Number(item.taxRate) || 0) / 100));
 };
@@ -558,10 +605,11 @@ const itemShareAmount = (item) => {
 const itemsTotal = computed(() => {
   if (taxMode.value === 'aggregate') {
     // 税率ごとにまとめて課税（端数の切り捨ては税率グループごとに1回だけ）
+    // 値引・返品のマイナス行も同じ税率グループに入るので、そのまま差し引かれる
     const groups = {};
     receiptItems.value.forEach(it => {
       const r = Number(it.taxRate) || 0;
-      groups[r] = (groups[r] || 0) + (Number(it.price) || 0) * (it.qty || 1);
+      groups[r] = (groups[r] || 0) + itemBase(it);
     });
     return Object.entries(groups).reduce((sum, [r, net]) => sum + Math.floor(net * (1 + Number(r) / 100)), 0);
   }
@@ -723,21 +771,27 @@ const executeSubmit = () => {
     date: formData.value.date ? formData.value.date.replace(/-/g, '/') : "",
     time: currentTime,
     // 🌟 不明な残金（差額）の記録：誰が負担したか＋理由
-    remainder: remainderDiff.value !== 0 ? {
+    //    差額が無くても、メモ（ポイント利用など）があれば残す
+    remainder: (remainderDiff.value !== 0 || remainderReason.value) ? {
       amount: remainderDiff.value,
       name: remainderBearer.value || formData.value.payer || '',
       reason: remainderReason.value || null,
     } : null,
     // 🌟 各メンバーの負担額（割り勘の正データ）
     shares: computeShares(),
-    items: receiptItems.value.map(item => ({
-      name: item.name,
-      price: itemShareAmount(item), // 税込換算後（表示・精算用）
-      rawPrice: Number(item.price) || 0, // 印字どおりの価格（再編集用）
-      qty: item.qty || 1,
-      taxRate: Number(item.taxRate) || 0,
-      assignees: item.assignees
-    }))
+    items: receiptItems.value.map(item => {
+      const qty = item.qty || 1;
+      const lineTotal = Number(item.price) || 0; // 印字どおりの行の合計
+      return {
+        name: item.name,
+        price: itemShareAmount(item), // 税込換算後（表示・精算用）
+        lineTotal, // 🌟 印字どおりの行の合計（再編集で復元する正データ）
+        rawPrice: qty > 1 ? Math.round(lineTotal / qty) : lineTotal, // 単価（lineTotal を持たない古い記録との互換用）
+        qty,
+        taxRate: Number(item.taxRate) || 0,
+        assignees: item.assignees
+      };
+    })
   };
 
   console.log("📦 パケット作成完了:", payload);
@@ -785,6 +839,10 @@ const executeSubmit = () => {
 .preview-img { width: 100%; height: 100%; object-fit: cover; opacity: 0.3; }
 .success-badge { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -100%); background: var(--c-brand); color: white; padding: 6px 12px; border-radius: 12px; font-size: 12px; font-weight: 900; box-shadow: 0 4px 10px rgba(5,150,105,0.3); }
 .re-upload-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, 20%); background: rgba(15,23,42,0.8); color: white; border: none; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: bold; backdrop-filter: blur(4px); cursor: pointer; }
+
+/* 🌟 レシート読み取りの注意書き */
+.ocr-notice { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 16px; padding: 12px 14px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 6px; }
+.ocr-notice-line { margin: 0; font-size: 12.5px; line-height: 1.6; font-weight: 700; color: #92400e; }
 
 /* 🌟 2. 基本情報のカード */
 .basic-info-card { background: white; border-radius: 24px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 24px; display: flex; flex-direction: column; gap: 16px; }
@@ -913,7 +971,6 @@ const executeSubmit = () => {
 
 .item-main-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .item-math-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
-.math-sign { font-size: 14px; font-weight: bold; color: var(--c-text-faint); }
 
 .qty-control { display: flex; align-items: center; background: var(--c-surface-2); border-radius: 12px; overflow: hidden; border: 1px solid var(--c-line-bold); }
 .qty-control button { width: 32px; height: 32px; border: none; background: transparent; color: var(--c-text-strong); font-size: 16px; font-weight: bold; cursor: pointer; }
