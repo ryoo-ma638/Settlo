@@ -131,7 +131,9 @@ onUnmounted(() => { if (unsub) unsub(); });
 
 <style scoped>
 .chats__seg-wrap { padding: 10px var(--pad); background: var(--c-surface); border-bottom: 1px solid var(--c-line); }
-.chats__body { padding: 0 0 24px; background: var(--c-surface); min-height: 100%; }
+/* 面の白は行（.prow）側が持つ。ここで白を敷くと空状態や短い一覧で
+   途中から背景が切り替わり、画面中央に境界線が出てしまう */
+.chats__body { padding: 0 0 24px; min-height: 100%; }
 .chats__group {
   font-size: 12px; font-weight: var(--fw-black); color: var(--c-text-sub);
   padding: 14px var(--pad) 6px; background: var(--c-bg);
