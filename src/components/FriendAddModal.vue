@@ -28,10 +28,7 @@
             <div class="results">
               <template v-if="searchQuery">
                 <div v-for="user in searchResults" :key="user.uid" class="rescard">
-                  <div class="rescard__avatar">
-                    <img v-if="user.photo" :src="user.photo" />
-                    <div v-else class="rescard__ph" :style="{ backgroundColor: user.color || '#cbd5e1' }"></div>
-                  </div>
+                  <UserAvatar class="rescard__avatar" :name="user.name" :photo="user.photo" :size="36" />
                   <span class="rescard__name">
                     <span class="rescard__nm">{{ user.name }}
                       <span v-if="isEventMember(user.uid)" class="rescard__tag">同じイベント</span>
@@ -52,10 +49,7 @@
               <template v-else>
                 <p v-if="eventMembers.length" class="cand-title">同じイベントのメンバー</p>
                 <div v-for="user in eventMembers" :key="user.uid" class="rescard">
-                  <div class="rescard__avatar">
-                    <img v-if="user.photo" :src="user.photo" />
-                    <div v-else class="rescard__ph" :style="{ backgroundColor: '#cbd5e1' }"></div>
-                  </div>
+                  <UserAvatar class="rescard__avatar" :name="user.name" :photo="user.photo" :size="36" />
                   <span class="rescard__name">
                     <span class="rescard__nm">{{ user.name }}</span>
                     <span v-if="user.nickname" class="rescard__nick">ニックネーム: {{ user.nickname }}</span>
@@ -79,10 +73,7 @@
             <h2 class="add-modal__title">フレンド追加</h2>
 
             <div class="confirm__user">
-              <div class="confirm__avatar">
-                <img v-if="selectedUser.photo" :src="selectedUser.photo" />
-                <div v-else class="confirm__ph" :style="{ backgroundColor: selectedUser.color || '#cbd5e1' }"></div>
-              </div>
+              <UserAvatar class="confirm__avatar" :name="selectedUser.name" :photo="selectedUser.photo" :size="84" />
               <h3 class="confirm__name">{{ selectedUser.name }}</h3>
             </div>
 
@@ -129,6 +120,7 @@
 import { ref, watch, reactive } from 'vue';
 import BaseModal from './BaseModal.vue'; // 🌟 統一モーダルをインポート
 import MessageField from './MessageField.vue';
+import UserAvatar from './UserAvatar.vue';
 import { db, auth } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
 import { doc, getDoc } from 'firebase/firestore';
@@ -418,9 +410,6 @@ const executeRequest = async () => {
   padding: 9px 12px;
   border-radius: var(--r-pill);
 }
-.rescard__avatar { width: 36px; height: 36px; flex-shrink: 0; }
-.rescard__avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
-.rescard__ph { width: 100%; height: 100%; border-radius: 50%; }
 .rescard__name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .rescard__nm { font-weight: var(--fw-bold); font-size: 14px; color: var(--c-ink); }
 .rescard__nick { font-size: 11px; font-weight: var(--fw-medium); color: var(--c-text-sub); }
@@ -451,9 +440,6 @@ const executeRequest = async () => {
 /* 確認画面 */
 .confirm { text-align: center; }
 .confirm__user { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 16px; }
-.confirm__avatar { width: 84px; height: 84px; }
-.confirm__avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
-.confirm__ph { width: 100%; height: 100%; border-radius: 50%; }
 .confirm__name { font-size: 20px; font-weight: var(--fw-bold); color: var(--c-ink); }
 .confirm__q { font-size: 14px; font-weight: var(--fw-medium); color: var(--c-text-sub); margin-bottom: 16px; }
 

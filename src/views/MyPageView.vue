@@ -4,10 +4,7 @@
 
     <main class="mypage__body">
       <section class="profile">
-        <div class="profile__avatar">
-          <img v-if="userPhoto" :src="userPhoto" alt="" />
-          <div v-else class="profile__ph"></div>
-        </div>
+        <UserAvatar class="profile__avatar" :name="userName" :photo="userPhoto" :size="96" />
         <h1 class="profile__name">{{ userName }}</h1>
 
         <button class="profile__id" @click="copyMyId" :title="userUid">
@@ -80,6 +77,7 @@ import { ref, onMounted } from "vue";
 import { doc, getDoc } from "firebase/firestore";
 import api from "../services/api";
 import PageHeader from "../components/PageHeader.vue";
+import UserAvatar from "../components/UserAvatar.vue";
 import { showToast } from "../lib/toast";
 
 const router = useRouter();
@@ -152,13 +150,9 @@ onMounted(async () => {
   padding: 16px 0 28px;
 }
 .profile__avatar {
-  width: 96px; height: 96px; margin: 0 auto 14px;
-  border-radius: 50%; overflow: hidden;
-  background: var(--c-brand-tint);
+  display: flex; margin: 0 auto 14px;
   box-shadow: var(--shadow-card);
 }
-.profile__avatar img { width: 100%; height: 100%; object-fit: cover; }
-.profile__ph { width: 100%; height: 100%; background: var(--c-brand-tint); }
 .profile__name { font-size: 22px; font-weight: var(--fw-black); color: var(--c-ink); }
 
 .profile__id {

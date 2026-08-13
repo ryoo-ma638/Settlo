@@ -2,8 +2,7 @@
   <header class="topbar">
     <div class="topbar__left">
       <button class="topbar__avatar" data-tour="avatar" @click="navigate('/mypage')" aria-label="マイページ">
-        <img v-if="userPhoto" :src="userPhoto" alt="" />
-        <span v-else class="topbar__avatar-fallback">{{ initial }}</span>
+        <UserAvatar :name="userName" :photo="userPhoto" :size="36" />
       </button>
       <button class="topbar__pending" data-tour="pending" @click="navigate('/approvals')" aria-label="承認待ち">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
@@ -47,10 +46,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import NotificationIcon from './NotificationIcon.vue';
 import ActionGuide from './ActionGuide.vue';
+import UserAvatar from './UserAvatar.vue';
 import { useGuideActions } from '../composables/useGuideActions';
 import { auth, db } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -69,8 +69,6 @@ const { actions: guideActions } = useGuideActions();
 const showAssistant = ref(false);
 // ページを移動したらパネルは自動で閉じる
 watch(() => route.fullPath, () => { showAssistant.value = false; });
-
-const initial = computed(() => (userName.value || "U").trim().charAt(0).toUpperCase());
 
 const navigate = (path) => { router.push(path); };
 
@@ -123,29 +121,21 @@ onMounted(() => {
 .topbar__left {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 0;
   min-width: 0;
 }
 
+/* 指で押す面は44px以上（見えている丸は36pxのまま） */
 .topbar__avatar {
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  overflow: hidden;
-  background: var(--c-brand-tint);
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: transform 0.12s ease;
 }
 .topbar__avatar:active { transform: scale(0.92); }
-.topbar__avatar img { width: 100%; height: 100%; object-fit: cover; }
-.topbar__avatar-fallback {
-  font-size: 15px;
-  font-weight: var(--fw-bold);
-  color: var(--c-brand-strong);
-}
 
 .topbar__brand {
   /* ロゴは画面中央に固定（左＝アバター＋承認待ち＋チャット / 右＝お知らせ＋アシスタント）。 */
@@ -168,17 +158,26 @@ onMounted(() => {
   gap: 0;
 }
 
+/* 押す面は44px以上。見えている丸（押した時の反応・開いている時の強調）は
+   ::before が34pxで描くので、アイコンの見た目は今までと変わらない。 */
 .topbar__chat, .topbar__pending, .topbar__assist {
-  width: 34px; height: 34px;
+  width: 44px; height: 44px;
   display: flex; align-items: center; justify-content: center;
   color: var(--c-text-sub);
   background: none; border: none;
+  position: relative;
+}
+.topbar__chat::before, .topbar__pending::before, .topbar__assist::before {
+  content: '';
+  position: absolute; left: 50%; top: 50%;
+  width: 34px; height: 34px; margin: -17px 0 0 -17px;
   border-radius: 50%;
 }
-.topbar__chat:active, .topbar__pending:active, .topbar__assist:active { background: var(--c-surface-2); transform: scale(0.94); }
-.topbar__chat, .topbar__pending, .topbar__assist { position: relative; }
+.topbar__chat svg, .topbar__pending svg, .topbar__assist svg { position: relative; z-index: 1; }
+.topbar__chat:active, .topbar__pending:active, .topbar__assist:active { transform: scale(0.94); }
+.topbar__chat:active::before, .topbar__pending:active::before, .topbar__assist:active::before { background: var(--c-surface-2); }
 .topbar__chat-badge, .topbar__pending-badge, .topbar__assist-badge {
-  position: absolute; top: 0; right: 0;
+  position: absolute; top: 5px; right: 5px; z-index: 2;
   min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
   background: var(--c-danger); color: #fff; font-size: 10px; font-weight: var(--fw-black);
   display: flex; align-items: center; justify-content: center; box-sizing: border-box;
@@ -186,7 +185,8 @@ onMounted(() => {
 .topbar__pending-badge { background: var(--c-pay-strong); }
 .topbar__assist-badge { background: var(--c-brand); }
 /* 開いている間はアイコンをブランド色で強調 */
-.topbar__assist.is-open { color: var(--c-brand-strong); background: var(--c-brand-weak); }
+.topbar__assist.is-open { color: var(--c-brand-strong); }
+.topbar__assist.is-open::before { background: var(--c-brand-weak); }
 
 /* お支払いアシスタントの開閉パネル（body直下・全ページ共通） */
 .assist-layer {

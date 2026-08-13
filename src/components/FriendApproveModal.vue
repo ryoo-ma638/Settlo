@@ -5,14 +5,12 @@
         <h2 class="modal-title">フレンド承認</h2>
         
         <div class="target-user" v-if="requestUser">
-          <div class="avatar-wrapper-large">
-            <img 
-              v-if="requestUser && requestUser.formPhoto" 
-              :src="requestUser.formPhoto" 
-              class="avatar-img-large"
-            />
-          <div v-else class="avatar-placeholder-large" :style="{ backgroundColor: requestUser?.color || '#cbd5e1' }"></div>
-        </div>
+          <UserAvatar
+            class="avatar-wrapper-large"
+            :name="requestUser.name || requestUser.formName"
+            :photo="requestUser.formPhoto"
+            :size="100"
+          />
         <h3 class="name">{{ requestUser.name || requestUser.formName }}</h3>
         </div>
 
@@ -53,6 +51,7 @@
 <script setup>
 import { reactive, ref, watch } from 'vue';
 import BaseModal from '@/components/BaseModal.vue';
+import UserAvatar from '@/components/UserAvatar.vue';
 import { db, auth } from '@/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 
@@ -170,7 +169,5 @@ const approve = () => {
 .execute-btn { background: var(--c-brand); color: white; } 
 .cancel-btn { background: var(--c-line-bold); color: var(--c-text-sub); }
 
-.avatar-wrapper-large { width: 100px; height: 100px;  margin: 0 auto 15px auto;  flex-shrink: 0; }
-.avatar-img-large { width: 100%;  height: 100%;  border-radius: 50%;  object-fit: cover;  box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-.avatar-placeholder-large { width: 100%;  height: 100%;  border-radius: 50%; }
+.avatar-wrapper-large { display: flex; margin: 0 auto 15px auto; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
 </style>

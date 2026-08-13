@@ -16,10 +16,7 @@
           <span class="reqs__count">{{ pendingRequests.length }}</span>
         </p>
         <div class="reqcard" v-for="req in pendingRequests" :key="req.id">
-          <div class="reqcard__avatar">
-            <img v-if="req.formPhoto" :src="req.formPhoto" />
-            <div v-else class="reqcard__ph" :style="{ backgroundColor: req.color || '#8bb4ff' }"></div>
-          </div>
+          <UserAvatar class="reqcard__avatar" :name="req.formName" :photo="req.formPhoto" :size="46" />
           <span class="reqcard__name">{{ req.formName }}</span>
           <button class="reqcard__btn" @click="openApproveModal(req)">確認</button>
         </div>
@@ -105,6 +102,7 @@ import {
 
 import FriendAddModal from '@/components/FriendAddModal.vue';
 import FriendCard from '@/components/FriendCard.vue';
+import UserAvatar from '@/components/UserAvatar.vue';
 import SkeletonRows from '@/components/SkeletonRows.vue';
 import FriendApproveModal from '@/components/FriendApproveModal.vue';
 import BaseModal from '@/components/BaseModal.vue';
@@ -373,12 +371,6 @@ const navigateToDetail = (friend) => {
   box-shadow: var(--shadow-card);
   margin-bottom: 10px;
 }
-.reqcard__avatar {
-  width: 46px; height: 46px; border-radius: 50%;
-  overflow: hidden; flex-shrink: 0; background: var(--c-line-bold);
-}
-.reqcard__avatar img { width: 100%; height: 100%; object-fit: cover; }
-.reqcard__ph { width: 100%; height: 100%; }
 .reqcard__name { flex: 1; font-size: 16px; font-weight: var(--fw-bold); color: var(--c-ink); }
 .reqcard__btn {
   background: var(--c-brand-weak); color: var(--c-brand-strong);

@@ -139,7 +139,7 @@
             <div class="custom-split-list">
               <div class="custom-item" v-for="p in participants" :key="p.name">
                 <div class="user-info">
-                  <div class="avatar-small" :style="{ backgroundColor: p.color }"></div>
+                  <UserAvatar class="avatar-small" :name="p.name" :photo="p.photo" :size="28" />
                   <span>{{ p.name }}</span>
                 </div>
                 <div class="custom-input-box">
@@ -282,6 +282,7 @@ import { ref, computed, reactive, watch } from 'vue';
 import BaseModal from '../components/BaseModal.vue';
 import MessageField from '../components/MessageField.vue';
 import GenreIcon from '../components/GenreIcon.vue'; // 🌟 支払いジャンルのアイコン
+import UserAvatar from '../components/UserAvatar.vue';
 import { app } from "../firebase";
 import { getFunctions, httpsCallable } from "firebase/functions"; // ← AI通信に必要なこれらが抜けていました！
 
@@ -901,7 +902,7 @@ const executeSubmit = () => {
 .custom-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px dashed var(--c-line-bold); }
 .custom-item:last-child { border-bottom: none; }
 .user-info { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 800; color: var(--c-text); }
-.avatar-small { width: 28px; height: 28px; border-radius: 50%; }
+
 .custom-input-box { display: flex; align-items: baseline; gap: 4px; font-size: 14px; font-weight: 800; color: var(--c-text-sub); }
 .custom-input-box input { width: 80px; text-align: right; font-size: 18px; font-weight: 900; border: none; border-bottom: 2px solid var(--c-line-bold); outline: none; color: var(--c-ink); padding-bottom: 2px; }
 

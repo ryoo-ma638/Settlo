@@ -8,15 +8,9 @@
           <h2 class="amount">¥{{ Math.abs(netBalance).toLocaleString() }}</h2>
           
           <div class="settle-route">
-            <div class="avatar-me">
-              <img v-if="myPhoto" :src="myPhoto" class="avatar-img" />
-              <div v-else class="inline-avatar-default"></div>
-            </div>
+            <UserAvatar class="avatar-me" :name="myName" :photo="myPhoto" :size="50" />
             <span class="route-arrow">{{ netBalance >= 0 ? '←' : '→' }}</span>
-            <div class="avatar-friend">
-              <img v-if="friendPhoto" :src="friendPhoto" class="avatar-img" />
-              <div v-else class="avatar-placeholder" style="background-color: #ff9980;"></div>
-            </div>
+            <UserAvatar class="avatar-friend" :name="friendName" :photo="friendPhoto" :size="50" />
           </div>
         </div>
   
@@ -89,6 +83,7 @@
   import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore'; // Firestore 用
   import PaymentReceipt from '../components/PaymentReceipt.vue'; // 🌟 コンポーネントをインポート
   import PageHeader from '../components/PageHeader.vue';
+  import UserAvatar from '../components/UserAvatar.vue';
   import { showToast } from '@/lib/toast';
   
   const route = useRoute();
@@ -97,6 +92,9 @@
   // 🌟 アイコン保持用の変数
 const myPhoto = ref("");
 const friendPhoto = ref("");
+// 写真が無いときは名前の頭文字で描くので、名前も持っておく
+const myName = ref("");
+const friendName = ref(String(route.params.name || ""));
 
 onMounted(async () => {
   const myUid = auth.currentUser?.uid;
@@ -108,6 +106,7 @@ onMounted(async () => {
     const myDoc = await getDoc(doc(db, "users", myUid));
     if (myDoc.exists()) {
       myPhoto.value = myDoc.data().photo || myDoc.data().photoURL || "";
+      myName.value = myDoc.data().name || "";
     }
 
     // 2. 相手（中橋梨心さん）のデータを「users」から直接取る
@@ -117,7 +116,7 @@ onMounted(async () => {
         const data = friendDoc.data();
         // ここで確実に代入
         friendPhoto.value = data.photo || data.photoURL || "";
-        console.log("🔥 取得した相手のURL:", friendPhoto.value);
+        friendName.value = data.name || friendName.value;
       } else {
         console.error("❌ 相手のユーザーが見つかりません。UID:", friendUid);
       }
@@ -200,7 +199,6 @@ onMounted(async () => {
   .pay-bg { background: var(--c-pay); }
   .amount { font-size: 44px; font-weight: bold; margin: 15px 0; color: inherit; }
   .settle-route { display: flex; align-items: center; justify-content: center; gap: 20px; margin-top: 10px; }
-  .avatar-me, .avatar-friend { width: 50px; height: 50px; border-radius: 50%; background: #dcdcdc; border: 3px solid white; }
   .route-arrow { font-size: 30px; font-weight: bold; }
   
   .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
@@ -250,18 +248,6 @@ onMounted(async () => {
   display: none; /* spacer は padding-right で代用するため非表示 */
 }
 
-/* 既存の .avatar-me, .avatar-friend を調整 */
-.avatar-me, .avatar-friend {
-  width: 50px; height: 50px; border-radius: 50%;   background: #dcdcdc; border: 3px solid white;
-  overflow: hidden; /* 🌟 はみ出した画像を切る */  display: flex; align-items: center; justify-content: center;
-}
-
-/* 🌟 追加：画像自体のスタイル */
-.avatar-img {
-  width: 100%; height: 100%;  object-fit: cover; /* 🌟 縦横比を保って枠を埋める */
-}
-
-.avatar-placeholder {
-  width: 100%; height: 100%;
-}
+/* 大きさと丸めはアバター部品側。ここでは白い縁だけ足す */
+.avatar-me, .avatar-friend { border: 3px solid var(--c-surface); }
   </style>

@@ -1322,12 +1322,16 @@ defineExpose({ open });
   color: var(--c-ink);
 }
 
-/* ベルアイコン */
+/* ベルアイコン（押す面は44px以上・アイコン自体は24pxのまま） */
 .icon-btn {
-  padding: 4px; position: relative; display: flex;
+  width: 44px; height: 44px;
+  position: relative; display: flex;
+  align-items: center; justify-content: center;
   color: var(--c-text);
 }
 .icon-btn:active { transform: scale(0.9); }
+/* 押す面を広げたぶん、バッジはアイコンの角に戻す */
+.icon-btn :deep(.notif-badge) { top: 6px; right: 6px; }
 
 /* モーダル */
 .modal-overlay {

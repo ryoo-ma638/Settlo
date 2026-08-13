@@ -42,8 +42,7 @@
               
               <div class="user-item" v-for="user in processedList" :key="user.uid">
                 <div class="user-left">
-                  <img v-if="user.photo" :src="user.photo" class="avatar-img" />
-                  <div v-else class="avatar" :style="{ backgroundColor: user.color }"></div>
+                  <UserAvatar class="avatar" :name="user.name" :photo="user.photo" :size="36" />
                   <div class="user-info">
                     <span class="user-name">{{ user.name }}</span>
                     <span class="user-id">
@@ -82,6 +81,7 @@
 import { ref, computed, watch, reactive, onUnmounted } from 'vue';
 import BaseModal from '@/components/BaseModal.vue';
 import MessageField from '@/components/MessageField.vue';
+import UserAvatar from '@/components/UserAvatar.vue';
 import { db, auth } from '@/firebase';
 import { collection, onSnapshot, doc, getDoc, getDocs, query, where, limit, addDoc, serverTimestamp } from 'firebase/firestore';
 
@@ -124,7 +124,6 @@ const startFriends = () => {
         uid: x.uid || d.id,
         name: x.name || '名前なし',
         photo: x.photo || x.photoURL || '',
-        color: x.color || '#cbd5e1',
         kana: x.kana || '',
         isFriend: x.isFriend !== false,
         tradeCount: x.tradeCount || 0,
@@ -275,7 +274,6 @@ onUnmounted(() => { if (unsubFriends) unsubFriends(); });
 .user-item { display: flex; justify-content: space-between; align-items: center; background: white; border: 1px solid var(--c-surface-2); padding: 12px; border-radius: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); }
 .user-left { display: flex; align-items: center; gap: 12px; }
 .avatar { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; box-sizing: border-box; aspect-ratio: 1 / 1; }
-.avatar-img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex-shrink: 0; box-sizing: border-box; aspect-ratio: 1 / 1; }
 .user-info { display: flex; flex-direction: column; }
 .user-name { font-size: 15px; font-weight: bold; color: var(--c-text); }
 .user-id { font-size: 11px; color: var(--c-text-faint); display: flex; align-items: center; gap: 6px; margin-top: 2px; }
