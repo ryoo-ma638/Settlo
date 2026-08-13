@@ -1428,9 +1428,7 @@ onMounted(() => {
   flex-shrink: 0; /* 金額やボタンが潰れないようにする */
   margin-left: 12px; /* 左のテキストとの間隔を確保 */
 }
-.split-type { font-size: 10px; color: var(--c-text-sub); font-weight: 700; background: var(--c-surface-2); padding: 2px 6px; border-radius: 6px; margin-left: 4px; vertical-align: middle; }
 .history-payer { font-size: 11px; color: var(--c-text-sub); font-weight: 700; }
-.history-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .history-price { font-size: 18px; font-weight: 900; color: var(--c-ink); letter-spacing: -0.5px; }
 .pay-now-btn { background: var(--c-danger); color: white; border: none; padding: 6px 12px; border-radius: 12px; font-size: 11px; font-weight: 800; cursor: pointer; box-shadow: 0 2px 8px rgba(239,68,68,0.2); transition: 0.2s; }
 .pay-now-btn:active { transform: scale(0.95); }
