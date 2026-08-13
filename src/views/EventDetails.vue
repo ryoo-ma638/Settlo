@@ -147,7 +147,10 @@
                   </div>
 
                   <div class="history-text">
-                    <span class="history-item-name">{{ history.itemName }} <span class="split-type">{{ splitLabel(history.splitType) }}</span></span>
+                    <span class="history-item-name">
+                      <span class="history-item-title">{{ history.itemName }}</span>
+                      <span class="split-type">{{ splitLabel(history.splitType) }}</span>
+                    </span>
                     <span class="history-payer">{{ formatDate(history.date) }} {{ history.time }} • {{ payerNameOf(history) }} が立替</span>
                   </div>
                 </div>
@@ -1327,7 +1330,8 @@ onMounted(() => {
 .timeline-line { position: absolute; left: 6px; top: 24px; bottom: -16px; width: 2px; background-color: var(--c-line-bold); z-index: 1; }
 .timeline-item:last-child .timeline-line { display: none; }
 .timeline-dot { position: absolute; left: 0; top: 20px; width: 14px; height: 14px; border-radius: 50%; border: 3px solid #f4f7f9; z-index: 2; box-shadow: 0 0 0 1px var(--c-line-bold); }
-.timeline-content { padding-left: 28px; flex: 1; }
+/* min-width:0 が無いと、中身の最小幅がそのまま効いてカードが画面右にはみ出す */
+.timeline-content { padding-left: 28px; flex: 1; min-width: 0; }
 
 .history-card { background: white; border-radius: 20px; padding: 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.03); transition: 0.2s; border: 1px solid transparent; }
 .history-card:active { transform: scale(0.98); }
@@ -1365,24 +1369,31 @@ onMounted(() => {
   min-width: 0; /* 長いテキストのはみ出し防止 */
   width: 100%;
 }
-.history-item-name { 
-  font-size: 15px; 
-  font-weight: 900; 
-  color: var(--c-ink); 
-  white-space: nowrap; /* 折り返さない */
-  overflow: hidden; /* はみ出た部分を隠す */
-  text-overflow: ellipsis; /* ...で省略する */
+.history-item-name {
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--c-ink);
   display: flex;
   align-items: center;
+  flex-wrap: wrap; /* 幅が足りなければバッジを次の行に落とす（切らない） */
+  gap: 4px 6px;
+  min-width: 0; /* 中身の最小幅で押し広げられないようにする */
 }
-.split-type { 
-  font-size: 10px; 
-  color: var(--c-text-sub); 
-  font-weight: 700; 
-  background: var(--c-surface-2); 
-  padding: 2px 6px; 
-  border-radius: 6px; 
-  margin-left: 6px; 
+/* 省略（…）は名前だけに効かせる。バッジまで一緒に切られないようにする */
+.history-item-title {
+  flex: 1 1 auto;
+  min-width: 5em; /* 名前を優先し、狭いときはバッジが下へ回る */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.split-type {
+  font-size: 10px;
+  color: var(--c-text-sub);
+  font-weight: 700;
+  background: var(--c-surface-2);
+  padding: 2px 6px;
+  border-radius: 6px;
   flex-shrink: 0; /* バッジが潰れないようにする */
 }
 .history-right { 
