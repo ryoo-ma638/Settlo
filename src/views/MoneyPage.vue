@@ -24,10 +24,7 @@
           <h2 class="money__section money__section--action">承認待ち・あなたの承認が必要（{{ receivableAwaiting.length }}件）</h2>
           <div class="stack">
             <div v-for="item in receivableAwaiting" :key="item.id" class="trow trow--action" @click="$router.push('/payment-detail/waiting-' + item.id)">
-              <div class="trow__avatar">
-                <img v-if="item.photo" :src="item.photo" />
-                <div v-else class="trow__ph" :style="{ backgroundColor: item.color }"></div>
-              </div>
+              <UserAvatar class="trow__avatar" :name="item.name" :photo="item.photo" :size="40" />
               <div class="trow__info">
                 <p class="trow__name">{{ item.name }}</p>
                 <p class="trow__sub">{{ item.date }}・{{ item.itemName }}<span class="trow__badge trow__badge--action">あなたが承認</span></p>
@@ -45,10 +42,7 @@
           <SkeletonRows v-if="loading" :rows="4" />
           <div v-else-if="receivableUnpaid.length === 0" class="empty-box">お支払い待ちはありません</div>
           <div v-for="item in receivableUnpaid" :key="item.id" class="trow" @click="$router.push('/payment-detail/waiting-' + item.id)">
-            <div class="trow__avatar">
-              <img v-if="item.photo" :src="item.photo" />
-              <div v-else class="trow__ph" :style="{ backgroundColor: item.color }"></div>
-            </div>
+            <UserAvatar class="trow__avatar" :name="item.name" :photo="item.photo" :size="40" />
             <div class="trow__info">
               <p class="trow__name">{{ item.name }}</p>
               <p class="trow__sub">{{ item.date }}・{{ item.itemName }}<span v-if="item.remindCount" class="trow__badge trow__badge--remind">催促 {{ item.remindCount }}回</span></p>
@@ -74,10 +68,7 @@
           <h2 class="money__section">リクエスト済み・相手の承認待ち（{{ payableAwaiting.length }}件）</h2>
           <div class="stack">
             <div v-for="item in payableAwaiting" :key="item.id" class="trow trow--muted" @click="$router.push('/payment-detail/unpaid-' + item.id)">
-              <div class="trow__avatar">
-                <img v-if="item.photo" :src="item.photo" />
-                <div v-else class="trow__ph" :style="{ backgroundColor: item.color }"></div>
-              </div>
+              <UserAvatar class="trow__avatar" :name="item.name" :photo="item.photo" :size="40" />
               <div class="trow__info">
                 <p class="trow__name">{{ item.name }}</p>
                 <p class="trow__sub">{{ item.date }}・{{ item.itemName }}<span class="trow__badge">リクエスト済み</span></p>
@@ -95,10 +86,7 @@
           <SkeletonRows v-if="loading" :rows="4" />
           <div v-else-if="payableUnpaid.length === 0" class="empty-box">未払いはありません</div>
           <div v-for="item in payableUnpaid" :key="item.id" class="trow" @click="$router.push('/payment-detail/unpaid-' + item.id)">
-            <div class="trow__avatar">
-              <img v-if="item.photo" :src="item.photo" />
-              <div v-else class="trow__ph" :style="{ backgroundColor: item.color }"></div>
-            </div>
+            <UserAvatar class="trow__avatar" :name="item.name" :photo="item.photo" :size="40" />
             <div class="trow__info">
               <p class="trow__name">{{ item.name }}</p>
               <p class="trow__sub">{{ item.date }}・{{ item.itemName }}</p>
@@ -118,10 +106,7 @@
         <div v-else-if="settleByPerson.length === 0" class="empty-box">まとめて精算できる相手はいません</div>
         <div v-else class="settle__list">
           <button v-for="m in settleByPerson" :key="m.uid" class="scard" @click="goSettle(m)">
-            <div class="scard__avatar">
-              <img v-if="m.photo" :src="m.photo" alt="" />
-              <div v-else class="scard__ph"></div>
-            </div>
+            <UserAvatar class="scard__avatar" :name="m.name" :photo="m.photo" :size="40" />
             <span class="scard__name">{{ m.name }}</span>
             <span class="scard__action" :class="m.net < 0 ? 'is-pay' : 'is-receive'">
               {{ m.net < 0 ? '支払う' : '受け取る' }}
@@ -144,6 +129,7 @@ import { db, auth } from '@/firebase' // 🌟 追加
 import { onAuthStateChanged } from 'firebase/auth' // 🌟 追加
 import { collection, query, where, onSnapshot, doc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore' // 🌟 追加
 import SkeletonRows from '../components/SkeletonRows.vue'
+import UserAvatar from '../components/UserAvatar.vue'
 import { formatDate } from '../lib/format'
 
 const route = useRoute()
@@ -260,7 +246,6 @@ onMounted(() => {
             itemName: data.itemName || "イベント代",
             amount: data.amount || 0,
             photo: otherPhoto,
-            color: data.color || "#93c5fd",
             status: s,
             statusLabel: txStatusLabel(s),
             remindCount: data.remindCount || 0
@@ -312,7 +297,6 @@ onMounted(() => {
             itemName: data.itemName || "イベント代",
             amount: data.amount || 0,
             photo: otherPhoto,
-            color: data.color || "#fca5a5",
             status: s,
             statusLabel: txStatusLabel(s)
           });
@@ -393,9 +377,6 @@ const formatTimestamp = (timestamp) => formatDate(timestamp);
   box-shadow: var(--shadow-sm); text-align: left;
 }
 .scard:active { transform: scale(0.99); background: var(--c-surface-2); }
-.scard__avatar { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: var(--c-brand-tint); }
-.scard__avatar img { width: 100%; height: 100%; object-fit: cover; }
-.scard__ph { width: 100%; height: 100%; background: var(--c-brand-tint); }
 .scard__name { flex: 1; min-width: 0; font-size: 15px; font-weight: var(--fw-bold); color: var(--c-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .scard__action { flex-shrink: 0; display: flex; align-items: baseline; gap: 6px; font-size: 12px; font-weight: var(--fw-bold); }
 .scard__action.is-pay { color: var(--c-pay-strong); }
@@ -416,12 +397,6 @@ const formatTimestamp = (timestamp) => formatDate(timestamp);
   transition: transform 0.15s ease;
 }
 .trow:active { transform: scale(0.985); }
-.trow__avatar {
-  width: 40px; height: 40px; border-radius: 50%;
-  overflow: hidden; flex-shrink: 0; background: var(--c-line-bold);
-}
-.trow__avatar img { width: 100%; height: 100%; object-fit: cover; }
-.trow__ph { width: 100%; height: 100%; }
 .trow__info { flex: 1; min-width: 0; }
 .trow__name {
   font-size: 15px; font-weight: var(--fw-bold); color: var(--c-ink);

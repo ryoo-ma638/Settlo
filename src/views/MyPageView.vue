@@ -4,10 +4,7 @@
 
     <main class="mypage__body">
       <section class="profile">
-        <div class="profile__avatar">
-          <img v-if="userPhoto" :src="userPhoto" alt="" />
-          <div v-else class="profile__ph"></div>
-        </div>
+        <UserAvatar class="profile__avatar" :name="userName" :photo="userPhoto" :size="96" />
         <h1 class="profile__name">{{ userName }}</h1>
 
         <button class="profile__id" @click="copyMyId" :title="userUid">
@@ -16,7 +13,7 @@
           <svg class="profile__id-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>
         </button>
 
-        <p class="profile__type">Google アカウント</p>
+        <p class="profile__type">{{ accountType }}</p>
       </section>
 
       <section class="menu" data-tour="mypage-menu">
@@ -80,12 +77,23 @@ import { ref, onMounted } from "vue";
 import { doc, getDoc } from "firebase/firestore";
 import api from "../services/api";
 import PageHeader from "../components/PageHeader.vue";
+import UserAvatar from "../components/UserAvatar.vue";
 import { showToast } from "../lib/toast";
 
 const router = useRouter();
 const userName = ref("読み込み中...");
 const userPhoto = ref("");
 const userUid = ref("");
+// ログイン方法の表示。匿名認証のゲストに「Google アカウント」と出さない
+const accountType = ref("");
+const labelOfAccount = (user) => {
+  if (!user) return "";
+  if (user.isAnonymous) return "ゲスト利用中（デモ）";
+  const providers = (user.providerData || []).map(p => p.providerId);
+  if (providers.includes("google.com")) return "Google アカウント";
+  if (providers.includes("password")) return "メールアドレスでログイン中";
+  return "ログイン中";
+};
 
 const copyMyId = async () => {
   if (!userUid.value) return;
@@ -111,6 +119,7 @@ onMounted(async () => {
   const user = auth.currentUser;
   if (user) {
     userUid.value = user.uid;
+    accountType.value = labelOfAccount(user);
     try {
       const userDocRef = doc(db, "users", user.uid);
       let userSnap = await getDoc(userDocRef);
@@ -141,13 +150,9 @@ onMounted(async () => {
   padding: 16px 0 28px;
 }
 .profile__avatar {
-  width: 96px; height: 96px; margin: 0 auto 14px;
-  border-radius: 50%; overflow: hidden;
-  background: var(--c-brand-tint);
+  display: flex; margin: 0 auto 14px;
   box-shadow: var(--shadow-card);
 }
-.profile__avatar img { width: 100%; height: 100%; object-fit: cover; }
-.profile__ph { width: 100%; height: 100%; background: var(--c-brand-tint); }
 .profile__name { font-size: 22px; font-weight: var(--fw-black); color: var(--c-ink); }
 
 .profile__id {

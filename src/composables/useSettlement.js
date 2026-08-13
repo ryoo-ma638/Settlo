@@ -2,16 +2,6 @@
 import { computed, unref } from 'vue';
 import { auth } from '../firebase';
 
-// 名前から安定した淡い色を作る（写真URLしか持たない参加者の小アバター用フォールバック）
-function colorFromName(name) {
-  let hash = 0;
-  for (let i = 0; i < (name || '').length; i++) {
-    hash = (name.charCodeAt(i) + ((hash << 5) - hash)) | 0;
-  }
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 60%, 70%)`;
-}
-
 // 割り勘の計算を行う専用の関数（ツール）
 // myName は文字列でも ref でもOK（実データ取得後に反応できるよう unref で読む）
 //
@@ -23,7 +13,8 @@ export function useSettlement(eventData, myName) {
   const calculatedSummary = computed(() => {
     const participants = eventData.value.participants || [];
 
-    // 参加者UID → 表示名/色/写真（表示は常に「現在の参加者情報」を使う＝改名に追従）
+    // 参加者UID → 表示名/写真（表示は常に「現在の参加者情報」を使う＝改名に追従）
+    // 写真が無い人の見た目（頭文字と色）はアバター部品が名前から決めるので、ここでは扱わない。
     const partByUid = (uid) => participants.find(p => p.id === uid);
     const uidByName = (nm) => participants.find(p => p.name === nm)?.id || null;
     // 集計の識別子：UIDがあればUID、無ければ名前ベースの擬似ID（古いデータ救済）
@@ -33,15 +24,7 @@ export function useSettlement(eventData, myName) {
       if (String(id).startsWith('name:')) return String(id).slice(5);
       return partByUid(id)?.name || '?';
     };
-    const rawColor = (id) => (String(id).startsWith('name:') ? null : partByUid(id)?.color);
-    const colorOf = (id) => {
-      const c = rawColor(id);
-      return (c && !String(c).startsWith('http')) ? c : colorFromName(nameOf(id));
-    };
-    const photoOf = (id) => {
-      const c = rawColor(id);
-      return (c && String(c).startsWith('http')) ? c : '';
-    };
+    const photoOf = (id) => (String(id).startsWith('name:') ? '' : (partByUid(id)?.photo || ''));
 
     // 自分のUID（認証を正とし、取れなければ表示名から逆引き）
     const myUid = auth.currentUser?.uid || uidByName(unref(myName));
@@ -144,8 +127,8 @@ export function useSettlement(eventData, myName) {
         const opponentId = iAmPayer ? toId : fromId;
         aggregated.push({
           id: `${status}-${key}`,
-          from: nameOf(fromId), fromColor: colorOf(fromId), fromPhoto: photoOf(fromId),
-          to: nameOf(toId), toColor: colorOf(toId), toPhoto: photoOf(toId),
+          from: nameOf(fromId), fromPhoto: photoOf(fromId),
+          to: nameOf(toId), toPhoto: photoOf(toId),
           amount: finalAmount,
           status: status,
           isMePayer: iAmPayer,

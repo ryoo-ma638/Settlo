@@ -11,12 +11,12 @@
       </button>
 
       <div class="reqs" v-if="pendingRequests.length > 0">
-        <p class="reqs__alert">友達申請が届いています</p>
+        <p class="reqs__alert">
+          友達申請が届いています
+          <span class="reqs__count">{{ pendingRequests.length }}</span>
+        </p>
         <div class="reqcard" v-for="req in pendingRequests" :key="req.id">
-          <div class="reqcard__avatar">
-            <img v-if="req.formPhoto" :src="req.formPhoto" />
-            <div v-else class="reqcard__ph" :style="{ backgroundColor: req.color || '#8bb4ff' }"></div>
-          </div>
+          <UserAvatar class="reqcard__avatar" :name="req.formName" :photo="req.formPhoto" :size="46" />
           <span class="reqcard__name">{{ req.formName }}</span>
           <button class="reqcard__btn" @click="openApproveModal(req)">確認</button>
         </div>
@@ -52,7 +52,11 @@
             @click="navigateToDetail(user)"
           />
           <div v-if="processedList.length === 0" class="empty-box">
-            該当するユーザーがいません
+            <template v-if="friendData.length === 0">
+              <p class="empty-box__title">まだフレンドがいません</p>
+              <p class="empty-box__desc">上の「友達を追加する」からIDを検索して追加できます</p>
+            </template>
+            <template v-else>絞り込みに合うフレンドがいません</template>
           </div>
         </template>
       </div>
@@ -98,6 +102,7 @@ import {
 
 import FriendAddModal from '@/components/FriendAddModal.vue';
 import FriendCard from '@/components/FriendCard.vue';
+import UserAvatar from '@/components/UserAvatar.vue';
 import SkeletonRows from '@/components/SkeletonRows.vue';
 import FriendApproveModal from '@/components/FriendApproveModal.vue';
 import BaseModal from '@/components/BaseModal.vue';
@@ -334,11 +339,29 @@ const navigateToDetail = (friend) => {
 
 /* 友達申請 */
 .reqs { margin-bottom: 22px; }
+/* 申請はエラーではないので赤を使わず、件数バッジで気づかせる */
 .reqs__alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-weight: var(--fw-bold);
   font-size: 13px;
-  color: var(--c-danger);
+  color: var(--c-ink);
   margin-bottom: 10px;
+}
+.reqs__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--c-brand);
+  color: #fff;
+  font-size: 12px;
+  font-weight: var(--fw-black);
+  line-height: 1;
 }
 .reqcard {
   display: flex; align-items: center; gap: 14px;
@@ -348,12 +371,6 @@ const navigateToDetail = (friend) => {
   box-shadow: var(--shadow-card);
   margin-bottom: 10px;
 }
-.reqcard__avatar {
-  width: 46px; height: 46px; border-radius: 50%;
-  overflow: hidden; flex-shrink: 0; background: var(--c-line-bold);
-}
-.reqcard__avatar img { width: 100%; height: 100%; object-fit: cover; }
-.reqcard__ph { width: 100%; height: 100%; }
 .reqcard__name { flex: 1; font-size: 16px; font-weight: var(--fw-bold); color: var(--c-ink); }
 .reqcard__btn {
   background: var(--c-brand-weak); color: var(--c-brand-strong);

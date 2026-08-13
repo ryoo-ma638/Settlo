@@ -30,20 +30,15 @@
           </div>
           <div class="participants-row">
             <div class="avatar-stack">
-              <template v-for="(p, i) in eventData.participants.slice(0, 5)" :key="i">
-                <div class="avatar" :style="{ zIndex: 10 - i }">
-                  <img
-                    v-if="p.color && p.color.startsWith('http')"
-                    :src="p.color"
-                    class="avatar__img"
-                  />
-                  <div
-                    v-else
-                    class="avatar__ph"
-                    :style="{ backgroundColor: p.color || '#cbd5e1' }"
-                  ></div>
-                </div>
-              </template>
+              <UserAvatar
+                v-for="(p, i) in eventData.participants.slice(0, 5)"
+                :key="i"
+                class="avatar"
+                :style="{ zIndex: 10 - i }"
+                :name="p.name"
+                :photo="p.photo"
+                :size="48"
+              />
               <div v-if="eventData.participants.length > 5" class="avatar-more">
                 +{{ eventData.participants.length - 5 }}
               </div>
@@ -95,12 +90,10 @@
           <div v-if="filteredSummary.length === 0" class="empty-state">該当する精算はありません</div>
           <div class="summary-card-item" v-for="sum in filteredSummary" :key="sum.id" @click="openSummaryDetail(sum)">
             <div class="flow">
-              <img v-if="sum.fromPhoto" :src="sum.fromPhoto" class="avatar-small" />
-              <div v-else class="avatar-small" :style="{ backgroundColor: sum.fromColor }"></div>
+              <UserAvatar class="avatar-small" :name="sum.from" :photo="sum.fromPhoto" :size="24" />
               <span class="name">{{ sum.from }}</span>
               <span class="arrow-right">→</span>
-              <img v-if="sum.toPhoto" :src="sum.toPhoto" class="avatar-small" />
-              <div v-else class="avatar-small" :style="{ backgroundColor: sum.toColor }"></div>
+              <UserAvatar class="avatar-small" :name="sum.to" :photo="sum.toPhoto" :size="24" />
               <span class="name">{{ sum.to }}</span>
             </div>
             <div class="amount-right">
@@ -154,7 +147,10 @@
                   </div>
 
                   <div class="history-text">
-                    <span class="history-item-name">{{ history.itemName }} <span class="split-type">{{ splitLabel(history.splitType) }}</span></span>
+                    <span class="history-item-name">
+                      <span class="history-item-title">{{ history.itemName }}</span>
+                      <span class="split-type">{{ splitLabel(history.splitType) }}</span>
+                    </span>
                     <span class="history-payer">{{ formatDate(history.date) }} {{ history.time }} • {{ payerNameOf(history) }} が立替</span>
                   </div>
                 </div>
@@ -213,16 +209,7 @@
           <div class="modal-header"><h3>参加者一覧</h3><button class="close-btn" @click="modals.participants = false" aria-label="閉じる">×</button></div>
           <div class="modal-list">
             <div class="list-item" v-for="p in eventData.participants" :key="p.id">
-              <img
-                v-if="p.color && p.color.startsWith('http')"
-                :src="p.color"
-                class="avatar-medium"
-              />
-              <div
-                v-else
-                class="avatar-medium"
-                :style="{ backgroundColor: p.color || '#cbd5e1' }"
-              ></div>
+              <UserAvatar class="avatar-medium" :name="p.name" :photo="p.photo" :size="44" />
               <span class="item-name">{{ p.name }} <span v-if="p.isMe" class="me-badge">自分</span> <span v-if="eventData.leaderUid && p.id === eventData.leaderUid" class="leader-badge">リーダー</span></span>
               <button v-if="!p.isMe && friendStatus[p.id] === 'none'" class="p-friend-btn" @click="sendFriendRequestTo(p)">フレンド申請</button>
               <span v-else-if="!p.isMe && friendStatus[p.id] === 'friend'" class="p-friend-tag">フレンド</span>
@@ -264,11 +251,9 @@
           <div class="modal-header"><h3>精算の詳細</h3><button class="close-btn" @click="modals.summaryDetail = false" aria-label="閉じる">×</button></div>
           <div class="summary-detail-body">
             <div class="flow-large">
-              <img v-if="selectedSummary.fromPhoto" :src="selectedSummary.fromPhoto" class="avatar-large" />
-              <div v-else class="avatar-large" :style="{ backgroundColor: selectedSummary.fromColor }"></div>
+              <UserAvatar class="avatar-large" :name="selectedSummary.from" :photo="selectedSummary.fromPhoto" :size="64" />
               <span class="arrow-large">→</span>
-              <img v-if="selectedSummary.toPhoto" :src="selectedSummary.toPhoto" class="avatar-large" />
-              <div v-else class="avatar-large" :style="{ backgroundColor: selectedSummary.toColor }"></div>
+              <UserAvatar class="avatar-large" :name="selectedSummary.to" :photo="selectedSummary.toPhoto" :size="64" />
             </div>
             <p class="s-text"><strong>{{ selectedSummary.from }}</strong> さんから<br><strong>{{ selectedSummary.to }}</strong> さんへ</p>
             <h1 class="s-amount" :class="selectedSummary.isMePayer ? 'orange-text' : 'blue-text'">¥{{ selectedSummary.amount.toLocaleString() }}</h1>
@@ -329,26 +314,10 @@
 <script setup>
 import { getDoc } from 'firebase/firestore'; // getDoc が必要
 
-const userCache = {};
-const getUserIcon = async (uid) => {
-  if (!uid) return "#cbd5e1";
-  if (userCache[uid]) return userCache[uid];
-  try {
-    const userDoc = await getDoc(doc(db, "users", uid));
-    if (userDoc.exists()) {
-      const data = userDoc.data();
-      const icon = data.photoURL || data.photo || data.color || "#cbd5e1";
-      userCache[uid] = icon;
-      return icon;
-    }
-  } catch (e) { console.error(e); }
-  return "#cbd5e1";
-};
-
 // 🌟 参加者の「名前＋アイコン」を実データから取得（"メンバー" 固定表示を解消）
 const userInfoCache = {};
 const getUserInfo = async (uid) => {
-  if (!uid) return { name: "メンバー", icon: "#cbd5e1" };
+  if (!uid) return { name: "メンバー", photo: "" };
   if (userInfoCache[uid]) return userInfoCache[uid];
   try {
     const userDoc = await getDoc(doc(db, "users", uid));
@@ -356,13 +325,13 @@ const getUserInfo = async (uid) => {
       const data = userDoc.data();
       const info = {
         name: data.name || "メンバー",
-        icon: data.photoURL || data.photo || data.color || "#cbd5e1",
+        photo: data.photoURL || data.photo || "",
       };
       userInfoCache[uid] = info;
       return info;
     }
   } catch (e) { console.error(e); }
-  return { name: "メンバー", icon: "#cbd5e1" };
+  return { name: "メンバー", photo: "" };
 };
 
 // ==========================================
@@ -380,6 +349,7 @@ import InviteModal from '@/components/InviteModal.vue';
 import BaseModal from '@/components/BaseModal.vue'; // 🌟 統一モーダルを追加！
 import PageHeader from '@/components/PageHeader.vue';
 import GenreIcon from '@/components/GenreIcon.vue'; // 🌟 イベントのジャンルアイコン
+import UserAvatar from '@/components/UserAvatar.vue';
 
 // 🌟 どこからでも呼べる美しいアラートの準備
 const alertState = reactive({ show: false, type: 'info', title: '', message: '', showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, withReason: false, reasonPlaceholder: '' });
@@ -1042,7 +1012,7 @@ onMounted(async () => {
       const uids = data.participants || [];
       const detailed = await Promise.all(uids.map(async (uid) => {
         const info = await getUserInfo(uid);
-        return { id: uid, name: info.name, color: info.icon, isMe: uid === auth.currentUser?.uid };
+        return { id: uid, name: info.name, photo: info.photo, isMe: uid === auth.currentUser?.uid };
       }));
       eventData.value.participants = detailed;
     }
@@ -1292,8 +1262,6 @@ onMounted(() => {
   box-sizing: border-box;
   background: var(--c-line-bold);
 }
-.avatar__img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.avatar__ph { width: 100%; height: 100%; }
 .avatar-more {
   width: 48px; height: 48px;
   border-radius: 50%;
@@ -1362,7 +1330,8 @@ onMounted(() => {
 .timeline-line { position: absolute; left: 6px; top: 24px; bottom: -16px; width: 2px; background-color: var(--c-line-bold); z-index: 1; }
 .timeline-item:last-child .timeline-line { display: none; }
 .timeline-dot { position: absolute; left: 0; top: 20px; width: 14px; height: 14px; border-radius: 50%; border: 3px solid #f4f7f9; z-index: 2; box-shadow: 0 0 0 1px var(--c-line-bold); }
-.timeline-content { padding-left: 28px; flex: 1; }
+/* min-width:0 が無いと、中身の最小幅がそのまま効いてカードが画面右にはみ出す */
+.timeline-content { padding-left: 28px; flex: 1; min-width: 0; }
 
 .history-card { background: white; border-radius: 20px; padding: 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.03); transition: 0.2s; border: 1px solid transparent; }
 .history-card:active { transform: scale(0.98); }
@@ -1400,24 +1369,31 @@ onMounted(() => {
   min-width: 0; /* 長いテキストのはみ出し防止 */
   width: 100%;
 }
-.history-item-name { 
-  font-size: 15px; 
-  font-weight: 900; 
-  color: var(--c-ink); 
-  white-space: nowrap; /* 折り返さない */
-  overflow: hidden; /* はみ出た部分を隠す */
-  text-overflow: ellipsis; /* ...で省略する */
+.history-item-name {
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--c-ink);
   display: flex;
   align-items: center;
+  flex-wrap: wrap; /* 幅が足りなければバッジを次の行に落とす（切らない） */
+  gap: 4px 6px;
+  min-width: 0; /* 中身の最小幅で押し広げられないようにする */
 }
-.split-type { 
-  font-size: 10px; 
-  color: var(--c-text-sub); 
-  font-weight: 700; 
-  background: var(--c-surface-2); 
-  padding: 2px 6px; 
-  border-radius: 6px; 
-  margin-left: 6px; 
+/* 省略（…）は名前だけに効かせる。バッジまで一緒に切られないようにする */
+.history-item-title {
+  flex: 1 1 auto;
+  min-width: 5em; /* 名前を優先し、狭いときはバッジが下へ回る */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.split-type {
+  font-size: 10px;
+  color: var(--c-text-sub);
+  font-weight: 700;
+  background: var(--c-surface-2);
+  padding: 2px 6px;
+  border-radius: 6px;
   flex-shrink: 0; /* バッジが潰れないようにする */
 }
 .history-right { 
@@ -1428,9 +1404,7 @@ onMounted(() => {
   flex-shrink: 0; /* 金額やボタンが潰れないようにする */
   margin-left: 12px; /* 左のテキストとの間隔を確保 */
 }
-.split-type { font-size: 10px; color: var(--c-text-sub); font-weight: 700; background: var(--c-surface-2); padding: 2px 6px; border-radius: 6px; margin-left: 4px; vertical-align: middle; }
 .history-payer { font-size: 11px; color: var(--c-text-sub); font-weight: 700; }
-.history-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .history-price { font-size: 18px; font-weight: 900; color: var(--c-ink); letter-spacing: -0.5px; }
 .pay-now-btn { background: var(--c-danger); color: white; border: none; padding: 6px 12px; border-radius: 12px; font-size: 11px; font-weight: 800; cursor: pointer; box-shadow: 0 2px 8px rgba(239,68,68,0.2); transition: 0.2s; }
 .pay-now-btn:active { transform: scale(0.95); }

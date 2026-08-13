@@ -43,10 +43,15 @@
 
           <div class="evcard__bottom">
             <div class="avatars">
-              <template v-for="(photo, index) in (event.participantsPhotos || []).slice(0, 4)" :key="index">
-                <img v-if="photo.startsWith('http')" :src="photo" class="avatar" :style="{ zIndex: 5 - index }" />
-                <div v-else class="avatar" :style="{ backgroundColor: photo, zIndex: 5 - index }"></div>
-              </template>
+              <UserAvatar
+                v-for="(m, index) in (event.members || [])"
+                :key="index"
+                class="avatar"
+                :style="{ zIndex: 5 - index }"
+                :name="m.name"
+                :photo="m.photo"
+                :size="30"
+              />
               <div v-if="event.participants.length > 4" class="avatar avatar--more">
                 +{{ event.participants.length - 4 }}
               </div>
@@ -79,6 +84,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import GenreIcon from '@/components/GenreIcon.vue';
 import InviteCard from '@/components/InviteCard.vue';
+import UserAvatar from '@/components/UserAvatar.vue';
 import { formatDate } from '@/lib/format';
 import { subscribePendingInvites } from '@/lib/invite';
 
@@ -112,22 +118,23 @@ const onInviteHandled = (id) => {
 const userCache = {};
 
 // 🌟 UIDからアイコン（写真または色）を取得する関数
-const getUserIcon = async (uid) => {
-  if (!uid) return "#cbd5e1";
+// 参加者の名前と写真（写真が無い人は名前の頭文字で描く）
+const getUserInfo = async (uid) => {
+  if (!uid) return { name: "", photo: "" };
   if (userCache[uid]) return userCache[uid];
 
   try {
     const userDoc = await getDoc(doc(db, "users", uid));
     if (userDoc.exists()) {
       const data = userDoc.data();
-      const icon = data.photoURL || data.photo || data.color || "#cbd5e1";
-      userCache[uid] = icon;
-      return icon;
+      const info = { name: data.name || "", photo: data.photoURL || data.photo || "" };
+      userCache[uid] = info;
+      return info;
     }
-    return "#cbd5e1";
+    return { name: "", photo: "" };
   } catch (error) {
-    console.error("User icon fetch error:", error);
-    return "#cbd5e1";
+    console.error("User info fetch error:", error);
+    return { name: "", photo: "" };
   }
 };
 
@@ -150,14 +157,12 @@ const fetchEvents = async () => {
       const formattedDate = formatDate(event.createdAt) || formatDate(new Date());
 
       const uids = event.participants || [];
-      const photos = await Promise.all(
-        uids.slice(0, 4).map(uid => getUserIcon(uid))
-      );
+      const members = await Promise.all(uids.slice(0, 4).map(uid => getUserInfo(uid)));
 
       return {
         ...event,
         createdAtDate: formattedDate,
-        participantsPhotos: photos
+        members
       };
     }));
 

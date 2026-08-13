@@ -1,9 +1,6 @@
 <template>
   <div class="fcard" @click="$emit('click', user)">
-    <div class="fcard__avatar">
-      <img v-if="user.photo" :src="user.photo" class="fcard__img" />
-      <div v-else class="fcard__ph" :style="{ backgroundColor: user.color || '#cbd5e1' }"></div>
-    </div>
+    <UserAvatar class="fcard__avatar" :name="user.name" :photo="user.photo" :size="48" />
 
     <div class="fcard__info">
       <span class="fcard__name">{{ user.name }}</span>
@@ -23,6 +20,8 @@
 </template>
 
 <script setup>
+import UserAvatar from './UserAvatar.vue';
+
 defineProps({ user: Object });
 defineEmits(['click']);
 </script>
@@ -41,9 +40,6 @@ defineEmits(['click']);
 }
 .fcard:active { transform: scale(0.985); }
 
-.fcard__avatar { width: 48px; height: 48px; flex-shrink: 0; }
-.fcard__img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
-.fcard__ph { width: 100%; height: 100%; border-radius: 50%; background: var(--c-line-bold); }
 
 .fcard__info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
 .fcard__name {

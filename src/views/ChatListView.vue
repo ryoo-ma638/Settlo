@@ -20,9 +20,9 @@
             class="prow"
             @click="$router.push(`/thread/${m.threadId}`)"
           >
-            <span class="prow__avatar" :class="{ 'is-group': m.isGroup }" :style="{ background: colorFor(m.threadId) }">
+            <span class="prow__avatar" :class="{ 'is-group': m.isGroup }" :style="{ background: avatarColor(m.title) }">
               <svg v-if="m.isGroup" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19v-1a4 4 0 0 1 4-4h3a4 4 0 0 1 4 4v1"/><path d="M16.5 5.4a3.2 3.2 0 0 1 0 6.1"/></svg>
-              <template v-else>{{ initial(m.title) }}</template>
+              <template v-else>{{ avatarInitial(m.title) }}</template>
             </span>
             <span class="prow__main">
               <span class="prow__top">
@@ -54,16 +54,13 @@ import { db, auth } from '@/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import PageHeader from '../components/PageHeader.vue';
 import { formatDate } from '../lib/format';
+import { avatarColor, avatarInitial } from '@/lib/avatar';
 
 const myUid = auth.currentUser?.uid || '';
 const mode = ref('event'); // 'event' = イベントごと / 'person' = 人ごと
 const matters = ref([]);   // 表示対象のスレッド（件）一覧
 const loading = ref(true);
 let unsub = null;
-
-const initial = (name) => (name || '？').trim().charAt(0);
-const colors = ['#059669', '#2563eb', '#d97706', '#7c3aed', '#db2777', '#0891b2'];
-const colorFor = (key) => colors[[...(key || '')].reduce((a, c) => a + c.charCodeAt(0), 0) % colors.length];
 
 const fmtTime = (ts) => {
   if (!ts?.toDate) return '';
@@ -131,7 +128,9 @@ onUnmounted(() => { if (unsub) unsub(); });
 
 <style scoped>
 .chats__seg-wrap { padding: 10px var(--pad); background: var(--c-surface); border-bottom: 1px solid var(--c-line); }
-.chats__body { padding: 0 0 24px; background: var(--c-surface); min-height: 100%; }
+/* 面の白は行（.prow）側が持つ。ここで白を敷くと空状態や短い一覧で
+   途中から背景が切り替わり、画面中央に境界線が出てしまう */
+.chats__body { padding: 0 0 24px; min-height: 100%; }
 .chats__group {
   font-size: 12px; font-weight: var(--fw-black); color: var(--c-text-sub);
   padding: 14px var(--pad) 6px; background: var(--c-bg);

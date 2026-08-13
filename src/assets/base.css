@@ -40,6 +40,18 @@
   --c-paypay:       #ff0033; /* PayPay の CTA 専用赤（danger とは別物） */
   --c-overlay:      rgba(15, 23, 42, 0.6); /* モーダル暗幕を1つに統一 */
 
+  /* --- アバター（頭文字1字の背景色）---
+     名前から機械的に1色を選ぶ（src/lib/avatar.js）。同じ人はどの画面でも同じ色。
+     どれも白文字が読める濃さに揃えてある。意味色（受取＝青／支払＝アンバー）とは別物。 */
+  --c-avatar-1: #0f766e;
+  --c-avatar-2: #1d4ed8;
+  --c-avatar-3: #6d28d9;
+  --c-avatar-4: #b91c1c;
+  --c-avatar-5: #b45309;
+  --c-avatar-6: #047857;
+  --c-avatar-7: #be185d;
+  --c-avatar-8: #334155;
+
   /* --- タイポグラフィ --- */
   --font-sans: "Noto Sans JP", system-ui, -apple-system, "Hiragino Sans",
                "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;

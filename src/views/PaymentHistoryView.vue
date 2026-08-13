@@ -19,9 +19,7 @@
             @click="goToDetail(item)"
           >
             <div class="card-left">
-              <div class="avatar" :style="{ backgroundColor: item.color || '#cbd5e1' }">
-                <img v-if="item.photo" :src="item.photo" class="avatar-img" />
-              </div>
+              <UserAvatar class="avatar" :name="item.name" :photo="item.photo" :size="44" />
               <div class="info">
                 <p class="name">{{ item.name }}</p>
                 <p class="details">{{ item.date }} <span class="dot-separator">•</span> {{ item.eventName }}</p>
@@ -55,6 +53,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import PageHeader from '@/components/PageHeader.vue';
 import SkeletonRows from '@/components/SkeletonRows.vue';
+import UserAvatar from '@/components/UserAvatar.vue';
 import { formatDate } from '@/lib/format';
 
 const router = useRouter(); // ルーターを準備
@@ -105,7 +104,7 @@ onMounted(() => {
         payMap[d.id] = {
           id: d.id, date: formatFullDate(data.createdAt), name: info.name, photo: info.photo,
           eventName: data.itemName || 'イベント代', amount: data.amount || 0,
-          type: 'pay', status: data.status || 'unpaid', color: '#fca5a5',
+          type: 'pay', status: data.status || 'unpaid',
           _ts: data.createdAt?.seconds || 0
         };
       }
@@ -122,7 +121,7 @@ onMounted(() => {
         recvMap[d.id] = {
           id: d.id, date: formatFullDate(data.createdAt), name: info.name, photo: info.photo,
           eventName: data.itemName || 'イベント代', amount: data.amount || 0,
-          type: 'receive', status: data.status || 'unpaid', color: '#93c5fd',
+          type: 'receive', status: data.status || 'unpaid',
           _ts: data.createdAt?.seconds || 0
         };
       }
@@ -239,14 +238,6 @@ const goToDetail = (item) => {
   }
   .empty-icon { font-size: 40px; margin-bottom: 15px; opacity: 0.5; }
 
-  /* アバター枠の修正 */
-.avatar { 
-  width: 44px;   height: 44px;   border-radius: 50%;   flex-shrink: 0;   box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
-  overflow: hidden; /* 画像を丸く切り抜く */  display: flex;  align-items: center;  justify-content: center;
-}
-
-/* 🌟 画像のスタイル追加 */
-.avatar-img {
-  width: 100%;  height: 100%;  object-fit: cover;
-}
+  /* アバター枠（大きさと丸めはアバター部品側。ここでは影だけ足す） */
+.avatar { box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
   </style>

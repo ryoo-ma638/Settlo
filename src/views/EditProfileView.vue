@@ -4,9 +4,7 @@
 
     <main class="edit__body">
       <div class="edit__avatar-area">
-        <div class="edit__avatar">
-          <img :src="previewPhoto || userPhoto" alt="" />
-        </div>
+        <UserAvatar class="edit__avatar" :name="newName" :photo="previewPhoto || userPhoto" :size="110" />
         <button class="edit__upload" @click="showPhotoOptions = true">
           <svg viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.2"/></svg>
           画像を変更
@@ -68,6 +66,7 @@ import { useRouter } from "vue-router";
 import PageHeader from "../components/PageHeader.vue";
 import BaseModal from "../components/BaseModal.vue";
 import { clearUserNameCache } from "@/lib/userName";
+import UserAvatar from "@/components/UserAvatar.vue";
 
 const router = useRouter();
 const newName = ref("");
@@ -218,11 +217,8 @@ const saveProfile = async () => {
   margin: 8px 0 26px;
 }
 .edit__avatar {
-  width: 110px; height: 110px; border-radius: 50%;
-  overflow: hidden; background: var(--c-brand-tint);
   box-shadow: var(--shadow-card); margin-bottom: 14px;
 }
-.edit__avatar img { width: 100%; height: 100%; object-fit: cover; }
 .edit__upload {
   display: inline-flex; align-items: center; gap: 7px;
   background: var(--c-surface); border: 1px solid var(--c-line-bold);

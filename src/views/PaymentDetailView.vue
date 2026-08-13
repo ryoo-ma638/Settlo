@@ -121,6 +121,7 @@ import PageHeader from '../components/PageHeader.vue';
 import { logApprovalBoth } from '@/lib/approvalLog';
 import { resolveThreadForTx, postPaymentEventByTx, resolvePaymentThreadByTx } from '@/lib/thread';
 import { getMyName } from '@/lib/userName';
+import { formatDate } from '@/lib/format';
 import { findBatchApprovalRequests, revertCounterTransactions, COUNTER_REVERT_TEXT } from '@/lib/settlement';
 
 const route = useRoute();
@@ -284,10 +285,8 @@ onMounted(async () => {
 const openOverlay = (item) => { selectedItem.value = item; };
 
 // 取引のステータスを一括更新する共通処理
-// 取引の作成日時を「YYYY/MM/DD」表示にする
-const fmtDate = (ts) => (ts && ts.seconds)
-  ? new Date(ts.seconds * 1000).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })
-  : '';
+// 取引の作成日時を共通フォーマッタで表示する（今年ならM/D）
+const fmtDate = (ts) => formatDate(ts);
 
 const updateAllItems = async (status) => {
   for (const it of items.value) {
@@ -557,7 +556,7 @@ const confirmCash = () => {
 .summary-card { padding: 22px; border-radius: var(--r-lg); color: white; text-align: center; margin-bottom: 18px; box-shadow: var(--shadow-card); }
 .blue-mode { background: var(--c-receive); }
 .orange-mode { background: var(--c-pay); }
-.total-amount { font-size: 36px; font-weight: bold; margin: 5px 0; }
+.total-amount { font-size: 36px; font-weight: bold; margin: 5px 0; color: inherit; }
 .remind-status { display: inline-block; margin-top: 8px; padding: 4px 12px; border-radius: 999px; background: rgba(255,255,255,0.22); font-size: 12px; font-weight: 800; }
 .section-sub { font-size: 16px; font-weight: bold; color: var(--c-text); margin: 20px 0 10px; text-align: left; }
 .footer-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 30px; }
