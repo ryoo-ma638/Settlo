@@ -16,7 +16,7 @@
           <svg class="profile__id-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>
         </button>
 
-        <p class="profile__type">Google アカウント</p>
+        <p class="profile__type">{{ accountType }}</p>
       </section>
 
       <section class="menu" data-tour="mypage-menu">
@@ -86,6 +86,16 @@ const router = useRouter();
 const userName = ref("読み込み中...");
 const userPhoto = ref("");
 const userUid = ref("");
+// ログイン方法の表示。匿名認証のゲストに「Google アカウント」と出さない
+const accountType = ref("");
+const labelOfAccount = (user) => {
+  if (!user) return "";
+  if (user.isAnonymous) return "ゲスト利用中（デモ）";
+  const providers = (user.providerData || []).map(p => p.providerId);
+  if (providers.includes("google.com")) return "Google アカウント";
+  if (providers.includes("password")) return "メールアドレスでログイン中";
+  return "ログイン中";
+};
 
 const copyMyId = async () => {
   if (!userUid.value) return;
@@ -111,6 +121,7 @@ onMounted(async () => {
   const user = auth.currentUser;
   if (user) {
     userUid.value = user.uid;
+    accountType.value = labelOfAccount(user);
     try {
       const userDocRef = doc(db, "users", user.uid);
       let userSnap = await getDoc(userDocRef);
