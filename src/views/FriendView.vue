@@ -11,7 +11,10 @@
       </button>
 
       <div class="reqs" v-if="pendingRequests.length > 0">
-        <p class="reqs__alert">友達申請が届いています</p>
+        <p class="reqs__alert">
+          友達申請が届いています
+          <span class="reqs__count">{{ pendingRequests.length }}</span>
+        </p>
         <div class="reqcard" v-for="req in pendingRequests" :key="req.id">
           <div class="reqcard__avatar">
             <img v-if="req.formPhoto" :src="req.formPhoto" />
@@ -52,7 +55,11 @@
             @click="navigateToDetail(user)"
           />
           <div v-if="processedList.length === 0" class="empty-box">
-            該当するユーザーがいません
+            <template v-if="friendData.length === 0">
+              <p class="empty-box__title">まだフレンドがいません</p>
+              <p class="empty-box__desc">上の「友達を追加する」からIDを検索して追加できます</p>
+            </template>
+            <template v-else>絞り込みに合うフレンドがいません</template>
           </div>
         </template>
       </div>
@@ -334,11 +341,29 @@ const navigateToDetail = (friend) => {
 
 /* 友達申請 */
 .reqs { margin-bottom: 22px; }
+/* 申請はエラーではないので赤を使わず、件数バッジで気づかせる */
 .reqs__alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-weight: var(--fw-bold);
   font-size: 13px;
-  color: var(--c-danger);
+  color: var(--c-ink);
   margin-bottom: 10px;
+}
+.reqs__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--c-brand);
+  color: #fff;
+  font-size: 12px;
+  font-weight: var(--fw-black);
+  line-height: 1;
 }
 .reqcard {
   display: flex; align-items: center; gap: 14px;

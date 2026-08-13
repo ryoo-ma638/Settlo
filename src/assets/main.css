@@ -181,6 +181,17 @@
   border-radius: var(--r-lg);
   border: 1px dashed var(--c-line-bold);
 }
+.empty-box__title {
+  font-size: 15px;
+  font-weight: var(--fw-bold);
+  color: var(--c-text);
+  margin-bottom: var(--space-1);
+}
+.empty-box__desc {
+  font-size: 13px;
+  font-weight: var(--fw-medium);
+  color: var(--c-text-sub);
+}
 
 /* セグメント（タブ切替） */
 .seg {
