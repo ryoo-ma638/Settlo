@@ -36,10 +36,15 @@
             <div class="ev__info">
               <h3 class="ev__name">{{ event.name }}</h3>
               <div class="ev__members">
-                <template v-for="(photo, index) in (event.participantsPhotos || []).slice(0, 4)" :key="index">
-                  <img v-if="photo.startsWith('http')" :src="photo" class="ev__circle" :style="{ zIndex: 5 - index }" />
-                  <div v-else class="ev__circle" :style="{ backgroundColor: photo, zIndex: 5 - index }"></div>
-                </template>
+                <UserAvatar
+                  v-for="(m, index) in (event.members || [])"
+                  :key="index"
+                  class="ev__circle"
+                  :style="{ zIndex: 5 - index }"
+                  :name="m.name"
+                  :photo="m.photo"
+                  :size="26"
+                />
                 <div v-if="(event.participants || []).length > 4" class="ev__more">
                   +{{ (event.participants || []).length - 4 }}
                 </div>
@@ -114,10 +119,11 @@ import { ref, computed, onMounted, onUnmounted, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, onSnapshot, getDoc, doc, getDocs, deleteDoc, updateDoc, addDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDoc, doc, deleteDoc, updateDoc, addDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import PaymentCarousel from '@/components/PaymentCarousel.vue';
 import BaseModal from '@/components/BaseModal.vue'; // 🌟 Eventブランチの統一モーダル
 import InviteCard from '@/components/InviteCard.vue';
+import UserAvatar from '@/components/UserAvatar.vue';
 import { subscribePendingInvites } from '@/lib/invite';
 import api from '@/services/api';
 import { getMyName } from '@/lib/userName';
@@ -172,24 +178,25 @@ const summaryLoading = ref(true); // カルーセルの初回読込中は true�
 const userCache = {};
 
 const getUserInfo = async (uid) => {
-  if (!uid) return { name: "不明", icon: "#cbd5e1" };
+  if (!uid) return { name: "不明", photo: "" };
   if (userCache[uid]) return userCache[uid];
 
   try {
     const userDoc = await getDoc(doc(db, "users", uid));
     if (userDoc.exists()) {
       const data = userDoc.data();
+      // 写真が無い人は名前の頭文字で描くので、色はここでは持たない
       const userInfo = {
         name: data.name || "不明",
-        icon: data.photoURL || data.photo || data.color || "#cbd5e1"
+        photo: data.photoURL || data.photo || ""
       };
       userCache[uid] = userInfo;
       return userInfo;
     }
-    return { name: "不明", icon: "#cbd5e1" };
+    return { name: "不明", photo: "" };
   } catch (error) {
     console.error("User info fetch error:", error);
-    return { name: "不明", icon: "#cbd5e1" };
+    return { name: "不明", photo: "" };
   }
 };
 
@@ -199,58 +206,67 @@ const getUserName = async (uid) => {
 };
 
 // ==========================================
-// 🌟 2. イベント一覧をサーバーから取得・整形する関数（mainブランチの機能）
+// 🌟 2. イベント一覧の購読（リアルタイム）
 // ==========================================
-const fetchEvents = async () => {
-  try {
-    loading.value = true;
-    const myUid = auth.currentUser?.uid;
-    if (!myUid) return;
+// 一度きりの取得だと、ゲストで始めた直後にデモデータの作成が間に合わず
+// 「進行中のイベントはありません」のまま更新されなかった。
+// ログインが確定してから購読を張り、後からデータが増えても自動で反映する。
+let eventsSeq = 0; // 整形が非同期なので、古い結果で新しい結果を上書きしないための通し番号
 
-    // APIを使わず、直接Firestoreから自分のイベントを取得
-    const eventsRef = collection(db, "events");
-    const q = query(eventsRef, where("participants", "array-contains", myUid));
-    const snapshot = await getDocs(q);
+const subscribeEvents = (myUid) => {
+  if (unsubEvents) { unsubEvents(); unsubEvents = null; }
+  if (!myUid) { ongoingEvents.value = []; loading.value = false; return; }
 
-    const rawEvents = snapshot.docs
-      .map(doc => ({ id: doc.id, ...doc.data() }))
-      .filter(event => !(event.hiddenBy || []).includes(myUid)); // 自分がゴミ箱に入れたイベントは非表示
+  loading.value = true;
+  const q = query(collection(db, "events"), where("participants", "array-contains", myUid));
 
-    const formattedEvents = await Promise.all(rawEvents.map(async (event) => {
-      const uids = event.participants || [];
-      const photos = await Promise.all(
-        uids.slice(0, 4).map(async (uid) => {
-          const info = await getUserInfo(uid);
-          return info.icon;
-        })
-      );
+  unsubEvents = onSnapshot(q, async (snapshot) => {
+    const seq = ++eventsSeq;
+    try {
+      const rawEvents = snapshot.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(event => !(event.hiddenBy || []).includes(myUid)); // 自分がゴミ箱に入れたイベントは非表示
 
-      return {
-        ...event,
-        invitationCode: event.invitationCode || 'N/A',
-        amount: `¥${(event.totalAmount || 0).toLocaleString()}`,
-        participantsPhotos: photos
-      };
-    }));
+      const formattedEvents = await Promise.all(rawEvents.map(async (event) => {
+        const uids = event.participants || [];
+        const members = await Promise.all(uids.slice(0, 4).map((uid) => getUserInfo(uid)));
 
-    ongoingEvents.value = formattedEvents;
+        return {
+          ...event,
+          invitationCode: event.invitationCode || 'N/A',
+          amount: `¥${(event.totalAmount || 0).toLocaleString()}`,
+          members
+        };
+      }));
 
-  } catch (error) {
+      if (seq !== eventsSeq) return; // 追い越された古い結果は捨てる
+      ongoingEvents.value = formattedEvents;
+    } catch (error) {
+      console.error("イベントの整形に失敗:", error);
+    } finally {
+      if (seq === eventsSeq) loading.value = false;
+    }
+  }, (error) => {
     console.error("イベント取得に失敗:", error);
-  } finally {
     loading.value = false;
-  }
+  });
 };
 
 // --- 取引情報の監視ロジック ---
 let unsubReceivable = null;
 let unsubPayable = null;
 let unsubInvites = null;
+let unsubEvents = null;
+let unsubAuth = null;
 
 onMounted(() => {
-  onAuthStateChanged(auth, (user) => {
+  unsubAuth = onAuthStateChanged(auth, (user) => {
+    // ログイン状態が変わったら、前の人の購読は必ず外してから張り直す
     if (unsubInvites) { unsubInvites(); unsubInvites = null; }
+    if (unsubReceivable) { unsubReceivable(); unsubReceivable = null; }
+    if (unsubPayable) { unsubPayable(); unsubPayable = null; }
     if (!user) invites.value = [];
+    subscribeEvents(user ? user.uid : null);
     if (user) {
       const myUid = user.uid;
 
@@ -294,14 +310,14 @@ onMounted(() => {
       summaryLoading.value = false; // 未ログインなら待たない
     }
   });
-
-  fetchEvents();
 });
 
 onUnmounted(() => {
   if (unsubReceivable) unsubReceivable();
   if (unsubPayable) unsubPayable();
   if (unsubInvites) unsubInvites();
+  if (unsubEvents) unsubEvents();
+  if (unsubAuth) unsubAuth(); // 監視が残り続けて二重購読になるのを防ぐ
 });
 
 // 🌟 コピー完了の alert を美しいモーダルに！ (Eventブランチの機能)
