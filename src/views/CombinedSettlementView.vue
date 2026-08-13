@@ -198,7 +198,7 @@ onMounted(async () => {
   .final-card { border-radius: var(--r-lg); padding: 26px; color: white; text-align: center; box-shadow: var(--shadow-card); margin-bottom: 22px; transition: all 0.3s; }
   .receive-bg { background: var(--c-receive); }
   .pay-bg { background: var(--c-pay); }
-  .amount { font-size: 44px; font-weight: bold; margin: 15px 0; }
+  .amount { font-size: 44px; font-weight: bold; margin: 15px 0; color: inherit; }
   .settle-route { display: flex; align-items: center; justify-content: center; gap: 20px; margin-top: 10px; }
   .avatar-me, .avatar-friend { width: 50px; height: 50px; border-radius: 50%; background: #dcdcdc; border: 3px solid white; }
   .route-arrow { font-size: 30px; font-weight: bold; }
