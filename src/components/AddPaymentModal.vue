@@ -124,7 +124,7 @@
           <div v-if="formData.splitType === 'all'" class="dynamic-section slide-in">
             <div class="split-result-box">
               <span class="split-desc">参加者全員で均等に割り勘します。</span>
-              <h2 class="split-calc-amount">1人あたり ¥{{ calculatedSplitAmount }} 円</h2>
+              <h2 class="split-calc-amount">1人あたり ¥{{ calculatedSplitAmount }}</h2>
             </div>
           </div>
 
