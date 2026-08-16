@@ -224,6 +224,19 @@ export async function resolvePaymentThreadByTx(txId) {
   } catch (e) { /* 失敗しても本処理は止めない */ }
 }
 
+// 支払いを編集した結果、割り勘の相手がいなくなった（＝精算する取引が無い）ときの片付け。
+// 中身の無いグループチャットが一覧に残り続けるのを防ぐ。
+export async function retirePaymentThread(historyId) {
+  if (!historyId) return;
+  try {
+    const ref = doc(db, 'threads', paymentThreadId(historyId));
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return;
+    const parts = snap.data().participants || [];
+    await updateDoc(ref, { hiddenBy: parts, resolved: true, transactionIds: [] });
+  } catch (e) { /* 失敗しても本処理は止めない */ }
+}
+
 // 全取引が完了したらグループチャットを片付ける（一覧から消す）
 export async function resolvePaymentThreadIfDone(historyId) {
   if (!historyId) return;

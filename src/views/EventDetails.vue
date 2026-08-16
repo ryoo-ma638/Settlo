@@ -340,8 +340,9 @@ const getUserInfo = async (uid) => {
 import { ref, computed, watch, onMounted, onUnmounted, reactive } from 'vue'; // 🌟 reactiveを追加
 import { useRoute, useRouter } from 'vue-router';
 import { formatDate } from '@/lib/format';
-import { ensurePaymentThread, postPaymentEventByTx, resolvePaymentThreadByTx } from '@/lib/thread';
+import { ensurePaymentThread, postPaymentEvent, postPaymentEventByTx, resolvePaymentThreadByTx, retirePaymentThread } from '@/lib/thread';
 import { getMyName } from '@/lib/userName';
+import { UNPAID_PATCH } from '@/lib/settlement';
 
 import AddPaymentModal from '@/components/AddPaymentModal.vue';
 import ReceiptPaymentModal from '@/components/ReceiptPaymentModal.vue';
@@ -400,7 +401,7 @@ import { httpsCallable } from "firebase/functions";
 import { functions } from "@/firebase";
 // 🌟 修正：auth（ユーザー情報）を使えるように追加しました！
 import { db, auth } from '../firebase'; 
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, updateDoc, increment, deleteDoc, getDocs, where, arrayRemove, arrayUnion } from 'firebase/firestore';
+import { collection, addDoc, setDoc, serverTimestamp, query, orderBy, onSnapshot, doc, updateDoc, increment, deleteDoc, getDocs, where, arrayRemove, arrayUnion } from 'firebase/firestore';
 
 // 🌟 あなたが作った最強の計算ツールを読み込む！
 import { useSettlement } from '../composables/useSettlement';
@@ -804,7 +805,8 @@ const doRevertSettlement = async (hist) => {
     const myNm = myName.value || '立替者';
     const txIds = hist.transactionIds || [];
     for (const tid of txIds) {
-      await updateDoc(doc(db, "transactions", tid), { status: 'unpaid' });
+      // 未精算に戻すので、まとめ精算の内訳（相殺の記録）も消す
+      await updateDoc(doc(db, "transactions", tid), { ...UNPAID_PATCH });
       await postPaymentEventByTx(tid, { text: `${myNm}さんが精算を取り消しました（未払いに戻りました）`, kind: 'reverted', actorUid: myUid });
     }
     await updateDoc(doc(db, "events", eventId, "history", hist.id), { status: 'unpaid' });
@@ -850,17 +852,20 @@ const addHistory = async (newPayment) => {
       throw new Error("参加者情報がまだ読み込まれていません");
     }
 
-    // 🌟 編集モード：先に古い支払い（transactions/history/合計）を消してから作り直す
+    // 🌟 編集モード：古い取引と合計を先に取り消す。
+    //    履歴ドキュメントは削除せず同じIDに書き直す（IDが変わるとグループチャットが
+    //    pay-古いID のまま取り残され、中身の無い会話が一覧に残ってしまうため）。
     let oldPay = null;
+    let reuseHistoryId = null;
     if (newPayment.editId) {
       const old = eventData.value.history.find(h => h.id === newPayment.editId);
       if (old) {
         // 差分表示のために編集前の値を控えておく
         oldPay = { amount: old.amount, itemName: old.itemName, category: old.category, payer: old.payer, splitType: old.splitType };
+        reuseHistoryId = old.id;
         for (const tid of (old.transactionIds || [])) {
           try { await deleteDoc(doc(db, "transactions", tid)); } catch (e) { console.error(e); }
         }
-        try { await deleteDoc(doc(db, "events", eventId, "history", old.id)); } catch (e) { console.error(e); }
         try { await updateDoc(doc(db, "events", eventId), { totalAmount: increment(-(Number(old.amount) || 0)) }); } catch (e) { console.error(e); }
       }
     }
@@ -901,8 +906,8 @@ const addHistory = async (newPayment) => {
     }
 
     // 🌟 2. このイベント内の「立て替え履歴」サブコレクションへ保存
-    const historyRef = collection(db, "events", eventId, "history");
-    const docRef = await addDoc(historyRef, {
+    //    編集のときは同じIDに丸ごと書き直す（＝チャットの件も引き継がれる）
+    const historyPayload = {
       payer: newPayment.payer,
       payerUid: creditorUid, // 🌟 立替者のUID（役割判定を名前でなくUIDで行う）
       itemName: newPayment.itemName,
@@ -919,10 +924,17 @@ const addHistory = async (newPayment) => {
       shares: newPayment.shares || [], // 🌟 各メンバーの負担額（精算サマリーの正データ）
       items: newPayment.items || [],
       transactionIds: transactionIds // 🌟 決済完了時に transactions 側も更新するための紐付け（A-7で使用）
-    });
+    };
+    let historyId;
+    if (reuseHistoryId) {
+      historyId = reuseHistoryId;
+      await setDoc(doc(db, "events", eventId, "history", historyId), historyPayload); // 同じIDに丸ごと上書き
+    } else {
+      const docRef = await addDoc(collection(db, "events", eventId, "history"), historyPayload);
+      historyId = docRef.id;
+    }
 
     // 🌟 各取引に historyId を紐づける（経緯をグループチャットに流すとき特定に使う）
-    const historyId = docRef.id;
     for (const tid of transactionIds) {
       try { await updateDoc(doc(db, "transactions", tid), { historyId }); } catch (e) { /* 続行 */ }
     }
@@ -937,7 +949,17 @@ const addHistory = async (newPayment) => {
           eventId, eventName: eventData.value.name || '', itemName: newPayment.itemName,
           amount: Number(newPayment.amount), transactionIds,
         });
+        // 編集のときは同じチャットが続くので、経緯を1行残す（相手の未読も点く）
+        if (reuseHistoryId) {
+          await postPaymentEvent(historyId, {
+            text: `${myName.value || '立替者'}さんが支払いの内容を編集しました（¥${Number(newPayment.amount).toLocaleString()}）`,
+            kind: 'edited', actorUid: myUid,
+          });
+        }
       } catch (e) { console.error('支払いチャットの作成に失敗:', e); }
+    } else if (reuseHistoryId) {
+      // 編集で割り勘の相手がいなくなった＝この件のチャットはもう用が無いので片付ける
+      await retirePaymentThread(reuseHistoryId);
     }
 
     // 🌟 3. イベント本体の合計金額(totalAmount)を更新
