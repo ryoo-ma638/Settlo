@@ -180,11 +180,17 @@ onMounted(async () => {
       showToast('精算する取引がありません。除外を見直してください');
       return;
     }
+    // 相殺の内訳も渡す（次の画面で「対象¥500のうち¥400と相殺→実質¥100」と出すため）
+    //   gross＝今回精算する側の合計 / offset＝相殺に使う逆方向の合計
+    const gross = actionType === 'remind' ? waitingTotal.value : unpaidTotal.value;
+    const offset = actionType === 'remind' ? unpaidTotal.value : waitingTotal.value;
     const q = new URLSearchParams({
       type: actionType,
       amount: String(Math.abs(netBalance.value)),
       uid: route.query.uid || '',
       ids: ids.join(','),
+      gross: String(gross),
+      offset: String(offset),
     });
     router.push(`/combined-action/${route.params.name}?${q.toString()}`);
   };

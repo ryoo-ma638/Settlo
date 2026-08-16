@@ -204,7 +204,8 @@ import {
 } from 'firebase/firestore';
 import { subjectKey, threadIdFor, subjectLabel, resolveThreadForTx, postPaymentEventByTx, resolvePaymentThreadByTx } from '@/lib/thread';
 import { logApprovalBoth } from '@/lib/approvalLog';
-import { revertCounterTransactions, COUNTER_REVERT_TEXT } from '@/lib/settlement';
+import { revertCounterTransactions, COUNTER_REVERT_TEXT, UNPAID_PATCH } from '@/lib/settlement';
+import { batchBreakdownText } from '@/lib/format';
 import { showToast } from '@/lib/toast';
 import { getMyName, getUserName, isSelfName } from '@/lib/userName';
 
@@ -252,6 +253,21 @@ const openThreadFromReply = async (req) => {
 const friendReqs = ref([]);
 const paymentReqs = ref([]);
 
+// まとめ精算のお知らせから「相殺の内訳」を組み立てる。
+// 内訳を持たない古いお知らせは null＝従来どおりの文言になる。
+const notifBatch = (req) => {
+  if (!req || !req.batchGross || !req.batchOffset) return null;
+  return {
+    gross: req.batchGross,
+    offset: req.batchOffset,
+    net: req.amount || 0,
+    count: req.count || (req.transactionIds || []).length,
+    counterCount: req.batchCounterCount || (req.counterTransactionIds || []).length,
+    payerUid: req.fromUserId,
+    receiverUid: req.toUserId,
+  };
+};
+
 // 通知タイプごとの表示文言・ボタン
 const notifText = (req) => {
   if (req.type === 'approval_rejected') return 'さんがあなたの承認リクエストを拒否しました';
@@ -285,10 +301,11 @@ const notifText = (req) => {
   if (req.type === 'event_left_rejected') return `さんは、あなたがイベント「${req.eventName || ''}」から抜けたのは正しくないと考えています。これは正しいですか？（正しい＝イベントに戻ります／正しくない＝削除を続けます）`;
   if (req.type === 'event_restore_rejected') return `さんが「正しくない」を選び、イベント「${req.eventName || ''}」をゴミ箱に戻しました。これは正しいですか？（正しくない＝もう一度復帰します）`;
   if (req.type === 'approval_request' && (req.batch || (Array.isArray(req.transactionIds) && req.transactionIds.length > 1))) {
-    // 双方向のまとめ精算は、あなたの支払い分と相殺されている（拒否すると両方向が未払いに戻る）
-    const counter = Array.isArray(req.counterTransactionIds) ? req.counterTransactionIds.length : 0;
-    const offset = counter ? `・あなたの支払い${counter}件と相殺` : '';
-    return `さんがまとめて精算しました（${req.count || req.transactionIds.length}件・¥${(req.amount || 0).toLocaleString()}${offset}）。受け取りを承認しますか？`;
+    // 双方向のまとめ精算は、あなたの未払いと相殺されている（拒否すると両方向が未払いに戻る）。
+    // 承認待ち一覧・決済の詳細と同じ言い回しで「対象／相殺／実質」を出す。
+    const detail = batchBreakdownText(notifBatch(req), auth.currentUser?.uid);
+    if (detail) return `さんがまとめて精算しました（${detail}）。受け取りを承認しますか？`;
+    return `さんがまとめて精算しました（${req.count || req.transactionIds.length}件・¥${(req.amount || 0).toLocaleString()}）。受け取りを承認しますか？`;
   }
   return 'さんから支払いの承認リクエストが届いています';
 };
@@ -362,9 +379,10 @@ const goToPaymentDetail = async (req) => {
     }
     // 支払い完了のお知らせは既読にするだけ（取引はもう完了している）
     if (req.type === 'payment_completed') return;
-    // まとめ精算（複数取引）は単一の詳細が無いので、承認待ち一覧へ
+    // まとめ精算（複数取引）は、相殺の内訳つきのまとめ詳細へ（記録が無い古いものは承認待ち一覧へ）
     if (req.batch || (Array.isArray(req.transactionIds) && req.transactionIds.length > 1) || !req.transactionId) {
-      router.push('/approvals');
+      if (req.batchId) router.push(`/payment-detail/waiting-batch-${req.batchId}`);
+      else router.push('/approvals');
       return;
     }
     // 承認リクエストだけ受け取る側（waiting-）。拒否・催促は支払う側（unpaid-）へ。
@@ -569,7 +587,8 @@ const rejectTx = (req) => {
       if (!myUid) return;
       const ids = Array.isArray(req.transactionIds) && req.transactionIds.length ? req.transactionIds : (req.transactionId ? [req.transactionId] : []);
       for (const tid of ids) {
-        try { await updateDoc(doc(db, "transactions", tid), { status: 'unpaid' }); } catch (e) { /* 続行 */ }
+        // 未払いに戻すので、まとめ精算の内訳（相殺の記録）も消す
+        try { await updateDoc(doc(db, "transactions", tid), { ...UNPAID_PATCH }); } catch (e) { /* 続行 */ }
         await postPaymentEventByTx(tid, { text: `${senderName(req)}さんの支払いを差し戻しました（未払いに戻りました）`, kind: 'rejected', actorUid: myUid });
       }
       // 🌟 逆方向（相手が受け取り扱いで即完了にした分）も未払いに戻す。
@@ -604,7 +623,8 @@ const approveRestore = async (req) => {
         if (t.exists()) {
           const d = t.data();
           if (d.paidById === myUid || d.paidToId === myUid) {
-            await updateDoc(doc(db, "transactions", tid), { status: 'unpaid' });
+            // 未精算に戻すので、まとめ精算の内訳（相殺の記録）も消す
+            await updateDoc(doc(db, "transactions", tid), { ...UNPAID_PATCH });
           }
         }
       } catch (e) {}
