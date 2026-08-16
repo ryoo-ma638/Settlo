@@ -34,7 +34,7 @@
           <div v-else class="msg" :class="m.fromUid === myUid ? 'msg--mine' : 'msg--theirs'">
             <span v-if="m.fromUid !== myUid" class="msg__name">{{ m.fromName || '相手' }}</span>
             <div class="msg__bubble">{{ m.text }}</div>
-            <span v-if="m.id === lastReadMineId" class="msg__read">既読</span>
+            <span v-if="readLabel(m)" class="msg__read">{{ readLabel(m) }}</span>
           </div>
         </template>
         <div v-if="messages.length === 0" class="thread__empty">まだメッセージはありません。</div>
@@ -82,8 +82,9 @@ import { computed } from 'vue';
 import PageHeader from '../components/PageHeader.vue';
 import { ensureThread, resolveThreadForTx, postPaymentEventByTx } from '@/lib/thread';
 import { getUserName } from '@/lib/userName';
+import { groupReadLabel, lastReadMessageId } from '@/lib/readReceipt';
 import { logApprovalBoth } from '@/lib/approvalLog';
-import { findBatchApprovalRequests, revertCounterTransactions, COUNTER_REVERT_TEXT } from '@/lib/settlement';
+import { findBatchApprovalRequests, revertCounterTransactions, COUNTER_REVERT_TEXT, UNPAID_PATCH } from '@/lib/settlement';
 
 // クイック返信の定型文
 const QUICK_REPLIES = ['ありがとう！', '確認しました', 'もう少し待って', 'OKです'];
@@ -106,14 +107,15 @@ const sending = ref(false);
 const scrollArea = ref(null);
 let unsub = null;
 
-// 自分のメッセージのうち、相手が読んだ最後の1件（そこに「既読」を出す）
-const lastReadMineId = computed(() => {
-  let id = null;
-  for (const m of messages.value) {
-    if (m.fromUid === myUid && (m.readBy || []).includes(otherUid.value)) id = m.id;
-  }
-  return id;
-});
+// 自分のメッセージのうち、相手が読んだ最後の1件（そこに「既読」を出す＝1対1）
+const lastReadMineId = computed(() => lastReadMessageId(messages.value, myUid, otherUid.value));
+
+// 既読の表示。グループは相手が1人に決まらないので「既読 2人」（全員なら「全員既読」）にする。
+const readLabel = (m) => {
+  if (!m || m.fromUid !== myUid) return '';
+  if (isGroup.value) return groupReadLabel(m, myUid, groupParticipants.value);
+  return m.id === lastReadMineId.value ? '既読' : '';
+};
 
 // 承認待ちの取引（返信画面から承認/拒否できるように）
 const txId = route.query.tx || '';
@@ -167,7 +169,7 @@ const rejectTx = async () => {
   if (!txId || approving.value) return;
   approving.value = true;
   try {
-    await updateDoc(doc(db, 'transactions', txId), { status: 'unpaid' });
+    await updateDoc(doc(db, 'transactions', txId), { ...UNPAID_PATCH });
     // 🌟 双方向のまとめ精算なら、相手がその場で完了にした逆方向の取引も未払いに戻す
     let revertedCounter = 0;
     for (const n of await findBatchApprovalRequests(myUid, [txId])) {
