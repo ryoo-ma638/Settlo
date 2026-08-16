@@ -23,11 +23,11 @@
         <template v-if="receivableAwaiting.length">
           <h2 class="money__section money__section--action">承認待ち・あなたの承認が必要（{{ receivableAwaiting.length }}件）</h2>
           <div class="stack">
-            <div v-for="item in receivableAwaiting" :key="item.id" class="trow trow--action" @click="$router.push('/payment-detail/waiting-' + item.id)">
+            <div v-for="item in receivableAwaiting" :key="item.id" class="trow trow--action" @click="openRow(item, 'waiting')">
               <UserAvatar class="trow__avatar" :name="item.name" :photo="item.photo" :size="40" />
               <div class="trow__info">
                 <p class="trow__name">{{ item.name }}</p>
-                <p class="trow__sub">{{ item.date }}・{{ item.itemName }}<span class="trow__badge trow__badge--action">あなたが承認</span></p>
+                <p class="trow__sub">{{ item.date }}・{{ item.itemName }}<span class="trow__badge trow__badge--action">あなたが承認</span><span v-if="item.batchId" class="trow__badge">まとめ精算</span></p>
               </div>
               <div class="trow__right">
                 <span class="trow__amount tnum">¥{{ item.amount.toLocaleString() }}</span>
@@ -67,11 +67,11 @@
         <template v-if="payableAwaiting.length">
           <h2 class="money__section">リクエスト済み・相手の承認待ち（{{ payableAwaiting.length }}件）</h2>
           <div class="stack">
-            <div v-for="item in payableAwaiting" :key="item.id" class="trow trow--muted" @click="$router.push('/payment-detail/unpaid-' + item.id)">
+            <div v-for="item in payableAwaiting" :key="item.id" class="trow trow--muted" @click="openRow(item, 'unpaid')">
               <UserAvatar class="trow__avatar" :name="item.name" :photo="item.photo" :size="40" />
               <div class="trow__info">
                 <p class="trow__name">{{ item.name }}</p>
-                <p class="trow__sub">{{ item.date }}・{{ item.itemName }}<span class="trow__badge">リクエスト済み</span></p>
+                <p class="trow__sub">{{ item.date }}・{{ item.itemName }}<span class="trow__badge">リクエスト済み</span><span v-if="item.batchId" class="trow__badge">まとめ精算</span></p>
               </div>
               <div class="trow__right">
                 <span class="trow__amount tnum">¥{{ item.amount.toLocaleString() }}</span>
@@ -167,6 +167,17 @@ const goSettle = (m) => {
   router.push(`/combined-settlement/${encodeURIComponent(m.name || '相手')}?uid=${m.uid}`)
 }
 
+// 🌟 まとめ精算（相殺あり）の取引かどうか。1件ずつの額と実質の額が食い違うので、
+//    行にはその印を出し、タップ先は内訳が見られる「まとめ精算の詳細」にする。
+const batchIdOf = (data) => {
+  const b = data && data.settlementBatch;
+  if (!b || !b.id || (b.role || 'main') !== 'main' || !(Number(b.offset) > 0)) return null;
+  return b.id;
+};
+const openRow = (item, prefix) => {
+  router.push(item.batchId ? `/payment-detail/${prefix}-batch-${item.batchId}` : `/payment-detail/${prefix}-${item.id}`);
+};
+
 // 🌟 承認待ちと通常分を分けて表示するための算出プロパティ
 const receivableAwaiting = computed(() => receivableList.value.filter(i => i.status === 'awaiting_approval'))
 const receivableUnpaid = computed(() => receivableList.value.filter(i => i.status !== 'awaiting_approval'))
@@ -248,7 +259,8 @@ onMounted(() => {
             photo: otherPhoto,
             status: s,
             statusLabel: txStatusLabel(s),
-            remindCount: data.remindCount || 0
+            remindCount: data.remindCount || 0,
+            batchId: batchIdOf(data)
           });
         }
 
@@ -298,7 +310,8 @@ onMounted(() => {
             amount: data.amount || 0,
             photo: otherPhoto,
             status: s,
-            statusLabel: txStatusLabel(s)
+            statusLabel: txStatusLabel(s),
+            batchId: batchIdOf(data)
           });
         }
 

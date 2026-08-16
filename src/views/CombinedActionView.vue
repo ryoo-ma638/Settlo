@@ -7,6 +7,7 @@
           <p class="summary-label">{{ $route.params.name }} さん{{ isRemind ? 'へ請求する' : 'に支払う' }}金額</p>
           <h2 class="total-amount">¥{{ Number($route.query.amount).toLocaleString() }}</h2>
           <p class="hint-badge">複数の貸し借りを相殺した金額です</p>
+          <p v-if="breakdownText" class="hint-detail">{{ breakdownText }}</p>
         </div>
   
         <section class="action-section">
@@ -50,6 +51,8 @@
   import PageHeader from '../components/PageHeader.vue';
   import { resolveThreadForTx, postPaymentEventByTx } from '@/lib/thread';
   import { getMyName } from '@/lib/userName';
+  import { makeBatchId, stampSettlementBatch } from '@/lib/settlement';
+  import { batchBreakdownText } from '@/lib/format';
 
 
   const route = useRoute();
@@ -57,6 +60,18 @@
   const isRemind = computed(() => route.query.type === 'remind');
   const amount = computed(() => route.query.amount);
   const targetUid = computed(() => route.query.uid);
+
+  // 相殺の内訳（前の画面から受け取る）。ここでも「対象¥500のうち¥400と相殺→実質¥100」を出す。
+  // 払うのは自分（pay）か相手（remind）かで言い回しが変わるので、払う人のUIDを入れて判定させる。
+  const breakdownText = computed(() => {
+    const me = auth.currentUser?.uid || 'me';
+    return batchBreakdownText({
+      gross: Number(route.query.gross) || 0,
+      offset: Number(route.query.offset) || 0,
+      net: Number(route.query.amount) || 0,
+      payerUid: isRemind.value ? (route.query.uid || 'other') : me,
+    }, me);
+  });
   const settling = ref(false); // 🌟 まとめて精算の二重送信ガード（完了通知・ゴミ箱記録の重複を防ぐ）
   
   // 🌟 統一モーダルの状態管理
@@ -121,7 +136,7 @@
               const t = snap.data();
               const iOwe = t.paidById === myUid && t.paidToId === friendUid;
               const owedToMe = t.paidById === friendUid && t.paidToId === myUid;
-              if ((iOwe || owedToMe) && (t.status || 'unpaid') !== 'completed') valid.push({ id, iOwe });
+              if ((iOwe || owedToMe) && (t.status || 'unpaid') !== 'completed') valid.push({ id, iOwe, amount: Number(t.amount) || 0 });
             } catch (e) { /* 取得できないIDはスキップ */ }
           }
           if (valid.length === 0) {
@@ -129,9 +144,31 @@
             return;
           }
 
+          // 🌟 相殺の内訳（対象・相殺・実質）を作り、対象の取引すべてに同じ形で記録する。
+          //    お知らせ／承認待ち一覧／決済の詳細が同じ数字を出せるようにするため。
+          const sum = (arr) => arr.reduce((s, v) => s + (v.amount || 0), 0);
+          const mainSide = valid.filter((v) => (isRemind.value ? !v.iOwe : v.iOwe));   // 今回精算する側
+          const offsetSide = valid.filter((v) => (isRemind.value ? v.iOwe : !v.iOwe)); // 相殺に使う逆方向
+          const batch = {
+            id: makeBatchId(),
+            gross: sum(mainSide),
+            offset: sum(offsetSide),
+            net: Math.max(0, sum(mainSide) - sum(offsetSide)),
+            count: mainSide.length,
+            counterCount: offsetSide.length,
+            payerUid: isRemind.value ? friendUid : myUid,
+            receiverUid: isRemind.value ? myUid : friendUid,
+          };
+          const stampAll = () => stampSettlementBatch(batch, [
+            ...mainSide.map((v) => ({ id: v.id, role: 'main' })),
+            ...offsetSide.map((v) => ({ id: v.id, role: 'offset' })),
+          ]);
+          const breakdown = batchBreakdownText(batch, myUid);
+
           if (isRemind.value) {
             // ■ 自分が受け取る側＝現金を受け取った本人が確認するので、選んだ取引をその場で完了にする
             const done = valid.map((v) => v.id);
+            await stampAll();
             for (const id of done) {
               await updateDoc(doc(db, "transactions", id), { status: 'completed' });
               // 支払いのチャットに経緯を残す（相手の未読が点く）
@@ -142,22 +179,27 @@
               await addDoc(collection(db, "notifications"), {
                 toUserId: friendUid, fromUserId: myUid, fromUserName: myName,
                 type: 'payment_completed',
-                message: `${myName}さんが${done.length}件をまとめて精算しました。`,
+                message: batch.offset
+                  ? `${myName}さんが${done.length}件をまとめて精算しました（対象 ¥${batch.gross.toLocaleString()}・あなたの受け取り ¥${batch.offset.toLocaleString()}と相殺 → 実質 ¥${batch.net.toLocaleString()}）。`
+                  : `${myName}さんが${done.length}件をまとめて精算しました。`,
                 userMessage: reason || null,
                 isRead: false, createdAt: serverTimestamp(),
               });
             } catch (e) { console.error('完了通知の送信に失敗:', e); }
             showModal({
               type: 'success', title: '精算完了',
-              message: `${done.length}件を精算済みにしました。お支払い履歴から確認できます。`,
+              message: breakdown
+                ? `${done.length}件を精算済みにしました。\n${breakdown}\nお支払い履歴から確認できます。`
+                : `${done.length}件を精算済みにしました。お支払い履歴から確認できます。`,
               onConfirm: () => router.push('/')
             });
           } else {
             // ■ 自分が支払う側＝
             //   ・自分が債権者の分（相手→自分）は受領扱いで即完了（自分の権限）
             //   ・自分が債務者の分（自分→相手）は相手の承認待ちにして、まとめ承認リクエストを送る
-            const iOweIds = valid.filter((v) => v.iOwe).map((v) => v.id);
-            const owedToMeIds = valid.filter((v) => !v.iOwe).map((v) => v.id);
+            const iOweIds = mainSide.map((v) => v.id);
+            const owedToMeIds = offsetSide.map((v) => v.id);
+            await stampAll();
             for (const id of owedToMeIds) {
               await updateDoc(doc(db, "transactions", id), { status: 'completed' });
               await postPaymentEventByTx(id, { text: `${myName}さんがまとめて受け取り、精算しました`, kind: 'completed', actorUid: myUid });
@@ -177,7 +219,13 @@
                   //    拒否されたら、この分も未払いに戻して片側だけ完了で残らないようにする。
                   counterTransactionIds: owedToMeIds,
                   itemName: `${friendName}との精算`,
-                  amount: Number(route.query.amount) || 0,
+                  // 金額は「実際に受け取る額（相殺後）」。対象と相殺の内訳も一緒に送り、
+                  // お知らせ・承認待ち一覧・決済の詳細で同じ数字を出せるようにする。
+                  amount: batch.net,
+                  batchId: batch.id,
+                  batchGross: batch.gross,
+                  batchOffset: batch.offset,
+                  batchCounterCount: batch.counterCount,
                   message: 'まとめて精算の承認リクエストが届きました。',
                   userMessage: reason || null,
                   isRead: false, createdAt: serverTimestamp(),
@@ -186,7 +234,7 @@
               showModal({
                 type: 'success', title: '承認待ちにしました',
                 message: owedToMeIds.length
-                  ? `${iOweIds.length}件の精算リクエストを送信しました。相手が承認すると完了します。\n受け取る${owedToMeIds.length}件も、拒否された場合は未払いに戻ります。`
+                  ? `${iOweIds.length}件の精算リクエストを送信しました。相手が承認すると完了します。\n${breakdown}\n受け取る${owedToMeIds.length}件も、拒否された場合は未払いに戻ります。`
                   : `${iOweIds.length}件の精算リクエストを送信しました。相手が承認すると完了します。`,
                 onConfirm: () => router.push('/')
               });
@@ -244,6 +292,7 @@
 .summary-label { font-size: 14px; margin-bottom: 5px; opacity: 0.92; font-weight: var(--fw-medium); }
 .total-amount { font-size: 40px; font-weight: var(--fw-black); margin: 0 0 10px 0; }
 .hint-badge { background: rgba(255,255,255,0.22); display: inline-block; padding: 4px 12px; border-radius: var(--r-pill); font-size: 11px; font-weight: var(--fw-bold); }
+.hint-detail { margin: 10px 0 0; font-size: 12px; line-height: 1.5; font-weight: var(--fw-medium); opacity: 0.95; }
 
 .section-sub { font-size: 15px; font-weight: var(--fw-bold); margin: 18px 0 10px; color: var(--c-ink); }
 .method-btn { width: 100%; padding: 16px; border-radius: var(--r-md); border: none; font-weight: var(--fw-bold); font-size: 16px; cursor: pointer; }

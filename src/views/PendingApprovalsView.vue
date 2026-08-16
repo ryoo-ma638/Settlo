@@ -25,6 +25,7 @@
           <span class="prow__main">
             <span class="prow__name">{{ t.opponentName }}さんの支払い</span>
             <span class="prow__sub">{{ t.label }}</span>
+            <span v-if="t.note" class="prow__note">{{ t.note }}</span>
           </span>
           <span class="prow__amt tnum">¥{{ (t.amount || 0).toLocaleString() }}</span>
         </button>
@@ -39,6 +40,7 @@
           <span class="prow__main">
             <span class="prow__name">{{ t.opponentName }}さんへの支払い</span>
             <span class="prow__sub">{{ t.label }}</span>
+            <span v-if="t.note" class="prow__note">{{ t.note }}</span>
           </span>
           <span class="prow__amt tnum">¥{{ (t.amount || 0).toLocaleString() }}</span>
         </button>
@@ -64,7 +66,7 @@ import { useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import PageHeader from '../components/PageHeader.vue';
-import { formatDate } from '../lib/format';
+import { formatDate, batchBreakdownText, hasOffset } from '../lib/format';
 
 const router = useRouter();
 const myUid = auth.currentUser?.uid || '';
@@ -84,6 +86,28 @@ const resolveName = async (uid) => {
 const labelOf = (t) => {
   const ev = t.eventName && t.eventName !== t.itemName ? `${t.eventName}・` : '';
   return `${ev}${t.itemName || '取引'}`;
+};
+
+// 🌟 まとめ精算（双方向・相殺あり）は1件ずつ並べると、お知らせの「実質¥100」と
+//    一覧の「¥500」が食い違って見える。同じ精算は1行にまとめ、実質の金額＋内訳を出す。
+const groupByBatch = (list) => {
+  const out = [];
+  const seen = new Map();
+  for (const t of list) {
+    const b = t.settlementBatch;
+    if (!b || !b.id || (b.role || 'main') !== 'main' || !hasOffset(b)) { out.push(t); continue; }
+    if (seen.has(b.id)) continue; // 同じ精算の2件目以降は1行目にまとまっている
+    const row = {
+      ...t,
+      batchId: b.id,
+      amount: Number(b.net) || 0,        // 実際にやり取りする金額（お知らせと同じ数字）
+      label: `まとめ精算・対象${b.count || 1}件`,
+      note: batchBreakdownText(b, myUid),
+    };
+    seen.set(b.id, row);
+    out.push(row);
+  }
+  return out;
 };
 
 const buildList = async (docs, opponentField) => {
@@ -108,6 +132,8 @@ const historyText = (h) => {
 
 const openTx = (t) => {
   const prefix = t.paidToId === myUid ? 'waiting' : 'unpaid';
+  // まとめ精算の行は、対象すべてと内訳が見られるまとめ詳細へ
+  if (t.batchId) { router.push(`/payment-detail/${prefix}-batch-${t.batchId}`); return; }
   router.push(`/payment-detail/${prefix}-${t.id}`);
 };
 
@@ -115,7 +141,7 @@ onMounted(() => {
   if (!myUid) return;
   // 自分が受け取る側＝自分が承認する
   unsubs.push(onSnapshot(query(collection(db, 'transactions'), where('paidToId', '==', myUid)), async (snap) => {
-    toApprove.value = await buildList(snap.docs, 'paidById');
+    toApprove.value = groupByBatch(await buildList(snap.docs, 'paidById'));
   }, () => {}));
   // 自分が支払う側＝「相手の承認待ち」と「催促されている（未払いで催促あり）」の両方を作る
   unsubs.push(onSnapshot(query(collection(db, 'transactions'), where('paidById', '==', myUid)), async (snap) => {
@@ -128,7 +154,7 @@ onMounted(() => {
       if (data.status === 'awaiting_approval') waiting.push(base);
       if ((data.remindCount || 0) > 0 && data.status === 'unpaid') rem.push(base);
     }
-    waitingOther.value = waiting.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    waitingOther.value = groupByBatch(waiting.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
     reminded.value = rem.sort((a, b) => (b.lastRemindedAt?.seconds || 0) - (a.lastRemindedAt?.seconds || 0));
   }, () => {}));
   // 承認・拒否の履歴
@@ -162,6 +188,7 @@ onUnmounted(() => { unsubs.forEach((u) => u && u()); });
 .prow__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .prow__name { font-size: 14px; font-weight: var(--fw-bold); color: var(--c-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prow__sub { font-size: 12px; color: var(--c-text-sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prow__note { font-size: 11.5px; line-height: 1.5; color: var(--c-text-sub); font-weight: var(--fw-medium); white-space: normal; }
 .prow__amt { flex-shrink: 0; font-size: 15px; font-weight: var(--fw-black); color: var(--c-ink); }
 
 .hrow { display: flex; align-items: center; gap: 10px; padding: 11px var(--pad); border-bottom: 1px solid var(--c-line); }

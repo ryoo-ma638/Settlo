@@ -8,9 +8,23 @@
       <template v-else-if="items.length > 0">
         <div class="summary-card" :class="modeClass">
           <p class="summary-label">{{ modeLabel }}</p>
-          <h2 class="total-amount">¥{{ totalAmount.toLocaleString() }}</h2>
+          <h2 class="total-amount">¥{{ headlineAmount.toLocaleString() }}</h2>
           <p v-if="isBatch" class="count-badge">内訳: {{ items.length }}件</p>
           <p v-if="remindCount > 0" class="remind-status">催促 {{ remindCount }}回 送信済み<template v-if="lastRemindedText">・最終 {{ lastRemindedText }}</template></p>
+        </div>
+
+        <!-- まとめ精算（双方向）の内訳。お知らせ・承認待ち一覧と同じ数字を出して、
+             「¥100と¥500のどちらが本当か分からない」を無くす。 -->
+        <div v-if="breakdownText" class="offset-note">
+          <p class="offset-note__title">まとめ精算・相殺の内訳</p>
+          <p class="offset-note__text">{{ breakdownText }}</p>
+          <p v-if="isSettleBatch" class="offset-note__sub">下の一覧は、この精算の対象になった支払い（合計 ¥{{ totalAmount.toLocaleString() }}）です。</p>
+          <template v-else>
+            <p class="offset-note__sub">
+              この支払い ¥{{ totalAmount.toLocaleString() }} は、そのまとめ精算の{{ isOffsetItem ? '相殺に使われました' : '対象です' }}。
+            </p>
+            <button v-if="settlementBatch?.id" class="offset-note__link" @click="openBatchDetail">まとめ精算の詳細を見る ›</button>
+          </template>
         </div>
 
         <PaymentReceipt v-if="!isBatch" :item="items[0]" />
@@ -121,8 +135,11 @@ import PageHeader from '../components/PageHeader.vue';
 import { logApprovalBoth } from '@/lib/approvalLog';
 import { resolveThreadForTx, postPaymentEventByTx, resolvePaymentThreadByTx } from '@/lib/thread';
 import { getMyName } from '@/lib/userName';
-import { formatDate } from '@/lib/format';
-import { findBatchApprovalRequests, revertCounterTransactions, COUNTER_REVERT_TEXT } from '@/lib/settlement';
+import { formatDate, batchBreakdownText, hasOffset } from '@/lib/format';
+import {
+  findBatchApprovalRequests, revertCounterTransactions, COUNTER_REVERT_TEXT,
+  fetchBatchTransactions, UNPAID_PATCH,
+} from '@/lib/settlement';
 
 const route = useRoute();
 const router = useRouter(); 
@@ -161,9 +178,21 @@ const mode = computed(() => {
 });
 
 const isBatch = computed(() => route.params.id?.includes('batch') || route.params.id === 'all' || route.params.id?.includes('event'));
-const modeLabel = computed(() => mode.value === 'remind' ? 'ご請求合計' : 'お支払い合計');
+const modeLabel = computed(() => {
+  if (isSettleBatch.value && breakdownText.value) return mode.value === 'remind' ? '実際に受け取る金額' : '実際に支払う金額';
+  return mode.value === 'remind' ? 'ご請求合計' : 'お支払い合計';
+});
 const modeClass = computed(() => mode.value === 'remind' ? 'blue-mode' : 'orange-mode');
 const totalAmount = computed(() => items.value.reduce((sum, i) => sum + (i.amount || 0), 0));
+
+// 🌟 まとめ精算（双方向）の内訳。表示の大きい金額は「実際にやり取りする額（相殺後）」に揃える。
+const settlementBatch = ref(null);
+const breakdownText = computed(() => batchBreakdownText(settlementBatch.value, auth.currentUser?.uid));
+const headlineAmount = computed(() =>
+  isSettleBatch.value && hasOffset(settlementBatch.value) ? Number(settlementBatch.value.net) || 0 : totalAmount.value
+);
+// この1件が「相殺に使われた側」か（対象そのものではない）
+const isOffsetItem = computed(() => (settlementBatch.value?.role || 'main') === 'offset');
 const opponentName = computed(() => items.value[0]?.name || '相手');
 // 催促の送信回数（再送の確認や表示に使う）
 const remindCount = computed(() => Math.max(0, ...items.value.map(i => i.remindCount || 0), 0));
@@ -178,6 +207,7 @@ const lastRemindedText = computed(() => {
 });
 
 const pageTitle = computed(() => {
+  if (isSettleBatch.value) return 'まとめ精算の詳細';
   if (mode.value === 'remind') {
     return route.params.id?.includes('event') ? 'イベントのまとめて受け取り' : (isBatch.value ? 'まとめて催促' : '催促の詳細');
   } else {
@@ -190,6 +220,19 @@ const transactionId = computed(() => {
   return idParam.replace('waiting-', '').replace('unpaid-', '');
 });
 
+// 🌟 まとめ精算（相殺つき）の詳細 … /payment-detail/waiting-batch-<batchId>
+const isSettleBatch = computed(() => (route.params.id || '').includes('batch-'));
+const settleBatchId = computed(() =>
+  (route.params.id || '').replace('waiting-', '').replace('unpaid-', '').replace('batch-', '')
+);
+// まとめ詳細は「対象（main）の側」から見る画面。自分が払う側なら unpaid-、受け取る側なら waiting-。
+const openBatchDetail = () => {
+  const b = settlementBatch.value;
+  if (!b || !b.id) return;
+  const prefix = b.payerUid === auth.currentUser?.uid ? 'unpaid' : 'waiting';
+  router.push(`/payment-detail/${prefix}-batch-${b.id}`);
+};
+
 // 🌟 「まとめて（イベント単位）」かどうかと、その eventId
 const isEventBatch = computed(() => (route.params.id || '').includes('event-'));
 const eventBatchId = computed(() =>
@@ -199,7 +242,40 @@ const eventBatchId = computed(() =>
 onMounted(async () => {
   const myUid = auth.currentUser?.uid;
   try {
-    if (isEventBatch.value) {
+    if (isSettleBatch.value) {
+      // 🌟 まとめ精算：同じ精算（batchId）の対象取引をまとめて表示する。
+      //    大きい金額＝実際にやり取りする額、一覧＝対象になった支払い、で数字の食い違いを無くす。
+      const side = mode.value === 'remind' ? 'receive' : 'pay';
+      const txs = await fetchBatchTransactions(myUid, settleBatchId.value, side);
+      const list = [];
+      for (const t of txs) {
+        const opponentUid = mode.value === 'remind' ? t.paidById : t.paidToId;
+        if (!targetUid.value) targetUid.value = opponentUid;
+        let opponentName = '不明';
+        if (opponentUid) {
+          const us = await getDoc(doc(db, 'users', opponentUid));
+          if (us.exists()) opponentName = us.data().name || '不明';
+        }
+        list.push({
+          id: t.id,
+          opponentUid,
+          eventName: t.eventName || t.itemName || '精算',
+          date: fmtDate(t.createdAt),
+          name: opponentName,
+          itemName: t.itemName || 'イベント代',
+          amount: t.amount || 0,
+          remindCount: t.remindCount || 0,
+          lastRemindedAt: t.lastRemindedAt || null,
+          itemsDetail: t.itemsDetail || [t.itemName],
+        });
+      }
+      items.value = list;
+      settlementBatch.value = txs[0]?.settlementBatch || null;
+      const statuses = txs.map((t) => t.status || 'unpaid');
+      currentStatus.value = statuses.length && statuses.every((s) => s === 'completed')
+        ? 'completed'
+        : (statuses.includes('awaiting_approval') ? 'awaiting_approval' : 'unpaid');
+    } else if (isEventBatch.value) {
       // 🌟 「まとめて」：イベント内で自分が関わる未決済トランザクションを集計
       const eid = eventBatchId.value;
       if (!eid) { loading.value = false; return; }
@@ -251,6 +327,7 @@ onMounted(async () => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         currentStatus.value = data.status || 'unpaid';
+        settlementBatch.value = data.settlementBatch || null; // まとめ精算の一部なら内訳を出す
 
         const opponentUid = mode.value === 'remind' ? data.paidById : data.paidToId;
         targetUid.value = opponentUid;
@@ -290,7 +367,9 @@ const fmtDate = (ts) => formatDate(ts);
 
 const updateAllItems = async (status) => {
   for (const it of items.value) {
-    await updateDoc(doc(db, "transactions", it.id), { status });
+    // 未払いに戻すときは、まとめ精算の内訳（相殺の記録）も無効になるので一緒に消す
+    const patch = status === 'unpaid' ? { ...UNPAID_PATCH } : { status };
+    await updateDoc(doc(db, "transactions", it.id), patch);
   }
 };
 
@@ -371,7 +450,10 @@ const clearApprovalNotifs = async () => {
     const snap = await getDocs(query(collection(db, 'notifications'), where('toUserId', '==', myUid)));
     for (const d of snap.docs) {
       const n = d.data();
-      if (n.type === 'approval_request' && txIds.has(n.transactionId)) {
+      if (n.type !== 'approval_request') continue;
+      // 単発（transactionId）だけでなく、まとめ精算（transactionIds）のお知らせも消す
+      const hit = txIds.has(n.transactionId) || (n.transactionIds || []).some((t) => txIds.has(t));
+      if (hit) {
         try { await updateDoc(doc(db, 'notifications', d.id), { isRead: true }); } catch (e) {}
       }
     }
@@ -572,6 +654,16 @@ const confirmCash = () => {
 .remind-btn:active:not(:disabled) { transform: scale(0.98); }
 .disabled-btn { background-color: var(--c-line-strong); color: var(--c-text-strong); cursor: not-allowed; }
 .method-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* まとめ精算の相殺の内訳 */
+.offset-note {
+  background: var(--c-surface); border: 1px solid var(--c-line);
+  border-radius: var(--r-md); padding: 13px 15px; margin-bottom: 14px;
+}
+.offset-note__title { margin: 0 0 5px; font-size: 12px; font-weight: var(--fw-black); color: var(--c-text-sub); }
+.offset-note__text { margin: 0; font-size: 13.5px; line-height: 1.6; font-weight: var(--fw-bold); color: var(--c-ink); }
+.offset-note__sub { margin: 6px 0 0; font-size: 12px; line-height: 1.5; color: var(--c-text-sub); font-weight: var(--fw-medium); }
+.offset-note__link { margin-top: 8px; padding: 0; background: none; border: none; font-size: 12.5px; font-weight: var(--fw-bold); color: var(--c-brand-strong, var(--c-brand)); cursor: pointer; }
 
 /* 承認待ちバナー */
 .await-banner {
