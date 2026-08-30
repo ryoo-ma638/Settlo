@@ -938,44 +938,55 @@ const addHistory = async (newPayment) => {
     //    以下のチャット・合計金額・通知は、保存が済んだあとの付随処理。
     //    ここで転んでも支払いは記録できているので、「保存エラー」とは知らせない
     //    （履歴には出ているのにエラーが出る、という食い違いを防ぐ）。
-    let sideEffectError = null;
-    try {
-      // 🌟 各取引に historyId を紐づける（経緯をグループチャットに流すとき特定に使う）
-      for (const tid of transactionIds) {
-        try { await updateDoc(doc(db, "transactions", tid), { historyId }); } catch (e) { /* 続行 */ }
-      }
-      // 🌟 支払いグループチャットを作成（立て替えを追加した瞬間に「件」ができる）
-      if (debtorUids.length > 0) {
-        try {
-          const parts = [creditorUid, ...debtorUids];
-          const nameOfP = (uid) => (eventData.value.participants.find(p => p.id === uid)?.name) || 'メンバー';
-          const pNames = {}; parts.forEach(u => { pNames[u] = nameOfP(u); });
-          await ensurePaymentThread(historyId, {
-            participants: parts, participantNames: pNames, creditorUid,
-            eventId, eventName: eventData.value.name || '', itemName: newPayment.itemName,
-            amount: Number(newPayment.amount), transactionIds,
-          });
-          // 編集のときは同じチャットが続くので、経緯を1行残す（相手の未読も点く）
-          if (reuseHistoryId) {
-            await postPaymentEvent(historyId, {
-              text: `${myName.value || '立替者'}さんが支払いの内容を編集しました（¥${Number(newPayment.amount).toLocaleString()}）`,
-              kind: 'edited', actorUid: myUid,
-            });
-          }
-        } catch (e) { console.error('支払いチャットの作成に失敗:', e); }
-      } else if (reuseHistoryId) {
-        // 編集で割り勘の相手がいなくなった＝この件のチャットはもう用が無いので片付ける
-        await retirePaymentThread(reuseHistoryId);
-      }
+    //    付随処理は1つ転んでも途中で止めず、最後まで走らせる。失敗したものだけを
+    //    種別（チャット / 合計金額 / 通知）で控えておき、最後のお知らせで実際に
+    //    失敗した範囲だけを並べる（文言と中身の食い違いを防ぐ）。
+    const sideEffectFails = [];
+    const markFailed = (kind, e) => {
+      if (!sideEffectFails.includes(kind)) sideEffectFails.push(kind); // 同じ種別は1回だけ
+      console.error(`⚠️ 支払いは保存できたが「${kind}」の反映に失敗:`, e);
+    };
 
-      // 🌟 3. イベント本体の合計金額(totalAmount)を更新
-      const eventDocRef = doc(db, "events", eventId);
-      await updateDoc(eventDocRef, {
+    // 🌟 各取引に historyId を紐づける（経緯をグループチャットに流すとき特定に使う）
+    //    ここが欠けるとチャットに経緯が出なくなるので、種別は「チャット」で扱う
+    for (const tid of transactionIds) {
+      try { await updateDoc(doc(db, "transactions", tid), { historyId }); } catch (e) { markFailed('チャット', e); }
+    }
+
+    // 🌟 支払いグループチャットを作成（立て替えを追加した瞬間に「件」ができる）
+    if (debtorUids.length > 0) {
+      try {
+        const parts = [creditorUid, ...debtorUids];
+        const nameOfP = (uid) => (eventData.value.participants.find(p => p.id === uid)?.name) || 'メンバー';
+        const pNames = {}; parts.forEach(u => { pNames[u] = nameOfP(u); });
+        await ensurePaymentThread(historyId, {
+          participants: parts, participantNames: pNames, creditorUid,
+          eventId, eventName: eventData.value.name || '', itemName: newPayment.itemName,
+          amount: Number(newPayment.amount), transactionIds,
+        });
+        // 編集のときは同じチャットが続くので、経緯を1行残す（相手の未読も点く）
+        if (reuseHistoryId) {
+          await postPaymentEvent(historyId, {
+            text: `${myName.value || '立替者'}さんが支払いの内容を編集しました（¥${Number(newPayment.amount).toLocaleString()}）`,
+            kind: 'edited', actorUid: myUid,
+          });
+        }
+      } catch (e) { markFailed('チャット', e); }
+    } else if (reuseHistoryId) {
+      // 編集で割り勘の相手がいなくなった＝この件のチャットはもう用が無いので片付ける
+      try { await retirePaymentThread(reuseHistoryId); } catch (e) { markFailed('チャット', e); }
+    }
+
+    // 🌟 3. イベント本体の合計金額(totalAmount)を更新
+    try {
+      await updateDoc(doc(db, "events", eventId), {
         totalAmount: increment(Number(newPayment.amount))
       });
+    } catch (e) { markFailed('合計金額', e); }
 
-      // 🌟 編集なら参加者全員（自分以外）に「編集された」通知を送る（変更内容の差分つき）
-      if (newPayment.editId) {
+    // 🌟 編集なら参加者全員（自分以外）に「編集された」通知を送る（変更内容の差分つき）
+    if (newPayment.editId) {
+      try {
         const changes = [];
         if (oldPay) {
           const yen = (v) => `¥${(Number(v) || 0).toLocaleString()}`;
@@ -992,17 +1003,14 @@ const addHistory = async (newPayment) => {
           changes: changes.length ? changes.join(' / ') : '内容を更新しました',
           userMessage: newPayment.editNote || null,
         });
-      }
-    } catch (e) {
-      sideEffectError = e;
-      console.error("⚠️ 支払いは保存できたが、保存後の処理に失敗:", e);
+      } catch (e) { markFailed('通知', e); }
     }
 
     console.log("✅ 支払いを保存しました 履歴ID:", historyId);
     modals.value.addPayment = false;
-    if (sideEffectError) {
+    if (sideEffectFails.length > 0) {
       // 支払い自体は残っているので、失敗した範囲だけを正しく伝える
-      showToast('支払いを保存しました（通知やチャットへの反映は一部できませんでした）');
+      showToast(`支払いは保存しました（${sideEffectFails.join('・')}の反映ができませんでした）`);
     }
 
     // 保存後にタイムラインへスクロール
