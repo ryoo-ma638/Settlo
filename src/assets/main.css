@@ -216,6 +216,59 @@
   box-shadow: var(--shadow-sm);
 }
 
+/* =========================================================
+   日付・時間の入力欄
+   WebKit（iPhone の Safari / ホーム画面アプリ）は
+   input[type="date"] / input[type="time"] を OS 標準の見た目で描き、
+   値が中央寄せになって枠や高さもほかの入力欄とそろわない。
+   ここで一括して「ふつうのテキスト入力と同じ見え方」に戻す。
+   ※ 背景・角丸・文字色などは各画面の入力クラスをそのまま使う。
+   ========================================================= */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="month"] {
+  -webkit-appearance: none;
+  appearance: none;
+  text-align: left;
+  min-width: 0; /* 横並びの中で内容幅ぶんはみ出すのを防ぐ */
+}
+
+/* iOS 16 以降：ネイティブ描画される「値」の部分だけ左に寄せられる */
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value,
+input[type="datetime-local"]::-webkit-date-and-time-value,
+input[type="month"]::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+  min-height: 1.2em; /* 値が空のとき高さが潰れて薄く見えるのを防ぐ */
+}
+
+/* 「年/月/日」「時:分」の枠内余白を消し、左端と高さをほかの入力とそろえる */
+input[type="date"]::-webkit-datetime-edit,
+input[type="time"]::-webkit-datetime-edit,
+input[type="datetime-local"]::-webkit-datetime-edit,
+input[type="month"]::-webkit-datetime-edit,
+input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+input[type="time"]::-webkit-datetime-edit-fields-wrapper,
+input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper,
+input[type="month"]::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+}
+
+/* カレンダー/時計のアイコン（PC版のみ表示）は右端へ。文字1字ぶんに収めて
+   入力欄がテキスト入力より縦に膨らむのを防ぐ。 */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator {
+  width: 1em;
+  height: 1em;
+  padding: 0;
+  margin: 0 0 0 auto;
+  cursor: pointer;
+}
+
 /* スクロールバーを控えめに */
 * { scrollbar-width: thin; scrollbar-color: var(--c-line-bold) transparent; }
 *::-webkit-scrollbar { width: 6px; height: 6px; }
