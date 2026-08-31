@@ -38,7 +38,7 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { auth, provider, functions } from "../firebase";
-import { signInWithPopup, signInWithRedirect, getRedirectResult, signInAnonymously } from "firebase/auth";
+import { signInWithPopup, signInWithRedirect, getRedirectResult, signInAnonymously, signOut } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
 import { onMounted } from "vue";
 import { saveUser } from "../user";
@@ -49,6 +49,10 @@ const router = useRouter();
 const guestLoading = ref(false);
 const guestError = ref("");
 const loginError = ref("");
+
+// ゲスト準備に失敗してログイン画面に戻された時、理由を出し直すための置き場
+const GUEST_ERROR_KEY = "settlo_guest_error";
+const GUEST_ERROR_TEXT = "ゲストログインに失敗しました。時間をおいてもう一度お試しください。";
 
 // 🌟 ホーム画面に追加した「アプリ版（PWA）」で動いているか
 //    アプリ版は独立ウィンドウのためポップアップが開けず、リダイレクト方式でログインする
@@ -81,6 +85,15 @@ const loginWithGoogle = async () => {
 
 // 🌟 リダイレクト方式で Google から戻ってきた時の受け取り
 onMounted(async () => {
+  // ゲスト準備に失敗して戻された直後なら、その理由を表示する
+  try {
+    const saved = sessionStorage.getItem(GUEST_ERROR_KEY);
+    if (saved) {
+      guestError.value = saved;
+      sessionStorage.removeItem(GUEST_ERROR_KEY);
+    }
+  } catch (e) { /* sessionStorage が使えない環境では出さない */ }
+
   try {
     const result = await getRedirectResult(auth);
     if (result?.user) {
@@ -106,7 +119,14 @@ const loginAsGuest = async () => {
     router.replace("/");
   } catch (error) {
     console.error("ゲストログイン失敗", error);
-    guestError.value = "ゲストログインに失敗しました。時間をおいてもう一度お試しください。";
+    guestError.value = GUEST_ERROR_TEXT;
+    // 匿名ログインだけ通ってデモ準備に失敗すると、App.vue がログインを検知して
+    // ホームへ移動させるため、中身が空のゲストのまま取り残されてしまう。
+    // その状態を残さないようサインアウトし、理由を添えてログイン画面へ戻す。
+    if (auth.currentUser?.isAnonymous) {
+      try { sessionStorage.setItem(GUEST_ERROR_KEY, GUEST_ERROR_TEXT); } catch (e) { /* 保存できなくても続行 */ }
+      try { await signOut(auth); } catch (e) { console.error("ゲストのサインアウトに失敗", e); }
+    }
   } finally {
     guestLoading.value = false;
   }
