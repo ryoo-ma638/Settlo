@@ -35,7 +35,7 @@
         :withReason="modalState.withReason"
         :reasonPlaceholder="modalState.reasonPlaceholder"
         @confirm="handleConfirm"
-        @cancel="modalState.show = false"
+        @cancel="handleCancel"
         @close="modalState.show = false"
       />
     </div>
@@ -53,6 +53,7 @@
   import { getMyName } from '@/lib/userName';
   import { makeBatchId, stampSettlementBatch } from '@/lib/settlement';
   import { batchBreakdownText } from '@/lib/format';
+  import { showToast } from '@/lib/toast';
 
 
   const route = useRoute();
@@ -69,6 +70,9 @@
       gross: Number(route.query.gross) || 0,
       offset: Number(route.query.offset) || 0,
       net: Number(route.query.amount) || 0,
+      // 件数も前の画面から受け取る（他の画面と同じ「対象3件…」の言い回しにするため）
+      count: Number(route.query.count) || 0,
+      counterCount: Number(route.query.counterCount) || 0,
       payerUid: isRemind.value ? (route.query.uid || 'other') : me,
     }, me);
   });
@@ -77,17 +81,24 @@
   // 🌟 統一モーダルの状態管理
   const modalState = reactive({
     show: false, type: 'info', title: '', message: '',
-    showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null,
+    showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, onCancel: null,
     withReason: false, reasonPlaceholder: ''
   });
 
   const showModal = (options) => {
-    Object.assign(modalState, { showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, withReason: false, reasonPlaceholder: '', ...options, show: true });
+    Object.assign(modalState, { showCancel: false, confirmText: 'OK', cancelText: 'キャンセル', onConfirm: null, onCancel: null, withReason: false, reasonPlaceholder: '', ...options, show: true });
   };
 
   const handleConfirm = (reason) => {
     if (modalState.onConfirm) modalState.onConfirm(reason);
     modalState.show = false;
+  };
+
+  // 完了の案内で「承認待ちを見る／ホームへ」を選べるようにするため、キャンセル側にも行き先を持たせる
+  const handleCancel = () => {
+    const fn = modalState.onCancel;
+    modalState.show = false;
+    if (fn) fn();
   };
   
   // 🌟 confirm を美しいモーダルに！
@@ -186,6 +197,7 @@
                 isRead: false, createdAt: serverTimestamp(),
               });
             } catch (e) { console.error('完了通知の送信に失敗:', e); }
+            showToast(`${friendName}さんとの精算が完了しました`, 3000);
             showModal({
               type: 'success', title: '精算完了',
               message: breakdown
@@ -231,15 +243,22 @@
                   isRead: false, createdAt: serverTimestamp(),
                 });
               } catch (e) { console.error('承認リクエストの送信に失敗:', e); }
+              // 🌟 一番緊張する操作なので、手応え（トースト）と次の行き先（承認待ち）をその場で出す
+              showToast(`精算を申請しました（${friendName}さんの承認待ち）`, 3000);
               showModal({
-                type: 'success', title: '承認待ちにしました',
+                type: 'success', title: '承認を依頼しました',
                 message: owedToMeIds.length
-                  ? `${iOweIds.length}件の精算リクエストを送信しました。相手が承認すると完了します。\n${breakdown}\n受け取る${owedToMeIds.length}件も、拒否された場合は未払いに戻ります。`
-                  : `${iOweIds.length}件の精算リクエストを送信しました。相手が承認すると完了します。`,
-                onConfirm: () => router.push('/')
+                  ? `${friendName}さんに${iOweIds.length}件の精算リクエストを送信しました。相手が承認すると完了します。\n${breakdown}\n受け取る${owedToMeIds.length}件も、拒否された場合は未払いに戻ります。`
+                  : `${friendName}さんに${iOweIds.length}件の精算リクエストを送信しました。相手が承認すると完了します。`,
+                showCancel: true,
+                confirmText: '承認待ちを見る',
+                cancelText: 'ホームへ',
+                onConfirm: () => router.push('/approvals'),
+                onCancel: () => router.push('/')
               });
             } else {
               // すべて「相手が自分に払う」分だった＝実質その場で完了
+              showToast(`${friendName}さんとの精算が完了しました`, 3000);
               showModal({
                 type: 'success', title: '精算完了',
                 message: `${owedToMeIds.length}件を精算済みにしました。お支払い履歴から確認できます。`,
