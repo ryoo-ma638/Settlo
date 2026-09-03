@@ -25,7 +25,8 @@
             class="status-card detail-card blue-bg clickable-card"
             @click="handleCardClick(0, '/payment?tab=waiting')"
           > <div class="card-main">
-              <span class="detail-label">お支払い待ち（受け取る）</span>
+              <span class="detail-sub">お支払い待ち</span>
+              <span class="detail-label"><span class="dir-arrow" aria-hidden="true">↙</span>受け取る</span>
               <div class="price-large">¥{{ summary.receivableTotal.toLocaleString() }}</div>
             </div>
             <div class="recent-list">
@@ -54,7 +55,8 @@
           <div class="status-card summary-card white-bg clickable-card" @click="handleCardClick(1, null)">
             <div class="summary-top">
               <div class="status-box" @click.stop="navigateIfActive(1, '/payment?tab=waiting')">
-                <span class="badge blue">お支払い待ち</span>
+                <span class="status-box__sub">お支払い待ち</span>
+                <span class="badge blue"><span class="dir-arrow" aria-hidden="true">↙</span>受け取る</span>
                 <div class="price blue-text">¥{{ summary.receivableTotal.toLocaleString() }}</div>
                 <div class="progress-bar">
                   <div class="bar blue-bar" :style="{ width: summary.receivableTotal > 0 ? '100%' : '0%' }"></div>
@@ -62,7 +64,8 @@
               </div>
               <div class="divider"></div>
               <div class="status-box" @click.stop="navigateIfActive(1, '/payment?tab=unpaid')">
-                <span class="badge orange">未払い</span>
+                <span class="status-box__sub">未払い</span>
+                <span class="badge orange"><span class="dir-arrow" aria-hidden="true">↗</span>支払う</span>
                 <div class="price orange-text">¥{{ summary.payableTotal.toLocaleString() }}</div>
                 <div class="progress-bar">
                   <div class="bar orange-bar" :style="{ width: summary.payableTotal > 0 ? '100%' : '0%' }"></div>
@@ -78,7 +81,8 @@
             class="status-card detail-card orange-bg clickable-card"
             @click="handleCardClick(2, '/payment?tab=unpaid')"
           > <div class="card-main">
-              <span class="detail-label">未払い（支払う）</span>
+              <span class="detail-sub">未払い</span>
+              <span class="detail-label"><span class="dir-arrow" aria-hidden="true">↗</span>支払う</span>
               <div class="price-large">¥{{ summary.payableTotal.toLocaleString() }}</div>
             </div>
             <div class="recent-list">
@@ -244,7 +248,10 @@ const props = defineProps({
   .white-bg { background: #ffffff; border: 1px solid var(--c-surface-2); }
   
   .card-main { text-align: center; margin-bottom: 15px; }
-  .detail-label { font-size: 12px; opacity: 0.9; font-weight: bold; }
+  /* 「お支払い待ち／未払い」は補助表記。金額の直前には向き（受け取る／支払う）を置く */
+  .detail-sub { display: block; font-size: 11px; opacity: 0.8; font-weight: bold; }
+  .detail-label { display: block; font-size: 14px; opacity: 1; font-weight: bold; margin-top: 2px; }
+  .dir-arrow { margin-right: 3px; }
   .price-large { font-size: 38px; font-weight: 900; letter-spacing: -1px; margin-top: 5px; }
   
   .recent-list { border-top: 1px solid rgba(255,255,255,0.2); padding-top: 15px; }
@@ -272,7 +279,9 @@ const props = defineProps({
   .summary-top { display: flex; justify-content: space-between; width: 100%; }
   .status-box { text-align: center; flex: 1; cursor: pointer; transition: 0.2s; border-radius: 12px; padding: 8px 0; }
   .status-box:active { background: var(--c-surface-2); transform: scale(0.95); } /* 🌟 押した時のフィードバック */
-  .badge { display: inline-block; color: white; padding: 4px 14px; border-radius: 20px; font-size: 11px; font-weight: bold; margin-bottom: 8px; }
+  /* 中央カード：色に頼らず向きが分かるよう、金額の直前を「受け取る／支払う」にする */
+  .status-box__sub { display: block; font-size: 10.5px; font-weight: bold; color: var(--c-text-faint); margin-bottom: 4px; }
+  .badge { display: inline-block; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-bottom: 8px; }
   .blue { background-color: var(--c-receive); }
   .orange { background-color: var(--c-pay-strong); } /* 白文字バッジが読めるよう濃いアンバー */
   .price { font-size: 24px; font-weight: bold; }
