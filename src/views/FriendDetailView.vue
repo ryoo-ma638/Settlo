@@ -39,7 +39,7 @@
           <span class="tx-section__total blue-text tnum">¥{{ waitingTotal.toLocaleString() }}</span>
         </div>
         <div class="tx-list">
-          <div v-for="t in receivableItems" :key="t.id" class="tx" @click="$router.push('/payment-detail/waiting-' + t.id)">
+          <div v-for="t in receivableItems" :key="t.id" class="tx" @click="openTx(t, 'waiting')">
             <div class="tx__info">
               <span class="tx__name">{{ t.itemName }}</span>
               <span class="tx__status" :class="'st-' + t.status">{{ t.statusLabel }}</span>
@@ -58,7 +58,7 @@
           <span class="tx-section__total orange-text tnum">¥{{ unpaidTotal.toLocaleString() }}</span>
         </div>
         <div class="tx-list">
-          <div v-for="t in payableItems" :key="t.id" class="tx" @click="$router.push('/payment-detail/unpaid-' + t.id)">
+          <div v-for="t in payableItems" :key="t.id" class="tx" @click="openTx(t, 'unpaid')">
             <div class="tx__info">
               <span class="tx__name">{{ t.itemName }}</span>
               <span class="tx__status" :class="'st-' + t.status">{{ t.statusLabel }}</span>
@@ -115,6 +115,7 @@ import { doc, deleteDoc, getDoc, collection, query, where, getDocs, addDoc, serv
 import BaseModal from '@/components/BaseModal.vue'; // 🌟 統一モーダル追加
 import { getMyName } from '@/lib/userName';
 import PageHeader from '@/components/PageHeader.vue';
+import { collapsePendingBatches } from '@/lib/balance';
 
 const waitingTotal = ref(0); // この相手から受け取る未決済合計
 const unpaidTotal = ref(0);  // この相手へ支払う未決済合計
@@ -129,6 +130,11 @@ const friendPhoto = ref("");
 const friend = ref(null);
 
 const netBalance = computed(() => waitingTotal.value - unpaidTotal.value);
+
+// まとめ精算にまとめた行は、1件ずつではなく「まとめ精算の詳細」（相殺の内訳つき）へ
+const openTx = (t, prefix) => {
+  router.push(t.isBatchRow ? `/payment-detail/${prefix}-batch-${t.batchId}` : `/payment-detail/${prefix}-${t.id}`);
+};
 
 // 🌟 モーダル状態管理
 const modalState = reactive({
@@ -163,16 +169,15 @@ onMounted(async () => {
     // 🌟 この相手との取引を実データから取得し、各リスト・履歴・残高を構築（複合index回避）
     const statusLabel = (s) => s === 'completed' ? '精算済み' : (s === 'awaiting_approval' ? '承認待ち' : '未払い');
     const recvList = [], payList = [], histList = [];
-    let recvSum = 0, paySum = 0;
 
     const recvSnap = await getDocs(query(collection(db, "transactions"), where("paidToId", "==", myUid)));
     recvSnap.forEach((d) => {
       const t = d.data();
       if (t.paidById !== uid) return;
       const s = t.status || 'unpaid';
-      const item = { id: d.id, amount: t.amount || 0, itemName: t.itemName || 'イベント代', status: s, statusLabel: statusLabel(s), type: 'receive', createdAt: t.createdAt };
+      const item = { id: d.id, amount: t.amount || 0, itemName: t.itemName || 'イベント代', status: s, statusLabel: statusLabel(s), type: 'receive', createdAt: t.createdAt, settlementBatch: t.settlementBatch || null };
       histList.push(item);
-      if (s !== 'completed') { recvList.push(item); recvSum += item.amount; }
+      if (s !== 'completed') recvList.push(item);
     });
 
     const paySnap = await getDocs(query(collection(db, "transactions"), where("paidById", "==", myUid)));
@@ -180,17 +185,25 @@ onMounted(async () => {
       const t = d.data();
       if (t.paidToId !== uid) return;
       const s = t.status || 'unpaid';
-      const item = { id: d.id, amount: t.amount || 0, itemName: t.itemName || 'イベント代', status: s, statusLabel: statusLabel(s), type: 'pay', createdAt: t.createdAt };
+      const item = { id: d.id, amount: t.amount || 0, itemName: t.itemName || 'イベント代', status: s, statusLabel: statusLabel(s), type: 'pay', createdAt: t.createdAt, settlementBatch: t.settlementBatch || null };
       histList.push(item);
-      if (s !== 'completed') { payList.push(item); paySum += item.amount; }
+      if (s !== 'completed') payList.push(item);
     });
 
+    // 🌟 申請中のまとめ精算は実質額で1行にまとめる（「まとめて」タブ・承認待ち一覧と同じ数字にする）
+    const toRows = (list) => collapsePendingBatches(list).map((t) => t.isBatchRow
+      ? { ...t, itemName: `まとめ精算・対象${t.settlementBatch.count || 1}件` }
+      : t);
+    const shownRecv = toRows(recvList);
+    const shownPay = toRows(payList);
+    const sum = (arr) => arr.reduce((s, t) => s + (t.amount || 0), 0);
+
     histList.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-    receivableItems.value = recvList;
-    payableItems.value = payList;
+    receivableItems.value = shownRecv;
+    payableItems.value = shownPay;
     historyItems.value = histList;
-    waitingTotal.value = recvSum;
-    unpaidTotal.value = paySum;
+    waitingTotal.value = sum(shownRecv);
+    unpaidTotal.value = sum(shownPay);
   } catch (error) {
     console.error("データ取得中にエラーが発生しました:", error);
   }

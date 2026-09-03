@@ -25,7 +25,9 @@ import { toastMsg } from '../lib/toast';
   padding: 11px 18px;
   border-radius: var(--r-pill, 999px);
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.28);
-  z-index: 5000;
+  /* 完了の案内モーダル（z-index 99999）の上に出す。
+     一番手応えが欲しい操作の直後に、暗幕に隠れて見えないことがあるため。 */
+  z-index: 100000;
   text-align: center;
   white-space: pre-line;
 }

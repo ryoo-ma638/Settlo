@@ -107,10 +107,16 @@
         <div v-else class="settle__list">
           <button v-for="m in settleByPerson" :key="m.uid" class="scard" @click="goSettle(m)">
             <UserAvatar class="scard__avatar" :name="m.name" :photo="m.photo" :size="40" />
-            <span class="scard__name">{{ m.name }}</span>
-            <span class="scard__action" :class="m.net < 0 ? 'is-pay' : 'is-receive'">
-              {{ m.net < 0 ? '支払う' : '受け取る' }}
-              <span class="scard__amt tnum">¥{{ Math.abs(m.net).toLocaleString() }}</span>
+            <span class="scard__body">
+              <span class="scard__name">{{ m.name }}</span>
+              <span v-if="m.pending > 0" class="scard__note">承認待ちのため確定前</span>
+            </span>
+            <span class="scard__right">
+              <span v-if="m.pending > 0" class="scard__tag">{{ pendingLabel(m) }}</span>
+              <span class="scard__action" :class="[m.net < 0 ? 'is-pay' : 'is-receive', { 'is-provisional': m.pending >= Math.abs(m.net) }]">
+                {{ m.net < 0 ? '支払う' : '受け取る' }}
+                <span class="scard__amt tnum">¥{{ Math.abs(m.net).toLocaleString() }}</span>
+              </span>
             </span>
             <svg class="scard__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
           </button>
@@ -131,6 +137,7 @@ import { collection, query, where, onSnapshot, doc, getDoc, addDoc, serverTimest
 import SkeletonRows from '../components/SkeletonRows.vue'
 import UserAvatar from '../components/UserAvatar.vue'
 import { formatDate } from '../lib/format'
+import { balancesByPerson } from '../lib/balance'
 
 const route = useRoute()
 const router = useRouter()
@@ -147,22 +154,16 @@ const totalPayable = ref(0)
 
 // 🌟 全イベント横断で「人ごと」に相殺した、まとめて精算できる相手の一覧
 //    net > 0 = その人から受け取る（催促）／ net < 0 = その人へ支払う
-const settleByPerson = computed(() => {
-  const map = {}
-  const bump = (uid, name, photo, key, amt) => {
-    if (!uid) return
-    const m = map[uid] || (map[uid] = { uid, name, photo, receive: 0, pay: 0 })
-    m[key] += amt || 0
-    if ((!m.name || m.name === '不明なユーザー') && name) m.name = name
-    if (!m.photo && photo) m.photo = photo
-  }
-  receivableList.value.forEach(i => bump(i.opponentUid, i.name, i.photo, 'receive', i.amount))
-  payableList.value.forEach(i => bump(i.opponentUid, i.name, i.photo, 'pay', i.amount))
-  return Object.values(map)
-    .map(m => ({ ...m, net: m.receive - m.pay }))
-    .filter(m => m.net !== 0)
-    .sort((a, b) => Math.abs(b.net) - Math.abs(a.net))
-})
+//    計算は src/lib/balance.js に集約（承認待ちのまとめ精算は実質額で1件に数える）。
+//    精算を申請しただけで金額が動かないようにするため。
+const settleByPerson = computed(() => balancesByPerson(receivableList.value, payableList.value))
+
+// 承認待ちの内訳ラベル。申請中＝自分が出した精算／要承認＝自分が承認する側。
+const pendingLabel = (m) => {
+  if (m.pendingPay > 0 && m.pendingReceive > 0) return `承認待ち ¥${m.pending.toLocaleString()}`
+  if (m.pendingPay > 0) return `申請中 ¥${m.pendingPay.toLocaleString()}`
+  return `要承認 ¥${m.pendingReceive.toLocaleString()}`
+}
 const goSettle = (m) => {
   router.push(`/combined-settlement/${encodeURIComponent(m.name || '相手')}?uid=${m.uid}`)
 }
@@ -260,7 +261,8 @@ onMounted(() => {
             status: s,
             statusLabel: txStatusLabel(s),
             remindCount: data.remindCount || 0,
-            batchId: batchIdOf(data)
+            batchId: batchIdOf(data),
+            settlementBatch: data.settlementBatch || null // 差し引きで実質額を使うため
           });
         }
 
@@ -311,7 +313,8 @@ onMounted(() => {
             photo: otherPhoto,
             status: s,
             statusLabel: txStatusLabel(s),
-            batchId: batchIdOf(data)
+            batchId: batchIdOf(data),
+            settlementBatch: data.settlementBatch || null // 差し引きで実質額を使うため
           });
         }
 
@@ -390,10 +393,16 @@ const formatTimestamp = (timestamp) => formatDate(timestamp);
   box-shadow: var(--shadow-sm); text-align: left;
 }
 .scard:active { transform: scale(0.99); background: var(--c-surface-2); }
-.scard__name { flex: 1; min-width: 0; font-size: 15px; font-weight: var(--fw-bold); color: var(--c-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.scard__action { flex-shrink: 0; display: flex; align-items: baseline; gap: 6px; font-size: 12px; font-weight: var(--fw-bold); }
+.scard__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.scard__name { font-size: 15px; font-weight: var(--fw-bold); color: var(--c-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scard__note { font-size: 11px; color: var(--c-text-sub); }
+.scard__right { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.scard__tag { background: var(--c-pay-weak); color: var(--c-pay-strong); font-size: 10px; font-weight: var(--fw-bold); padding: 2px 8px; border-radius: var(--r-pill); }
+.scard__action { display: flex; align-items: baseline; gap: 6px; font-size: 12px; font-weight: var(--fw-bold); }
 .scard__action.is-pay { color: var(--c-pay-strong); }
 .scard__action.is-receive { color: var(--c-receive); }
+/* 承認待ちで確定していない金額は、色を落として「まだ確定前」と分かるようにする */
+.scard__action.is-provisional { color: var(--c-text-sub); }
 .scard__amt { font-size: 17px; font-weight: var(--fw-black); }
 .scard__chevron { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: var(--c-text-faint); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 

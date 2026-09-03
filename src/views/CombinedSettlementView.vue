@@ -6,7 +6,8 @@
         <div class="final-card" :class="netBalance >= 0 ? 'receive-bg' : 'pay-bg'">
           <p class="label">{{ netBalance >= 0 ? 'あなたへの未払い（受け取る）' : 'あなたの未払い（支払う）' }}</p>
           <h2 class="amount">¥{{ Math.abs(netBalance).toLocaleString() }}</h2>
-          
+          <p v-if="pendingTotal > 0" class="pending-line">うち ¥{{ pendingTotal.toLocaleString() }} は承認待ち（確定前）</p>
+
           <div class="settle-route">
             <UserAvatar class="avatar-me" :name="myName" :photo="myPhoto" :size="50" />
             <span class="route-arrow">{{ netBalance >= 0 ? '←' : '→' }}</span>
@@ -34,20 +35,25 @@
   
           <div class="event-history">
             <p class="history-label">対象のイベント一覧（タップで詳細）</p>
-            <div 
-              v-for="item in displayedEvents" 
-              :key="item.id" 
-              class="history-item" 
-              :class="{ 'excluded-item': !item.included }"
+            <div
+              v-for="item in displayedEvents"
+              :key="item.id"
+              class="history-item"
+              :class="{ 'excluded-item': !item.included && !item.pending, 'pending-item': item.pending }"
               @click="openDetailOverlay(item)"
             >
-              <button class="toggle-btn" @click.stop="toggleInclude(item)" :aria-label="item.included ? '除外' : '追加'">
+              <!-- 承認待ちの分はもう申請済み＝今回の精算には入れられない（二重申請を防ぐ） -->
+              <span v-if="item.pending" class="pending-mark">申請中</span>
+              <button v-else class="toggle-btn" @click.stop="toggleInclude(item)" :aria-label="item.included ? '除外' : '追加'">
                 <svg v-if="item.included" viewBox="0 0 24 24"><path d="M6 12h12"/></svg>
                 <svg v-else viewBox="0 0 24 24"><path d="M12 6v12M6 12h12"/></svg>
               </button>
               <div class="item-info">
                 <span class="badge" :class="item.type">{{ item.type === 'waiting' ? '受' : '払' }}</span>
-                <span class="name">{{ item.eventName }}</span>
+                <span class="name">
+                  {{ item.eventName }}
+                  <small v-if="item.note" class="item-note">{{ item.note }}</small>
+                </span>
               </div>
               <span class="price">¥{{ item.amount.toLocaleString() }}</span>
             </div>
@@ -55,11 +61,22 @@
         </section>
   
         <footer class="footer-actions">
-          <button v-if="netBalance >= 0" class="main-btn blue-btn" :disabled="!hasIncluded" @click="goToActionPage('remind')">
-            ¥{{ Math.abs(netBalance).toLocaleString() }} をまとめて催促する
-          </button>
-          <button v-else class="main-btn orange-btn" :disabled="!hasIncluded" @click="goToActionPage('pay')">
-            ¥{{ Math.abs(netBalance).toLocaleString() }} をまとめて支払う
+          <!-- 承認待ちの分は相手の返事待ち＝ここからもう一度は申請できない -->
+          <div v-if="pendingTotal > 0" class="pending-box">
+            <p class="pending-text">¥{{ pendingTotal.toLocaleString() }} は精算を申請済みです。相手が承認すると完了します。</p>
+            <button class="pending-link" @click="$router.push('/approvals')">承認待ちを見る</button>
+          </div>
+
+          <template v-if="hasIncluded">
+            <button v-if="settleNet >= 0" class="main-btn blue-btn" @click="goToActionPage('remind')">
+              ¥{{ Math.abs(settleNet).toLocaleString() }} をまとめて催促する
+            </button>
+            <button v-else class="main-btn orange-btn" @click="goToActionPage('pay')">
+              ¥{{ Math.abs(settleNet).toLocaleString() }} をまとめて支払う
+            </button>
+          </template>
+          <button v-else-if="pendingTotal === 0" class="main-btn orange-btn" disabled>
+            まとめて精算する
           </button>
         </footer>
       </main>
@@ -85,6 +102,8 @@
   import PageHeader from '../components/PageHeader.vue';
   import UserAvatar from '../components/UserAvatar.vue';
   import { showToast } from '@/lib/toast';
+  import { collapsePendingBatches, PENDING_STATUS } from '@/lib/balance';
+  import { batchBreakdownText } from '@/lib/format';
   
   const route = useRoute();
   const router = useRouter();
@@ -127,21 +146,38 @@ onMounted(async () => {
     // 🌟 この相手との未決済取引を実データから集計してリスト化（複合インデックス回避）
     if (friendUid) {
       const list = [];
+      const toRow = (id, t, type) => ({
+        id, type,
+        eventName: t.itemName || 'イベント代', date: '', name: route.params.name,
+        itemName: t.itemName || (type === 'waiting' ? '立て替え' : '支払い'),
+        amount: t.amount || 0, itemsDetail: t.itemsDetail || [t.itemName],
+        status: t.status || 'unpaid', settlementBatch: t.settlementBatch || null,
+        included: true,
+      });
       const recvSnap = await getDocs(query(collection(db, "transactions"), where("paidToId", "==", myUid)));
       recvSnap.forEach((d) => {
         const t = d.data();
-        if (t.paidById === friendUid && (t.status || 'unpaid') !== 'completed') {
-          list.push({ id: d.id, type: 'waiting', eventName: t.itemName || 'イベント代', date: '', name: route.params.name, itemName: t.itemName || '立て替え', amount: t.amount || 0, itemsDetail: t.itemsDetail || [t.itemName], included: true });
-        }
+        if (t.paidById === friendUid && (t.status || 'unpaid') !== 'completed') list.push(toRow(d.id, t, 'waiting'));
       });
       const paySnap = await getDocs(query(collection(db, "transactions"), where("paidById", "==", myUid)));
       paySnap.forEach((d) => {
         const t = d.data();
-        if (t.paidToId === friendUid && (t.status || 'unpaid') !== 'completed') {
-          list.push({ id: d.id, type: 'pay', eventName: t.itemName || 'イベント代', date: '', name: route.params.name, itemName: t.itemName || '支払い', amount: t.amount || 0, itemsDetail: t.itemsDetail || [t.itemName], included: true });
-        }
+        if (t.paidToId === friendUid && (t.status || 'unpaid') !== 'completed') list.push(toRow(d.id, t, 'pay'));
       });
-      allEvents.value = list;
+
+      // 🌟 申請済み（承認待ち）の分は、まとめ精算なら実質額で1行にまとめる。
+      //    「まとめて」タブ・承認待ち一覧・決済の詳細と同じ数字にし、
+      //    さらに今回の精算対象から外して二重申請を防ぐ。
+      allEvents.value = collapsePendingBatches(list).map((e) => {
+        const pending = e.status === PENDING_STATUS;
+        return {
+          ...e,
+          pending,
+          included: !pending,
+          eventName: e.isBatchRow ? `まとめ精算・対象${e.settlementBatch.count || 1}件` : e.eventName,
+          note: e.isBatchRow ? batchBreakdownText(e.settlementBatch, myUid) : '',
+        };
+      });
     }
   }
 });
@@ -149,11 +185,21 @@ onMounted(async () => {
   // 🌟 実データを onMounted で投入する（初期は空）
   const allEvents = ref([]);
   
-  // 🌟 動的計算（included が true のものだけ合算）
-  const waitingTotal = computed(() => allEvents.value.filter(e => e.type === 'waiting' && e.included).reduce((sum, e) => sum + e.amount, 0));
-  const unpaidTotal = computed(() => allEvents.value.filter(e => e.type === 'pay' && e.included).reduce((sum, e) => sum + e.amount, 0));
+  // 🌟 表示の合算。承認待ち（申請済み）の分は今回の対象外だが、貸し借りとしては残っているので
+  //    差し引きには入れる＝「まとめて」タブと同じ金額になる。
+  const sum = (arr) => arr.reduce((s, e) => s + (e.amount || 0), 0);
+  const shown = (type) => allEvents.value.filter(e => e.type === type && (e.included || e.pending));
+  const waitingTotal = computed(() => sum(shown('waiting')));
+  const unpaidTotal = computed(() => sum(shown('pay')));
   const netBalance = computed(() => waitingTotal.value - unpaidTotal.value);
-  // 精算対象（含める取引）が1件でもあるか。無ければ精算ボタンを無効化する
+  // 承認待ちの合計（相手の返事待ちで、まだ確定していない額）
+  const pendingTotal = computed(() => sum(allEvents.value.filter(e => e.pending)));
+
+  // 🌟 今回の精算で実際に動かす金額（承認待ちは含めない＝二重申請しない）
+  const settleWaiting = computed(() => sum(allEvents.value.filter(e => e.type === 'waiting' && e.included)));
+  const settlePay = computed(() => sum(allEvents.value.filter(e => e.type === 'pay' && e.included)));
+  const settleNet = computed(() => settleWaiting.value - settlePay.value);
+  // 精算対象（含める取引）が1件でもあるか。無ければ精算ボタンを出さない
   const hasIncluded = computed(() => allEvents.value.some(e => e.included));
   
   // 🌟 絞り込み機能
@@ -164,7 +210,9 @@ onMounted(async () => {
   });
   
   // 🌟 除外/追加 トグル機能（今回の精算に含めるかを切り替えるだけ・いつでも戻せる）
+  //    承認待ち（申請済み）の分は相手の返事待ちなので、切り替えの対象にしない。
   const toggleInclude = (item) => {
+    if (item.pending) return;
     item.included = !item.included;
   };
   
@@ -175,22 +223,27 @@ onMounted(async () => {
   // 🌟 相殺専用のアクションページへ遷移
   //    除外を反映するため「今回精算する取引ID（included のみ）」を渡す＝表示と実精算を一致させる
   const goToActionPage = (actionType) => {
-    const ids = allEvents.value.filter(e => e.included).map(e => e.id);
+    const included = allEvents.value.filter(e => e.included);
+    const ids = included.map(e => e.id);
     if (ids.length === 0) {
       showToast('精算する取引がありません。除外を見直してください');
       return;
     }
-    // 相殺の内訳も渡す（次の画面で「対象¥500のうち¥400と相殺→実質¥100」と出すため）
+    // 相殺の内訳も渡す（次の画面で「対象3件¥500のうち、2件¥400と相殺→実質¥100」と出すため）
     //   gross＝今回精算する側の合計 / offset＝相殺に使う逆方向の合計
-    const gross = actionType === 'remind' ? waitingTotal.value : unpaidTotal.value;
-    const offset = actionType === 'remind' ? unpaidTotal.value : waitingTotal.value;
+    //   件数（count / counterCount）も渡さないと、精算実行画面のカードだけ件数が抜けてしまう。
+    const mainType = actionType === 'remind' ? 'waiting' : 'pay';
+    const mainSide = included.filter(e => e.type === mainType);
+    const offsetSide = included.filter(e => e.type !== mainType);
     const q = new URLSearchParams({
       type: actionType,
-      amount: String(Math.abs(netBalance.value)),
+      amount: String(Math.abs(settleNet.value)),
       uid: route.query.uid || '',
       ids: ids.join(','),
-      gross: String(gross),
-      offset: String(offset),
+      gross: String(sum(mainSide)),
+      offset: String(sum(offsetSide)),
+      count: String(mainSide.length),
+      counterCount: String(offsetSide.length),
     });
     router.push(`/combined-action/${route.params.name}?${q.toString()}`);
   };
@@ -198,7 +251,8 @@ onMounted(async () => {
   
   <style scoped>
   .combined-container { background: var(--c-bg); width: 100%; box-sizing: border-box; }
-  .content { padding: 8px var(--pad) 28px; box-sizing: border-box; }
+  /* 下部ナビに最後のボタンが隠れないよう、ナビの高さぶん余白を取る */
+  .content { padding: 8px var(--pad) calc(var(--nav-h) + 28px); box-sizing: border-box; }
 
   .final-card { border-radius: var(--r-lg); padding: 26px; color: white; text-align: center; box-shadow: var(--shadow-card); margin-bottom: 22px; transition: all 0.3s; }
   .receive-bg { background: var(--c-receive); }
@@ -222,6 +276,14 @@ onMounted(async () => {
   .history-label { font-size: 12px; color: var(--c-text-faint); margin-bottom: 10px; }
   .history-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--c-surface-2); cursor: pointer; transition: 0.3s; }
   .excluded-item { opacity: 0.4; text-decoration: line-through; } /* 🌟 除外された項目のスタイル */
+  /* 申請済み（承認待ち）＝今回の対象外。取り消し線ではなく「申請中」と明示する */
+  .pending-item .price { color: var(--c-text-sub); }
+  .pending-mark { flex-shrink: 0; margin-right: 10px; background: var(--c-pay-weak); color: var(--c-pay-strong); font-size: 10px; font-weight: bold; padding: 4px 8px; border-radius: var(--r-pill); }
+  .item-note { display: block; font-size: 11px; color: var(--c-text-sub); line-height: 1.4; margin-top: 2px; }
+  .pending-line { margin: 6px 0 0; font-size: 12px; font-weight: var(--fw-medium); opacity: 0.95; }
+  .pending-box { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-md); padding: 14px 16px; margin-top: 20px; }
+  .pending-text { font-size: 13px; color: var(--c-text-sub); line-height: 1.6; margin: 0 0 10px; }
+  .pending-link { background: var(--c-brand-weak); color: var(--c-brand-strong); border: none; padding: 8px 16px; border-radius: var(--r-pill); font-size: 13px; font-weight: bold; cursor: pointer; }
   
   .toggle-btn { background: var(--c-surface-2); border: none; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; margin-right: 10px; cursor: pointer; flex-shrink: 0; }
   .toggle-btn svg { width: 15px; height: 15px; fill: none; stroke: var(--c-text-sub); stroke-width: 2.2; stroke-linecap: round; }
