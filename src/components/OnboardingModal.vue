@@ -29,11 +29,16 @@
             <span v-for="(s, i) in slides" :key="i" class="ob-dot" :class="{ 'is-on': i === step }" @click="step = i"></span>
           </div>
 
+          <!-- 最後の1枚だけ：ツアーは自動で始まらず、いつでも呼び出せることを伝える -->
+          <p v-if="step === slides.length - 1" class="ob-tour-note">
+            使い方ツアー（ボタンを順番にご案内）は、マイページ →「アプリの使い方」からいつでも始められます。
+          </p>
+
           <!-- ボタン -->
           <div class="ob-actions">
             <button v-if="step < slides.length - 1" class="btn-brand ob-next" @click="step++">次へ</button>
-            <button v-else class="btn-brand ob-next" @click="finish(true)">はじめる</button>
-            <button class="ob-skip" @click="finish(false)">スキップ</button>
+            <button v-else class="btn-brand ob-next" @click="finish()">さわってみる</button>
+            <button class="ob-skip" @click="finish()">スキップ</button>
           </div>
         </div>
       </div>
@@ -42,14 +47,15 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { auth } from '../firebase';
 
 const show = ref(false);
 const step = ref(0);
+const isGuest = ref(false); // ゲスト（匿名）で入場した人は短縮版を出す
 
 // 実際の画面写真つきガイド（画像は public/tutorial/）
-const slides = [
+const ALL_SLIDES = [
   {
     image: './tutorial/g-home.jpg',
     title: 'ようこそ Settlo へ！',
@@ -88,31 +94,41 @@ const slides = [
     image: './tutorial/g-assistant.jpg',
     title: '迷ったらアシスタント',
     text: 'ヘッダー右のロボットが、いま支払う・催促する・承認する相手を金額つきで案内します。',
-    tap: '「はじめる」を押すとボタンの使い方ツアーが始まります',
   },
 ];
 
+// ゲスト（デモ）向けの短縮版。「何のアプリか」「レシート読み取り」「承認でもめない」の3枚に絞る。
+// すぐ触ってもらうため、ツアーは自動で始めずマイページからの任意起動に任せる。
+const GUEST_SLIDE_INDEXES = [0, 2, 4];
+const GUEST_SLIDES = GUEST_SLIDE_INDEXES.map((i) => ALL_SLIDES[i]);
+
+const slides = computed(() => (isGuest.value ? GUEST_SLIDES : ALL_SLIDES));
+
 const KEY = 'settlo_onboarding_done';
 
-const finish = (startTour = false) => {
+const finish = () => {
   show.value = false;
   try { localStorage.setItem(KEY, '1'); } catch (e) {}
-  // 「はじめる」で締めたら、続けてボタン1つ1つの説明ツアーへ
-  if (startTour) {
-    setTimeout(() => window.dispatchEvent(new CustomEvent('settlo:show-button-tour')), 350);
-  }
+  // 以前はここから27ステップのボタンツアーを自動で始めていたが、
+  // 読み終わるまで自由に触れないため既定オフにした。
+  // ツアーはマイページ →「アプリの使い方」からいつでも起動できる（ButtonTour は残したまま）。
 };
 
 // ログイン済みかつ初回のみ表示（「もう一度見る」イベントでも表示）
 const maybeShow = () => {
   try {
     if (!localStorage.getItem(KEY) && auth.currentUser) {
+      isGuest.value = auth.currentUser.isAnonymous === true;
       step.value = 0;
       show.value = true;
     }
   } catch (e) {}
 };
-const forceShow = () => { step.value = 0; show.value = true; };
+const forceShow = () => {
+  isGuest.value = auth.currentUser?.isAnonymous === true;
+  step.value = 0;
+  show.value = true;
+};
 
 onMounted(() => {
   // 認証確定を少し待ってから判定（App.vue のリダイレクト後）
@@ -189,6 +205,13 @@ onUnmounted(() => window.removeEventListener('settlo:show-onboarding', forceShow
   cursor: pointer;
 }
 .ob-dot.is-on { background: var(--c-brand); width: 22px; border-radius: 999px; }
+
+.ob-tour-note {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--c-text-faint);
+  margin: 0 0 10px;
+}
 
 .ob-actions { display: flex; flex-direction: column; gap: 4px; }
 .ob-next { width: 100%; }

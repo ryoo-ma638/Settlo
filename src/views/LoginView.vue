@@ -42,9 +42,11 @@ import { signInWithPopup, signInWithRedirect, getRedirectResult, signInAnonymous
 import { httpsCallable } from "firebase/functions";
 import { onMounted } from "vue";
 import { saveUser } from "../user";
+import { useGuestSetup } from "../composables/useGuestSetup";
 import logoMark from "../assets/logo-mark.png";
 
 const router = useRouter();
+const { startGuestDemoSetup, finishGuestDemoSetup } = useGuestSetup();
 
 const guestLoading = ref(false);
 const guestError = ref("");
@@ -111,6 +113,9 @@ const loginAsGuest = async () => {
   if (guestLoading.value) return;
   guestLoading.value = true;
   guestError.value = "";
+  // 匿名ログインが通った瞬間にホームへ移動してしまうので、
+  // デモデータが揃うまで空っぽのホームを見せないよう先に合図を立てる
+  startGuestDemoSetup();
   try {
     await signInAnonymously(auth);
     const setup = httpsCallable(functions, "setupGuestDemo");
@@ -129,6 +134,7 @@ const loginAsGuest = async () => {
     }
   } finally {
     guestLoading.value = false;
+    finishGuestDemoSetup(); // 成功でも失敗でも読込表示は解除する
   }
 };
 </script>

@@ -8,6 +8,13 @@
     <!-- ログイン・チャットはシェル無しで全画面（LINE風にチャットへ集中） -->
     <RouterView v-if="route.path === '/login' || route.path.startsWith('/thread')" />
 
+    <!-- ゲスト入場の直後：デモデータが届くまでホームを描かない（空っぽの ¥0 画面を見せない） -->
+    <div v-else-if="preparingGuestDemo" class="app-loading">
+      <img class="app-loading__mark" :src="logoMark" alt="" aria-hidden="true">
+      <p class="app-loading__text">デモデータを用意しています…</p>
+      <div class="skeleton skeleton--text app-loading__bar"></div>
+    </div>
+
     <!-- それ以外は共通のモバイルシェル -->
     <div v-else class="app-shell">
       <AppHeader />
@@ -35,11 +42,14 @@ import AppFooter from './components/AppFooter.vue'
 import OnboardingModal from './components/OnboardingModal.vue'
 import ButtonTour from './components/ButtonTour.vue'
 import GlobalToast from './components/GlobalToast.vue'
+import { useGuestSetup } from './composables/useGuestSetup'
 import logoMark from './assets/logo-mark.png'
 
 const route = useRoute()
 const router = useRouter()
 const authChecked = ref(false)
+// ゲストのデモデータ準備中は、ホームの代わりに読込画面を出す
+const { preparingGuestDemo } = useGuestSetup()
 
 // 🌟 プッシュ通知のセットアップ（ログイン後に実行・トークンを保存して実配信できるように）
 //    VAPIDキーは「公開鍵」なので埋め込みOK
@@ -108,6 +118,12 @@ onMounted(() => {
   font-size: 13px;
   font-weight: var(--fw-medium);
   color: var(--c-text-sub);
+}
+/* 準備中であることが伝わるよう、読込スケルトンの帯を1本だけ添える */
+.app-loading__bar {
+  width: 180px;
+  height: 8px;
+  border-radius: 999px;
 }
 
 /* シェル */
