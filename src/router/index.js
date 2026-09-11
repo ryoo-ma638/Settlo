@@ -12,9 +12,7 @@ import EventDetails from '../views/EventDetails.vue'
 import EditProfileView from '../views/EditProfileView.vue';
 import PaymentHistoryView from '../views/PaymentHistoryView.vue';
 
-const router = createRouter({
-  history: createWebHashHistory(import.meta.env.BASE_URL),
-  routes: [
+const routes = [
     { path: '/', name: 'home', component: HomeView },
     { path: '/friend', name: 'friend', component: FriendView },
     { path: '/friend/:name/:uid', name: 'friend-detail', component: FriendDetailView },
@@ -41,8 +39,36 @@ const router = createRouter({
     { path: '/chats/:uid', name: 'PersonChats', component: () => import('../views/PersonChatsView.vue') },
     { path: '/thread/:id', name: 'Thread', component: () => import('../views/ThreadView.vue') },
     { path: '/event/:id', name: 'EventDetails', component: () => import('../views/EventDetails.vue') }
-  ]
+]
+
+// 🌟 開発中だけの確認用画面（結果カードのサンドボックス）。
+//    `import.meta.env.DEV` は本番ビルドで false に置き換えられるので、この if ごと
+//    取り除かれ、遅延読み込みのチャンクも出力されません＝本番には存在しない画面です。
+//    本番で /dev/card-sandbox を開いたときは、下の redirect でホームへ送ります。
+if (import.meta.env.DEV) {
+  routes.push({
+    path: '/dev/card-sandbox',
+    name: 'DevCardSandbox',
+    component: () => import('../views/CardSandboxView.vue')
+  })
+} else {
+  routes.push({ path: '/dev/:pathMatch(.*)*', redirect: '/' })
+}
+
+const router = createRouter({
+  history: createWebHashHistory(import.meta.env.BASE_URL),
+  routes
 })
+
+// 🌟 開発中だけ：確認用画面はログインしていなくても開けるようにする。
+//    App.vue は未ログインだと /login へ送るが、この画面は Firebase を一切使わないので
+//    ログインの必要がない。/dev/ 以下から /login への自動遷移だけを止める
+//    （利用者が自分でログイン画面へ移動するぶんには影響しない）。
+if (import.meta.env.DEV) {
+  router.beforeEach((to, from) => {
+    if (to.path === '/login' && from.path.startsWith('/dev/')) return false
+  })
+}
 
 // 🌟 遅延読み込みチャンクの取得失敗（デプロイでファイル名が変わり、開きっぱなしのタブが
 //    古いチャンクを参照）→ 画面遷移が無反応になるので、一度だけ自動リロードして復帰する。
