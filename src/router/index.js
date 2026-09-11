@@ -45,6 +45,14 @@ const routes = [
 //    `import.meta.env.DEV` は本番ビルドで false に置き換えられるので、この if ごと
 //    取り除かれ、遅延読み込みのチャンクも出力されません＝本番には存在しない画面です。
 //    本番で /dev/card-sandbox を開いたときは、下の redirect でホームへ送ります。
+//    この router はハッシュ方式なので、正しいURLは /#/dev/card-sandbox です。
+//    `#` を付けずに /dev/card-sandbox と入力されたときも確認用画面へ着地させます。
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  const p = window.location.pathname
+  const h = window.location.hash
+  if (p.startsWith('/dev/') && (h === '' || h === '#' || h === '#/')) window.location.replace(`/#${p}`)
+}
+
 if (import.meta.env.DEV) {
   routes.push({
     path: '/dev/card-sandbox',
