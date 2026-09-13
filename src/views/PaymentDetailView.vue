@@ -27,6 +27,18 @@
           </template>
         </div>
 
+        <!-- イベントの精算サマリーは相殺後の金額を出す。この画面は片方向の額面なので、
+             逆向きの未決済が残っているときは差の理由と相殺の入口を添える。 -->
+        <div v-if="isEventBatch && counterOpenTotal > 0" class="offset-note">
+          <p class="offset-note__title">相殺できる分が残っています</p>
+          <p class="offset-note__text">
+            この画面の ¥{{ totalAmount.toLocaleString() }} は{{ mode === 'remind' ? '受け取る' : '支払う' }}分だけの合計です。
+            {{ opponentName }}さんとは逆向きに ¥{{ counterOpenTotal.toLocaleString() }} が残っているため、
+            差し引きは ¥{{ Math.abs(totalAmount - counterOpenTotal).toLocaleString() }} になります。
+          </p>
+          <p class="offset-note__sub">相殺してまとめて精算するときは、支払い画面の「まとめて」から手続きできます。</p>
+        </div>
+
         <PaymentReceipt v-if="!isBatch" :item="items[0]" />
         <BatchItemList v-else :items="items" @select="openOverlay" />
 
@@ -89,7 +101,11 @@
         </section>
       </template>
 
-      <div v-else class="empty-box">該当するお支払い情報が見つかりませんでした</div>
+      <!-- 対象が無いのは「もう精算が済んでいる」ことがほとんど。理由と次の一手を添える -->
+      <div v-else class="empty-box">
+        <p class="empty-box__title">精算の対象が残っていません</p>
+        <p class="empty-box__desc">この分はすでに精算が完了しているようです。前の画面に戻ると、最新の状態が表示されます。</p>
+      </div>
     </main>
 
     <Teleport to="body">
@@ -234,6 +250,9 @@ const openBatchDetail = () => {
 };
 
 // 🌟 「まとめて（イベント単位）」かどうかと、その eventId
+// 同じ相手との逆向きの未決済（相殺できる分）の合計。イベントの精算サマリーは
+// 相殺後の金額を出すので、この画面の額面との差をここで説明する。
+const counterOpenTotal = ref(0);
 const isEventBatch = computed(() => (route.params.id || '').includes('event-'));
 const eventBatchId = computed(() =>
   (route.params.id || '').replace('event-', '').replace('waiting-', '').replace('unpaid-', '')
@@ -284,12 +303,24 @@ onMounted(async () => {
       const qy = query(collection(db, "transactions"), where("eventId", "==", eid));
       const snap = await getDocs(qy);
       const list = [];
+      const statuses = [];
       for (const d of snap.docs) {
         const data = d.data();
         if ((data.status || 'unpaid') === 'completed') continue;
         // remind(受け取る)=自分が債権者(paidToId) / pay(支払う)=自分が債務者(paidById)
         const isMine = mode.value === 'remind' ? data.paidToId === myUid : data.paidById === myUid;
-        if (!isMine) continue;
+        if (!isMine) {
+          // 🌟 逆向き（同じ相手に対して自分が反対の立場になっている分）を数えておく。
+          //    イベントの精算サマリーは相殺した金額を出すので、この画面の額面だけだと
+          //    「¥1,000と¥3,000のどちらが本当か」が分からなくなるため、下に補足を出す。
+          const otherSide = mode.value === 'remind'
+            ? (data.paidById === myUid ? data.paidToId : null)
+            : (data.paidToId === myUid ? data.paidById : null);
+          if (otherSide && (!route.query.uid || otherSide === route.query.uid)) {
+            counterOpenTotal.value += Number(data.amount) || 0;
+          }
+          continue;
+        }
 
         const opponentUid = mode.value === 'remind' ? data.paidById : data.paidToId;
         // 特定の相手が指定されていれば、その相手の分だけにまとめる（全員合算を防ぐ）
@@ -302,6 +333,7 @@ onMounted(async () => {
           if (us.exists()) opponentName = us.data().name || "不明";
         }
 
+        statuses.push(data.status || 'unpaid');
         list.push({
           id: d.id,
           opponentUid,
@@ -316,7 +348,10 @@ onMounted(async () => {
         });
       }
       items.value = list;
-      currentStatus.value = 'unpaid';
+      // 🌟 申請済み（承認待ち）が混ざっていたら、そのまま「未払い」とは出さない。
+      //    以前は常に unpaid 扱いだったので、承認待ちの分にもう一度
+      //    支払いリクエストを送れてしまい、相手に同じ依頼が二重に届いた。
+      currentStatus.value = statuses.includes('awaiting_approval') ? 'awaiting_approval' : 'unpaid';
     } else {
       // 🌟 単一トランザクション
       if (!transactionId.value) { loading.value = false; return; }
