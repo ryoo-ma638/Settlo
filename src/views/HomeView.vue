@@ -127,6 +127,7 @@ import UserAvatar from '@/components/UserAvatar.vue';
 import { subscribePendingInvites } from '@/lib/invite';
 import api from '@/services/api';
 import { getMyName } from '@/lib/userName';
+import { fetchLastActivityAt, sortEventsByActivity, splitEventsByEnded } from '@/lib/eventList';
 
 const router = useRouter();
 const ongoingEvents = ref([]);
@@ -229,18 +230,25 @@ const subscribeEvents = (myUid) => {
 
       const formattedEvents = await Promise.all(rawEvents.map(async (event) => {
         const uids = event.participants || [];
-        const members = await Promise.all(uids.slice(0, 4).map((uid) => getUserInfo(uid)));
+        const [members, lastActivityAt] = await Promise.all([
+          Promise.all(uids.slice(0, 4).map((uid) => getUserInfo(uid))),
+          fetchLastActivityAt(db, event.id),
+        ]);
 
         return {
           ...event,
           invitationCode: event.invitationCode || 'N/A',
           amount: `¥${(event.totalAmount || 0).toLocaleString()}`,
-          members
+          members,
+          lastActivityAt,
         };
       }));
 
       if (seq !== eventsSeq) return; // 追い越された古い結果は捨てる
-      ongoingEvents.value = formattedEvents;
+      // 終了済みは「進行中」に出さない（見たい時はイベント一覧の終了済みタブから）。
+      // 並び順は、最後にお支払いが動いた順（新しい順）。
+      const { ongoing } = splitEventsByEnded(formattedEvents);
+      ongoingEvents.value = sortEventsByActivity(ongoing);
     } catch (error) {
       console.error("イベントの整形に失敗:", error);
     } finally {

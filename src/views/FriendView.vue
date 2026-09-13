@@ -90,14 +90,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, reactive } from 'vue';
+import { ref, computed, onMounted, reactive, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { auth, db } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
   collection,  query,  where,  onSnapshot,
-  doc,  getDoc,  setDoc,  deleteDoc, addDoc,  serverTimestamp
+  doc,  getDoc,  setDoc,  updateDoc,  deleteDoc, addDoc,  serverTimestamp
 } from 'firebase/firestore';
 
 import FriendAddModal from '@/components/FriendAddModal.vue';
@@ -106,6 +106,7 @@ import UserAvatar from '@/components/UserAvatar.vue';
 import SkeletonRows from '@/components/SkeletonRows.vue';
 import FriendApproveModal from '@/components/FriendApproveModal.vue';
 import BaseModal from '@/components/BaseModal.vue';
+import { countTradesByCounterpart } from '@/lib/friendTrades';
 
 const router = useRouter();
 const isModalOpen = ref(false);
@@ -162,6 +163,16 @@ const rebuildBalance = () => {
   balanceByUid.value = out;
 };
 
+// 相手UID → 取引回数。transactions（正データ）から都度数え直す。
+// ※本来は決済保存時にフレンドの tradeCount をその場で増やす想定だったが、
+//   その呼び出し自体が無く増えていなかった（addTradingUserToList が未使用）。
+//   保存側の複数箇所に増分処理を足す代わりに、ここで実データから数え直して直す。
+const tradeCountByUid = ref({});
+let txAsReceiver = []; let txAsPayer = []; // ステータスは問わず「取引が存在したか」だけ数える
+const rebuildTradeCounts = (myUid) => {
+  tradeCountByUid.value = countTradesByCounterpart(myUid, [...txAsReceiver, ...txAsPayer]);
+};
+
 onMounted(() => {
   onAuthStateChanged(auth, (user) => {
     if (user) {
@@ -186,11 +197,16 @@ onMounted(() => {
         for (const k in recvByUid) delete recvByUid[k];
         snap.docs.forEach(d => { const t = d.data(); if (t.paidById && (t.status || 'unpaid') !== 'completed') recvByUid[t.paidById] = (recvByUid[t.paidById] || 0) + (t.amount || 0); });
         rebuildBalance();
+        // 取引回数は完了/未完了を問わず数える（＝一緒に支払いをした回数）
+        txAsReceiver = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        rebuildTradeCounts(user.uid);
       }, () => {});
       onSnapshot(query(collection(db, "transactions"), where("paidById", "==", user.uid)), (snap) => {
         for (const k in payByUid) delete payByUid[k];
         snap.docs.forEach(d => { const t = d.data(); if (t.paidToId && (t.status || 'unpaid') !== 'completed') payByUid[t.paidToId] = (payByUid[t.paidToId] || 0) + (t.amount || 0); });
         rebuildBalance();
+        txAsPayer = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        rebuildTradeCounts(user.uid);
       }, () => {});
 
       const qFriends = collection(db, "users", user.uid, "friends");
@@ -207,6 +223,21 @@ onMounted(() => {
       });
     } else {
       loading.value = false; // 未ログインなら待たない
+    }
+  });
+});
+
+// フレンドの取引回数(tradeCount)が実際の取引数より少なければ直す。
+// 増やす方向にだけ直す（読み込み中の一時的な0件などで既存の値を壊さないため）。
+watch([friendData, tradeCountByUid], ([friends, counts]) => {
+  const myUid = auth.currentUser?.uid;
+  if (!myUid) return;
+  friends.forEach((f) => {
+    const uid = f.uid || f.id;
+    const real = counts[uid] || 0;
+    if (uid && real > (f.tradeCount || 0)) {
+      updateDoc(doc(db, "users", myUid, "friends", uid), { tradeCount: real })
+        .catch((e) => console.error("取引回数の同期エラー:", e));
     }
   });
 });

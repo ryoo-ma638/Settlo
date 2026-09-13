@@ -1,7 +1,7 @@
 <template>
   <div class="events">
     <header class="screen-head">
-      <h1 class="screen-head__title">{{ pickPayment ? '支払いを追加するイベント' : '進行中のイベント' }}</h1>
+      <h1 class="screen-head__title">{{ screenTitle }}</h1>
       <button v-if="!pickPayment" class="screen-head__action" data-tour="event-check" @click="$router.push('/payment')">精算を確認</button>
     </header>
 
@@ -9,6 +9,12 @@
     <div v-if="!pickPayment" class="events__actions">
       <button class="ev-action ev-action--primary" @click="goCreate">＋ イベントを作成</button>
       <button class="ev-action" @click="goJoin">コードで参加</button>
+    </div>
+
+    <!-- 終了済みは進行中と混ざらないよう、タブで切り替える -->
+    <div v-if="!pickPayment" class="seg events__tabs">
+      <button class="seg__item" :class="{ 'is-active': activeTab === 'ongoing' }" @click="activeTab = 'ongoing'">進行中</button>
+      <button class="seg__item" :class="{ 'is-active': activeTab === 'ended' }" @click="activeTab = 'ended'">終了済み</button>
     </div>
 
     <main class="events__list">
@@ -65,8 +71,8 @@
         </div>
 
         <div v-if="events.length === 0 && pendingInvites.length === 0" class="empty-box">
-          <p class="empty-box__text">進行中のイベントはありません</p>
-          <div class="empty-actions">
+          <p class="empty-box__text">{{ activeTab === 'ended' ? '終了したイベントはありません' : '進行中のイベントはありません' }}</p>
+          <div v-if="activeTab !== 'ended'" class="empty-actions">
             <button class="btn-brand" @click="goCreate">イベントを作成する</button>
             <button class="btn-outline" @click="goJoin">コードで参加する</button>
           </div>
@@ -87,6 +93,7 @@ import InviteCard from '@/components/InviteCard.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import { formatDate } from '@/lib/format';
 import { subscribePendingInvites } from '@/lib/invite';
+import { fetchLastActivityAt, sortEventsByActivity, splitEventsByEnded } from '@/lib/eventList';
 
 const route = useRoute();
 const router = useRouter();
@@ -99,15 +106,35 @@ const openEvent = (id) => {
 const goCreate = () => router.push('/make-event');
 const goJoin = () => router.push('/make-event?join=1');
 
-const events = ref([]);
+// 整形済みの全イベント（進行中・終了済み両方）。タブと支払い選択はここから振り分ける。
+const allEvents = ref([]);
 const loading = ref(true);
+
+// 進行中／終了済みのタブ（終了したイベントを「進行中」と混ぜないための切り替え）
+const activeTab = ref('ongoing');
+
+const splitEvents = computed(() => splitEventsByEnded(allEvents.value));
+// 並び順＝最後にお支払いが追加・編集された順（新しい順）
+const ongoingEvents = computed(() => sortEventsByActivity(splitEvents.value.ongoing));
+const endedEvents = computed(() => sortEventsByActivity(splitEvents.value.ended));
+
+// 画面に出す一覧：支払い追加の選択では終了済みは選べないようにする
+const events = computed(() => {
+  if (pickPayment.value) return ongoingEvents.value;
+  return activeTab.value === 'ended' ? endedEvents.value : ongoingEvents.value;
+});
+
+const screenTitle = computed(() => {
+  if (pickPayment.value) return '支払いを追加するイベント';
+  return activeTab.value === 'ended' ? '終了したイベント' : '進行中のイベント';
+});
 
 // 届いている招待（未読の event_invite）
 const invites = ref([]);
 const handledInviteIds = ref([]); // 参加/辞退した直後に消すための控え
 const pendingInvites = computed(() => {
-  if (pickPayment.value) return []; // 支払い先を選ぶ画面では出さない
-  const joined = new Set(events.value.map(e => e.id));
+  if (pickPayment.value || activeTab.value === 'ended') return []; // 選択画面・終了済みタブでは出さない
+  const joined = new Set(allEvents.value.map(e => e.id));
   return invites.value.filter(n => !handledInviteIds.value.includes(n.id) && !joined.has(n.eventId));
 });
 const onInviteHandled = (id) => {
@@ -157,16 +184,20 @@ const fetchEvents = async () => {
       const formattedDate = formatDate(event.createdAt) || formatDate(new Date());
 
       const uids = event.participants || [];
-      const members = await Promise.all(uids.slice(0, 4).map(uid => getUserInfo(uid)));
+      const [members, lastActivityAt] = await Promise.all([
+        Promise.all(uids.slice(0, 4).map(uid => getUserInfo(uid))),
+        fetchLastActivityAt(db, event.id),
+      ]);
 
       return {
         ...event,
         createdAtDate: formattedDate,
-        members
+        members,
+        lastActivityAt,
       };
     }));
 
-    events.value = formattedEvents.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    allEvents.value = formattedEvents; // 並び替え・進行中/終了済みの振り分けは computed 側で行う
   } catch (error) {
     console.error("イベント一覧の取得に失敗:", error);
   } finally {
@@ -193,6 +224,8 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.events__tabs { margin: 10px var(--pad) 0; }
+
 .events__list {
   padding: 4px var(--pad) 24px;
   display: flex;
