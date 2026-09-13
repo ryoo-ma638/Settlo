@@ -89,7 +89,11 @@
         </section>
       </template>
 
-      <div v-else class="empty-box">該当するお支払い情報が見つかりませんでした</div>
+      <!-- 対象が無いのは「もう精算が済んでいる」ことがほとんど。理由と次の一手を添える -->
+      <div v-else class="empty-box">
+        <p class="empty-box__title">精算の対象が残っていません</p>
+        <p class="empty-box__desc">この分はすでに精算が完了しているようです。前の画面に戻ると、最新の状態が表示されます。</p>
+      </div>
     </main>
 
     <Teleport to="body">
@@ -284,6 +288,7 @@ onMounted(async () => {
       const qy = query(collection(db, "transactions"), where("eventId", "==", eid));
       const snap = await getDocs(qy);
       const list = [];
+      const statuses = [];
       for (const d of snap.docs) {
         const data = d.data();
         if ((data.status || 'unpaid') === 'completed') continue;
@@ -302,6 +307,7 @@ onMounted(async () => {
           if (us.exists()) opponentName = us.data().name || "不明";
         }
 
+        statuses.push(data.status || 'unpaid');
         list.push({
           id: d.id,
           opponentUid,
@@ -316,7 +322,10 @@ onMounted(async () => {
         });
       }
       items.value = list;
-      currentStatus.value = 'unpaid';
+      // 🌟 申請済み（承認待ち）が混ざっていたら、そのまま「未払い」とは出さない。
+      //    以前は常に unpaid 扱いだったので、承認待ちの分にもう一度
+      //    支払いリクエストを送れてしまい、相手に同じ依頼が二重に届いた。
+      currentStatus.value = statuses.includes('awaiting_approval') ? 'awaiting_approval' : 'unpaid';
     } else {
       // 🌟 単一トランザクション
       if (!transactionId.value) { loading.value = false; return; }

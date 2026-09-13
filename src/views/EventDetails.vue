@@ -98,7 +98,9 @@
             </div>
             <div class="amount-right">
               <span v-if="sum.status === 'completed'" class="badge paid">精算済み</span>
-              <div class="amount" :class="sum.isMePayer ? 'orange-text' : 'blue-text'">
+              <span v-else-if="sum.pending" class="badge waiting">申請中</span>
+              <span v-else-if="sum.isOthers" class="badge others">自分以外</span>
+              <div class="amount" :class="amountToneOf(sum)">
                 ¥{{ sum.amount.toLocaleString() }} <span class="arrow-icon">›</span>
               </div>
             </div>
@@ -158,8 +160,11 @@
                   <span class="history-price">¥{{ history.amount.toLocaleString() }}</span>
                   <span v-if="history.status !== 'unpaid'" class="badge paid">精算済み</span>
                   <span v-else-if="isMyPayment(history)" class="badge receive">お支払い待ち ¥{{ myReceivableOf(history).toLocaleString() }}</span>
+                  <span v-else-if="myShareSettled(history)" class="badge paid">あなたは精算済み</span>
+                  <span v-else-if="mySharePending(history)" class="badge waiting">あなた ¥{{ myShareOf(history).toLocaleString() }}（申請中）</span>
                   <span v-else-if="myShareOf(history) > 0" class="badge owe">あなた ¥{{ myShareOf(history).toLocaleString() }}</span>
                   <span v-else class="badge pending">未払い</span>
+                  <span v-if="history.status === 'unpaid' && history.shareCount > 1" class="badge progress">{{ history.settledCount }}/{{ history.shareCount }}人 精算済み</span>
                 </div>
               </div>
             </div>
@@ -256,7 +261,8 @@
               <UserAvatar class="avatar-large" :name="selectedSummary.to" :photo="selectedSummary.toPhoto" :size="64" />
             </div>
             <p class="s-text"><strong>{{ selectedSummary.from }}</strong> さんから<br><strong>{{ selectedSummary.to }}</strong> さんへ</p>
-            <h1 class="s-amount" :class="selectedSummary.isMePayer ? 'orange-text' : 'blue-text'">¥{{ selectedSummary.amount.toLocaleString() }}</h1>
+            <h1 class="s-amount" :class="amountToneOf(selectedSummary)">¥{{ selectedSummary.amount.toLocaleString() }}</h1>
+            <p class="s-role">{{ roleLabelOf(selectedSummary) }}</p>
             
             <div v-if="selectedSummary.details && selectedSummary.details.length > 0" class="breakdown-list">
               <h4 class="breakdown-title">合算された内訳</h4>
@@ -275,8 +281,14 @@
                 <h3 class="completed-title">この取引は完了しています</h3>
               </div>
             </section>
+            <!-- 🌟 他人同士の貸し借りは自分では動かせない（対象の取引が自分に無いので、
+                 進んでも「見つかりません」になる）。ボタンは出さず、記録として見せる。 -->
+            <template v-else-if="selectedSummary.isOthers">
+              <p class="s-hint"><strong>{{ selectedSummary.from }}</strong> さんから <strong>{{ selectedSummary.to }}</strong> さんへの精算です。あなたのお金は動きません。</p>
+            </template>
             <template v-else>
               <p class="s-hint"><strong>{{ selectedSummary.from }}</strong> さんの支払いが残っています。</p>
+              <p v-if="selectedSummary.pending" class="s-hint">このうち申請済みの分は、相手の承認を待っています。</p>
               <button class="action-btn main" @click="goToBatchPayment(selectedSummary)">
                 {{ selectedSummary.isMePayer ? 'まとめて支払う画面へ' : 'まとめて受け取る・催促へ' }}
               </button>
@@ -405,6 +417,8 @@ import { collection, addDoc, setDoc, serverTimestamp, query, orderBy, onSnapshot
 
 // 🌟 あなたが作った最強の計算ツールを読み込む！
 import { useSettlement } from '../composables/useSettlement';
+// 🌟 人ごとの精算状況（誰の分が済んでいるか）を出す共通計算
+import { decorateHistory, settlementProgressOf, outstandingTotalOf, plainShares, PENDING } from '@/lib/eventStatus';
 
 // ==========================================
 // 🌟 2. 初期設定・データ定義
@@ -577,20 +591,13 @@ const filteredHistory = computed(() => {
 
 const unpaidItems = computed(() => eventData.value.history.filter(h => h.status === 'unpaid'));
 
-// 🌟 未精算（まだ決済されていない）立替の合計
-const outstandingTotal = computed(() =>
-  eventData.value.history
-    .filter(h => h.status === 'unpaid')
-    .reduce((sum, h) => sum + (Number(h.amount) || 0), 0)
-);
+// 🌟 未精算（まだ決済されていない）金額の合計。
+//    人ごとに見るので、3人のうち1人が返したらその分だけ減る
+//    （精算サマリーに残っている金額と同じ数字になる）。
+const outstandingTotal = computed(() => outstandingTotalOf(eventData.value.history));
 
-// 🌟 精算の進捗（何件中何件・何%）
-const settlementProgress = computed(() => {
-  const total = eventData.value.history.length;
-  const done = eventData.value.history.filter(h => h.status === 'completed').length;
-  const percent = total ? Math.round((done / total) * 100) : 0;
-  return { done, total, percent };
-});
+// 🌟 精算の進捗（人ごとの精算が何件中何件・何%）
+const settlementProgress = computed(() => settlementProgressOf(eventData.value.history));
 
 const scrollToTimeline = () => timelineSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 // 🌟 立替履歴の役割判定は「UID」で行う（名前一致のブレを避ける）
@@ -599,14 +606,28 @@ const isMyPayment = (h) => {
   if (h.payerUid) return h.payerUid === myUid;
   return h.payer === myName.value; // 後方互換（payerUid 無しの古い履歴）
 };
-const myShareOf = (h) => {
+const myShareOfRecord = (h) => {
   const myUid = auth.currentUser?.uid;
-  let s = (h.shares || []).find((x) => x.uid === myUid);
-  if (!s) s = (h.shares || []).find((x) => x.name === myName.value); // 後方互換
+  let s = (h.shares || []).find((x) => x && x.uid === myUid);
+  if (!s) s = (h.shares || []).find((x) => x && x.name === myName.value); // 後方互換
+  return s || null;
+};
+const myShareOf = (h) => {
+  const s = myShareOfRecord(h);
   return s ? (Number(s.amount) || 0) : 0;
 };
-// 🌟 立替者が受け取り待ちの額（全体 − 自分の取り分）
-const myReceivableOf = (h) => (Number(h.amount) || 0) - myShareOf(h);
+// 🌟 自分の負担分がもう精算済みか（他の人が残っていても、自分の分だけを見る）
+const myShareSettled = (h) => {
+  const s = myShareOfRecord(h);
+  return !!(s && s.settled);
+};
+// 🌟 自分の負担分が申請中（相手の承認待ち）か
+const mySharePending = (h) => {
+  const s = myShareOfRecord(h);
+  return !!(s && s.status === PENDING);
+};
+// 🌟 立替者がまだ受け取れていない額（済んだ人の分は差し引く）
+const myReceivableOf = (h) => Number(h.outstanding) || 0;
 
 // 🌟 取引詳細を開くとき、閲覧者にとっての「金額・立場」を計算して渡す
 const selectedMyAmount = ref(0);
@@ -617,7 +638,7 @@ const openHistoryDetail = (h) => {
   const myShare = myShareOf(h);
   if (isMyPayment(h)) {
     selectedMyRole.value = 'payer';
-    selectedMyAmount.value = total - myShare; // 自分の取り分を除いた「受け取る額」
+    selectedMyAmount.value = myReceivableOf(h); // まだ受け取れていない額（済んだ人の分は除く）
   } else if (myShare > 0) {
     selectedMyRole.value = 'debtor';
     selectedMyAmount.value = myShare;          // 自分が払う額
@@ -628,6 +649,20 @@ const openHistoryDetail = (h) => {
   modals.value.historyDetail = true;
 };
 const openSummaryDetail = (s) => { selectedSummary.value = s; modals.value.summaryDetail = true; };
+
+// 🌟 金額の色は「自分にとってどちら向きか」で決める。
+//    自分が受け取る＝ブルー / 自分が支払う＝アンバー / 他人同士＝グレー。
+//    以前は自分が関係しない行もブルーで出ていて、自分がプラスになると読めてしまった。
+const amountToneOf = (s) => {
+  if (!s) return 'muted-text';
+  if (!s.involvesMe) return 'muted-text';
+  return s.isMePayer ? 'orange-text' : 'blue-text';
+};
+const roleLabelOf = (s) => {
+  if (!s) return '';
+  if (!s.involvesMe) return '他の2人のあいだの精算（あなたは関係しません）';
+  return s.isMePayer ? 'あなたが支払います' : 'あなたが受け取ります';
+};
 
 // 🌟 支払いの編集：詳細を閉じて、編集モードで支払いモーダルを開く
 const editingHistory = ref(null);
@@ -715,7 +750,8 @@ const deletePayment = (h) => {
               itemName: h.itemName || '', splitType: h.splitType || 'all',
               amount: Number(h.amount) || 0, color: h.color || '#fca5a5',
               date: h.date || '', time: h.time || '',
-              shares: h.shares || [], category: h.category || 'その他',
+              // 画面で足した計算結果（人ごとの状態）は保存しない＝控えは元の形のまま
+              shares: plainShares(h.shares), category: h.category || 'その他',
               items: h.items || [],
             },
             transactionSnapshots: txSnapshots,
@@ -1027,6 +1063,13 @@ const addHistory = async (newPayment) => {
 // Firestore リスナーの購読解除用（onUnmounted / 削除時に解除）
 let unsubEvent = null;
 let unsubHistory = null;
+let unsubTx = null;
+
+// 🌟 履歴（Firestoreの生データ）と、このイベントの取引の状態を別々に持つ。
+//    どちらが更新されても人ごとの精算状況を作り直す（下の watch）。
+const rawHistory = ref([]);
+const txById = ref({});
+const txLoaded = ref(false);
 
 onMounted(async () => {
   // 🌟 自分の表示名を取得（精算サマリーの「自分」判定・フィルタに使用）
@@ -1070,29 +1113,11 @@ onMounted(async () => {
   // 🌟 timestamp（作成日時）の降順（新しい順）で取得
   const q = query(historyRef, orderBy("timestamp", "desc"));
 
-  unsubHistory = onSnapshot(q, async (snapshot) => {
-    // 🌟 このイベントの取引(transactions)のstatusマップを作り、履歴のstatusを導出する
-    //    （transactionsを唯一の正データとし、決済完了を履歴/サマリーに反映）
-    const txStatus = {};
-    try {
-      const txSnap = await getDocs(query(collection(db, "transactions"), where("eventId", "==", eventId)));
-      txSnap.forEach((d) => { txStatus[d.id] = d.data().status || 'unpaid'; });
-    } catch (e) { console.error("取引status取得エラー:", e); }
-
-    const fetchedHistory = [];
+  unsubHistory = onSnapshot(q, (snapshot) => {
+    const fetched = [];
     snapshot.forEach((docu) => {
       const data = docu.data();
-      const txIds = data.transactionIds || [];
-      // イベント表示は「未払い / 完了」の二値（承認待ちは未払い側に含める）。
-      // useSettlement が unpaid/completed のみ扱うため、ここも二値に揃える。
-      let derivedStatus;
-      if (txIds.length === 0) {
-        derivedStatus = 'completed'; // 債務者なし＝精算対象なし＝完了扱い
-      } else {
-        const allDone = txIds.every((tid) => txStatus[tid] === 'completed');
-        derivedStatus = allDone ? 'completed' : 'unpaid';
-      }
-      fetchedHistory.push({
+      fetched.push({
         id: docu.id,
         payer: data.payer,
         itemName: data.itemName,
@@ -1101,8 +1126,8 @@ onMounted(async () => {
         color: data.color || '#fca5a5',
         date: data.date,
         time: data.time,
-        status: derivedStatus,
-        transactionIds: txIds,
+        status: data.status || 'unpaid', // 取引が読めるまでの控え（正は transactions 側）
+        transactionIds: data.transactionIds || [],
         timestamp: data.timestamp ? data.timestamp.toMillis() : Date.now(),
         shares: data.shares || [],
         payerUid: data.payerUid || null,
@@ -1113,26 +1138,52 @@ onMounted(async () => {
         items: data.items || []
       });
     });
-
-    // 🌟 これで画面の「立て替え履歴」リストが自動更新される
-    eventData.value.history = fetchedHistory;
-
-    // 🌟 合計金額も履歴から再計算して反映
-    eventData.value.total = fetchedHistory.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    rawHistory.value = fetched;
   }, (err) => {
     // イベント削除後や参加者でない場合は静かに無視（未購読解除の残骸対策）
     if (err?.code !== 'permission-denied') console.error("履歴監視エラー:", err);
   });
+
+  // --- C. このイベントの取引(transactions)を監視 ---
+  // 🌟 精算の正データは transactions。以前はここを履歴の更新時に1回読むだけだったので、
+  //    お知らせからの承認や、相手の端末での完了が画面に反映されず、
+  //    「未払いと出ているのに、押すと対象が見つからない」状態になっていた。
+  //    複合インデックスを避けるため eventId の単一条件で取得し、絞り込みはJS側で行う。
+  unsubTx = onSnapshot(query(collection(db, "transactions"), where("eventId", "==", eventId)), (snap) => {
+    const map = {};
+    snap.forEach((d) => {
+      const t = d.data();
+      map[d.id] = { status: t.status || 'unpaid', paidById: t.paidById || null, paidToId: t.paidToId || null };
+    });
+    txById.value = map;
+    txLoaded.value = true;
+  }, (err) => {
+    if (err?.code !== 'permission-denied') console.error("取引監視エラー:", err);
+  });
 });
+
+// 🌟 履歴と取引がそろったら、人ごとの精算状況を付けて画面のデータへ流し込む
+watch([rawHistory, txById, txLoaded], () => {
+  const decorated = rawHistory.value.map((h) => decorateHistory(h, txById.value, { loaded: txLoaded.value }));
+  eventData.value.history = decorated;
+  // 🌟 合計金額も履歴から再計算して反映
+  eventData.value.total = decorated.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+}, { deep: false });
 
 // リスナーの購読解除（画面離脱・イベント削除時のリーク／権限エラー防止）
 const unsubscribeAll = () => {
   if (unsubEvent) { unsubEvent(); unsubEvent = null; }
   if (unsubHistory) { unsubHistory(); unsubHistory = null; }
+  if (unsubTx) { unsubTx(); unsubTx = null; }
 };
 onUnmounted(unsubscribeAll);
 
 const goToBatchPayment = (summary) => {
+  // 🌟 自分が当事者でない精算は、支払い画面に出せる取引が無い（＝必ず空になる）ので進まない
+  if (!summary || !summary.involvesMe) {
+    showToast('この精算はあなたのお金が動きません');
+    return;
+  }
   modals.value.summaryDetail = false;
   const eventId = route.params.id; // 実イベントID（以前は常に "1" になり空表示だった）
   const kind = summary.isMePayer ? 'unpaid' : 'waiting'; // 払う=unpaid / 受け取る・催促=waiting
@@ -1367,6 +1418,8 @@ onMounted(() => {
 .amount-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
 .amount { font-size: 18px; font-weight: 900; display: flex; align-items: center; gap: 6px; }
 .blue-text { color: var(--c-receive); } .orange-text { color: var(--c-pay); }
+/* 自分が関係しない（他人同士の）貸し借りは、受取・支払のどちらの色にもしない */
+.muted-text { color: var(--c-text-sub); }
 .arrow-icon { font-size: 16px; color: var(--c-line-strong); }
 
 .timeline { position: relative; padding-left: 12px; }
@@ -1458,6 +1511,12 @@ onMounted(() => {
 .badge.receive { background: var(--c-brand-weak); color: var(--c-brand-strong, var(--c-brand)); }
 .badge.owe { background: #fff7ed; color: #ea580c; }
 .badge.pending { background: var(--c-surface-2); color: var(--c-text-faint); }
+/* 申請済み（相手の承認待ち）＝もう一度申請しないように分けて出す */
+.badge.waiting { background: var(--c-pay-weak); color: var(--c-pay-strong); }
+/* 他人同士の精算＝自分のお金は動かない */
+.badge.others { background: var(--c-surface-2); color: var(--c-text-sub); }
+/* 一部だけ精算が済んでいる立て替え（例 1/2人 精算済み） */
+.badge.progress { background: var(--c-surface-2); color: var(--c-text-sub); }
 
 .end-event-btn { width: 100%; background-color: var(--c-ink); color: white; border: none; padding: 18px; border-radius: 20px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,0.15); transition: 0.2s; margin-bottom: 12px; }
 .end-event-btn:active { transform: scale(0.96); }
@@ -1511,6 +1570,7 @@ onMounted(() => {
 .s-text { font-size: 16px; color: var(--c-text-strong); line-height: 1.6; margin-bottom: 16px; font-weight: 700; }
 .s-amount { font-size: 48px; font-weight: 900; margin: 0 0 10px; letter-spacing: -1.5px; }
 .s-hint { font-size: 14px; color: var(--c-text-faint); margin-bottom: 32px; font-weight: 700; }
+.s-role { font-size: 13px; color: var(--c-text-sub); font-weight: 800; margin: -4px 0 14px; }
 .action-btn { width: 100%; padding: 18px; border-radius: 20px; border: none; font-weight: 900; font-size: 16px; cursor: pointer; transition: 0.2s; }
 .action-btn.main { background: var(--c-brand); color: white; box-shadow: 0 8px 20px rgba(5,150,105,0.25); }
 .action-btn.main:active { transform: scale(0.96); }
