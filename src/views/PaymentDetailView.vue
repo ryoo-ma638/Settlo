@@ -27,6 +27,18 @@
           </template>
         </div>
 
+        <!-- イベントの精算サマリーは相殺後の金額を出す。この画面は片方向の額面なので、
+             逆向きの未決済が残っているときは差の理由と相殺の入口を添える。 -->
+        <div v-if="isEventBatch && counterOpenTotal > 0" class="offset-note">
+          <p class="offset-note__title">相殺できる分が残っています</p>
+          <p class="offset-note__text">
+            この画面の ¥{{ totalAmount.toLocaleString() }} は{{ mode === 'remind' ? '受け取る' : '支払う' }}分だけの合計です。
+            {{ opponentName }}さんとは逆向きに ¥{{ counterOpenTotal.toLocaleString() }} が残っているため、
+            差し引きは ¥{{ Math.abs(totalAmount - counterOpenTotal).toLocaleString() }} になります。
+          </p>
+          <p class="offset-note__sub">相殺してまとめて精算するときは、支払い画面の「まとめて」から手続きできます。</p>
+        </div>
+
         <PaymentReceipt v-if="!isBatch" :item="items[0]" />
         <BatchItemList v-else :items="items" @select="openOverlay" />
 
@@ -238,6 +250,9 @@ const openBatchDetail = () => {
 };
 
 // 🌟 「まとめて（イベント単位）」かどうかと、その eventId
+// 同じ相手との逆向きの未決済（相殺できる分）の合計。イベントの精算サマリーは
+// 相殺後の金額を出すので、この画面の額面との差をここで説明する。
+const counterOpenTotal = ref(0);
 const isEventBatch = computed(() => (route.params.id || '').includes('event-'));
 const eventBatchId = computed(() =>
   (route.params.id || '').replace('event-', '').replace('waiting-', '').replace('unpaid-', '')
@@ -294,7 +309,18 @@ onMounted(async () => {
         if ((data.status || 'unpaid') === 'completed') continue;
         // remind(受け取る)=自分が債権者(paidToId) / pay(支払う)=自分が債務者(paidById)
         const isMine = mode.value === 'remind' ? data.paidToId === myUid : data.paidById === myUid;
-        if (!isMine) continue;
+        if (!isMine) {
+          // 🌟 逆向き（同じ相手に対して自分が反対の立場になっている分）を数えておく。
+          //    イベントの精算サマリーは相殺した金額を出すので、この画面の額面だけだと
+          //    「¥1,000と¥3,000のどちらが本当か」が分からなくなるため、下に補足を出す。
+          const otherSide = mode.value === 'remind'
+            ? (data.paidById === myUid ? data.paidToId : null)
+            : (data.paidToId === myUid ? data.paidById : null);
+          if (otherSide && (!route.query.uid || otherSide === route.query.uid)) {
+            counterOpenTotal.value += Number(data.amount) || 0;
+          }
+          continue;
+        }
 
         const opponentUid = mode.value === 'remind' ? data.paidById : data.paidToId;
         // 特定の相手が指定されていれば、その相手の分だけにまとめる（全員合算を防ぐ）
