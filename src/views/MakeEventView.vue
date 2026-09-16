@@ -11,13 +11,13 @@
 
       <div v-if="!isJoinMode">
         <div class="field">
-          <label class="field__label">イベント名</label>
-          <input v-model="eventName" type="text" placeholder="例：キャンプ、飲み会" class="input" />
+          <label for="event-name" class="field__label">イベント名</label>
+          <input id="event-name" v-model="eventName" type="text" placeholder="例：キャンプ、飲み会" class="input" />
         </div>
 
         <div class="field">
-          <label class="field__label">メモ</label>
-          <textarea v-model="eventMemo" placeholder="予算やルールなど" class="input textarea"></textarea>
+          <label for="event-memo" class="field__label">メモ</label>
+          <textarea id="event-memo" v-model="eventMemo" placeholder="予算やルールなど" class="input textarea"></textarea>
         </div>
 
         <div class="field">
@@ -278,7 +278,7 @@ watch(isJoinMode, () => {
   border: 1px solid var(--c-line-bold);
   border-radius: var(--r-md);
   padding: 14px 16px;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: var(--fw-medium);
   color: var(--c-ink);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
