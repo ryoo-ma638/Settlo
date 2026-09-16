@@ -245,15 +245,14 @@ onUnmounted(() => { if (unsubFriends) unsubFriends(); });
 .modal-content { background: var(--c-surface-2); width: 100%; max-width: 600px; border-radius: 30px 30px 0 0; padding: 25px 25px 40px; box-sizing: border-box; max-height: 85vh; display: flex; flex-direction: column; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-shrink: 0; }
 .modal-header h3 { margin: 0; font-size: 18px; color: var(--c-text); font-weight: bold; }
-.close-btn { background: none; border: none; font-size: 28px; color: var(--c-text-faint); cursor: pointer; line-height: 1; min-width: 44px; min-height: 44px;}
-
+.close-btn { background: none; border: none; font-size: 28px; color: var(--c-text-faint); cursor: pointer; line-height: 1; }
 .modal-body { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 
 .code-section { margin-bottom: 20px; flex-shrink: 0; }
 .code-section label { display: block; font-size: 13px; font-weight: bold; color: var(--c-text-sub); margin-bottom: 8px; }
 .code-box { display: flex; justify-content: space-between; align-items: center; background: var(--c-brand-deep); padding: 12px 16px; border-radius: 12px; }
 .code { color: white; font-size: 24px; font-weight: bold; letter-spacing: 4px; }
-.copy-btn { background: white; color: var(--c-brand-deep); border: none; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; min-width: 44px; min-height: 44px; white-space: nowrap; }
+.copy-btn { background: white; color: var(--c-brand-deep); border: none; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; }
 .copy-btn:active { transform: scale(0.95); }
 .hint { font-size: 11px; color: var(--c-text-faint); margin-top: 8px; margin-bottom: 0; }
 

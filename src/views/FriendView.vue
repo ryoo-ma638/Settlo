@@ -26,7 +26,7 @@
 
       <div class="controls">
         <div class="select">
-          <select v-model="currentFilter">
+          <select v-model="currentFilter" aria-label="フレンドの絞り込み">
             <option value="all">すべて表示</option>
             <option value="friend_only">フレンドのみ</option>
             <option value="trading">取引中</option>
@@ -34,7 +34,7 @@
           </select>
         </div>
         <div class="select">
-          <select v-model="currentSort">
+          <select v-model="currentSort" aria-label="フレンドの並び順">
             <option value="added_desc">追加順</option>
             <option value="kana_asc">あいうえお順</option>
             <option value="trade_desc">取引多い順</option>
@@ -90,7 +90,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, reactive } from 'vue';
+import { ref, computed, onMounted, onUnmounted, reactive } from 'vue';
+import { countFriendTransactions, summarizeFriendTransactions } from '../lib/friendTransactionCounts.js';
 import { useRouter } from 'vue-router';
 
 import { auth, db } from '@/firebase';
@@ -101,7 +102,7 @@ import {
 } from 'firebase/firestore';
 
 import FriendAddModal from '@/components/FriendAddModal.vue';
-import FriendCard from '@/components/FriendCard.vue';
+import FriendCard from '../components/FriendCard.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import SkeletonRows from '@/components/SkeletonRows.vue';
 import FriendApproveModal from '@/components/FriendApproveModal.vue';
@@ -152,6 +153,23 @@ const addTradingUserToList = async (targetUser) => {
 const friendData = ref([]);
 const pendingRequests = ref([]);
 const loading = ref(true); // フレンド一覧の初回読込中は true（スケルトン表示）
+const countUid = ref(null);
+const countRows = reactive({ received: [], paid: [] });
+const countState = reactive({ received: 'loading', paid: 'loading' });
+const tradeCountState = computed(() => Object.values(countState).includes('error') ? 'error'
+  : Object.values(countState).every(s => s === 'ready') ? 'ready' : 'loading');
+const tradeCounts = computed(() => countFriendTransactions([...countRows.received, ...countRows.paid], countUid.value));
+const settlementCounts = computed(() => summarizeFriendTransactions([...countRows.received, ...countRows.paid], countUid.value));
+let stopAuth = null;
+let subscriptions = [];
+let generation = 0;
+const stopSubscriptions = () => {
+  generation++;
+  subscriptions.forEach(stop => stop());
+  subscriptions = [];
+};
+onUnmounted(() => { stopAuth?.(); stopSubscriptions(); });
+
 const balanceByUid = ref({}); // 相手UID → net（>0=受け取る / <0=支払う。全イベント横断）
 // 相手ごとの受取/支払を集計して net を更新
 const recvByUid = {}; const payByUid = {};
@@ -163,14 +181,29 @@ const rebuildBalance = () => {
 };
 
 onMounted(() => {
-  onAuthStateChanged(auth, (user) => {
+  stopAuth = onAuthStateChanged(auth, (user) => {
+    stopSubscriptions();
+    const currentGeneration = generation;
+    const listen = (reference, next, error = () => {}) => {
+      subscriptions.push(onSnapshot(reference,
+        snapshot => { if (generation === currentGeneration) next(snapshot); },
+        failure => { if (generation === currentGeneration) error(failure); }));
+    };
+    countUid.value = user?.uid || null;
+    countRows.received = []; countRows.paid = [];
+    countState.received = 'loading'; countState.paid = 'loading';
+    friendData.value = []; pendingRequests.value = [];
+    for (const uid in recvByUid) delete recvByUid[uid];
+    for (const uid in payByUid) delete payByUid[uid];
+    rebuildBalance();
+    loading.value = Boolean(user);
     if (user) {
       const qReq = query(
         collection(db, "friendRequests"),
         where("toId", "==", user.uid),
         where("status", "==", "pending")
       );
-      onSnapshot(qReq, (snapshot) => {
+      listen(qReq, (snapshot) => {
         pendingRequests.value = snapshot.docs.map(doc => {
           const data = doc.data();
           return {
@@ -182,19 +215,23 @@ onMounted(() => {
       });
 
       // 相手ごとの残高（受取＝相手が自分に払う／支払＝自分が相手に払う・未完了のみ）
-      onSnapshot(query(collection(db, "transactions"), where("paidToId", "==", user.uid)), (snap) => {
+      listen(query(collection(db, "transactions"), where("paidToId", "==", user.uid)), (snap) => {
+        countRows.received = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+        countState.received = 'ready';
         for (const k in recvByUid) delete recvByUid[k];
         snap.docs.forEach(d => { const t = d.data(); if (t.paidById && (t.status || 'unpaid') !== 'completed') recvByUid[t.paidById] = (recvByUid[t.paidById] || 0) + (t.amount || 0); });
         rebuildBalance();
-      }, () => {});
-      onSnapshot(query(collection(db, "transactions"), where("paidById", "==", user.uid)), (snap) => {
+      }, () => { countRows.received = []; countState.received = 'error'; });
+      listen(query(collection(db, "transactions"), where("paidById", "==", user.uid)), (snap) => {
+        countRows.paid = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+        countState.paid = 'ready';
         for (const k in payByUid) delete payByUid[k];
         snap.docs.forEach(d => { const t = d.data(); if (t.paidToId && (t.status || 'unpaid') !== 'completed') payByUid[t.paidToId] = (payByUid[t.paidToId] || 0) + (t.amount || 0); });
         rebuildBalance();
-      }, () => {});
+      }, () => { countRows.paid = []; countState.paid = 'error'; });
 
       const qFriends = collection(db, "users", user.uid, "friends");
-      onSnapshot(qFriends, (snapshot) => {
+      listen(qFriends, (snapshot) => {
         friendData.value = snapshot.docs.map(doc => {
           const data = doc.data();
           return {
@@ -302,8 +339,15 @@ const processedList = computed(() => {
   }
 
   return [...list]
-    .map(u => ({ ...u, net: balanceByUid.value[u.uid || u.id] || 0 })) // 相手ごとの残高を付与
+    .map(u => ({ ...u, net: balanceByUid.value[u.uid || u.id] || 0,
+      tradeCount: tradeCountState.value === 'ready' ? (tradeCounts.value.get(u.uid || u.id) || 0) : null,
+      tradeCountState: tradeCountState.value,
+      settlement: tradeCountState.value === 'ready' ? (settlementCounts.value.get(u.uid || u.id) || { unsettled: 0, myConfirmation: 0, theirConfirmation: 0 }) : null })) // 相手ごとの残高を付与
     .sort((a, b) => {
+      if (currentSort.value === 'trade_desc') {
+        const byCount = (b.tradeCount ?? -1) - (a.tradeCount ?? -1);
+        if (byCount) return byCount;
+      }
       if (currentSort.value === 'kana_asc') {
         return (a.kana || "").localeCompare(b.kana || "", 'ja');
       }

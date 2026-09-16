@@ -4,12 +4,13 @@
         <div v-if="isEditingLink || !myPayPayLink" class="link-input-area">
           <input 
             v-model="inputLink" 
+            :disabled="saving"
             type="text" 
             placeholder="https://qr.paypay... を貼る" 
             class="paypay-input"
           />
-          <button class="save-btn" @click="saveMyLink">保存</button>
-          <button v-if="myPayPayLink" class="cancel-btn" @click="isEditingLink = false" aria-label="キャンセル">×</button>
+          <button class="save-btn" :disabled="saving" @click="saveMyLink">{{ saving ? '保存中…' : '保存' }}</button>
+          <button v-if="myPayPayLink" class="cancel-btn" :disabled="saving" @click="isEditingLink = false" aria-label="キャンセル">×</button>
         </div>
         <div v-else class="link-display-area">
           <button @click="copyMyLink" class="method-btn paypay">
@@ -26,8 +27,9 @@
           :class="{ 'disabled': !opponentPayPayLink }"
           :disabled="!opponentPayPayLink"
         >
-          PayPayで支払う {{ !opponentPayPayLink ? '(相手がリンク未登録)' : '' }}
+          PayPayで支払う {{ opponentLinkMessage }}
         </button>
+        <button v-if="opponentLinkState === 'error'" class="edit-text-btn" @click="fetchOpponentLink">リンクを再取得する</button>
       </template>
   
       <BaseModal 
@@ -41,7 +43,7 @@
   </template>
   
   <script setup>
-  import { ref, watch, onMounted, reactive } from 'vue';
+  import { ref, computed, watch, onMounted, onBeforeUnmount, reactive } from 'vue';
   import { db, auth } from '@/firebase';
   import { doc, getDoc, updateDoc } from 'firebase/firestore';
   import { onAuthStateChanged } from 'firebase/auth';
@@ -57,6 +59,22 @@
   const opponentPayPayLink = ref('');
   const inputLink = ref('');
   const isEditingLink = ref(false);
+  const saving = ref(false);
+  const currentUid = ref('');
+  const opponentLinkState = ref('idle');
+  const opponentLinkMessage = computed(() => ({
+    idle: '(相手を確認できません)',
+    loading: '(リンクを確認中)',
+    empty: '(相手がリンク未登録)',
+    error: '(リンクを取得できませんでした)',
+    ready: '',
+  }[opponentLinkState.value]));
+  let opponentRequest = 0;
+  let ownRequest = 0;
+  let accountVersion = 0;
+  let loadedOpponentUid = '';
+  let unsubscribeAuth;
+  let active = true;
   
   // インターフェース用のモーダル状態
   const alertState = reactive({ show: false, type: 'info', title: '', message: '' });
@@ -70,35 +88,62 @@
   
   // --- バックエンド機能（Firestore連携） ---
   
-  // 相手のリンクを取得
-  const fetchOpponentLink = async (uid) => {
-    if (!uid) return;
+  // 切替直後に旧リンクを消し、最後に開始した取得だけを反映する。
+  const fetchOpponentLink = async () => {
+    const request = ++opponentRequest;
+    const uid = props.opponentUid;
+    opponentPayPayLink.value = '';
+    loadedOpponentUid = '';
+    opponentLinkState.value = 'idle';
+    if (!active || props.mode !== 'pay' || !currentUid.value || !uid || uid === currentUid.value) return;
+    opponentLinkState.value = 'loading';
     try {
-      const oppSnap = await getDoc(doc(db, "users", uid));
-      if (oppSnap.exists() && oppSnap.data().paypayLink) {
-        opponentPayPayLink.value = oppSnap.data().paypayLink;
-      }
-    } catch(e) { console.error("相手のリンク取得エラー:", e); }
+      const snap = await getDoc(doc(db, 'users', uid));
+      if (!active || request !== opponentRequest) return;
+      const link = snap.exists() ? snap.data().paypayLink : '';
+      opponentPayPayLink.value = typeof link === 'string' ? link : '';
+      loadedOpponentUid = uid;
+      opponentLinkState.value = opponentPayPayLink.value ? 'ready' : 'empty';
+    } catch (error) {
+      if (!active || request !== opponentRequest) return;
+      opponentLinkState.value = 'error';
+      console.error('相手のリンク取得エラー:', error);
+    }
   };
+
+  watch(() => [props.opponentUid, props.mode, currentUid.value], fetchOpponentLink, { flush: 'sync' });
   
   onMounted(() => {
-    // 自分のリンクを取得
-    onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          const mySnap = await getDoc(doc(db, "users", user.uid));
-          if (mySnap.exists() && mySnap.data().paypayLink) {
-            myPayPayLink.value = mySnap.data().paypayLink;
-            inputLink.value = myPayPayLink.value;
-          }
-        } catch(e) { console.error("自分のリンク取得エラー:", e); }
+    unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      const request = ++ownRequest;
+      ++accountVersion;
+      currentUid.value = user?.uid || '';
+      myPayPayLink.value = '';
+      inputLink.value = '';
+      isEditingLink.value = false;
+      saving.value = false;
+      alertState.show = false;
+      if (!user) return;
+      try {
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        if (!active || request !== ownRequest) return;
+        const link = snap.exists() ? snap.data().paypayLink : '';
+        myPayPayLink.value = typeof link === 'string' ? link : '';
+        if (!inputLink.value) inputLink.value = myPayPayLink.value;
+      } catch (error) {
+        if (!active || request !== ownRequest) return;
+        console.error('自分のリンク取得エラー:', error);
+        showAlert('error', 'リンク取得失敗', '登録したリンクを取得できませんでした。通信状態を確認して画面を開き直してください。');
       }
     });
-    fetchOpponentLink(props.opponentUid);
   });
-  
-  // UIDが変わったら相手のリンクを取り直す
-  watch(() => props.opponentUid, (newUid) => fetchOpponentLink(newUid));
+
+  onBeforeUnmount(() => {
+    active = false;
+    ++opponentRequest;
+    ++ownRequest;
+    unsubscribeAuth?.();
+  });
   
   const startEdit = () => {
     inputLink.value = myPayPayLink.value;
@@ -107,8 +152,10 @@
   
   // 自分のリンクをFirestoreに保存（バックエンド機能）
   const saveMyLink = async () => {
+    if (saving.value || !active) return;
+    const link = inputLink.value.trim();
     // ✨ PayPayリンクの仕様に合わせたバリデーション ✨
-    if (!inputLink.value.startsWith('https://qr.paypay') && !inputLink.value.startsWith('https://paypay.me')) {
+    if (!link.startsWith('https://qr.paypay') && !link.startsWith('https://paypay.me')) {
       showAlert('error', 'リンクが違います', 'PayPayアプリで発行した「請求リンク（https://qr.paypay...）」を入力してください。');
       return;
     }
@@ -116,15 +163,24 @@
     const myUid = auth.currentUser?.uid;
     if (!myUid) { showAlert('error', 'エラー', 'ログイン状態が確認できません。'); return; }
   
+    const version = accountVersion;
+    ++ownRequest;
+    saving.value = true;
+    const stillCurrent = () => active && version === accountVersion && auth.currentUser?.uid === myUid;
     try {
-      // 🔥 Firestoreをアップデート
-      await updateDoc(doc(db, "users", myUid), { paypayLink: inputLink.value });
-      myPayPayLink.value = inputLink.value;
+      // 入力時点の値を保存し、同じ値を画面にも反映する。
+      await updateDoc(doc(db, "users", myUid), { paypayLink: link });
+      if (!stillCurrent()) return;
+      myPayPayLink.value = link;
+      inputLink.value = link;
       isEditingLink.value = false;
       showAlert('success', '保存完了', 'あなたのPayPay受け取りリンクを登録しました！');
     } catch (error) {
+      if (!stillCurrent()) return;
       console.error("リンク保存エラー:", error);
       showAlert('error', '保存失敗', 'データベースへの保存に失敗しました。電波状況を確認してください。');
+    } finally {
+      if (stillCurrent()) saving.value = false;
     }
   };
   
@@ -137,8 +193,9 @@
   
   // 相手のリンクを開く
   const payToOpponent = () => {
-    if (opponentPayPayLink.value) {
-      window.open(opponentPayPayLink.value, '_blank');
+    if (active && props.mode === 'pay' && auth.currentUser?.uid === currentUid.value &&
+        loadedOpponentUid === props.opponentUid && opponentLinkState.value === 'ready' && opponentPayPayLink.value) {
+      window.open(opponentPayPayLink.value, '_blank', 'noopener,noreferrer');
     }
   };
   </script>

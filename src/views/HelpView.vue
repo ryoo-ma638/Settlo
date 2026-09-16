@@ -346,7 +346,7 @@ const screenGroups = [
 .help__body { padding: 12px var(--pad) 32px; }
 .help__lead { font-size: 14px; color: var(--c-text-sub); line-height: 1.7; margin: 4px 0 18px; }
 .help__h2 { font-size: 15px; font-weight: var(--fw-black); color: var(--c-ink); margin: 26px 2px 10px; }
-.help__note { font-size: 12.5px; color: var(--c-text-faint); line-height: 1.6; margin: 0 2px 12px; }
+.help__note { font-size: 14px; color: var(--c-text-sub); line-height: 1.7; margin: 0 2px 12px; }
 
 /* 図解ステップ（画像＋説明） */
 .step {
@@ -364,7 +364,7 @@ const screenGroups = [
 }
 .step__body { flex: 1; min-width: 0; }
 .step__title { font-size: 14px; font-weight: var(--fw-bold); color: var(--c-ink); margin: 2px 0 7px; line-height: 1.4; }
-.step__text { font-size: 12.5px; color: var(--c-text-sub); line-height: 1.65; margin: 0; }
+.step__text { font-size: 14px; color: var(--c-text-sub); line-height: 1.7; margin: 0; }
 .step__text b, .step__points b { color: var(--c-ink); font-weight: var(--fw-bold); }
 .step__points { margin: 8px 0 0; padding-left: 15px; display: flex; flex-direction: column; gap: 5px; }
 .step__points li { font-size: 12px; color: var(--c-text-sub); line-height: 1.55; }
