@@ -52,9 +52,10 @@
             <div class="payment-actions">
               <p class="hint">この画面から決済を完了できます</p>
               
-              <PayPayAction 
-                :mode="history.status === 'waiting' ? 'remind' : 'pay'" 
-                :opponentUid="history.paidById || history.paidToId" 
+              <PayPayAction
+                v-if="myRole === 'payer' || myRole === 'debtor'"
+                :mode="myRole === 'payer' ? 'remind' : 'pay'"
+                :opponentUid="history.payerUid"
               />
               
               <button class="method-btn cash" @click="handlePayment('cash')">{{ myRole === 'payer' ? '受け取りを記録する' : '支払いを記録する' }}</button>
