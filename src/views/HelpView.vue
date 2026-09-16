@@ -6,7 +6,7 @@
       <p class="help__lead">Settlo（セトロ）は、旅行や飲み会の立て替えをかんたんに記録して、まとめて精算できる割り勘アプリです。実際のデモ画面で、使い方を順番に見ていきましょう。</p>
 
       <!-- ============ 実際の画面で使い方（図解ステップ） ============ -->
-      <h2 class="help__h2">実際の画面で、使い方</h2>
+      <h2 class="help__h2">実際の画面での使い方</h2>
       <p class="help__note">よく使う流れを、実際のデモ画面で1手ずつ説明します。（画面の名前や金額はデモ用のサンプルです）</p>
 
       <section v-for="(st, i) in steps" :key="i" class="step">
@@ -31,7 +31,6 @@
             <span class="hacc__ic"><svg viewBox="0 0 24 24"><path v-for="(d, i) in icons[s.icon]" :key="i" :d="d" /></svg></span>
             <span class="hacc__title">
               {{ s.name }}
-              <span v-if="s.route" class="hacc__route">{{ s.route }}</span>
             </span>
             <svg class="hacc__chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
           </summary>
