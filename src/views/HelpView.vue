@@ -3,11 +3,11 @@
     <PageHeader title="ヘルプ・使い方" fallback="/" />
 
     <main class="help__body">
-      <p class="help__lead">Settlo（セトロ）は、旅行や飲み会の立て替えをかんたんに記録して、まとめて精算できる割り勘アプリです。実際のデモ画面で、使い方を順番に見ていきましょう。</p>
+      <p class="help__lead">Settloは、旅行や飲み会の立て替えを記録し、誰にいくら返すかを確認できる割り勘アプリです。</p>
 
       <!-- ============ 実際の画面で使い方（図解ステップ） ============ -->
       <h2 class="help__h2">実際の画面での使い方</h2>
-      <p class="help__note">よく使う流れを、実際のデモ画面で1手ずつ説明します。（画面の名前や金額はデモ用のサンプルです）</p>
+      <p class="help__note">デモ画面で、よく使う操作を紹介します。名前と金額はサンプルです。</p>
 
       <section v-for="(st, i) in steps" :key="i" class="step">
         <img class="step__img" :src="`/tutorial/${st.img}.jpg`" :alt="st.title" loading="lazy" />
@@ -22,7 +22,7 @@
 
       <!-- ============ 画面ごとの詳しい説明 ============ -->
       <h2 class="help__h2">画面ごとの詳しい説明</h2>
-      <p class="help__note">各カードをタップすると、その画面の目的と、ボタン1つ1つ・押すとどこへ行くか（画面遷移）がすべて開きます。</p>
+      <p class="help__note">画面名をタップすると、その画面でできることやボタンの使い方を確認できます。</p>
 
       <div v-for="group in screenGroups" :key="group.title" class="sgroup">
         <p class="sgroup__title">{{ group.title }}</p>
@@ -346,7 +346,7 @@ const screenGroups = [
 .help__body { padding: 12px var(--pad) 32px; }
 .help__lead { font-size: 14px; color: var(--c-text-sub); line-height: 1.7; margin: 4px 0 18px; }
 .help__h2 { font-size: 15px; font-weight: var(--fw-black); color: var(--c-ink); margin: 26px 2px 10px; }
-.help__note { font-size: 12.5px; color: var(--c-text-faint); line-height: 1.6; margin: 0 2px 12px; }
+.help__note { font-size: 14px; color: var(--c-text-sub); line-height: 1.7; margin: 0 2px 12px; }
 
 /* 図解ステップ（画像＋説明） */
 .step {
@@ -364,7 +364,7 @@ const screenGroups = [
 }
 .step__body { flex: 1; min-width: 0; }
 .step__title { font-size: 14px; font-weight: var(--fw-bold); color: var(--c-ink); margin: 2px 0 7px; line-height: 1.4; }
-.step__text { font-size: 12.5px; color: var(--c-text-sub); line-height: 1.65; margin: 0; }
+.step__text { font-size: 14px; color: var(--c-text-sub); line-height: 1.7; margin: 0; }
 .step__text b, .step__points b { color: var(--c-ink); font-weight: var(--fw-bold); }
 .step__points { margin: 8px 0 0; padding-left: 15px; display: flex; flex-direction: column; gap: 5px; }
 .step__points li { font-size: 12px; color: var(--c-text-sub); line-height: 1.55; }

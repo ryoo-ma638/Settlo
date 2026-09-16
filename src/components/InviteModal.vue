@@ -246,7 +246,6 @@ onUnmounted(() => { if (unsubFriends) unsubFriends(); });
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-shrink: 0; }
 .modal-header h3 { margin: 0; font-size: 18px; color: var(--c-text); font-weight: bold; }
 .close-btn { background: none; border: none; font-size: 28px; color: var(--c-text-faint); cursor: pointer; line-height: 1; }
-
 .modal-body { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 
 .code-section { margin-bottom: 20px; flex-shrink: 0; }
@@ -264,7 +263,7 @@ onUnmounted(() => { if (unsubFriends) unsubFriends(); });
 .invite-msg { margin: 2px 0 24px; flex-shrink: 0; }
 
 .search-box { margin-bottom: 10px; flex-shrink: 0; }
-.search-input { width: 100%; padding: 12px 15px; border-radius: 12px; border: 1px solid var(--c-line-strong); background: white; font-size: 14px; font-weight: bold; color: var(--c-text); outline: none; box-sizing: border-box; transition: 0.2s; }
+.search-input { width: 100%; padding: 12px 15px; border-radius: 12px; border: 1px solid var(--c-line-strong); background: white; font-size: 16px; font-weight: bold; color: var(--c-text); outline: none; box-sizing: border-box; transition: 0.2s; }
 .search-input:focus { border-color: var(--c-brand); box-shadow: 0 0 0 3px var(--c-brand-weak); }
 
 .filter-controls { display: flex; justify-content: flex-end; margin-bottom: 15px; flex-shrink: 0; }
