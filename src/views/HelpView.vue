@@ -158,7 +158,7 @@ const screenGroups = [
           { b: '支払い', act: '→ 支払い・精算' },
           { b: 'フレンド', act: '→ フレンド' },
         ] },
-      { name: 'ホーム', route: '/', icon: 'home',
+      { name: 'ホーム', route: '', icon: 'home',
         purpose: '受け取る額・支払う額と、進行中のイベントがひと目でわかる起点。',
         items: [
           { b: 'お支払い状況カード（左右で切替）', act: 'タップ → 支払い（受け取り／未払いのタブ）' },
@@ -167,7 +167,7 @@ const screenGroups = [
           { b: 'すべて見る（進行中のイベント）', act: '→ イベント一覧' },
           { b: 'イベントカード', act: '→ そのイベント詳細' },
         ] },
-      { name: '支払い・精算', route: '/payment', icon: 'wallet',
+      { name: '支払い・精算', route: '', icon: 'wallet',
         purpose: '受け取り待ち・未払い・相手ごとのまとめ精算をあつかう精算ハブ。3つのタブ。',
         items: [
           { b: 'タブ「お支払い待ち」', act: '受け取る側の一覧（あなたの承認が必要な分も）' },
@@ -178,13 +178,13 @@ const screenGroups = [
           { b: '相手ごとのカード', act: '→ トータル精算（相殺プレビュー）' },
           { b: 'すべての履歴を見る', act: '→ お支払い履歴' },
         ] },
-      { name: 'イベント一覧', route: '/event', icon: 'calendar',
+      { name: 'イベント一覧', route: '', icon: 'calendar',
         purpose: '参加中のイベントの一覧。支払いを追加するイベントを選ぶ画面にもなります。',
         items: [
           { b: '精算を確認（右上）', act: '→ 支払い・精算' },
           { b: 'イベントカード', act: '→ そのイベント詳細（支払い追加から来たときは追加画面つき）' },
         ] },
-      { name: 'イベント詳細', route: '/event/:id', icon: 'calCheck',
+      { name: 'イベント詳細', route: '', icon: 'calCheck',
         purpose: '1つのイベントの立て替え履歴・精算サマリー・参加者を管理する中心画面。',
         items: [
           { b: '編集（イベント名の横）', act: 'イベント名・ジャンルを変更' },
@@ -197,7 +197,7 @@ const screenGroups = [
           { b: 'イベントを終了する', act: '精算済みとして締める（記録は残る）' },
           { b: 'イベントを削除する', act: 'ゴミ箱へ（相手にも通知）' },
         ] },
-      { name: 'フレンド', route: '/friend', icon: 'people',
+      { name: 'フレンド', route: '', icon: 'people',
         purpose: '友達の一覧・追加・申請の承認。相手ごとの貸し借りも反映されます。',
         items: [
           { b: '友達を追加する', act: '名前検索／ID検索で申請を送る' },
@@ -205,7 +205,7 @@ const screenGroups = [
           { b: '絞り込み・並べ替え', act: 'すべて／フレンドのみ／取引中 など' },
           { b: 'フレンドカード', act: '→ フレンド詳細' },
         ] },
-      { name: 'マイページ', route: '/mypage', icon: 'person',
+      { name: 'マイページ', route: '', icon: 'person',
         purpose: '自分のプロフィールと、各機能への入口をまとめたハブ。',
         items: [
           { b: 'IDピル', act: '自分のIDをコピー（フレンド検索に使える）' },
@@ -223,7 +223,7 @@ const screenGroups = [
   {
     title: '記録と精算',
     screens: [
-      { name: 'イベント作成・参加', route: '/make-event', icon: 'calendar',
+      { name: 'イベント作成・参加', route: '', icon: 'calendar',
         purpose: '新しいイベントを作る、または招待コードで既存イベントに参加する。',
         items: [
           { b: '上のトグル「作る／参加する」', act: 'モード切替' },
@@ -240,7 +240,7 @@ const screenGroups = [
           { b: '税の扱い', act: '税込／税抜→合計に課税／商品ごと課税・8%/10%' },
           { b: 'この内容で追加する', act: '立て替えを登録（編集時は保存）' },
         ] },
-      { name: 'お支払い・催促の詳細', route: '/payment-detail/:id', icon: 'coins',
+      { name: 'お支払い・催促の詳細', route: '', icon: 'coins',
         purpose: '1件（またはまとめ）の取引を、決済・催促・承認/拒否する画面。',
         items: [
           { b: '受け取った（完了にする）', act: '受け取る側：現金受け取りを記録' },
@@ -249,20 +249,20 @@ const screenGroups = [
           { b: '承認して完了にする／拒否する', act: '相手の申請を承認・拒否' },
           { b: 'PayPayで支払う／請求リンク', act: 'PayPayリンクで受け渡し（登録時）' },
         ] },
-      { name: 'トータル精算', route: '/combined-settlement/:name', icon: 'swap',
+      { name: 'トータル精算', route: '', icon: 'swap',
         purpose: '特定の相手との全イベントの貸し借りを相殺し、対象を選んでまとめて精算。',
         items: [
           { b: 'お支払い待ち／未払いのボックス', act: '対象を絞り込む' },
           { b: '各取引の丸トグル', act: '今回の精算に含める／除外する' },
           { b: '¥N をまとめて催促する／支払う', act: '→ まとめて精算の実行画面' },
         ] },
-      { name: 'まとめて精算の実行', route: '/combined-action/:name', icon: 'swap',
+      { name: 'まとめて精算の実行', route: '', icon: 'swap',
         purpose: '相殺した金額を、アプリ決済か現金でまとめて精算する最終画面。',
         items: [
           { b: 'PayPayで支払う／請求リンク', act: 'アプリ決済で受け渡し' },
           { b: '現金で受け取った／支払った', act: '→ 確認して精算を完了' },
         ] },
-      { name: 'お支払い履歴', route: '/payment-history', icon: 'history',
+      { name: 'お支払い履歴', route: '', icon: 'history',
         purpose: '自分に関わる全取引を時系列で確認。支払い・受け取り・精算済みで絞れます。',
         items: [
           { b: 'タブ（すべて／支払い／受け取り／精算済み）', act: '絞り込み' },
@@ -315,7 +315,7 @@ const screenGroups = [
   {
     title: '安心・その他',
     screens: [
-      { name: 'ゴミ箱', route: '/trash', icon: 'trash',
+      { name: 'ゴミ箱', route: '', icon: 'trash',
         purpose: '削除したイベント・取引・完了決済を、7日以内なら元に戻せます。',
         items: [
           { b: 'タブ（イベント／取引／保留）', act: '種類で切替' },
@@ -324,14 +324,14 @@ const screenGroups = [
           { b: '依頼を取り消す（保留）', act: '相手の承認待ちを取り下げ' },
         ],
         tip: 'ここに入って7日たつと自動で消えます。取引のゴミ箱は相手からも見えるので、勝手に消されても気づけます。' },
-      { name: 'プロフィール編集', route: '/edit-profile', icon: 'pencil',
+      { name: 'プロフィール編集', route: '', icon: 'pencil',
         purpose: '名前・ニックネーム・プロフィール画像を変更します。',
         items: [
           { b: '画像を変更', act: 'カメラ／アルバムから選ぶ' },
           { b: '名前・ニックネーム', act: 'ニックネームでもフレンド検索で見つけてもらえます' },
           { b: '保存する', act: '→ 保存してマイページへ' },
         ] },
-      { name: 'ログイン・デモ', route: '/login', icon: 'door',
+      { name: 'ログイン・デモ', route: '', icon: 'door',
         purpose: 'Googleでログイン、または登録なしのデモ（ゲスト）で試せます。',
         items: [
           { b: 'Google でログイン', act: '→ ホームへ' },
