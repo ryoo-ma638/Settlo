@@ -150,8 +150,8 @@
   .paypay { background-color: var(--c-paypay); color: white; transition: 0.2s; box-shadow: 0 4px 12px rgba(255,0,51,0.2); display: block; }
   .paypay:active { transform: scale(0.96); }
   .paypay.disabled { background-color: var(--c-line-strong); box-shadow: none; cursor: not-allowed; }
-  .link-input-area { display: flex; gap: 8px; align-items: center; }
-  .paypay-input { flex: 1; padding: 14px 12px; border: 1px solid var(--c-line-strong); border-radius: 12px; font-size: 14px; outline: none; }
+  .link-input-area { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; }
+  .paypay-input { grid-column: 1 / -1; width: 100%; min-width: 0; box-sizing: border-box; font-size: 16px; }
   .paypay-input:focus { border-color: var(--c-paypay); }
   .save-btn { background: var(--c-brand); color: white; border: none; padding: 0 16px; height: 46px; border-radius: 12px; font-weight: bold; cursor: pointer; }
   .cancel-btn { background: var(--c-line-bold); color: var(--c-text-sub); border: none; width: 46px; height: 46px; border-radius: 12px; font-weight: bold; cursor: pointer; }
