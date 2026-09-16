@@ -12,13 +12,13 @@
       </div>
 
       <div class="field">
-        <label class="field__label">名前</label>
-        <input type="text" v-model="newName" class="input" placeholder="新しい名前を入力" />
+        <label for="profile-name" class="field__label">名前</label>
+        <input id="profile-name" type="text" v-model="newName" class="input" placeholder="新しい名前を入力" />
       </div>
 
       <div class="field">
-        <label class="field__label">ニックネーム（任意）</label>
-        <input type="text" v-model="newNickname" class="input" placeholder="例：稜馬" maxlength="30" />
+        <label for="profile-nickname" class="field__label">ニックネーム（任意）</label>
+        <input id="profile-nickname" type="text" v-model="newNickname" class="input" placeholder="例：せとろん" maxlength="30" />
         <p class="field__hint">フレンド検索で、この名前でも見つけてもらえます。</p>
       </div>
 
@@ -243,7 +243,7 @@ const saveProfile = async () => {
   border: 1px solid var(--c-line-bold);
   border-radius: var(--r-md);
   padding: 14px 16px;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: var(--fw-medium);
   color: var(--c-ink);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
