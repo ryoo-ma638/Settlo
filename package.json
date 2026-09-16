@@ -6,7 +6,8 @@
     "dev": "vite",
     "test": "node tests/settlement.test.mjs && node --test tests/paypay-link.test.mjs",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:paypay": "node scripts/preview-paypay.mjs"
   },
   "dependencies": {
     "axios": "^1.6.0",
