@@ -281,7 +281,7 @@ const screenGroups = [
           { b: '正しい／正しくない', act: '削除・復元の「これで合っていますか」確認' },
           { b: '返信／会話を開く', act: '→ その件のチャット（スレッド）' },
         ] },
-      { name: '承認待ち', route: '/approvals', icon: 'clock',
+      { name: '承認待ち', route: '', icon: 'clock',
         purpose: 'あなたが承認する分・相手待ち・催促・承認/拒否の履歴を一括で確認。',
         items: [
           { b: '催促されています（赤・最上部）', act: '→ 早く払うべき支払いの詳細' },
@@ -296,13 +296,13 @@ const screenGroups = [
           { b: '×', act: 'パネルを閉じる' },
         ],
         tip: 'やることが無いときは「すべて精算できています」と表示されます。' },
-      { name: 'チャット一覧', route: '/chats', icon: 'bubble',
+      { name: 'チャット一覧', route: '', icon: 'bubble',
         purpose: '支払い・案件ごとの会話（スレッド）の一覧。イベントごと／人ごとで切替。',
         items: [
           { b: 'トグル（イベントごと／人ごと）', act: '並びを切替' },
           { b: 'スレッドの行', act: '→ その会話（スレッド）' },
         ] },
-      { name: 'スレッド（会話）', route: '/thread/:id', icon: 'bubble',
+      { name: 'スレッド（会話）', route: '', icon: 'bubble',
         purpose: '1件についてのLINE風チャット。承認や支払い画面への近道もあります。',
         items: [
           { b: 'この件の支払い画面へ ›', act: '→ 該当の支払い詳細' },
