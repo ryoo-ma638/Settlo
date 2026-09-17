@@ -13,14 +13,21 @@
 
       <!-- 入金待ち -->
       <div v-if="currentTab === 'waiting'">
-        <div class="summary summary--receive">
-          <p class="summary__label">現在のお支払い待ち</p>
+        <SkeletonRows v-if="loading" :rows="1" />
+        <div v-else class="summary summary--receive">
+          <p class="summary__label">相手の支払い待ち</p>
           <div class="summary__amount tnum">¥{{ totalReceivable.toLocaleString() }}</div>
-          <span class="summary__badge">{{ receivableList.length }}件</span>
+          <span class="summary__badge">{{ receivableUnpaid.length }}件</span>
+          <div v-if="receivableReview.length" class="summary__review">
+            <span>送金状況の確認が必要</span>
+            <strong>¥{{ receivableReviewAmount.toLocaleString() }}・{{ receivableReview.length }}件</strong>
+          </div>
         </div>
 
+        <p v-if="!loading && (overviewIssues.length || loadFailed)" class="overview-warning" role="status">一部の取引を確認できないため、確認できた分を表示しています。</p>
+
         <!-- 🌟 あなたの承認が必要（相手が支払い済みでリクエスト中） -->
-        <template v-if="receivableAwaiting.length">
+        <template v-if="!loading && receivableAwaiting.length">
           <h2 class="money__section money__section--action">承認待ち・あなたの承認が必要（{{ receivableAwaiting.length }}件）</h2>
           <div class="stack">
             <div v-for="item in receivableAwaiting" :key="item.id" class="trow trow--action" @click="openRow(item, 'waiting')">
@@ -33,6 +40,21 @@
                 <span class="trow__amount tnum">¥{{ item.amount.toLocaleString() }}</span>
                 <svg class="trow__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
               </div>
+            </div>
+          </div>
+        </template>
+
+        <template v-if="!loading && receivableReview.length">
+          <h2 class="money__section money__section--review">送金状況の確認が必要（{{ receivableReview.length }}件）</h2>
+          <p class="review-note">追加で送金せず、相手と送金済みか確認してください。</p>
+          <div class="stack">
+            <div v-for="item in receivableReview" :key="item.id" class="trow trow--review" @click="openRow(item, 'waiting')">
+              <UserAvatar class="trow__avatar" :name="item.name" :photo="item.photo" :size="40" />
+              <div class="trow__info">
+                <p class="trow__name">{{ item.name }}</p>
+                <p class="trow__sub">{{ item.date }}・{{ item.itemName }}<span class="trow__badge trow__badge--review">送金状況を確認</span></p>
+              </div>
+              <div class="trow__right"><span class="trow__amount tnum">¥{{ item.amount.toLocaleString() }}</span><svg class="trow__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></div>
             </div>
           </div>
         </template>
@@ -57,14 +79,21 @@
 
       <!-- 未払い -->
       <div v-else-if="currentTab === 'unpaid'">
-        <div class="summary summary--pay">
+        <SkeletonRows v-if="loading" :rows="1" />
+        <div v-else class="summary summary--pay">
           <p class="summary__label">現在の未払い</p>
           <div class="summary__amount tnum">¥{{ totalPayable.toLocaleString() }}</div>
-          <span class="summary__badge">{{ payableList.length }}件</span>
+          <span class="summary__badge">{{ payableUnpaid.length }}件</span>
+          <div v-if="payableReview.length" class="summary__review">
+            <span>送金状況の確認が必要</span>
+            <strong>¥{{ payableReviewAmount.toLocaleString() }}・{{ payableReview.length }}件</strong>
+          </div>
         </div>
 
+        <p v-if="!loading && (overviewIssues.length || loadFailed)" class="overview-warning" role="status">一部の取引を確認できないため、確認できた分を表示しています。</p>
+
         <!-- 🌟 リクエスト済み（自分が支払い済み・相手の承認待ち） -->
-        <template v-if="payableAwaiting.length">
+        <template v-if="!loading && payableAwaiting.length">
           <h2 class="money__section">リクエスト済み・相手の承認待ち（{{ payableAwaiting.length }}件）</h2>
           <div class="stack">
             <div v-for="item in payableAwaiting" :key="item.id" class="trow trow--muted" @click="openRow(item, 'unpaid')">
@@ -77,6 +106,21 @@
                 <span class="trow__amount tnum">¥{{ item.amount.toLocaleString() }}</span>
                 <svg class="trow__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
               </div>
+            </div>
+          </div>
+        </template>
+
+        <template v-if="!loading && payableReview.length">
+          <h2 class="money__section money__section--review">送金状況の確認が必要（{{ payableReview.length }}件）</h2>
+          <p class="review-note">追加で送金せず、相手と送金済みか確認してください。</p>
+          <div class="stack">
+            <div v-for="item in payableReview" :key="item.id" class="trow trow--review" @click="openRow(item, 'unpaid')">
+              <UserAvatar class="trow__avatar" :name="item.name" :photo="item.photo" :size="40" />
+              <div class="trow__info">
+                <p class="trow__name">{{ item.name }}</p>
+                <p class="trow__sub">{{ item.date }}・{{ item.itemName }}<span class="trow__badge trow__badge--review">送金状況を確認</span></p>
+              </div>
+              <div class="trow__right"><span class="trow__amount tnum">¥{{ item.amount.toLocaleString() }}</span><svg class="trow__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></div>
             </div>
           </div>
         </template>
@@ -109,7 +153,8 @@
             <UserAvatar class="scard__avatar" :name="m.name" :photo="m.photo" :size="40" />
             <span class="scard__body">
               <span class="scard__name">{{ m.name }}</span>
-              <span v-if="m.pending > 0" class="scard__note">承認待ちのため確定前</span>
+              <span v-if="needsReview(m.uid)" class="scard__note scard__note--review">送金状況の確認が必要</span>
+              <span v-else-if="m.pending > 0" class="scard__note">承認待ちのため確定前</span>
             </span>
             <span class="scard__right">
               <span v-if="m.pending > 0" class="scard__tag">{{ pendingLabel(m) }}</span>
@@ -129,7 +174,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { db, auth } from '@/firebase' // 🌟 追加
 import { onAuthStateChanged } from 'firebase/auth' // 🌟 追加
@@ -138,19 +183,54 @@ import SkeletonRows from '../components/SkeletonRows.vue'
 import UserAvatar from '../components/UserAvatar.vue'
 import { formatDate } from '../lib/format'
 import { balancesByPerson } from '../lib/balance'
+import { actionablePaymentItems, buildPaymentOverview } from '../lib/paymentOverview.js'
 
 const route = useRoute()
 const router = useRouter()
 const currentTab = ref('waiting')
 
-// --- 🌟 ダミーデータを空にして、Firestoreからの読み込み待ちにする ---
-const receivableList = ref([]) // 入金待ち（自分が受け取る）
-const payableList = ref([])    // 未払い（自分が支払う）
-const loading = ref(true)      // 最初のデータが届くまで true（スケルトン表示用）
-
-// 🌟 合計金額などを表示するための変数
-const totalReceivable = ref(0)
-const totalPayable = ref(0)
+const summaryUid = ref('')
+const receivingTransactions = ref([])
+const payingTransactions = ref([])
+const receiveReady = ref(false)
+const payReady = ref(false)
+const loadFailed = ref(false)
+const loading = computed(() => !receiveReady.value || !payReady.value)
+const paymentOverview = computed(() => buildPaymentOverview(
+  [...receivingTransactions.value, ...payingTransactions.value], summaryUid.value,
+))
+const overviewIssues = computed(() => summaryUid.value ? paymentOverview.value.issues : [])
+const userCache = reactive({})
+const decorate = (items) => items.map((item) => {
+  const cached = userCache[item.opponentUid]
+  const fallbackName = item.paidToId === summaryUid.value ? item.paidByName : item.paidToName
+  return {
+    ...item,
+    date: formatDate(item.createdAt),
+    name: cached?.name || fallbackName || '名前を確認中',
+    photo: cached?.photo || '',
+    itemName: item.itemName || 'イベント代',
+  }
+})
+const receivableUnpaid = computed(() => decorate(paymentOverview.value.receive.unpaid.items))
+const receivableAwaiting = computed(() => decorate(paymentOverview.value.receive.pending.items))
+const receivableReview = computed(() => decorate(paymentOverview.value.receive.review.items))
+const payableUnpaid = computed(() => decorate(paymentOverview.value.pay.unpaid.items))
+const payableAwaiting = computed(() => decorate(paymentOverview.value.pay.pending.items))
+const payableReview = computed(() => decorate(paymentOverview.value.pay.review.items))
+// 「まとめて」で新しく精算できるのは通常の未払いと承認待ちだけ。
+// 送金状況を確認中の取引は、再送金の対象へ混ぜない。
+const receivableList = computed(() => decorate(actionablePaymentItems(paymentOverview.value, 'receive')))
+const payableList = computed(() => decorate(actionablePaymentItems(paymentOverview.value, 'pay')))
+const totalReceivable = computed(() => paymentOverview.value.receive.unpaid.amount)
+const totalPayable = computed(() => paymentOverview.value.pay.unpaid.amount)
+const receivableReviewAmount = computed(() => paymentOverview.value.receive.review.amount)
+const payableReviewAmount = computed(() => paymentOverview.value.pay.review.amount)
+const reviewOpponentUids = computed(() => new Set([
+  ...paymentOverview.value.receive.review.items,
+  ...paymentOverview.value.pay.review.items,
+].map((item) => item.opponentUid).filter(Boolean)))
+const needsReview = (uid) => reviewOpponentUids.value.has(uid)
 
 // 🌟 全イベント横断で「人ごと」に相殺した、まとめて精算できる相手の一覧
 //    net > 0 = その人から受け取る（催促）／ net < 0 = その人へ支払う
@@ -168,22 +248,9 @@ const goSettle = (m) => {
   router.push(`/combined-settlement/${encodeURIComponent(m.name || '相手')}?uid=${m.uid}`)
 }
 
-// 🌟 まとめ精算（相殺あり）の取引かどうか。1件ずつの額と実質の額が食い違うので、
-//    行にはその印を出し、タップ先は内訳が見られる「まとめ精算の詳細」にする。
-const batchIdOf = (data) => {
-  const b = data && data.settlementBatch;
-  if (!b || !b.id || (b.role || 'main') !== 'main' || !(Number(b.offset) > 0)) return null;
-  return b.id;
-};
 const openRow = (item, prefix) => {
   router.push(item.batchId ? `/payment-detail/${prefix}-batch-${item.batchId}` : `/payment-detail/${prefix}-${item.id}`);
 };
-
-// 🌟 承認待ちと通常分を分けて表示するための算出プロパティ
-const receivableAwaiting = computed(() => receivableList.value.filter(i => i.status === 'awaiting_approval'))
-const receivableUnpaid = computed(() => receivableList.value.filter(i => i.status !== 'awaiting_approval'))
-const payableAwaiting = computed(() => payableList.value.filter(i => i.status === 'awaiting_approval'))
-const payableUnpaid = computed(() => payableList.value.filter(i => i.status !== 'awaiting_approval'))
 
 const saveTransaction = async (selectedFriend, amount, itemName, isMePaying) => {
   try {
@@ -202,131 +269,63 @@ const saveTransaction = async (selectedFriend, amount, itemName, isMePaying) => 
   }
 };
 
-// 🌟 URLパラメータ (?tab=xxx) に応じて開くタブを切り替える
+let unsubReceivable = null
+let unsubPayable = null
+let unsubAuth = null
+let subscriptionVersion = 0
+const stopTransactions = () => {
+  if (unsubReceivable) { unsubReceivable(); unsubReceivable = null }
+  if (unsubPayable) { unsubPayable(); unsubPayable = null }
+}
+const getUserInfo = async (uid, version) => {
+  if (!uid || userCache[uid]) return
+  try {
+    const userDoc = await getDoc(doc(db, 'users', uid))
+    if (version !== subscriptionVersion || !userDoc.exists()) return
+    const data = userDoc.data()
+    userCache[uid] = { name: data.name || '不明なユーザー', photo: data.photo || data.photoURL || '' }
+  } catch (error) { console.error('ユーザー取得失敗:', error) }
+}
+
 onMounted(() => {
   if (route.query.tab) currentTab.value = route.query.tab
+  unsubAuth = onAuthStateChanged(auth, (user) => {
+    stopTransactions()
+    const version = ++subscriptionVersion
+    const myUid = user?.uid || ''
+    summaryUid.value = myUid
+    receivingTransactions.value = []
+    payingTransactions.value = []
+    receiveReady.value = !myUid
+    payReady.value = !myUid
+    loadFailed.value = false
+    if (!myUid) return
+
+    const watchSide = (field, target, ready) => onSnapshot(
+      query(collection(db, 'transactions'), where(field, '==', myUid)),
+      (snapshot) => {
+        if (version !== subscriptionVersion) return
+        target.value = snapshot.docs.map((transactionDoc) => ({ ...transactionDoc.data(), id: transactionDoc.id }))
+        ready.value = true
+        const opposite = field === 'paidToId' ? 'paidById' : 'paidToId'
+        for (const uid of new Set(target.value.map((item) => item[opposite]).filter(Boolean))) getUserInfo(uid, version)
+      },
+      (error) => {
+        if (version !== subscriptionVersion) return
+        console.error('支払い状況を取得できませんでした:', error)
+        loadFailed.value = true
+        ready.value = true
+      },
+    )
+    unsubReceivable = watchSide('paidToId', receivingTransactions, receiveReady)
+    unsubPayable = watchSide('paidById', payingTransactions, payReady)
+  })
 })
 
-onMounted(() => {
-  // 1. タブ切り替えロジック（既存）
-  if (route.query.tab) {
-    currentTab.value = route.query.tab
-  }
-
-  // 2. 🌟 ログイン状態を監視してデータを取得
-  onAuthStateChanged(auth, (user) => {
-    if (user) {
-      const myUid = user.uid;
-
-      // ==========================================
-      // A. 「入金待ち」（自分が受け取る側）の取得
-      // ==========================================
-      const qReceivable = query(
-        collection(db, "transactions"),
-        where("paidToId", "==", myUid) // 自分が受け取る人
-      );
-
-      onSnapshot(qReceivable, async (snapshot) => {
-        const list = [];
-        let total = 0;
-
-        for (const transactionDoc of snapshot.docs) {
-          const data = transactionDoc.data();
-          const s = data.status || 'unpaid';
-          if (s === 'completed') continue; // 完了済みは未決済リストに出さない
-
-          const otherUid = data.paidById; // 支払う人のID
-          if (!otherUid) continue; // 🛡️ 相手UIDが無い不正データはスキップ（クラッシュ防止）
-          total += data.amount || 0;
-
-          let otherName = data.paidByName || "不明なユーザー";
-          let otherPhoto = "";
-          try {
-            const userDoc = await getDoc(doc(db, "users", otherUid));
-            if (userDoc.exists()) {
-              const userData = userDoc.data();
-              otherName = userData.name || otherName;
-              otherPhoto = userData.photo || userData.photoURL || "";
-            }
-          } catch (e) { console.error("ユーザー取得失敗:", e); }
-
-          list.push({
-            id: transactionDoc.id,
-            opponentUid: otherUid,
-            date: formatTimestamp(data.createdAt),
-            name: otherName,
-            itemName: data.itemName || "イベント代",
-            amount: data.amount || 0,
-            photo: otherPhoto,
-            status: s,
-            statusLabel: txStatusLabel(s),
-            remindCount: data.remindCount || 0,
-            batchId: batchIdOf(data),
-            settlementBatch: data.settlementBatch || null // 差し引きで実質額を使うため
-          });
-        }
-
-        receivableList.value = list;
-        totalReceivable.value = total;
-        loading.value = false; // 最初のスナップショットが届いたらスケルトン解除
-      });
-
-      // ==========================================
-      // B. 🌟「未払い」（自分が支払う側）の取得
-      // ==========================================
-      const qPayable = query(
-        collection(db, "transactions"),
-        where("paidById", "==", myUid) // 🌟 支払う人が「自分」
-      );
-
-      onSnapshot(qPayable, async (snapshot) => {
-        const list = [];
-        let total = 0;
-
-        for (const transactionDoc of snapshot.docs) {
-          const data = transactionDoc.data();
-          const s = data.status || 'unpaid';
-          if (s === 'completed') continue;
-
-          const otherUid = data.paidToId;
-          if (!otherUid) continue; // 🛡️ 相手UIDが無い不正データはスキップ（クラッシュ防止）
-          total += data.amount || 0;
-
-          let otherName = data.paidToName || "不明なユーザー";
-          let otherPhoto = "";
-          try {
-            const userDoc = await getDoc(doc(db, "users", otherUid));
-            if (userDoc.exists()) {
-              const userData = userDoc.data();
-              otherName = userData.name || otherName;
-              otherPhoto = userData.photo || userData.photoURL || "";
-            }
-          } catch (e) { console.error("ユーザー取得失敗:", e); }
-
-          list.push({
-            id: transactionDoc.id,
-            opponentUid: otherUid,
-            date: formatTimestamp(data.createdAt),
-            name: otherName,
-            itemName: data.itemName || "イベント代",
-            amount: data.amount || 0,
-            photo: otherPhoto,
-            status: s,
-            statusLabel: txStatusLabel(s),
-            batchId: batchIdOf(data),
-            settlementBatch: data.settlementBatch || null // 差し引きで実質額を使うため
-          });
-        }
-
-        payableList.value = list;
-        totalPayable.value = total;
-        loading.value = false; // 最初のスナップショットが届いたらスケルトン解除
-      });
-
-    } else {
-      console.log("ログインしていません");
-    }
-  });
+onUnmounted(() => {
+  subscriptionVersion++
+  stopTransactions()
+  if (unsubAuth) unsubAuth()
 })
 
 // タブを切り替えずにパラメーターだけ変わった時にも対応
@@ -334,11 +333,6 @@ watch(() => route.query.tab, (newTab) => {
   if (newTab) currentTab.value = newTab
 })
 
-// 取引ステータスの表示ラベル
-const txStatusLabel = (s) => s === 'awaiting_approval' ? '承認待ち' : (s === 'completed' ? '精算済み' : '未払い');
-
-// 🌟 補助関数：FirestoreのTimestampを「3/12」形式に変換
-const formatTimestamp = (timestamp) => formatDate(timestamp);
 </script>
 
 <style scoped>
@@ -371,6 +365,8 @@ const formatTimestamp = (timestamp) => formatDate(timestamp);
   font-size: 12px;
   font-weight: var(--fw-bold);
 }
+.summary__review { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-top: 12px; padding: 9px 11px; border-radius: 12px; background: rgba(255,255,255,0.18); font-size: 11px; }
+.summary__review strong { font-size: 13px; font-variant-numeric: tabular-nums; }
 
 .money__section {
   font-size: 15px;
@@ -379,8 +375,12 @@ const formatTimestamp = (timestamp) => formatDate(timestamp);
   margin: 22px 0 12px;
 }
 .money__section--action { color: var(--c-brand-strong); }
+.money__section--review { color: #8a4b20; }
+.review-note, .overview-warning { font-size: 12.5px; line-height: 1.6; color: var(--c-text-sub); margin: -4px 2px 10px; }
+.overview-warning { margin: 10px 2px 0; padding: 10px 12px; border: 1px solid var(--c-line); border-radius: 10px; background: var(--c-surface); }
 .trow--action { border: 1.5px solid var(--c-brand); }
 .trow--muted { opacity: 0.82; }
+.trow--review { border: 1px solid #e8c7aa; background: #fffaf5; }
 
 /* まとめて精算（人ごと・3つ目のタブ） */
 .seg--3 .seg__item { font-size: 12.5px; padding: 9px 2px; letter-spacing: -0.01em; }
@@ -396,6 +396,7 @@ const formatTimestamp = (timestamp) => formatDate(timestamp);
 .scard__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .scard__name { font-size: 15px; font-weight: var(--fw-bold); color: var(--c-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .scard__note { font-size: 11px; color: var(--c-text-sub); }
+.scard__note--review { color: #8a4b20; font-weight: var(--fw-bold); }
 .scard__right { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
 .scard__tag { background: var(--c-pay-weak); color: var(--c-pay-strong); font-size: 10px; font-weight: var(--fw-bold); padding: 2px 8px; border-radius: var(--r-pill); }
 .scard__action { display: flex; align-items: baseline; gap: 6px; font-size: 12px; font-weight: var(--fw-bold); }
@@ -428,6 +429,7 @@ const formatTimestamp = (timestamp) => formatDate(timestamp);
 .trow__badge { background: var(--c-pay-weak); color: var(--c-pay-strong); font-size: 10px; font-weight: var(--fw-bold); padding: 2px 8px; border-radius: var(--r-pill); }
 .trow__badge--action { background: var(--c-brand-weak); color: var(--c-brand-strong); }
 .trow__badge--remind { background: var(--c-receive-weak); color: var(--c-receive); }
+.trow__badge--review { background: #fff0e1; color: #8a4b20; }
 .trow__right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .trow__amount { font-size: 16px; font-weight: var(--fw-black); color: var(--c-ink); }
 .trow__chevron { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: var(--c-text-faint); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
