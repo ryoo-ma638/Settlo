@@ -154,8 +154,9 @@ import { getMyName } from '@/lib/userName';
 import { formatDate, batchBreakdownText, hasOffset } from '@/lib/format';
 import {
   findBatchApprovalRequests, revertCounterTransactions, COUNTER_REVERT_TEXT,
-  fetchBatchTransactions, UNPAID_PATCH,
+  fetchBatchTransactions,
 } from '@/lib/settlement';
+import { UNPAID_PATCH, REJECTED_PATCH, COMPLETED_PATCH, AWAITING_PATCH } from '@/lib/transactionPatch';
 
 const route = useRoute();
 const router = useRouter(); 
@@ -400,11 +401,21 @@ const openOverlay = (item) => { selectedItem.value = item; };
 // 取引の作成日時を共通フォーマッタで表示する（今年ならM/D）
 const fmtDate = (ts) => formatDate(ts);
 
+// 状態ごとの更新内容は src/lib/settlement.js に集約している。
+// 生の { status } を書くと確認の印の消し忘れが起きるので、必ずこの表を通す。
+// 'rejected' は相手からの差し戻し＝未払いに戻したうえで確認の印を立てる。
+const STATUS_PATCH = {
+  unpaid: UNPAID_PATCH,
+  rejected: REJECTED_PATCH,
+  completed: COMPLETED_PATCH,
+  awaiting_approval: AWAITING_PATCH,
+};
+
 const updateAllItems = async (status) => {
+  const patch = STATUS_PATCH[status];
+  if (!patch) throw new Error(`未対応の状態です: ${status}`);
   for (const it of items.value) {
-    // 未払いに戻すときは、まとめ精算の内訳（相殺の記録）も無効になるので一緒に消す
-    const patch = status === 'unpaid' ? { ...UNPAID_PATCH } : { status };
-    await updateDoc(doc(db, "transactions", it.id), patch);
+    await updateDoc(doc(db, "transactions", it.id), { ...patch });
   }
 };
 
@@ -564,7 +575,7 @@ const rejectPayment = () => {
       if (submitting.value) return;
       submitting.value = true;
       try {
-        await updateAllItems('unpaid'); // 未払いに戻す → 相手が再リクエスト可能
+        await updateAllItems('rejected'); // 未払いに戻す → 相手が再リクエスト可能。送金済みか分からないので確認の印を立てる
         await clearApprovalNotifs(); // お知らせの承認リクエストを消す
         const revertedCounter = await revertBatchCounterparts(); // 双方向のまとめ精算なら逆方向も戻す
         for (const it of items.value) {

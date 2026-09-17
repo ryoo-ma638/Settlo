@@ -9,6 +9,7 @@
 import { db } from '@/firebase';
 import { collection, query, where, getDocs, getDoc, doc, updateDoc } from 'firebase/firestore';
 import { postPaymentEventByTx } from './thread';
+import { REJECTED_PATCH } from './transactionPatch';
 
 // ========== まとめ精算の「相殺の内訳」 ==========
 // 双方向のまとめ精算は、実際にやり取りする金額（ネット額）と
@@ -41,8 +42,9 @@ export async function stampSettlementBatch(batch, entries = []) {
   }
 }
 
-// 未払いへ戻すときの更新内容（内訳は無効になるので必ず消す）
-export const UNPAID_PATCH = { status: 'unpaid', settlementBatch: null };
+// 状態ごとの更新内容は transactionPatch.js に集約している。
+// 従来どおり '@/lib/settlement' からも読めるように、そのまま渡す。
+export { UNPAID_PATCH, REJECTED_PATCH, COMPLETED_PATCH, AWAITING_PATCH } from './transactionPatch';
 
 // まとめ精算の対象取引を batchId から集める。
 // ルール上そのままでは横断検索できないので、自分が当事者の取引を引いてから絞り込む。
@@ -75,7 +77,9 @@ export async function revertCounterTransactions({ myUid, otherUid, ids = [], ski
       if (!isPair) continue;
       // まとめ精算で完了にした分だけを戻す（すでに未払い/承認待ちなら何もしない）
       if ((t.status || 'unpaid') !== 'completed') continue;
-      await updateDoc(doc(db, 'transactions', tid), { ...UNPAID_PATCH });
+      // 差し戻しでしか呼ばれない処理。相殺に使った分も送金状況が分からなくなるので、
+      // 逆方向にも確認の印を付けて、次のまとめて精算へ自動で乗せない。
+      await updateDoc(doc(db, 'transactions', tid), { ...REJECTED_PATCH });
       reverted.push(tid);
       if (text) {
         try { await postPaymentEventByTx(tid, { text, kind: 'rejected', actorUid: myUid }); } catch (e) { /* チャットは失敗しても止めない */ }

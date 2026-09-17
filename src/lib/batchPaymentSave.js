@@ -324,6 +324,7 @@ function buildTransactionPayload({ debtorUid, creditorUid, amount, eventId, even
     paidToId: creditorUid, // 債権者（立て替えた人）
     amount,
     status: 'unpaid',
+    approvalReviewRequired: false, // 新規なので確認は不要
     eventId,
     eventName: eventName || '',
     itemName,

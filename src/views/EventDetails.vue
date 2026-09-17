@@ -357,7 +357,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { formatDate } from '@/lib/format';
 import { ensurePaymentThread, postPaymentEvent, postPaymentEventByTx, resolvePaymentThreadByTx, retirePaymentThread } from '@/lib/thread';
 import { getMyName } from '@/lib/userName';
-import { UNPAID_PATCH } from '@/lib/settlement';
+import { UNPAID_PATCH, COMPLETED_PATCH } from '@/lib/transactionPatch';
 import { useEventActionContext } from '@/composables/useEventActionContext';
 
 import AddPaymentModal from '@/components/AddPaymentModal.vue';
@@ -809,7 +809,7 @@ const doMarkAsCompleted = async (id) => {
     const myNm = myName.value || '立替者';
     // 🌟 紐づく取引(transactions)を完了にする（履歴/サマリーのstatusはここから導出される）
     for (const tid of txIds) {
-      await updateDoc(doc(db, "transactions", tid), { status: 'completed' });
+      await updateDoc(doc(db, "transactions", tid), { ...COMPLETED_PATCH });
       await postPaymentEventByTx(tid, { text: `${myNm}さんが精算済みにしました`, kind: 'completed', actorUid: myUid });
     }
     // 全員完了ならグループチャットを片付ける
@@ -849,7 +849,8 @@ const doRevertSettlement = async (hist) => {
     const myNm = myName.value || '立替者';
     const txIds = hist.transactionIds || [];
     for (const tid of txIds) {
-      // 未精算に戻すので、まとめ精算の内訳（相殺の記録）も消す
+      // 未精算に戻すので、まとめ精算の内訳（相殺の記録）も消す。
+      // 立替者本人が取り消す操作で、相手との食い違いではないため確認の印は付けない。
       await updateDoc(doc(db, "transactions", tid), { ...UNPAID_PATCH });
       await postPaymentEventByTx(tid, { text: `${myNm}さんが精算を取り消しました（未払いに戻りました）`, kind: 'reverted', actorUid: myUid });
     }
@@ -940,6 +941,7 @@ const addHistory = async (newPayment) => {
         paidToId: creditorUid,      // 債権者（立て替えた人）
         amount: amt,
         status: "unpaid",
+        approvalReviewRequired: false, // 新規なので確認は不要
         eventId: eventId,
         eventName: eventData.value.name || '',  // 件名表示用にイベント名も保存
         itemName: newPayment.itemName,

@@ -261,6 +261,7 @@ const saveTransaction = async (selectedFriend, amount, itemName, isMePaying) => 
       paidById: isMePaying ? auth.currentUser.uid : selectedFriend.uid,
       paidToId: isMePaying ? selectedFriend.uid : auth.currentUser.uid,
       status: "unpaid",
+      approvalReviewRequired: false, // 新規なので確認は不要
       createdAt: serverTimestamp()
     });
     alert("保存が完了しました！");
