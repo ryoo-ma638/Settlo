@@ -27,7 +27,7 @@
         </div>
 
         <div class="tour__pop-foot">
-          <button class="tour__skip" @click="end">チュートリアルをスキップ</button>
+          <button class="tour__skip" @click="end">スキップ</button>
           <span class="tour__count">{{ stepIndex + 1 }} / {{ STEPS.length }}</span>
           <button v-if="isFinal" class="tour__next" @click="finishHome">ホームへ戻る</button>
           <button v-else-if="currentStep.type === 'action'" class="tour__force" @click="forceAction">押せないときは次へ</button>
@@ -334,7 +334,7 @@ onUnmounted(() => {
   font-size: 12px; font-weight: 700; cursor: pointer;
   padding: 6px 2px;
 }
-.tour__count { font-size: 12px; font-weight: 700; color: var(--c-text-faint, #94a3b8); }
+.tour__count { flex-shrink: 0; font-size: 10px; font-weight: 700; color: var(--c-text-faint, #94a3b8); white-space: nowrap; }
 .tour__next {
   background: var(--c-brand, #16a34a); color: #fff;
   border: none; border-radius: 999px;

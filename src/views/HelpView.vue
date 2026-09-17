@@ -10,7 +10,7 @@
       <p class="help__note">デモ画面で、よく使う操作を紹介します。名前と金額はサンプルです。</p>
 
       <section v-for="(st, i) in steps" :key="i" class="step">
-        <img class="step__img" :src="`/tutorial/${st.img}.jpg`" :alt="st.title" loading="lazy" />
+        <img class="step__img" :src="tutorialImage(st.img)" :alt="st.title" loading="lazy" />
         <div class="step__body">
           <h3 class="step__title">{{ st.title }}</h3>
           <p class="step__text" v-html="st.body"></p>
@@ -81,19 +81,18 @@
 
 <script setup>
 import PageHeader from '../components/PageHeader.vue';
-import { useRouter } from 'vue-router';
-const router = useRouter();
 
 // 使い方ツアー：ホームに戻ってから起動。スポットライトでボタンを1つずつ順番に案内する
-const startButtonTour = async () => {
-  if (router.currentRoute.value.path !== '/') await router.push('/');
-  setTimeout(() => window.dispatchEvent(new CustomEvent('settlo:show-button-tour')), 250);
+const startButtonTour = () => {
+  // ButtonTour側がホームへの移動完了を待ってから案内を始める。
+  window.dispatchEvent(new CustomEvent('settlo:show-button-tour'));
 };
 // 初回オンボーディングをもう一度表示する
 const replayTour = () => {
   localStorage.removeItem('settlo_onboarding_done');
   window.dispatchEvent(new CustomEvent('settlo:show-onboarding'));
 };
+const tutorialImage = (imageName) => `${import.meta.env.BASE_URL}tutorial/${imageName}.jpg`;
 
 // 実際の画面つきの使い方ステップ（画像は public/tutorial/g-*.jpg）
 const steps = [
