@@ -434,6 +434,14 @@ async function sendPushTo(uid, { body, category, url = "https://settlo-app.web.a
 
 const appLink = path => `https://settlo-app.web.app/#${path}`;
 const linkForNotification = data => {
+  // イベント全体のまとめて精算。イベントの先頭ではなく、対象の計画と送金まで開く。
+  // 画面側は route.query の settlement / leg / request を見ている。
+  if (data.eventId && data.planId) {
+    const query = new URLSearchParams({ settlement: String(data.planId) });
+    if (data.legId) query.set('leg', String(data.legId));
+    if (data.paymentRequestId) query.set('request', String(data.paymentRequestId));
+    return appLink(`/event/${encodeURIComponent(data.eventId)}?${query.toString()}`);
+  }
   if (data.type === 'payment_batch_added' && data.eventId && Array.isArray(data.historyIds) && data.historyIds[0]) {
     return appLink(`/event/${encodeURIComponent(data.eventId)}?history=${encodeURIComponent(data.historyIds[0])}`);
   }

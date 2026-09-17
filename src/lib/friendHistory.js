@@ -27,14 +27,15 @@ export function transactionStatus(item) {
   return item.type === 'receive' ? 'お支払い待ち' : '未払い';
 }
 export function transactionCategory(item) {
-  // 予約中を「未払い」に数えると、絞り込みの件数がずれる
-  if (item.eventSettlementLabel) return 'event-settlement';
+  // まとめて精算で完了した分は「支払った／受け取った」に数える。
+  // 予約中だけを別区分にする（完了済みまで入れると、絞り込みの件数と中身がずれる）。
   if (item.status === 'completed') return item.type === 'receive' ? 'received' : 'paid';
+  if (item.eventSettlementLabel) return 'event-settlement';
   if (item.status === 'awaiting_approval') return item.type === 'receive' ? 'confirm-self' : 'confirm-other';
   return item.type === 'receive' ? 'waiting-payment' : 'unpaid';
 }
 export function statusTone(item) {
-  if (item.eventSettlementLabel) return 'status-wait';
   if (item.status === 'completed') return 'status-done';
+  if (item.eventSettlementLabel) return 'status-wait';
   return item.status === 'awaiting_approval' && item.type === 'receive' ? 'status-action' : 'status-wait';
 }
