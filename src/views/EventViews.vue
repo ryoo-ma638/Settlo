@@ -1,16 +1,21 @@
 <template>
   <div class="events">
     <header class="screen-head">
-      <h1 class="screen-head__title">{{ pickPayment ? '支払いを追加するイベント' : '進行中のイベント' }}</h1>
+      <h1 class="screen-head__title">{{ pickPayment ? '支払いを追加するイベント' : 'イベント' }}</h1>
       <button v-if="!pickPayment" class="screen-head__action" data-tour="event-check" @click="$router.push('/payment')">精算を確認</button>
     </header>
 
-    <!-- 下の＋ボタンを使わなくても、ここから作成／参加できる -->
+    <!-- 作成は下の＋に集約し、招待コードでの参加だけを残す -->
     <div v-if="!pickPayment" class="events__actions">
-      <button class="ev-action ev-action--primary" @click="goCreate">＋ イベントを作成</button>
       <button class="ev-action" @click="goJoin">コードで参加</button>
     </div>
 
+    <div v-if="!pickPayment" class="events__filters">
+      <div class="seg" role="group" aria-label="イベントの状態">
+        <button type="button" class="seg__item" :class="{ 'is-active': !showEnded }" :aria-pressed="!showEnded" @click="showEnded = false">進行中</button>
+        <button type="button" class="seg__item" :class="{ 'is-active': showEnded }" :aria-pressed="showEnded" @click="showEnded = true">終了済み</button>
+      </div>
+    </div>
     <main class="events__list">
       <p v-if="pickPayment" class="events__pickhint">立て替えを記録するイベントを選んでください。</p>
       <div v-if="loading" class="empty-box">読み込み中…</div>
@@ -26,10 +31,13 @@
 
         <div
           class="evcard"
-          v-for="(event, index) in events"
+          v-for="(event, index) in visibleEvents"
           :key="event.id"
           :data-tour="index === 0 ? 'event-card' : null"
+          role="button" tabindex="0"
           @click="openEvent(event.id)"
+          @keydown.enter="openEvent(event.id)"
+          @keydown.space.prevent="openEvent(event.id)"
         >
           <div class="evcard__top">
             <span class="tag tag--icon">
@@ -52,8 +60,8 @@
                 :photo="m.photo"
                 :size="30"
               />
-              <div v-if="event.participants.length > 4" class="avatar avatar--more">
-                +{{ event.participants.length - 4 }}
+              <div v-if="(event.participants || []).length > 4" class="avatar avatar--more">
+                +{{ (event.participants || []).length - 4 }}
               </div>
             </div>
 
@@ -64,10 +72,9 @@
           </div>
         </div>
 
-        <div v-if="events.length === 0 && pendingInvites.length === 0" class="empty-box">
-          <p class="empty-box__text">進行中のイベントはありません</p>
-          <div class="empty-actions">
-            <button class="btn-brand" @click="goCreate">イベントを作成する</button>
+        <div v-if="visibleEvents.length === 0 && pendingInvites.length === 0" class="empty-box">
+          <p class="empty-box__text">{{ !pickPayment && showEnded ? '終了済みのイベントはありません' : '進行中のイベントはありません' }}</p>
+          <div v-if="pickPayment || !showEnded" class="empty-actions">
             <button class="btn-outline" @click="goJoin">コードで参加する</button>
           </div>
         </div>
@@ -96,17 +103,18 @@ const openEvent = (id) => {
   // 支払い追加モードならイベント詳細で支払い追加モーダルを直接開く
   router.push(pickPayment.value ? `/event/${id}?addPayment=1` : `/event/${id}`);
 };
-const goCreate = () => router.push('/make-event');
 const goJoin = () => router.push('/make-event?join=1');
 
 const events = ref([]);
+const showEnded = ref(false);
+const visibleEvents = computed(() => events.value.filter(event => pickPayment.value || !showEnded.value ? !event.ended : !!event.ended));
 const loading = ref(true);
 
 // 届いている招待（未読の event_invite）
 const invites = ref([]);
 const handledInviteIds = ref([]); // 参加/辞退した直後に消すための控え
 const pendingInvites = computed(() => {
-  if (pickPayment.value) return []; // 支払い先を選ぶ画面では出さない
+  if (pickPayment.value || showEnded.value) return []; // 支払い先を選ぶ画面では出さない
   const joined = new Set(events.value.map(e => e.id));
   return invites.value.filter(n => !handledInviteIds.value.includes(n.id) && !joined.has(n.eventId));
 });
@@ -223,13 +231,6 @@ onUnmounted(() => {
   transition: transform 0.12s ease, background-color 0.2s ease;
 }
 .ev-action:active { transform: scale(0.98); background: var(--c-surface-2); }
-.ev-action--primary {
-  background: var(--c-brand);
-  border-color: var(--c-brand);
-  color: #fff;
-}
-.ev-action--primary:active { background: var(--c-brand-strong); }
-
 /* 0件のときの導線 */
 .empty-box__text { margin-bottom: 16px; }
 .empty-actions {
@@ -297,4 +298,7 @@ onUnmounted(() => {
 .evcard__amount { display: flex; flex-direction: column; align-items: flex-end; }
 .evcard__amount-label { font-size: 10px; color: var(--c-text-sub); font-weight: var(--fw-medium); }
 .evcard__amount-value { font-size: 20px; font-weight: var(--fw-black); color: var(--c-ink); }
+.events__filters { padding: 12px var(--pad) 8px; }
+.evcard:focus-visible { outline: 2px solid var(--c-brand); outline-offset: 2px; }
+.evcard__name { overflow-wrap: anywhere; }
 </style>

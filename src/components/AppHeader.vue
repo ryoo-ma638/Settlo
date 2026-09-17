@@ -220,4 +220,11 @@ onMounted(() => {
 .assist-enter-from, .assist-leave-to { opacity: 0; }
 .assist-enter-active .assist-panel, .assist-leave-active .assist-panel { transition: transform 0.16s ease; }
 .assist-enter-from .assist-panel, .assist-leave-to .assist-panel { transform: translateY(-8px); }
+@media (max-width: 379px) {
+  .topbar__brand {
+    position: static;
+    transform: none;
+    margin: 0 auto;
+  }
+}
 </style>
