@@ -8,7 +8,7 @@ if (!admin.apps.length) {
 }
 const db = admin.firestore();
 const paymentAdded = require("./paymentAddedNotifications");
-const { policyForNotification, settingsAllowPush } = require("./pushPolicyCore");
+const { policyForNotification, settingsAllowPush, shouldRefreshPaymentBatchPush } = require("./pushPolicyCore");
 
 exports.publishPaymentAddedNotifications = paymentAdded.publishPaymentAddedNotifications;
 
@@ -394,7 +394,7 @@ exports.purgeTrash = onSchedule(
 //    notifications / friendRequests にドキュメントが作られたら、
 //    宛先ユーザーの登録トークン(users/{uid}.fcmTokens)へ送信する。
 // =================================================================
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 
 // 宛先ユーザーのトークンにプッシュを送り、無効なトークンは掃除する
 async function sendPushTo(uid, { body, category, url = "https://settlo-app.web.app/", tag = "settlo" }) {
@@ -461,6 +461,26 @@ exports.pushOnNotification = onDocumentCreated(
       tag: `settlo-${data.type}-${event.params.id}`,
     }); }
     catch (e) { console.error("プッシュ送信エラー:", e); }
+  }
+);
+
+// 部分保存の復旧で件数が増えた場合は、同じtagの通知を更新する。
+// Service Worker側はrenotifyしないため、通知枠を増やさず最終件数へ置き換える。
+exports.refreshPaymentBatchPush = onDocumentUpdated(
+  { document: "notifications/{id}", region: "asia-northeast1" },
+  async (event) => {
+    const before = event.data && event.data.before.data();
+    const after = event.data && event.data.after.data();
+    if (!shouldRefreshPaymentBatchPush(before, after)) return;
+    const policy = policyForNotification(after);
+    if (!policy.send) return;
+    try { await sendPushTo(after.toUserId, {
+      body: policy.body,
+      category: policy.category,
+      url: linkForNotification(after),
+      tag: `settlo-${after.type}-${event.params.id}`,
+    }); }
+    catch (e) { console.error("要約プッシュ更新エラー:", e); }
   }
 );
 

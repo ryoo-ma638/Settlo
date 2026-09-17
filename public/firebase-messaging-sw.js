@@ -24,6 +24,7 @@ messaging.onBackgroundMessage((payload) => {
     icon: '/favicon.ico',
     badge: '/favicon.ico',
     tag: payload.data?.tag || 'settlo-notification',
+    renotify: false,
     data: { url: payload.data?.url || '/' },
   });
 });

@@ -45,4 +45,11 @@ function settingsAllowPush(settings, category) {
   return (value[category] ?? defaults[category]) === true
 }
 
-module.exports = { policyForNotification, settingsAllowPush, POLICIES }
+function shouldRefreshPaymentBatchPush(before, after) {
+  if (!before || !after || before.type !== 'payment_batch_added' || after.type !== 'payment_batch_added') return false
+  if (!after.toUserId || before.toUserId !== after.toUserId) return false
+  if (!after.operationId || before.operationId !== after.operationId) return false
+  return Number(after.count) > Number(before.count)
+}
+
+module.exports = { policyForNotification, settingsAllowPush, shouldRefreshPaymentBatchPush, POLICIES }

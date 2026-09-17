@@ -29,6 +29,8 @@ test('Functions入口が明示許可型pushと登録単位の要約本文を通�
   assert.match(functionsSource, /if \(!policy\.send\) return/);
   assert.match(functionsSource, /settingsAllowPush/);
   assert.match(functionsSource, /data: \{ title: "Settlo", body, url, tag \}/);
+  assert.match(functionsSource, /exports\.refreshPaymentBatchPush\s*=\s*onDocumentUpdated/);
+  assert.match(functionsSource, /shouldRefreshPaymentBatchPush/);
 });
 
 test('許可要求・プロフィール通知・チャットベル通知を自動作成しない', () => {
