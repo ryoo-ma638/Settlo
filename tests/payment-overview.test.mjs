@@ -145,3 +145,29 @@ test('不正金額・不明UID・無関係・自分自身の取引を除外す�
     'amount_invalid', 'party_uid_missing', 'viewer_not_in_transaction', 'self_transaction',
   ]);
 });
+
+test('イベント全体のまとめて精算に予約された取引は、相手ごとの集計に出さない', () => {
+  // イベント側で1本にまとめて精算するので、相手ごとの画面にも出すと二重に精算できてしまう。
+  const plain = tx('plain', 'b', 'a', 1000);
+  const reserved = tx('reserved', 'c', 'a', 2000, 'unpaid', { eventSettlementPlanId: 'plan-1' });
+  const result = buildPaymentOverview([plain, reserved], 'a');
+  assert.deepEqual(amounts(result).receive, { unpaid: 1000, pending: 0, review: 0 });
+  assert.deepEqual(result.receive.unpaid.items.map((item) => item.id), ['plain']);
+  assert.deepEqual(actionablePaymentItems(result, 'receive').map((item) => item.id), ['plain']);
+  // 予約済みは不正データではないので、警告としては出さない
+  assert.deepEqual(result.issues, []);
+});
+
+test('予約済みは承認待ちでも差し戻し後でも同じように外す', () => {
+  const pending = tx('p', 'b', 'a', 500, 'awaiting_approval', { eventSettlementPlanId: 'plan-1' });
+  const review = tx('r', 'c', 'a', 700, 'unpaid', { eventSettlementPlanId: 'plan-1', approvalReviewRequired: true });
+  const result = buildPaymentOverview([pending, review], 'a');
+  assert.deepEqual(amounts(result).receive, { unpaid: 0, pending: 0, review: 0 });
+});
+
+test('予約が外れた取引は、これまでどおり集計へ戻る', () => {
+  const row = tx('x', 'b', 'a', 1200, 'unpaid', { eventSettlementPlanId: 'plan-1' });
+  assert.equal(buildPaymentOverview([row], 'a').receive.unpaid.amount, 0);
+  assert.equal(buildPaymentOverview([{ ...row, eventSettlementPlanId: null }], 'a').receive.unpaid.amount, 1200);
+  assert.equal(buildPaymentOverview([{ ...row, eventSettlementPlanId: '  ' }], 'a').receive.unpaid.amount, 1200);
+});

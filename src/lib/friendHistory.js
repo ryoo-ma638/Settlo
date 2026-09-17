@@ -20,16 +20,22 @@ export function historyMonth(value) {
   return d ? `${d.getFullYear()}年${d.getMonth() + 1}月` : '登録日不明';
 }
 export function transactionStatus(item) {
+  // まとめて精算に予約された取引は、通常の未払い・精算済みとは別の状態として見せる
+  if (item.eventSettlementLabel) return item.eventSettlementLabel;
   if (item.status === 'completed') return '精算済み';
   if (item.status === 'awaiting_approval') return item.type === 'receive' ? '受け取りの確認が必要' : '相手の確認待ち';
   return item.type === 'receive' ? 'お支払い待ち' : '未払い';
 }
 export function transactionCategory(item) {
+  // まとめて精算で完了した分は「支払った／受け取った」に数える。
+  // 予約中だけを別区分にする（完了済みまで入れると、絞り込みの件数と中身がずれる）。
   if (item.status === 'completed') return item.type === 'receive' ? 'received' : 'paid';
+  if (item.eventSettlementLabel) return 'event-settlement';
   if (item.status === 'awaiting_approval') return item.type === 'receive' ? 'confirm-self' : 'confirm-other';
   return item.type === 'receive' ? 'waiting-payment' : 'unpaid';
 }
 export function statusTone(item) {
   if (item.status === 'completed') return 'status-done';
+  if (item.eventSettlementLabel) return 'status-wait';
   return item.status === 'awaiting_approval' && item.type === 'receive' ? 'status-action' : 'status-wait';
 }

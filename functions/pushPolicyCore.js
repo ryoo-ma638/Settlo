@@ -8,6 +8,10 @@ const POLICIES = Object.freeze({
   payment_deleted: { category: 'payments', body: () => '支払いの削除について確認が必要です。' },
   payment_delete_rejected: { category: 'payments', body: () => '支払いの削除について確認が必要です。' },
   payment_reverted: { category: 'payments', body: () => '支払いが未精算に戻りました。' },
+  // イベント全体のまとめて精算。ロック画面に出るため、人名・金額・イベント名は入れない。
+  event_settlement_approval_request: { category: 'payments', body: () => 'まとめて精算の受取確認が必要です。' },
+  event_settlement_rejected: { category: 'payments', body: () => 'まとめて精算の入金状況を確認してください。' },
+  event_settlement_approved: { category: 'payments', body: () => 'まとめて精算の受取が確認されました。' },
   settlement_restore_request: { category: 'payments', body: () => '精算状態の変更について承認が必要です。' },
   settlement_restore_approved: { category: 'payments', body: () => '精算状態が更新されました。' },
   settlement_restore_rejected: { category: 'payments', body: () => '精算状態の確認結果があります。' },

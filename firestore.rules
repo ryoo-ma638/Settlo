@@ -54,20 +54,52 @@ service cloud.firestore {
       allow read:   if isParty(resource.data)
                       || isEventParticipant(resource.data.get('eventId', null));
       allow create: if isSignedIn()
+                      && request.resource.data.get('eventSettlementPlanId', null) == null
                       && (request.auth.uid == request.resource.data.paidById
                           || request.auth.uid == request.resource.data.paidToId
                           || isEventParticipant(request.resource.data.get('eventId', null)));
-      allow update, delete: if isParty(resource.data)
-                      || isEventParticipant(resource.data.get('eventId', null));
+      // 全員精算に予約された元取引は、途中で通常の精算・編集・削除を重ねない。
+      // planIdの付与と解除、最終完了は認証を検証するCloud Functionsだけが行う。
+      allow update: if resource.data.get('eventSettlementPlanId', null) == null
+                      && request.resource.data.get('eventSettlementPlanId', null) == null
+                      && (isParty(resource.data)
+                          || isEventParticipant(resource.data.get('eventId', null)));
+      allow delete: if resource.data.get('eventSettlementPlanId', null) == null
+                      && (isParty(resource.data)
+                          || isEventParticipant(resource.data.get('eventId', null)));
+    }
+
+    // ---- イベント全員分のまとめて精算 ----
+    // 金額と元取引を同時に確定するため、クライアントからの書込みは許可しない。
+    // 読取りは対象イベントの参加者だけ。作成・支払報告・受取確認はCloud Functions経由。
+    match /eventSettlementPlans/{planId} {
+      allow read: if isEventParticipant(resource.data.get('eventId', null));
+      allow create, update, delete: if false;
+
+      match /legs/{legId} {
+        allow read: if isSignedIn()
+          && exists(/databases/$(database)/documents/eventSettlementPlans/$(planId))
+          && isEventParticipant(get(/databases/$(database)/documents/eventSettlementPlans/$(planId)).data.get('eventId', null));
+        allow create, update, delete: if false;
+      }
     }
 
     // ---- イベント ----
     match /events/{eventId} {
       allow read: if isSignedIn();          // 招待コード検索でjoinするため
-      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants;
+      allow create: if isSignedIn()
+                      && request.auth.uid in request.resource.data.participants
+                      && request.resource.data.get('activeEventSettlementPlanId', null) == null
+                      && request.resource.data.get('lastEventSettlementPlanId', null) == null;
       // 既存参加者の編集 or「自分を参加者に追加する更新（join）」を許可
       // 鍵付き（locked=true）のイベントは自分での追加を認めない＝リーダーの承認が必要
       allow update: if isSignedIn()
+                      && request.resource.data.get('activeEventSettlementPlanId', null)
+                        == resource.data.get('activeEventSettlementPlanId', null)
+                      && request.resource.data.get('lastEventSettlementPlanId', null)
+                        == resource.data.get('lastEventSettlementPlanId', null)
+                      && (resource.data.get('activeEventSettlementPlanId', null) == null
+                          || request.resource.data.participants == resource.data.participants)
                       && (request.auth.uid in resource.data.participants
                           || (request.auth.uid in request.resource.data.participants
                               && resource.data.get('locked', false) != true));

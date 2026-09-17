@@ -1,3 +1,5 @@
+import { isEventSettlementReserved } from './eventSettlementGuard.js';
+
 const emptyGroup = () => ({ amount: 0, items: [] });
 const emptySide = () => ({ unpaid: emptyGroup(), pending: emptyGroup(), review: emptyGroup() });
 
@@ -51,6 +53,9 @@ export function buildPaymentOverview(transactions = [], myUid) {
     }
     if (seenIds.has(row.id)) continue;
     seenIds.add(row.id);
+    // イベント全体のまとめて精算に予約された取引は、イベント側だけで操作する。
+    // 相手ごとの画面にも出すと、同じ分を二重に精算できてしまう。
+    if (isEventSettlementReserved(row)) continue;
     rows.push(row);
   }
 

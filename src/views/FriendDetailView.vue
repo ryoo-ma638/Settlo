@@ -91,6 +91,7 @@ import { getMyName } from '@/lib/userName';
 import PageHeader from '@/components/PageHeader.vue';
 import { collapsePendingBatches } from '@/lib/balance';
 import { registrationLabel, historyMonth, dateMillis, transactionStatus, transactionCategory, statusTone } from '../lib/friendHistory.js';
+import { eventSettlementRouteOf, eventSettlementStatusLabel, isEventSettlementReserved } from '@/lib/eventSettlementGuard';
 
 const waitingTotal = ref(0); // この相手から受け取る未決済合計
 const unpaidTotal = ref(0);  // この相手へ支払う未決済合計
@@ -122,6 +123,9 @@ const historySubfilterOptions = computed(() => {
     { value: 'waiting-payment', label: 'お支払い待ち', count: countCategory('waiting-payment') },
     { value: 'confirm-self', label: '受け取りを確認', count: countCategory('confirm-self') },
     { value: 'confirm-other', label: '相手の確認待ち', count: countCategory('confirm-other') },
+    // まとめて精算に予約された分は他の状態に数えないので、その分を見る入口を出す。
+    // ほとんどの人は0件なので、あるときだけ出す（常時0のボタンを全員に見せない）。
+    ...(countCategory('event-settlement') ? [{ value: 'event-settlement', label: 'まとめて精算中', count: countCategory('event-settlement') }] : []),
   ];
   if (historyFilter.value === 'completed') return [
     { value: 'all', label: 'すべて', count: completedHistoryCount.value },
@@ -161,6 +165,11 @@ const netBalance = computed(() => waitingTotal.value - unpaidTotal.value);
 // まとめ精算に含まれる元明細は、main/offsetのどちらから開いても同じまとめ詳細へ進む。
 // 元明細の向きではなく、batchに記録した実際の支払人・受取人から画面の向きを決める。
 const openTx = (t, prefix) => {
+  if (isEventSettlementReserved(t)) {
+    const target = eventSettlementRouteOf(t);
+    if (target) router.push(target);
+    return;
+  }
   const batch = t.settlementBatch;
   const batchId = batch?.id || (t.isBatchRow ? t.batchId : null);
   if (batchId) {
@@ -211,9 +220,22 @@ const loadFriend = async () => {
     const collect = (snap, type, otherField, target) => snap.forEach(d => {
       const t = d.data();
       if (t[otherField] !== uid) return;
-      const item = { id: d.id, amount: t.amount || 0, itemName: t.itemName || 'イベント代', eventName: t.eventName || '', status: t.status || 'unpaid', type, createdAt: t.createdAt, settlementBatch: t.settlementBatch || null };
+      const item = {
+        id: d.id,
+        amount: t.amount || 0,
+        itemName: t.itemName || 'イベント代',
+        eventName: t.eventName || '',
+        status: t.status || 'unpaid',
+        type,
+        createdAt: t.createdAt,
+        settlementBatch: t.settlementBatch || null,
+        eventId: t.eventId || null,
+        eventSettlementPlanId: t.eventSettlementPlanId || null,
+        // まとめて精算に予約された取引は、未払い一覧から外して状態を別に見せる
+        eventSettlementLabel: eventSettlementStatusLabel(t) || null,
+      };
       histList.push(item);
-      if (item.status !== 'completed') target.push(item);
+      if (item.status !== 'completed' && !isEventSettlementReserved(t)) target.push(item);
     });
     collect(recvSnap, 'receive', 'paidById', recvList);
     collect(paySnap, 'pay', 'paidToId', payList);
