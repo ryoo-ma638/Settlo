@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test": "node tests/settlement.test.mjs && node --test tests/paypay-link.test.mjs && node --test tests/friend-transaction-counts.test.mjs tests/friend-view-counts.test.mjs tests/friend-detail.test.mjs tests/combined-settlement-flow.test.mjs && node --test tests/ai-consultation.test.mjs && node --test tests/batch-payment-save.test.mjs && node --test tests/event-filters.test.mjs && node --test tests/event-net-settlement.test.mjs && node --test tests/event-net-settlement-parity.test.cjs && node --test tests/event-net-settlement-refresh.test.cjs && node --test tests/event-settlement-guard.test.mjs",
+    "test": "node tests/settlement.test.mjs && node --test tests/paypay-link.test.mjs && node --test tests/friend-transaction-counts.test.mjs tests/friend-view-counts.test.mjs tests/friend-detail.test.mjs tests/combined-settlement-flow.test.mjs && node --test tests/ai-consultation.test.mjs && node --test tests/batch-payment-save.test.mjs && node --test tests/event-filters.test.mjs && node --test tests/event-net-settlement.test.mjs && node --test tests/event-net-settlement-parity.test.cjs && node --test tests/event-net-settlement-refresh.test.cjs && node --test tests/event-settlement-guard.test.mjs && node --test tests/payment-overview.test.mjs tests/approval-review-flag.test.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "dev:paypay": "node scripts/preview-paypay.mjs"

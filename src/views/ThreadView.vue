@@ -127,7 +127,8 @@ import { getUserName } from '@/lib/userName';
 import { groupReadLabel, lastReadMessageId } from '@/lib/readReceipt';
 import { logApprovalBoth } from '@/lib/approvalLog';
 import { buildConditionalReplySuggestions, normalizeReplyConditions } from '@/lib/aiConsultation';
-import { findBatchApprovalRequests, revertCounterTransactions, COUNTER_REVERT_TEXT, UNPAID_PATCH } from '@/lib/settlement';
+import { findBatchApprovalRequests, revertCounterTransactions, COUNTER_REVERT_TEXT } from '@/lib/settlement';
+import { REJECTED_PATCH, COMPLETED_PATCH } from '@/lib/transactionPatch';
 
 // クイック返信の定型文
 const QUICK_REPLIES = ['ありがとう！', '確認しました', 'もう少し待って', 'OKです'];
@@ -233,7 +234,7 @@ const approveTx = async () => {
   if (!txId || approving.value) return;
   approving.value = true;
   try {
-    await updateDoc(doc(db, 'transactions', txId), { status: 'completed' });
+    await updateDoc(doc(db, 'transactions', txId), { ...COMPLETED_PATCH });
     if (otherUid.value) {
       await addDoc(collection(db, 'notifications'), {
         toUserId: otherUid.value, type: 'payment_completed',
@@ -253,7 +254,8 @@ const rejectTx = async () => {
   if (!txId || approving.value) return;
   approving.value = true;
   try {
-    await updateDoc(doc(db, 'transactions', txId), { ...UNPAID_PATCH });
+    // 差し戻しなので確認の印を立てる（次のまとめて精算へ自動で乗せない）
+    await updateDoc(doc(db, 'transactions', txId), { ...REJECTED_PATCH });
     // 🌟 双方向のまとめ精算なら、相手がその場で完了にした逆方向の取引も未払いに戻す
     let revertedCounter = 0;
     for (const n of await findBatchApprovalRequests(myUid, [txId])) {

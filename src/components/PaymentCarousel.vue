@@ -1,6 +1,7 @@
 <template>
     <section class="payment-status-carousel">
-      <h2 class="section-title">お支払い状況</h2>
+      <h2 class="section-title">現在の精算状況</h2>
+      <p v-if="overview.issues?.length" class="overview-warning" role="status">一部の取引を確認できないため、確認できた分を表示しています。</p>
       
       <div class="carousel-outer">
         <transition name="fade">
@@ -25,12 +26,15 @@
             class="status-card detail-card blue-bg clickable-card"
             @click="handleCardClick(0, '/payment?tab=waiting')"
           > <div class="card-main">
-              <span class="detail-sub">お支払い待ち</span>
+              <span class="detail-sub">相手の支払い待ち</span>
               <span class="detail-label"><span class="dir-arrow" aria-hidden="true">↙</span>受け取る</span>
               <div class="price-large">¥{{ summary.receivableTotal.toLocaleString() }}</div>
+              <p v-if="overview.receive.review.items.length" class="review-summary">確認が必要 ¥{{ overview.receive.review.amount.toLocaleString() }}・{{ overview.receive.review.items.length }}件</p>
             </div>
             <div class="recent-list">
-              <p class="recent-title">直近の未受け取り</p>
+              <p v-if="overview.receive.pending.items.length" class="detail-state">あなたの受取確認待ち <strong>¥{{ overview.receive.pending.amount.toLocaleString() }}</strong></p>
+              <p v-if="overview.receive.review.items.length" class="detail-state">送金状況の確認が必要 <strong>¥{{ overview.receive.review.amount.toLocaleString() }}</strong></p>
+              <p class="recent-title">相手の支払い待ち</p>
               <div
                 class="recent-item"
                 v-for="(item, index) in summary.receivableList.slice(0, 2)"
@@ -43,7 +47,7 @@
                 </span>
                 <span class="recent-amount">¥{{ item.amount.toLocaleString() }}</span>
               </div>
-              <p v-if="summary.receivableList.length === 0" class="recent-empty">未受け取りはありません</p>
+              <p v-if="summary.receivableList.length === 0" class="recent-empty">相手の支払い待ちはありません</p>
               <button
                 v-if="summary.receivableList.length > 2"
                 class="recent-more"
@@ -53,27 +57,30 @@
           </div>
   
           <div class="status-card summary-card white-bg clickable-card" @click="handleCardClick(1, null)">
-            <div class="summary-top">
-              <div class="status-box" @click.stop="navigateIfActive(1, '/payment?tab=waiting')">
-                <span class="status-box__sub">お支払い待ち</span>
-                <span class="badge blue"><span class="dir-arrow" aria-hidden="true">↙</span>受け取る</span>
-                <div class="price blue-text">¥{{ summary.receivableTotal.toLocaleString() }}</div>
-                <div class="progress-bar">
-                  <div class="bar blue-bar" :style="{ width: summary.receivableTotal > 0 ? '100%' : '0%' }"></div>
-                </div>
-              </div>
-              <div class="divider"></div>
-              <div class="status-box" @click.stop="navigateIfActive(1, '/payment?tab=unpaid')">
-                <span class="status-box__sub">未払い</span>
-                <span class="badge orange"><span class="dir-arrow" aria-hidden="true">↗</span>支払う</span>
-                <div class="price orange-text">¥{{ summary.payableTotal.toLocaleString() }}</div>
-                <div class="progress-bar">
-                  <div class="bar orange-bar" :style="{ width: summary.payableTotal > 0 ? '100%' : '0%' }"></div>
-                </div>
-              </div>
+            <div class="summary-totals">
+              <button v-for="side in sides" :key="side.key" class="summary-total" :class="`summary-total--${side.key}`" @click.stop="navigateIfActive(1, side.path)">
+                <span class="summary-total__caption">{{ side.key === 'receive' ? '相手の支払い待ち' : '未払い' }}</span>
+                <span class="summary-total__badge"><span aria-hidden="true">{{ side.key === 'receive' ? '↙' : '↗' }}</span> {{ side.title }}</span>
+                <strong class="summary-total__amount" :class="{ 'summary-total__amount--long': overview[side.key].unpaid.amount >= 1000000 }">¥{{ overview[side.key].unpaid.amount.toLocaleString() }}</strong>
+              </button>
             </div>
-            <div class="monthly-balance">
-              今月の収支総額 <span class="balance-number">{{ monthlyBalance }}</span>
+            <div v-if="statusRows.length" class="summary-ledger">
+              <table>
+                <caption class="sr-only">未払いとは別に確認が必要な精算</caption>
+                <thead><tr><th scope="col"><span class="sr-only">状態</span></th><th scope="col" class="summary-ledger__receive">↙ 受け取る</th><th scope="col" class="summary-ledger__pay">↗ 支払う</th></tr></thead>
+                <tbody>
+                  <tr v-for="state in statusRows" :key="state">
+                    <th scope="row"><span v-if="state === 'review'" class="review-symbol" aria-hidden="true">!</span>{{ state === 'pending' ? '確認待ち' : '要確認' }}</th>
+                    <td v-for="side in sides" :key="side.key">
+                      <button v-if="overview[side.key][state].items.length" class="summary-ledger__value" :class="`summary-ledger__${side.key}`" :aria-label="`${side.title}・${state === 'review' ? '送金状況の確認が必要' : side.key === 'receive' ? 'あなたの受取確認待ち' : '相手の受取確認待ち'}・${overview[side.key][state].amount.toLocaleString()}円・${overview[side.key][state].items.length}件`" @click.stop="navigateIfActive(1, side.path)">
+                        <strong>¥{{ overview[side.key][state].amount.toLocaleString() }}</strong>
+                        <small>{{ overview[side.key][state].items.length }}件<span v-if="state === 'pending' && overview[side.key][state].amount === 0">・送金なし</span></small>
+                      </button>
+                      <span v-else class="summary-ledger__none" aria-label="該当なし">—</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
   
@@ -84,9 +91,12 @@
               <span class="detail-sub">未払い</span>
               <span class="detail-label"><span class="dir-arrow" aria-hidden="true">↗</span>支払う</span>
               <div class="price-large">¥{{ summary.payableTotal.toLocaleString() }}</div>
+              <p v-if="overview.pay.review.items.length" class="review-summary">確認が必要 ¥{{ overview.pay.review.amount.toLocaleString() }}・{{ overview.pay.review.items.length }}件</p>
             </div>
             <div class="recent-list">
-              <p class="recent-title">直近のお支払い</p>
+              <p v-if="overview.pay.pending.items.length" class="detail-state">相手の受取確認待ち <strong>¥{{ overview.pay.pending.amount.toLocaleString() }}</strong></p>
+              <p v-if="overview.pay.review.items.length" class="detail-state">送金状況の確認が必要 <strong>¥{{ overview.pay.review.amount.toLocaleString() }}</strong></p>
+              <p class="recent-title">未払いのお支払い</p>
               <div
                 class="recent-item"
                 v-for="(item, index) in summary.payableList.slice(0, 2)"
@@ -99,7 +109,7 @@
                 </span>
                 <span class="recent-amount">¥{{ item.amount.toLocaleString() }}</span>
               </div>
-              <p v-if="summary.payableList.length === 0" class="recent-empty">お支払いはありません</p>
+              <p v-if="summary.payableList.length === 0" class="recent-empty">未払いはありません</p>
               <button
                 v-if="summary.payableList.length > 2"
                 class="recent-more"
@@ -125,7 +135,7 @@
   </template>
   
   <script setup>
-  import { ref, onMounted, watch, nextTick, computed } from 'vue';
+  import { ref, computed, onMounted, watch, nextTick } from 'vue';
   import { useRouter } from 'vue-router';
   
   const router = useRouter();
@@ -134,6 +144,7 @@
   
 // PaymentCarousel.vue の props 部分
 const props = defineProps({
+  overview: { type: Object, required: true },
   summary: {
     type: Object,
     required: true,
@@ -148,21 +159,12 @@ const props = defineProps({
   loading: { type: Boolean, default: false } // 初回読込中はスケルトンを出す
 });
 
-  // 🌟 データにIDを追加し、個別ページへ飛べるように修正
-  const recentReceiving = ref([
-    /*{ id: 1, name: '天野 椋祐 (カフェ代)', amount: 800 },
-    { id: 2, name: '中橋 楓華 (ランチ代)', amount: 1200 }*/
-  ]);
-  const recentPaying = ref([
-    /*{ id: 1, name: '小野木 涼平 (レンタカー)', amount: 2000 },
-    { id: 2, name: '大崎 稜馬 (飲み会代)', amount: 6300 }*/
-  ]);
-  const monthlyBalance = computed(() => {
-  const balance = props.summary.receivableTotal - props.summary.payableTotal;
-  const sign = balance >= 0 ? '+' : '-';
-  return `${sign}¥${Math.abs(balance).toLocaleString()}`;
-});
-  
+  const sides = [
+    { key: 'receive', title: '受け取る', path: '/payment?tab=waiting' },
+    { key: 'pay', title: '支払う', path: '/payment?tab=unpaid' },
+  ];
+  const statusRows = computed(() => ['pending', 'review'].filter(state =>
+    sides.some(side => props.overview[side.key][state].items.length)));
   // ------------------------------
   // スクロール計算系のロジック
   // ------------------------------
@@ -170,7 +172,8 @@ const props = defineProps({
     if (!carousel.value) return;
     const scrollPos = carousel.value.scrollLeft;
     const cardWidth = carousel.value.children[0].offsetWidth;
-    currentCard.value = Math.round(scrollPos / cardWidth);
+    const gap = parseFloat(getComputedStyle(carousel.value).columnGap) || 0;
+    currentCard.value = Math.max(0, Math.min(2, Math.round(scrollPos / (cardWidth + gap))));
   };
   
   // 矢印用：現在の位置から +1 or -1 動かす
@@ -221,10 +224,10 @@ const props = defineProps({
       carousel.value.scrollLeft = cardWidth + gap;
     }
   };
-  onMounted(() => { setTimeout(centerToMiddle, 100); });
+  onMounted(() => { nextTick(() => { centerToMiddle(); }); });
   // スケルトン→実データに切り替わったら中央カードへ戻す（差し替えでスクロールがリセットされるため）
   watch(() => props.loading, (isLoading) => {
-    if (!isLoading) nextTick(() => setTimeout(centerToMiddle, 50));
+    nextTick(() => { if (!isLoading) centerToMiddle(); });
   });
   </script>
   
@@ -234,7 +237,7 @@ const props = defineProps({
   .section-title { font-size: 16px; margin: 10px 16px 10px; font-weight: var(--fw-bold); color: var(--c-ink); }
   
   .carousel-outer { position: relative; display: flex; align-items: center; }
-  .carousel-wrapper { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; padding: 0 5%; gap: 4vw; scrollbar-width: none; -webkit-overflow-scrolling: touch; width: 100%; box-sizing: border-box; }
+  .carousel-wrapper { display: flex; align-items: stretch; overflow-y: hidden; overflow-x: auto; scroll-snap-type: x mandatory; padding: 0 5% 8px; gap: 4vw; scrollbar-width: none; -webkit-overflow-scrolling: touch; width: 100%; box-sizing: border-box; }
   .carousel-wrapper::-webkit-scrollbar { display: none; }
   
   .status-card { flex: 0 0 90%; border-radius: var(--r-lg); padding: 20px; box-shadow: var(--shadow-card); scroll-snap-align: center; display: flex; flex-direction: column; justify-content: center; box-sizing: border-box; transition: transform 0.3s ease; min-height: 156px; }
@@ -248,11 +251,12 @@ const props = defineProps({
   .white-bg { background: #ffffff; border: 1px solid var(--c-surface-2); }
   
   .card-main { text-align: center; margin-bottom: 15px; }
-  /* 「お支払い待ち／未払い」は補助表記。金額の直前には向き（受け取る／支払う）を置く */
+  /* 「相手の支払い待ち／未払い」は補助表記。金額の直前には向き（受け取る／支払う）を置く */
   .detail-sub { display: block; font-size: 11px; opacity: 0.8; font-weight: bold; }
   .detail-label { display: block; font-size: 14px; opacity: 1; font-weight: bold; margin-top: 2px; }
   .dir-arrow { margin-right: 3px; }
   .price-large { font-size: 38px; font-weight: 900; letter-spacing: -1px; margin-top: 5px; }
+  .review-summary { margin: 10px auto 0; width: fit-content; padding: 5px 10px; border-radius: var(--r-pill); background: rgba(255,255,255,0.2); font-size: 11px; font-weight: var(--fw-bold); }
   
   .recent-list { border-top: 1px solid rgba(255,255,255,0.2); padding-top: 15px; }
   .recent-title { font-size: 10px; opacity: 0.8; margin: 0 0 8px 0; text-align: left; }
@@ -276,26 +280,35 @@ const props = defineProps({
   }
   .recent-more:active { background: rgba(255,255,255,0.32); transform: scale(0.98); }
   
-  .summary-top { display: flex; justify-content: space-between; width: 100%; }
-  .status-box { text-align: center; flex: 1; cursor: pointer; transition: 0.2s; border-radius: 12px; padding: 8px 0; }
-  .status-box:active { background: var(--c-surface-2); transform: scale(0.95); } /* 🌟 押した時のフィードバック */
-  /* 中央カード：色に頼らず向きが分かるよう、金額の直前を「受け取る／支払う」にする */
-  .status-box__sub { display: block; font-size: 10.5px; font-weight: bold; color: var(--c-text-faint); margin-bottom: 4px; }
-  .badge { display: inline-block; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-bottom: 8px; }
-  .blue { background-color: var(--c-receive); }
-  .orange { background-color: var(--c-pay-strong); } /* 白文字バッジが読めるよう濃いアンバー */
-  .price { font-size: 24px; font-weight: bold; }
-  .blue-text { color: var(--c-receive); }
-  .orange-text { color: var(--c-pay-strong); }
-  .divider { width: 1px; height: 60px; background-color: var(--c-surface-2); margin: 0 15px; }
-  .progress-bar { width: 85%; height: 6px; background-color: var(--c-surface-2); border-radius: 10px; margin: 8px auto 0; overflow: hidden; }
-  .bar { height: 100%; border-radius: 10px; }
-  .blue-bar { background-color: var(--c-receive); transition: width 0.3s ease; }
-  .orange-bar { background-color: var(--c-pay); transition: width 0.3s ease; }
-  
-  .monthly-balance { margin-top: 20px; text-align: center; font-size: 13px; font-weight: bold; color: var(--c-text-faint); background: var(--c-surface-2); padding: 10px; border-radius: 12px; }
-  .balance-number { font-size: 18px; color: var(--c-brand); margin-left: 8px; }
-  
+  .summary-card { padding: 20px 16px; }
+  .summary-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  .summary-total { min-width: 0; padding: 0 5px; border: 0; background: transparent; display: flex; flex-direction: column; align-items: center; cursor: pointer; color: var(--c-receive); }
+  .summary-total--pay { color: var(--c-pay-strong); position: relative; }
+  .summary-total--pay::before { content: ''; position: absolute; left: 0; top: 2px; height: 54px; border-left: 1px solid var(--c-line); }
+  .summary-total__caption { color: var(--c-text-sub); font-size: 10px; line-height: 1.5; white-space: nowrap; }
+  .summary-total__badge { display: inline-flex; align-items: center; gap: 3px; margin-top: 6px; padding: 5px 10px; border-radius: 999px; background: var(--c-receive); color: #fff; font-size: 12px; line-height: 1.3; font-weight: var(--fw-bold); white-space: nowrap; }
+  .summary-total--pay .summary-total__badge { background: var(--c-pay-strong); }
+  .summary-total__amount { margin-top: 12px; font-size: clamp(24px, 7vw, 32px); line-height: 1.25; font-weight: var(--fw-black); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .summary-total__amount--long { font-size: clamp(15px, 4vw, 22px); letter-spacing: -0.04em; }
+  .summary-ledger { margin-top: 20px; padding: 5px 10px; background: var(--c-surface-2); border-radius: 12px; }
+  .summary-ledger table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+  .summary-ledger th { color: var(--c-text-sub); font-weight: 500; font-size: 10px; line-height: 1.4; text-align: left; }
+  .summary-ledger thead th { padding: 6px 0; text-align: right; font-size: 9px; }
+  .summary-ledger th:first-child { width: 28%; }
+  .summary-ledger tbody tr + tr { border-top: 1px solid var(--c-line); }
+  .summary-ledger td { padding: 0; text-align: right; vertical-align: middle; }
+  .summary-ledger__value { width: 100%; min-height: 44px; padding: 6px 0 6px 3px; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; color: var(--c-ink); background: none; border: 0; cursor: pointer; font-variant-numeric: tabular-nums; }
+  .summary-ledger__value strong { font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+  .summary-ledger .summary-ledger__receive { color: var(--c-receive-strong); }
+  .summary-ledger .summary-ledger__pay { color: var(--c-pay-strong); }
+  .summary-ledger thead .summary-ledger__receive,
+  .summary-ledger thead .summary-ledger__pay { font-weight: var(--fw-bold); }
+  .summary-ledger__value small { font-size: 9px; color: var(--c-text-sub); line-height: 1.4; }
+  .summary-ledger__none { color: var(--c-text-faint); font-size: 12px; }
+  .review-symbol { display: inline-flex; align-items: center; justify-content: center; width: 11px; height: 11px; margin-right: 3px; border: 1px solid currentColor; border-radius: 50%; font-size: 8px; color: #826035; }
+  .summary-total:focus-visible, .summary-ledger__value:focus-visible { outline: 2px solid var(--c-brand); outline-offset: 2px; border-radius: 6px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+
   .nav-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; background-color: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); border-radius: 50%; border: 1px solid rgba(0,0,0,0.05); box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; z-index: 20; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); padding: 0; }
   .nav-arrow:active { transform: translateY(-50%) scale(0.85); background-color: #fff; }
   .left-arrow { left: 8px; }
@@ -313,3 +326,8 @@ const props = defineProps({
   .dot:active { transform: scale(1.5); }
   .dot.active { background-color: var(--c-brand); width: 24px; border-radius: 10px; }
   </style>
+<style scoped>
+.overview-warning { font-size: 12px; line-height: 1.6; color: var(--c-text-sub); margin: 12px 0 0; }
+.overview-warning { padding: 0 16px 12px; }
+.detail-state { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; padding-bottom: 8px; }
+</style>

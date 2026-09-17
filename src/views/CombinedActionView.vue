@@ -52,6 +52,7 @@
   import { resolveThreadForTx, postPaymentEventByTx } from '@/lib/thread';
   import { getMyName } from '@/lib/userName';
   import { makeBatchId, stampSettlementBatch } from '@/lib/settlement';
+  import { COMPLETED_PATCH, AWAITING_PATCH } from '@/lib/transactionPatch';
   import { batchBreakdownText } from '@/lib/format';
   import { showToast } from '@/lib/toast';
 
@@ -181,7 +182,7 @@
             const done = valid.map((v) => v.id);
             await stampAll();
             for (const id of done) {
-              await updateDoc(doc(db, "transactions", id), { status: 'completed' });
+              await updateDoc(doc(db, "transactions", id), { ...COMPLETED_PATCH });
               // 支払いのチャットに経緯を残す（相手の未読が点く）
               await postPaymentEventByTx(id, { text: `${myName}さんがまとめて受け取り、精算しました`, kind: 'completed', actorUid: myUid });
               await resolveThreadForTx(myUid, friendUid, id); // 解決したのでチャットを消す
@@ -213,12 +214,12 @@
             const owedToMeIds = offsetSide.map((v) => v.id);
             await stampAll();
             for (const id of owedToMeIds) {
-              await updateDoc(doc(db, "transactions", id), { status: 'completed' });
+              await updateDoc(doc(db, "transactions", id), { ...COMPLETED_PATCH });
               await postPaymentEventByTx(id, { text: `${myName}さんがまとめて受け取り、精算しました`, kind: 'completed', actorUid: myUid });
               await resolveThreadForTx(myUid, friendUid, id);
             }
             for (const id of iOweIds) {
-              await updateDoc(doc(db, "transactions", id), { status: 'awaiting_approval' });
+              await updateDoc(doc(db, "transactions", id), { ...AWAITING_PATCH });
               await postPaymentEventByTx(id, { text: `${myName}さんがまとめて支払いました（相手の承認待ち）`, kind: 'paid', actorUid: myUid });
             }
             if (iOweIds.length) {

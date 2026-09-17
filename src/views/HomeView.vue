@@ -2,7 +2,8 @@
   <div class="home">
     <!-- お支払い状況（ツアーの案内対象） -->
     <section data-tour="home-status">
-      <PaymentCarousel :summary="paymentSummary" :loading="summaryLoading" />
+      <div v-if="summaryError" class="ongoing__empty" role="alert">支払い状況を読み込めませんでした。画面を開き直してください。</div>
+      <PaymentCarousel v-else :summary="paymentSummary" :overview="paymentOverview" :loading="summaryLoading" />
     </section>
 
     <section class="ongoing" data-tour="home-events">
@@ -120,12 +121,12 @@ import { useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, onSnapshot, getDoc, doc, deleteDoc, updateDoc, addDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
+import { buildPaymentOverview } from '@/lib/paymentOverview.js';
 import PaymentCarousel from '@/components/PaymentCarousel.vue';
 import BaseModal from '@/components/BaseModal.vue'; // 🌟 Eventブランチの統一モーダル
 import InviteCard from '@/components/InviteCard.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import { subscribePendingInvites } from '@/lib/invite';
-import { isEventSettlementReserved } from '@/lib/eventSettlementGuard';
 import api from '@/services/api';
 import { getMyName } from '@/lib/userName';
 
@@ -163,20 +164,32 @@ const handleConfirmModal = (reason) => {
   modalState.show = false;
 };
 
-const paymentSummary = ref({
-  receivableTotal: 0,
-  receivableList: [],
-  payableTotal: 0,
-  payableList: []
+const summaryUid = ref('');
+const receivingTransactions = ref([]);
+const payingTransactions = ref([]);
+const receiveReady = ref(false);
+const payReady = ref(false);
+const summaryError = ref(false);
+const summaryLoading = computed(() => !receiveReady.value || !payReady.value);
+const paymentOverview = computed(() => buildPaymentOverview(
+  [...receivingTransactions.value, ...payingTransactions.value], summaryUid.value,
+));
+const paymentSummary = computed(() => {
+  const named = (items) => items.map(item => ({ ...item, name: userCache[item.opponentUid]?.name || '名前を確認中' }));
+  return {
+    receivableTotal: paymentOverview.value.receive.unpaid.amount,
+    payableTotal: paymentOverview.value.pay.unpaid.amount,
+    receivableList: named(paymentOverview.value.receive.unpaid.items),
+    payableList: named(paymentOverview.value.pay.unpaid.items),
+  };
 });
-const summaryLoading = ref(true); // カルーセルの初回読込中は true（スケルトン表示）
 
 // お支払いアシスタントはヘッダー（AppHeader）のアイコンから全ページで開けます。
 
 // ==========================================
 // 🌟 1. 名前とアイコン取得の効率化（mainブランチの機能）
 // ==========================================
-const userCache = {};
+const userCache = reactive({});
 
 const getUserInfo = async (uid) => {
   if (!uid) return { name: "不明", photo: "" };
@@ -266,6 +279,12 @@ onMounted(() => {
     if (unsubInvites) { unsubInvites(); unsubInvites = null; }
     if (unsubReceivable) { unsubReceivable(); unsubReceivable = null; }
     if (unsubPayable) { unsubPayable(); unsubPayable = null; }
+    summaryUid.value = user?.uid || '';
+    receivingTransactions.value = [];
+    payingTransactions.value = [];
+    receiveReady.value = false;
+    payReady.value = false;
+    summaryError.value = false;
     if (!user) invites.value = [];
     subscribeEvents(user ? user.uid : null);
     if (user) {
@@ -274,43 +293,27 @@ onMounted(() => {
       // 届いている招待を監視（イベント一覧と同じ内容を先頭に出す）
       unsubInvites = subscribePendingInvites(myUid, (list) => { invites.value = list; });
 
-      // 入金待ち
-      const qReceivable = query(collection(db, "transactions"), where("paidToId", "==", myUid));
-      unsubReceivable = onSnapshot(qReceivable, async (snapshot) => {
-        let total = 0;
-        // 相手UID(paidById)が無い不正データは除外（お支払い画面と合計を一致させる）
-        const docs = snapshot.docs.filter(d => (d.data().status || 'unpaid') !== 'completed'
-          && d.data().paidById && !isEventSettlementReserved(d.data()));
-        const list = await Promise.all(docs.map(async (d) => {
-          const data = d.data();
-          total += data.amount || 0;
-          const name = await getUserName(data.paidById);
-          return { id: d.id, name, itemName: data.itemName, amount: data.amount, status: data.status || 'unpaid' };
-        }));
-        paymentSummary.value.receivableTotal = total;
-        paymentSummary.value.receivableList = list;
-        summaryLoading.value = false; // カルーセルの最初のデータが届いた
-      });
-
-      // 未払い
-      const qPayable = query(collection(db, "transactions"), where("paidById", "==", myUid));
-      unsubPayable = onSnapshot(qPayable, async (snapshot) => {
-        let total = 0;
-        // 相手UID(paidToId)が無い不正データは除外（お支払い画面と合計を一致させる）
-        const docs = snapshot.docs.filter(d => (d.data().status || 'unpaid') !== 'completed'
-          && d.data().paidToId && !isEventSettlementReserved(d.data()));
-        const list = await Promise.all(docs.map(async (d) => {
-          const data = d.data();
-          total += data.amount || 0;
-          const name = await getUserName(data.paidToId);
-          return { id: d.id, name: name, itemName: data.itemName, amount: data.amount, status: data.status || 'unpaid' };
-        }));
-        paymentSummary.value.payableTotal = total;
-        paymentSummary.value.payableList = list;
-        summaryLoading.value = false; // カルーセルの最初のデータが届いた
-      });
+      const watchSide = (field, target, ready) => onSnapshot(
+        query(collection(db, 'transactions'), where(field, '==', myUid)),
+        snapshot => {
+          if (summaryUid.value !== myUid) return;
+          target.value = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+          ready.value = true;
+          const opposite = field === 'paidToId' ? 'paidById' : 'paidToId';
+          for (const uid of new Set(target.value.map(t => t[opposite]).filter(Boolean))) getUserInfo(uid);
+        },
+        error => {
+          if (summaryUid.value !== myUid) return;
+          console.error('支払い状況を取得できませんでした:', error);
+          summaryError.value = true;
+          ready.value = true;
+        },
+      );
+      unsubReceivable = watchSide('paidToId', receivingTransactions, receiveReady);
+      unsubPayable = watchSide('paidById', payingTransactions, payReady);
     } else {
-      summaryLoading.value = false; // 未ログインなら待たない
+      receiveReady.value = true;
+      payReady.value = true;
     }
   });
 });
@@ -413,16 +416,12 @@ const goToEventDetail = (id) => {
 .section-title { font-size: 17px; font-weight: var(--fw-bold); color: var(--c-ink); }
 .ongoing__all { color: var(--c-brand); font-size: 13px; font-weight: var(--fw-bold); }
 
-.ongoing__list { 
-  display: flex; 
-  flex-direction: column; 
-  gap: 24px; /* 👈 例: 12px から 24px などに増やす */
-}
+.ongoing__list { display: flex; flex-direction: column; gap: 12px; }
 
 .ongoing__empty {
   text-align: center;
   color: var(--c-text-faint);
-  padding: 48px 16px;
+  padding: 36px 0;
   font-size: 14px;
   font-weight: var(--fw-medium);
   background: var(--c-surface);
@@ -438,7 +437,6 @@ const goToEventDetail = (id) => {
   gap: 10px;
   max-width: 260px;
   margin: 0 auto;
-  margin-bottom: 20px;
 }
 .empty-actions .btn-brand { font-size: 15px; padding: 13px 16px; }
 .empty-actions .btn-outline { font-size: 14px; padding: 12px 16px; }
@@ -454,7 +452,6 @@ const goToEventDetail = (id) => {
   cursor: pointer;
   box-shadow: var(--shadow-card);
   transition: transform 0.15s ease;
-  margin-top: 24px;
 }
 .ev:active { transform: scale(0.985); }
 

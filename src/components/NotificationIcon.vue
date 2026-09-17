@@ -216,7 +216,8 @@ import {
 } from 'firebase/firestore';
 import { subjectKey, threadIdFor, subjectLabel, resolveThreadForTx, postPaymentEventByTx, resolvePaymentThreadByTx } from '@/lib/thread';
 import { logApprovalBoth } from '@/lib/approvalLog';
-import { revertCounterTransactions, COUNTER_REVERT_TEXT, UNPAID_PATCH } from '@/lib/settlement';
+import { revertCounterTransactions, COUNTER_REVERT_TEXT } from '@/lib/settlement';
+import { UNPAID_PATCH, REJECTED_PATCH, COMPLETED_PATCH } from '@/lib/transactionPatch';
 import { batchBreakdownText } from '@/lib/format';
 import { showToast } from '@/lib/toast';
 import { getMyName, getUserName, isSelfName } from '@/lib/userName';
@@ -589,7 +590,7 @@ const approveTx = async (req) => {
           ? ((d.paidById === myUid && d.paidToId === otherUid) || (d.paidById === otherUid && d.paidToId === myUid))
           : (d.paidToId === myUid);
         if (!ok) continue;
-        if ((d.status || 'unpaid') !== 'completed') { await updateDoc(doc(db, "transactions", tid), { status: 'completed' }); completed++; }
+        if ((d.status || 'unpaid') !== 'completed') { await updateDoc(doc(db, "transactions", tid), { ...COMPLETED_PATCH }); completed++; }
         await resolveThreadForTx(myUid, otherUid, tid); // 1対1チャットを消す
         // グループチャットに経緯を流し、全員完了なら片付ける
         await postPaymentEventByTx(tid, { text: `${senderName(req)}さんの支払いを承認し、精算しました`, kind: 'approved', actorUid: myUid });
@@ -627,8 +628,9 @@ const rejectTx = (req) => {
       if (!myUid) return;
       const ids = Array.isArray(req.transactionIds) && req.transactionIds.length ? req.transactionIds : (req.transactionId ? [req.transactionId] : []);
       for (const tid of ids) {
-        // 未払いに戻すので、まとめ精算の内訳（相殺の記録）も消す
-        try { await updateDoc(doc(db, "transactions", tid), { ...UNPAID_PATCH }); } catch (e) { /* 続行 */ }
+        // 未払いに戻すので、まとめ精算の内訳（相殺の記録）も消す。
+        // 差し戻しなので確認の印を立て、次のまとめて精算へ自動で乗せない。
+        try { await updateDoc(doc(db, "transactions", tid), { ...REJECTED_PATCH }); } catch (e) { /* 続行 */ }
         await postPaymentEventByTx(tid, { text: `${senderName(req)}さんの支払いを差し戻しました（未払いに戻りました）`, kind: 'rejected', actorUid: myUid });
       }
       // 🌟 逆方向（相手が受け取り扱いで即完了にした分）も未払いに戻す。
@@ -668,7 +670,8 @@ const approveRestore = async (req) => {
         if (t.exists()) {
           const d = t.data();
           if (d.paidById === myUid || d.paidToId === myUid) {
-            // 未精算に戻すので、まとめ精算の内訳（相殺の記録）も消す
+            // 未精算に戻すので、まとめ精算の内訳（相殺の記録）も消す。
+            // こちらは双方が合意した戻しなので、確認の印は付けない（UNPAID_PATCH が消す）。
             await updateDoc(doc(db, "transactions", tid), { ...UNPAID_PATCH });
           }
         }
