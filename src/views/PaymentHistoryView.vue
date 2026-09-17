@@ -12,31 +12,31 @@
   
         <div class="history-list-area">
           <SkeletonRows v-if="loading" :rows="6" />
-          <div
+          <button
             v-for="item in filteredHistory"
-            :key="item.id" 
+            :key="item.id"
+            type="button"
             class="history-card"
             @click="goToDetail(item)"
           >
-            <div class="card-left">s
+            <span class="card-left">
               <UserAvatar class="avatar" :name="item.name" :photo="item.photo" :size="44" />
-              <div class="info">
-                <p class="name">{{ item.name }}</p>
-                <p class="details">{{ item.date }} <span class="dot-separator">•</span> {{ item.eventName }}</p>
-              </div>
-            </div>
-            
-            <div class="card-right">
-              <p class="amount" :class="item.type === 'pay' ? 'orange-text' : 'blue-text'">
-                {{ item.type === 'pay' ? '-' : '+' }} ¥{{ item.amount.toLocaleString() }}
-              </p>
-              <span
-                class="status-badge"
-                :class="{ pending: item.status === 'unpaid', awaiting: item.status === 'awaiting_approval' }"
-              >{{ statusLabel(item.status) }}</span>
-            </div>
-          </div>
-          
+              <span class="info">
+                <span class="name">{{ item.name }}</span>
+                <span class="details">{{ item.date }}</span>
+                <span class="item-name">{{ item.eventName }}</span>
+              </span>
+            </span>
+            <span class="card-right">
+              <span class="amount" :class="item.type === 'pay' ? 'orange-text' : 'blue-text'">
+                <span class="amount-direction">{{ item.type === 'pay' ? '支払い' : '受け取り' }}</span>
+                <span class="tnum">{{ item.type === 'pay' ? '-' : '+' }} ¥{{ item.amount.toLocaleString() }}</span>
+              </span>
+              <span class="status-badge" :class="{ pending: item.status === 'unpaid', awaiting: item.status === 'awaiting_approval' }">{{ statusLabel(item.status) }}</span>
+              <span class="detail-arrow" aria-hidden="true">›</span>
+            </span>
+          </button>
+
           <div v-if="!loading && filteredHistory.length === 0" class="empty-box">
             該当する履歴がありません
           </div>
@@ -252,4 +252,17 @@ const goToDetail = (item) => {
 
   /* アバター枠（大きさと丸めはアバター部品側。ここでは影だけ足す） */
 .avatar { box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-  </style>
+
+.history-card { width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 14px 16px; border: 1px solid var(--c-line); border-radius: var(--r-lg); box-shadow: none; font: inherit; text-align: left; }
+.history-card:focus-visible { outline: 2px solid var(--c-brand); outline-offset: 2px; }
+.card-left { gap: 12px; align-items: flex-start; }
+.info { flex: 1; }
+.name, .details, .item-name { white-space: normal; overflow-wrap: anywhere; }
+.name { color: var(--c-ink); }
+.item-name { font-size: 14px; color: var(--c-text-sub); }
+.card-right { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 0; }
+.amount { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-right: auto; font-size: 18px; letter-spacing: 0; overflow-wrap: anywhere; }
+.amount-direction { font-size: 12px; font-weight: var(--fw-medium); }
+.status-badge { font-size: 12px; }
+.detail-arrow { font-size: 22px; color: var(--c-text-faint); }
+</style>
