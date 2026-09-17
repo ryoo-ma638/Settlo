@@ -410,12 +410,16 @@ const goToEventDetail = (id) => {
 .section-title { font-size: 17px; font-weight: var(--fw-bold); color: var(--c-ink); }
 .ongoing__all { color: var(--c-brand); font-size: 13px; font-weight: var(--fw-bold); }
 
-.ongoing__list { display: flex; flex-direction: column; gap: 12px; }
+.ongoing__list { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 24px; /* 👈 例: 12px から 24px などに増やす */
+}
 
 .ongoing__empty {
   text-align: center;
   color: var(--c-text-faint);
-  padding: 36px 0;
+  padding: 48px 16px;
   font-size: 14px;
   font-weight: var(--fw-medium);
   background: var(--c-surface);
@@ -431,6 +435,7 @@ const goToEventDetail = (id) => {
   gap: 10px;
   max-width: 260px;
   margin: 0 auto;
+  margin-bottom: 20px;
 }
 .empty-actions .btn-brand { font-size: 15px; padding: 13px 16px; }
 .empty-actions .btn-outline { font-size: 14px; padding: 12px 16px; }
@@ -446,6 +451,7 @@ const goToEventDetail = (id) => {
   cursor: pointer;
   box-shadow: var(--shadow-card);
   transition: transform 0.15s ease;
+  margin-top: 24px;
 }
 .ev:active { transform: scale(0.985); }
 

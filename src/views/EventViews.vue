@@ -275,6 +275,12 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: flex-end;
 }
+.events__list {
+  padding: 16px var(--pad) 24px; /* ← 上部のパディングを 4px から 16px などに増やす */
+  display: flex;
+  flex-direction: column;
+  gap: 12px; /* カード同士の間隔も少し広げたい場合は調整してください */
+}
 .avatars { display: flex; align-items: center; }
 .avatar {
   width: 30px; height: 30px; border-radius: 50%;

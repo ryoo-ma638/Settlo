@@ -18,7 +18,7 @@
             class="history-card"
             @click="goToDetail(item)"
           >
-            <div class="card-left">
+            <div class="card-left">s
               <UserAvatar class="avatar" :name="item.name" :photo="item.photo" :size="44" />
               <div class="info">
                 <p class="name">{{ item.name }}</p>
@@ -229,6 +229,18 @@ const goToDetail = (item) => {
   }
   .status-badge.awaiting {
     background-color: var(--c-pay-weak); color: var(--c-pay-strong);
+  }
+  .seg {
+    margin-bottom: 24px;
+  }
+  .content { 
+    flex: 1; 
+    width: 100%; 
+    margin: 0 auto; 
+    padding: 8px var(--pad) 48px; /* ← ここの最後の数字を大きくすると一番下の余白が増えます */
+    box-sizing: border-box; 
+    display: flex; 
+    flex-direction: column; 
   }
   
   /* 🌟 データが空の時の表示 */
