@@ -145,6 +145,9 @@ function calculatePlan(transactions, participants) {
 }
 
 function calculateRefreshedPlan({ transactions, participants, planId, legs }) {
+  if (legs.some((row) => row.status === "unpaid" && row.reviewRequired === true)) {
+    fail("failed-precondition", "受取を確認できなかった支払いがあります。送金状況を確認し、必要なら同じ行からもう一度支払いを報告してください。");
+  }
   const allowed = new Set(participants);
   const balances = new Map(participants.map((uid) => [uid, 0]));
   const sources = [];
@@ -325,7 +328,7 @@ function createEventNetSettlementService({ db, FieldValue }) {
       if (!calculated.transfers.length) {
         fail("failed-precondition", "追加分を含めると送金額が0円になります。追加分は個別に確認してください。");
       }
-      const replaceable = legs.filter((row) => row.status === "unpaid");
+      const replaceable = legs.filter((row) => row.status === "unpaid" && row.reviewRequired !== true);
       const nextVersion = Number(plan.version || 1) + 1;
       const newLegIds = calculated.transfers.map((_, index) => `leg-r${nextVersion}-${index + 1}-${stableId(planId, requestId, index).slice(0, 8)}`);
       replaceable.forEach((row) => transaction.delete(planRef.collection("legs").doc(row.id)));

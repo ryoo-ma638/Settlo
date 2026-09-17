@@ -45,6 +45,20 @@ test("受取確認待ちの支払いは組み替えず、追加分を残りへ�
   assert.deepEqual(result.transfers, [{ fromId: "B", toId: "C", amount: 500 }]);
 });
 
+test("受取を確認できなかった支払いは再計算で通常未払いへ置き換えない", () => {
+  assert.throws(() => calculateRefreshedPlan({
+    participants,
+    planId: "plan-1",
+    transactions: [
+      tx("ab", "A", "B", 1000, "plan-1"),
+      tx("bc-new", "B", "C", 500),
+    ],
+    legs: [
+      { id: "review-ab", fromId: "A", toId: "B", amount: 1000, status: "unpaid", reviewRequired: true },
+    ],
+  }), (error) => error.code === "failed-precondition" && /送金状況を確認/.test(error.message));
+});
+
 test("確定済みを差し引いても参加者全員の残額を1円単位で保つ", () => {
   const result = calculateRefreshedPlan({
     participants,
@@ -152,4 +166,34 @@ test("追加分の保存は確定済みを保持し、未精算分だけを差�
   const second = await service.refresh("A", { planId: "plan-1", requestId: "refresh-1" });
   assert.equal(second.replay, true);
   assert.equal(db.store.get("eventSettlementPlans/plan-1").legIds.length, 3);
+});
+
+test("差し戻し後の追加反映は実際の保存処理でも拒否し、元の行を残す", async () => {
+  const initial = {
+    "events/event-1": { activeEventSettlementPlanId: "plan-1", participants },
+    "eventSettlementPlans/plan-1": {
+      eventId: "event-1", participantIds: participants, status: "open", version: 2,
+      sourceTransactionIds: ["ab"],
+      sourceTransactions: [tx("ab", "A", "B", 1000, "plan-1")],
+      legIds: ["review-ab"],
+    },
+    "eventSettlementPlans/plan-1/legs/review-ab": {
+      fromId: "A", toId: "B", amount: 1000, status: "unpaid", reviewRequired: true,
+      sourceTransactionIds: ["ab"],
+    },
+    "transactions/ab": { ...tx("ab", "A", "B", 1000, "plan-1"), eventId: "event-1" },
+    "transactions/bc-new": { ...tx("bc-new", "B", "C", 500), eventId: "event-1" },
+  };
+  const db = fakeFirestore(initial);
+  const service = createEventNetSettlementService({
+    db,
+    FieldValue: { serverTimestamp: () => "now", increment: (amount) => ({ increment: amount }) },
+  });
+  await assert.rejects(
+    service.refresh("A", { planId: "plan-1", requestId: "blocked-refresh" }),
+    (error) => error.code === "failed-precondition" && /送金状況を確認/.test(error.message),
+  );
+  assert.deepEqual(db.store.get("eventSettlementPlans/plan-1/legs/review-ab"), initial["eventSettlementPlans/plan-1/legs/review-ab"]);
+  assert.equal(db.store.get("transactions/bc-new").eventSettlementPlanId, null);
+  assert.deepEqual(db.store.get("eventSettlementPlans/plan-1").legIds, ["review-ab"]);
 });

@@ -38,6 +38,9 @@
             >{{ settlementBusy ? '更新中…' : '追加分を反映' }}</button>
           </div>
           <p class="section-note">全員分の貸し借りをまとめ、支払い回数を減らした結果です。</p>
+          <p v-if="hasUnresolvedSettlementReview" class="settlement-error">
+            受取を確認できなかった支払いがあります。追加分を反映する前に、該当する行から送金状況を確認してください。
+          </p>
           <div class="settlement-filters" role="group" aria-label="まとめて精算の表示状態">
             <button type="button" :class="{ active: settlementFilter === 'all' }" @click="settlementFilter = 'all'">すべて</button>
             <button type="button" :class="{ active: settlementFilter === 'unpaid' }" @click="settlementFilter = 'unpaid'">未精算</button>
@@ -1188,6 +1191,7 @@ const txById = ref({});
 const txLoaded = ref(false);
 const settlementPlan = ref(null);
 const settlementLegs = ref([]);
+const settlementPlanLoaded = ref(false);
 const settlementBusy = ref(false);
 const settlementFilter = ref('unpaid');
 let unsubSettlementPlan = null;
@@ -1276,8 +1280,11 @@ const netSettlementError = computed(() => {
 const canStartNetSettlement = computed(() => eventData.value.ended === false
   && !eventData.value.activeEventSettlementPlanId
   && !!localNetSettlement.value.result?.transfers?.length);
+const hasUnresolvedSettlementReview = computed(() => settlementLegs.value
+  .some((row) => row.status === 'unpaid' && row.reviewRequired === true));
 const canRefreshNetSettlement = computed(() => eventData.value.ended === false
   && !!eventData.value.activeEventSettlementPlanId
+  && !hasUnresolvedSettlementReview.value
   && !!localNetSettlement.value.result?.sourceTransactions?.length);
 
 const clearSettlementSubscriptions = () => {
@@ -1291,12 +1298,18 @@ const subscribeSettlementPlan = (planId) => {
   clearSettlementSubscriptions();
   settlementPlan.value = null;
   settlementLegs.value = [];
-  if (!planId) return;
+  settlementPlanLoaded.value = false;
+  if (!planId) {
+    settlementPlanLoaded.value = true;
+    return;
+  }
   subscribedSettlementPlanId = planId;
   const planRef = doc(db, 'eventSettlementPlans', planId);
   unsubSettlementPlan = onSnapshot(planRef, (snap) => {
     settlementPlan.value = snap.exists() ? { id: snap.id, ...snap.data() } : null;
+    settlementPlanLoaded.value = true;
   }, (error) => {
+    settlementPlanLoaded.value = true;
     if (error?.code !== 'permission-denied') console.error('まとめて精算の読込エラー:', error);
   });
   unsubSettlementLegs = onSnapshot(collection(planRef, 'legs'), (snap) => {
@@ -1307,6 +1320,50 @@ const subscribeSettlementPlan = (planId) => {
     if (error?.code !== 'permission-denied') console.error('まとめて精算の支払い読込エラー:', error);
   });
 };
+
+// まとめて精算のお知らせは、保存されたIDをそのまま実行せず、
+// 現在読み込んだ計画と支払い行を照合してから最新状態の詳細を開く。
+let openedSettlementQuery = '';
+watch([
+  () => route.query.settlement,
+  () => route.query.leg,
+  () => route.query.request,
+  settlementPlan,
+  settlementLegs,
+  settlementPlanLoaded,
+], async ([planParam, legParam, requestParam, plan, legs, planLoaded]) => {
+  const planId = Array.isArray(planParam) ? planParam[0] : planParam;
+  const legId = Array.isArray(legParam) ? legParam[0] : legParam;
+  const paymentRequestId = Array.isArray(requestParam) ? requestParam[0] : requestParam;
+  if (!planId || !legId || !planLoaded || eventData.value.ended == null) return;
+  const key = `${planId}:${legId}:${paymentRequestId || ''}`;
+  if (openedSettlementQuery === key) return;
+  const expectedLegIds = Array.isArray(plan?.legIds) ? plan.legIds : [];
+  if (plan?.id === planId && expectedLegIds.includes(legId) && !legs.some((row) => row.id === legId)) return;
+  openedSettlementQuery = key;
+
+  if (!plan || plan.id !== planId) {
+    showAlert('info', '以前のまとめて精算です', 'このお知らせの精算は現在の計画ではありません。画面に表示されている最新のまとめて精算を確認してください。');
+  } else {
+    const current = legs.find((row) => row.id === legId);
+    const currentRequestId = current?.status === 'awaiting_approval'
+      ? current.paymentRequestId
+      : current?.lastDecisionRequestId;
+    if (!current || (paymentRequestId && currentRequestId !== paymentRequestId)) {
+      showAlert('info', '支払いの状態が変わっています', 'このお知らせの支払いは更新されています。画面に表示されている最新のまとめて精算を確認してください。');
+    } else {
+      await nextTick();
+      openSummaryDetail(rowForDisplay(current, { details: plan.sourceTransactions || [] }));
+    }
+  }
+
+  const { settlement, leg, request, ...query } = route.query;
+  try {
+    await router.replace({ query });
+  } catch (error) {
+    console.error('まとめて精算のお知らせURL更新に失敗:', error);
+  }
+}, { immediate: true });
 
 const callNetSettlement = async (data) => {
   const callable = httpsCallable(functions, 'eventNetSettlement');
@@ -1345,6 +1402,14 @@ const startNetSettlementFromDetail = () => {
 };
 
 const refreshNetSettlement = () => {
+  if (hasUnresolvedSettlementReview.value) {
+    showAlert(
+      'info',
+      '先に送金状況を確認してください',
+      '受取を確認できなかった支払いは、自動で組み替えません。該当する行を開き、実際に支払い済みならもう一度報告してください。',
+    );
+    return;
+  }
   if (!canRefreshNetSettlement.value || settlementBusy.value || !settlementPlan.value?.id) return;
   showConfirm(
     '追加分を反映しますか？',

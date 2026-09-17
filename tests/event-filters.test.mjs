@@ -151,6 +151,77 @@ test('進行中に追加された取引だけを反映する前に確認を求�
   assert.equal(state.settlementBusy, false);
 });
 
+test('受取を確認できなかった行がある間は追加分を組み替えない', async () => {
+  const state = mount();
+  state.eventData.activeEventSettlementPlanId = 'plan-1';
+  state.settlementPlan = { id: 'plan-1', status: 'open', sourceTransactions: [] };
+  state.settlementLegs = [{
+    id: 'review', fromId: 'me', toId: 'B', amount: 1000,
+    status: 'unpaid', reviewRequired: true,
+  }];
+  state.txLoaded = true;
+  state.txById = {
+    added: { id: 'added', paidById: 'B', paidToId: 'C', amount: 500, status: 'unpaid' },
+  };
+  await Vue.nextTick();
+  assert.equal(state.hasUnresolvedSettlementReview, true);
+  assert.equal(state.canRefreshNetSettlement, false);
+  state.refreshNetSettlement();
+  assert.equal(state.alertState.title, '先に送金状況を確認してください');
+  assert.match(state.alertState.message, /自動で組み替えません/);
+});
+
+test('まとめて精算のお知らせは保存済みIDを現在状態と照合して対象行を開く', async () => {
+  const state = mount();
+  routeQuery.keep = 'notice';
+  routeQuery.settlement = 'plan-1';
+  routeQuery.leg = 'leg-1';
+  routeQuery.request = 'request-1';
+  state.eventData.participants = [{ id: 'me', name: '自分' }, { id: 'B', name: '相手' }];
+  state.settlementPlan = {
+    id: 'plan-1', status: 'open', legIds: ['leg-1'], sourceTransactions: [],
+  };
+  state.settlementPlanLoaded = true;
+  state.settlementLegs = [{
+    id: 'leg-1', fromId: 'B', toId: 'me', amount: 1000,
+    status: 'awaiting_approval', paymentRequestId: 'request-1',
+  }];
+  await Vue.nextTick(); await Vue.nextTick();
+  assert.equal(state.modals.summaryDetail, true);
+  assert.equal(state.selectedSummary.id, 'leg-1');
+  assert.equal(state.selectedSummary.isMeReceiver, true);
+  assert.equal(routeQuery.settlement, undefined);
+  assert.equal(routeQuery.leg, undefined);
+  assert.equal(routeQuery.keep, 'notice');
+});
+
+test('古い支払い報告や終了した計画のお知らせから操作を開かない', async () => {
+  const state = mount();
+  routeQuery.settlement = 'plan-old';
+  routeQuery.leg = 'leg-old';
+  routeQuery.request = 'request-old';
+  state.settlementPlanLoaded = true;
+  await Vue.nextTick(); await Vue.nextTick();
+  assert.equal(state.modals.summaryDetail, false);
+  assert.equal(state.alertState.title, '以前のまとめて精算です');
+  assert.equal(routeQuery.settlement, undefined);
+
+  routeQuery.settlement = 'plan-current';
+  routeQuery.leg = 'leg-current';
+  routeQuery.request = 'request-old';
+  state.settlementPlanLoaded = false;
+  state.settlementPlan = { id: 'plan-current', status: 'open', legIds: ['leg-current'], sourceTransactions: [] };
+  state.settlementLegs = [{
+    id: 'leg-current', fromId: 'B', toId: 'me', amount: 1000,
+    status: 'awaiting_approval', paymentRequestId: 'request-new',
+  }];
+  state.settlementPlanLoaded = true;
+  await Vue.nextTick(); await Vue.nextTick();
+  assert.equal(state.modals.summaryDetail, false);
+  assert.equal(state.alertState.title, '支払いの状態が変わっています');
+  assert.equal(routeQuery.settlement, undefined);
+});
+
 test('まとめて精算の詳細は計算元を閉じた状態で開く', () => {
   const state = mount();
   state.showSummarySources = true;

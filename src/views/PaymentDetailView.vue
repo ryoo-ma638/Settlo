@@ -5,6 +5,12 @@
     <main class="content">
       <div v-if="loading" class="state-msg">情報を取得中…</div>
 
+      <div v-else-if="reservedSettlement" class="reserved-box">
+        <h2>イベントでまとめて精算しています</h2>
+        <p>この元の支払いは個別には操作できません。組み替え後の金額と現在の状況をイベントで確認してください。</p>
+        <button class="method-btn reserved-box__button" @click="openReservedSettlement">まとめて精算を確認する</button>
+      </div>
+
       <template v-else-if="items.length > 0">
         <div class="summary-card" :class="modeClass">
           <p class="summary-label">{{ modeLabel }}</p>
@@ -156,6 +162,7 @@ import {
   findBatchApprovalRequests, revertCounterTransactions, COUNTER_REVERT_TEXT,
   fetchBatchTransactions, UNPAID_PATCH,
 } from '@/lib/settlement';
+import { assertStandardPaymentAllowed, eventSettlementRouteOf, isEventSettlementReserved } from '@/lib/eventSettlementGuard';
 
 const route = useRoute();
 const router = useRouter(); 
@@ -163,6 +170,12 @@ const selectedItem = ref(null);
 const items = ref([]); 
 const loading = ref(true);
 const targetUid = ref(''); 
+const reservedSettlement = ref(null);
+
+const openReservedSettlement = () => {
+  const target = eventSettlementRouteOf(reservedSettlement.value || {});
+  if (target) router.replace(target);
+};
 
 // 🌟 取引のステータスをデータベースから取得して保持する変数
 const currentStatus = ref('unpaid');
@@ -266,6 +279,8 @@ onMounted(async () => {
       //    大きい金額＝実際にやり取りする額、一覧＝対象になった支払い、で数字の食い違いを無くす。
       const side = mode.value === 'remind' ? 'receive' : 'pay';
       const txs = await fetchBatchTransactions(myUid, settleBatchId.value, side);
+      const reserved = txs.find(isEventSettlementReserved);
+      if (reserved) { reservedSettlement.value = reserved; return; }
       const list = [];
       for (const t of txs) {
         const opponentUid = mode.value === 'remind' ? t.paidById : t.paidToId;
@@ -302,6 +317,10 @@ onMounted(async () => {
       // 複合インデックスを避けるため eventId の単一条件で取得し、status はJSで絞る
       const qy = query(collection(db, "transactions"), where("eventId", "==", eid));
       const snap = await getDocs(qy);
+      const reserved = snap.docs
+        .map((entry) => ({ id: entry.id, ...entry.data() }))
+        .find(isEventSettlementReserved);
+      if (reserved) { reservedSettlement.value = reserved; return; }
       const list = [];
       const statuses = [];
       for (const d of snap.docs) {
@@ -361,6 +380,10 @@ onMounted(async () => {
 
       if (docSnap.exists()) {
         const data = docSnap.data();
+        if (isEventSettlementReserved(data)) {
+          reservedSettlement.value = { id: docSnap.id, ...data };
+          return;
+        }
         currentStatus.value = data.status || 'unpaid';
         settlementBatch.value = data.settlementBatch || null; // まとめ精算の一部なら内訳を出す
 
@@ -401,6 +424,13 @@ const openOverlay = (item) => { selectedItem.value = item; };
 const fmtDate = (ts) => formatDate(ts);
 
 const updateAllItems = async (status) => {
+  const current = [];
+  for (const it of items.value) {
+    const snapshot = await getDoc(doc(db, "transactions", it.id));
+    if (!snapshot.exists()) throw new Error('支払いが見つかりません。画面を開き直してください。');
+    current.push({ id: snapshot.id, ...snapshot.data() });
+  }
+  current.forEach(assertStandardPaymentAllowed);
   for (const it of items.value) {
     // 未払いに戻すときは、まとめ精算の内訳（相殺の記録）も無効になるので一緒に消す
     const patch = status === 'unpaid' ? { ...UNPAID_PATCH } : { status };
@@ -447,6 +477,13 @@ const sendReminder = async ({ deadline, message } = {}) => {
   if (submitting.value) return;
   submitting.value = true;
   try {
+    const current = [];
+    for (const it of items.value) {
+      const snapshot = await getDoc(doc(db, "transactions", it.id));
+      if (!snapshot.exists()) throw new Error('支払いが見つかりません。画面を開き直してください。');
+      current.push({ id: snapshot.id, ...snapshot.data() });
+    }
+    current.forEach(assertStandardPaymentAllowed);
     for (const it of items.value) {
       await notifyOpponent(
         it,
@@ -670,6 +707,10 @@ const confirmCash = () => {
 .spacer { width: 32px; }
 .content { padding: 8px var(--pad) 28px; width: 100%; box-sizing: border-box; }
 .state-msg { text-align: center; padding: 48px 16px; color: var(--c-text-sub); font-weight: var(--fw-medium); }
+.reserved-box { margin: 18px 0; padding: 22px 18px; border: 1px solid var(--c-line); border-radius: var(--r-lg); background: var(--c-surface); text-align: center; }
+.reserved-box h2 { margin: 0 0 10px; color: var(--c-ink); font-size: 18px; }
+.reserved-box p { margin: 0; color: var(--c-text-sub); font-size: 13px; line-height: 1.7; }
+.reserved-box__button { margin-top: 18px; background: var(--c-brand); color: #fff; }
 .summary-card { padding: 22px; border-radius: var(--r-lg); color: white; text-align: center; margin-bottom: 18px; box-shadow: var(--shadow-card); }
 .blue-mode { background: var(--c-receive); }
 .orange-mode { background: var(--c-pay); }

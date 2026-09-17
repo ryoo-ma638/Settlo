@@ -104,6 +104,7 @@
   import { showToast } from '@/lib/toast';
   import { collapsePendingBatches, PENDING_STATUS } from '@/lib/balance';
   import { batchBreakdownText } from '@/lib/format';
+  import { isEventSettlementReserved } from '@/lib/eventSettlementGuard';
   
   const route = useRoute();
   const router = useRouter();
@@ -157,12 +158,12 @@ onMounted(async () => {
       const recvSnap = await getDocs(query(collection(db, "transactions"), where("paidToId", "==", myUid)));
       recvSnap.forEach((d) => {
         const t = d.data();
-        if (t.paidById === friendUid && (t.status || 'unpaid') !== 'completed') list.push(toRow(d.id, t, 'waiting'));
+        if (t.paidById === friendUid && (t.status || 'unpaid') !== 'completed' && !isEventSettlementReserved(t)) list.push(toRow(d.id, t, 'waiting'));
       });
       const paySnap = await getDocs(query(collection(db, "transactions"), where("paidById", "==", myUid)));
       paySnap.forEach((d) => {
         const t = d.data();
-        if (t.paidToId === friendUid && (t.status || 'unpaid') !== 'completed') list.push(toRow(d.id, t, 'pay'));
+        if (t.paidToId === friendUid && (t.status || 'unpaid') !== 'completed' && !isEventSettlementReserved(t)) list.push(toRow(d.id, t, 'pay'));
       });
 
       // 🌟 申請済み（承認待ち）の分は、まとめ精算なら実質額で1行にまとめる。

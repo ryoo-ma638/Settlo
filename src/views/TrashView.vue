@@ -152,6 +152,8 @@ const pendingItems = computed(() => items.value.filter(i => i.status === 'pendin
 const eventItems = computed(() => trashedItems.value.filter(i => i.type === 'event'));
 const txItems = computed(() => trashedItems.value.filter(i => i.type !== 'event'));
 const currentItems = computed(() => (tab.value === 'event' ? eventItems.value : txItems.value));
+const itemUsesEventSettlement = (item) => (item?.transactionSnapshots || [])
+  .some((transaction) => !!transaction?.eventSettlementPlanId);
 
 // 項目がどちらのゴミ箱にあるかを見て正しい参照を返す
 const trashRef = (item) => (item._loc === 'shared'
@@ -198,6 +200,14 @@ const askRestoreEvent = (item) => {
   );
 };
 const askRestorePayment = (item) => {
+  if (itemUsesEventSettlement(item)) {
+    Object.assign(alertState, {
+      type: 'info', title: 'まとめて精算に含まれています',
+      message: 'この支払いだけを元に戻すことはできません。イベントのまとめて精算から記録を確認してください。',
+      showCancel: false, confirmText: 'OK', onConfirm: null, show: true,
+    });
+    return;
+  }
   const shared = item._loc === 'shared';
   askConfirm(
     '元に戻しますか？',
@@ -304,6 +314,14 @@ const restorePayment = async (item, reason) => {
 
 // ---- 決済を未精算に戻す（相手の承認待ちへ） ----
 const askRestoreSettlement = (item) => {
+  if (itemUsesEventSettlement(item)) {
+    Object.assign(alertState, {
+      type: 'info', title: 'まとめて精算で確定済みです',
+      message: 'この支払いだけを未精算には戻せません。イベントのまとめて精算から記録を確認してください。',
+      showCancel: false, confirmText: 'OK', onConfirm: null, show: true,
+    });
+    return;
+  }
   askConfirm(
     '未精算に戻しますか？',
     `「${item.itemName}」を未精算に戻すには相手の承認が必要です。承認されるまで「保留」に入ります。`,

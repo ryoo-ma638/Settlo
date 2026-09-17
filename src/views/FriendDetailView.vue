@@ -116,6 +116,7 @@ import BaseModal from '@/components/BaseModal.vue'; // 🌟 統一モーダル�
 import { getMyName } from '@/lib/userName';
 import PageHeader from '@/components/PageHeader.vue';
 import { collapsePendingBatches } from '@/lib/balance';
+import { eventSettlementRouteOf, eventSettlementStatusLabel, isEventSettlementReserved } from '@/lib/eventSettlementGuard';
 
 const waitingTotal = ref(0); // この相手から受け取る未決済合計
 const unpaidTotal = ref(0);  // この相手へ支払う未決済合計
@@ -133,6 +134,11 @@ const netBalance = computed(() => waitingTotal.value - unpaidTotal.value);
 
 // まとめ精算にまとめた行は、1件ずつではなく「まとめ精算の詳細」（相殺の内訳つき）へ
 const openTx = (t, prefix) => {
+  if (isEventSettlementReserved(t)) {
+    const target = eventSettlementRouteOf(t);
+    if (target) router.push(target);
+    return;
+  }
   router.push(t.isBatchRow ? `/payment-detail/${prefix}-batch-${t.batchId}` : `/payment-detail/${prefix}-${t.id}`);
 };
 
@@ -175,9 +181,9 @@ onMounted(async () => {
       const t = d.data();
       if (t.paidById !== uid) return;
       const s = t.status || 'unpaid';
-      const item = { id: d.id, amount: t.amount || 0, itemName: t.itemName || 'イベント代', status: s, statusLabel: statusLabel(s), type: 'receive', createdAt: t.createdAt, settlementBatch: t.settlementBatch || null };
+      const item = { id: d.id, amount: t.amount || 0, itemName: t.itemName || 'イベント代', status: s, statusLabel: eventSettlementStatusLabel(t) || statusLabel(s), type: 'receive', createdAt: t.createdAt, settlementBatch: t.settlementBatch || null, eventId: t.eventId || null, eventSettlementPlanId: t.eventSettlementPlanId || null };
       histList.push(item);
-      if (s !== 'completed') recvList.push(item);
+      if (s !== 'completed' && !isEventSettlementReserved(t)) recvList.push(item);
     });
 
     const paySnap = await getDocs(query(collection(db, "transactions"), where("paidById", "==", myUid)));
@@ -185,9 +191,9 @@ onMounted(async () => {
       const t = d.data();
       if (t.paidToId !== uid) return;
       const s = t.status || 'unpaid';
-      const item = { id: d.id, amount: t.amount || 0, itemName: t.itemName || 'イベント代', status: s, statusLabel: statusLabel(s), type: 'pay', createdAt: t.createdAt, settlementBatch: t.settlementBatch || null };
+      const item = { id: d.id, amount: t.amount || 0, itemName: t.itemName || 'イベント代', status: s, statusLabel: eventSettlementStatusLabel(t) || statusLabel(s), type: 'pay', createdAt: t.createdAt, settlementBatch: t.settlementBatch || null, eventId: t.eventId || null, eventSettlementPlanId: t.eventSettlementPlanId || null };
       histList.push(item);
-      if (s !== 'completed') payList.push(item);
+      if (s !== 'completed' && !isEventSettlementReserved(t)) payList.push(item);
     });
 
     // 🌟 申請中のまとめ精算は実質額で1行にまとめる（「まとめて」タブ・承認待ち一覧と同じ数字にする）
