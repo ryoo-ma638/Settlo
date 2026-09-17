@@ -1,114 +1,88 @@
 <template>
-  <div v-if="friend" class="friend-detail-container">
-      <PageHeader :title="friend.name" fallback="/friend">
-        <template #right>
-          <button class="btn-trash" @click="handleDeleteFriend" aria-label="削除">
-            <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M10 11v6M14 11v6"/></svg>
+  <div class="friend-detail-container">
+    <PageHeader :title="friend?.name || 'フレンド'" fallback="/friend">
+      <template #right>
+        <button v-if="friend" class="btn-trash" @click="handleDeleteFriend" aria-label="フレンドから削除">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M10 11v6M14 11v6"/></svg>
+        </button>
+      </template>
+    </PageHeader>
+    <div v-if="loading" class="load-state" role="status">取引を読み込んでいます</div>
+    <div v-else-if="loadError" class="load-state" role="alert">
+      <p>{{ loadError }}</p><button class="retry-button" @click="loadFriend">もう一度読み込む</button>
+    </div>
+    <main v-else-if="friend" class="scroll-content">
+      <section class="balance-panel" aria-label="この相手との貸し借り">
+        <div class="balance-heading"><h2>この人との貸し借り</h2><span>{{ openHistoryCount ? `未精算 ${openHistoryCount}件` : '未精算なし' }}</span></div>
+        <div class="balance-main" :class="netBalance > 0 ? 'blue-text' : netBalance < 0 ? 'orange-text' : ''">
+          <span class="balance-direction">{{ netBalance > 0 ? '受け取る' : netBalance < 0 ? '支払う' : '差額なし' }}</span>
+          <strong class="balance-amount tnum">¥{{ Math.abs(netBalance).toLocaleString() }}</strong>
+        </div>
+        <dl class="balance-breakdown">
+          <div class="receive-breakdown"><dt>受け取る分</dt><dd class="blue-text tnum">¥{{ waitingTotal.toLocaleString() }}</dd></div>
+          <div class="pay-breakdown"><dt>支払う分</dt><dd class="orange-text tnum">¥{{ unpaidTotal.toLocaleString() }}</dd></div>
+        </dl>
+        <button v-if="hasOpenItems" class="balance-cta" @click="openCombined">
+          {{ historyItems.some(t => t.status === 'unpaid') ? '支払う分・受け取る分を選ぶ' : '確認待ちの明細を見る' }}
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <p v-if="netBalance === 0" class="balance-note">{{ hasOpenItems ? '支払う分と受け取る分は同じ金額ですが、未精算の明細が残っています。' : '未精算の取引はありません' }}</p>
+      </section>
+
+      <section class="history-section" aria-label="取引履歴">
+        <header class="section-title">
+          <h2>取引履歴</h2>
+          <div class="history-title-actions">
+            <span>{{ filteredHistoryCount }}件</span>
+            <button class="history-sort-button" :aria-label="historySort === 'newest' ? '古い順に並べ替える' : '新しい順に並べ替える'" @click="historySort = historySort === 'newest' ? 'oldest' : 'newest'">
+              <svg viewBox="0 0 16 16" aria-hidden="true" :class="{ oldest: historySort === 'oldest' }"><path d="M8 2v12M4.5 10.5 8 14l3.5-3.5"/></svg>
+              {{ historySort === 'newest' ? '新しい順' : '古い順' }}
+            </button>
+          </div>
+        </header>
+        <div v-if="historyItems.length" class="history-filter" role="group" aria-label="取引履歴の表示切替">
+          <button
+            v-for="option in historyFilterOptions"
+            :key="option.value"
+            class="history-filter-button"
+            :class="{ active: historyFilter === option.value }"
+            :aria-pressed="historyFilter === option.value"
+            @click="historyFilter = option.value"
+          >
+            <span>{{ option.label }}</span><strong class="tnum">{{ option.count }}</strong>
           </button>
-        </template>
-      </PageHeader>
-
-    <main class="scroll-content">
-      <section class="total-balance-card" :class="{ 'is-flat': netBalance === 0 }"
-        @click="netBalance !== 0 && $router.push({ path: '/combined-settlement/' + $route.params.name, query: { uid: route.params.uid } })"
-      >
-    <div class="balance-label">トータルの貸し借り</div>
-    <template v-if="netBalance !== 0">
-      <div class="balance-main">
-        <h2 class="balance-amount" :class="netBalance >= 0 ? 'blue-text' : 'orange-text'">
-          {{ netBalance >= 0 ? '受け取る' : '支払う' }} ¥{{ Math.abs(netBalance).toLocaleString() }}
-        </h2>
-      </div>
-      <div class="balance-sub-info">
-        <div class="sub-item"><span class="dot blue-dot"></span> お支払い待ち: ¥{{ waitingTotal.toLocaleString() }}</div>
-        <div class="sub-item"><span class="dot orange-dot"></span> 未払い: ¥{{ unpaidTotal.toLocaleString() }}</div>
-      </div>
-      <!-- 初見でも「押せる」と分かるように、はっきりしたボタンを出す -->
-      <div class="balance-cta" :class="netBalance >= 0 ? 'cta-recv' : 'cta-pay'">
-        <span>{{ netBalance >= 0 ? 'まとめて受け取る・催促する' : 'まとめて支払う' }}</span>
-        <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
-      </div>
-    </template>
-    <p v-else class="balance-none">今は貸し借りがありません</p>
-  </section>
-  <h2 class="section-title">{{ friend.name }} さんとのお支払い状況</h2>
-
-      <section class="tx-section" v-if="receivableItems.length">
-        <div class="tx-section__head">
-          <span class="chip chip--recv">お支払い待ち（受け取る）</span>
-          <span class="tx-section__total blue-text tnum">¥{{ waitingTotal.toLocaleString() }}</span>
         </div>
-        <div class="tx-list">
-          <div v-for="t in receivableItems" :key="t.id" class="tx" @click="openTx(t, 'waiting')">
-            <div class="tx__info">
-              <span class="tx__name">{{ t.itemName }}</span>
-              <span class="tx__status" :class="'st-' + t.status">{{ t.statusLabel }}</span>
-            </div>
-            <div class="tx__right">
-              <span class="tx__amount tnum">¥{{ t.amount.toLocaleString() }}</span>
-              <svg class="tx__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
-            </div>
+        <div v-if="historySubfilterOptions.length" class="history-subfilter" role="group" :aria-label="historyFilter === 'open' ? '未精算の状態で絞り込む' : '精算済みの方向で絞り込む'">
+          <button
+            v-for="option in historySubfilterOptions"
+            :key="option.value"
+            class="history-subfilter-button"
+            :class="{ active: historySubfilter === option.value }"
+            :aria-pressed="historySubfilter === option.value"
+            @click="historySubfilter = option.value"
+          >
+            <span>{{ option.label }}</span><strong class="tnum">{{ option.count }}</strong>
+          </button>
+        </div>
+        <p v-if="!historyItems.length" class="empty-note">取引履歴はまだありません</p>
+        <p v-else-if="!filteredHistoryCount" class="empty-note">該当する取引はありません</p>
+        <section v-for="group in filteredHistoryGroups" :key="group.month" class="history-month">
+          <h2>{{ group.month }}</h2>
+          <div class="ledger-list">
+            <button v-for="h in group.items" :key="h.id" class="ledger-row" @click="openTx(h, h.type === 'pay' ? 'unpaid' : 'waiting')">
+              <span class="ledger-info"><span class="ledger-name">{{ h.itemName }}</span><span class="ledger-date">{{ registrationLabel(h.createdAt) }}</span><span v-if="h.eventName" class="ledger-event">{{ h.eventName }}</span><span class="ledger-status" :class="statusTone(h)">{{ transactionStatus(h) }}</span></span>
+              <span class="ledger-right"><span class="history-money" :class="h.type === 'pay' ? 'orange-text' : 'blue-text'"><span>{{ h.type === 'pay' ? '支払う分' : '受け取る分' }}</span><strong class="tnum">¥{{ h.amount.toLocaleString() }}</strong></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+            </button>
           </div>
-        </div>
-      </section>
-      
-      <section class="tx-section" v-if="payableItems.length">
-        <div class="tx-section__head">
-          <span class="chip chip--pay">未払い（支払う）</span>
-          <span class="tx-section__total orange-text tnum">¥{{ unpaidTotal.toLocaleString() }}</span>
-        </div>
-        <div class="tx-list">
-          <div v-for="t in payableItems" :key="t.id" class="tx" @click="openTx(t, 'unpaid')">
-            <div class="tx__info">
-              <span class="tx__name">{{ t.itemName }}</span>
-              <span class="tx__status" :class="'st-' + t.status">{{ t.statusLabel }}</span>
-            </div>
-            <div class="tx__right">
-              <span class="tx__amount tnum">¥{{ t.amount.toLocaleString() }}</span>
-              <svg class="tx__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <div v-if="!receivableItems.length && !payableItems.length" class="empty-box">未決済の取引はありません</div>
-
-      <section class="hist-section">
-        <h3 class="hist-section__title">{{ friend.name }} さんとの履歴</h3>
-        <div v-if="historyItems.length === 0" class="empty-box">履歴はありません</div>
-        <div v-for="h in historyItems" :key="h.id" class="histrow">
-          <div class="histrow__info">
-            <span class="histrow__name">{{ h.itemName }}</span>
-            <span class="histrow__status" :class="'st-' + h.status">{{ h.statusLabel }}</span>
-          </div>
-          <span class="histrow__amount tnum" :class="h.type === 'pay' ? 'orange-text' : 'blue-text'">
-            {{ h.type === 'pay' ? '−' : '+' }}¥{{ h.amount.toLocaleString() }}
-          </span>
-        </div>
+        </section>
       </section>
     </main>
-    
-    <BaseModal 
-      :show="modalState.show"
-      :type="modalState.type"
-      :title="modalState.title"
-      :message="modalState.message"
-      :showCancel="modalState.showCancel"
-      :confirmText="modalState.confirmText"
-      :cancelText="modalState.cancelText"
-      @confirm="handleConfirmModal"
-      @cancel="modalState.show = false"
-      @close="modalState.show = false"
-    />
-  </div>
-
-  <div v-else class="loading-state">
-    <p>読み込み中、またはデータが見つかりません...</p>
+    <BaseModal :show="modalState.show" :type="modalState.type" :title="modalState.title" :message="modalState.message" :showCancel="modalState.showCancel" :confirmText="modalState.confirmText" :cancelText="modalState.cancelText" @confirm="handleConfirmModal" @cancel="modalState.show = false" @close="modalState.show = false" />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, reactive } from 'vue'; // 🌟 reactive追加
+import { ref, computed, watch, onUnmounted, reactive } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
 import { doc, deleteDoc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -116,18 +90,71 @@ import BaseModal from '@/components/BaseModal.vue'; // 🌟 統一モーダル�
 import { getMyName } from '@/lib/userName';
 import PageHeader from '@/components/PageHeader.vue';
 import { collapsePendingBatches } from '@/lib/balance';
+import { registrationLabel, historyMonth, dateMillis, transactionStatus, transactionCategory, statusTone } from '../lib/friendHistory.js';
 
 const waitingTotal = ref(0); // この相手から受け取る未決済合計
 const unpaidTotal = ref(0);  // この相手へ支払う未決済合計
 const receivableItems = ref([]); // 受け取り（相手→自分・未完了）
 const payableItems = ref([]);    // 支払い（自分→相手・未完了）
 const historyItems = ref([]);    // 全履歴（完了含む）
+const historyFilter = ref('all');
+const historySubfilter = ref('all');
+const historySort = ref('newest');
 const route = useRoute();
 const router = useRouter();
 
-const myPhoto = ref("");
-const friendPhoto = ref("");
 const friend = ref(null);
+const loading = ref(true);
+const loadError = ref('');
+const hasOpenItems = computed(() => receivableItems.value.length + payableItems.value.length > 0);
+const openHistoryCount = computed(() => historyItems.value.filter(t => t.status !== 'completed').length);
+const completedHistoryCount = computed(() => historyItems.value.filter(t => t.status === 'completed').length);
+const historyFilterOptions = computed(() => [
+  { value: 'all', label: 'すべて', count: historyItems.value.length },
+  { value: 'open', label: '未精算', count: openHistoryCount.value },
+  { value: 'completed', label: '精算済み', count: completedHistoryCount.value },
+]);
+const countCategory = value => historyItems.value.filter(item => transactionCategory(item) === value).length;
+const historySubfilterOptions = computed(() => {
+  if (historyFilter.value === 'open') return [
+    { value: 'all', label: 'すべて', count: openHistoryCount.value },
+    { value: 'unpaid', label: '未払い', count: countCategory('unpaid') },
+    { value: 'waiting-payment', label: 'お支払い待ち', count: countCategory('waiting-payment') },
+    { value: 'confirm-self', label: '受け取りを確認', count: countCategory('confirm-self') },
+    { value: 'confirm-other', label: '相手の確認待ち', count: countCategory('confirm-other') },
+  ];
+  if (historyFilter.value === 'completed') return [
+    { value: 'all', label: 'すべて', count: completedHistoryCount.value },
+    { value: 'paid', label: '支払った', count: countCategory('paid') },
+    { value: 'received', label: '受け取った', count: countCategory('received') },
+  ];
+  return [];
+});
+watch(historyFilter, () => { historySubfilter.value = 'all'; });
+const filteredHistoryItems = computed(() => {
+  const primary = historyFilter.value === 'open'
+    ? historyItems.value.filter(t => t.status !== 'completed')
+    : historyFilter.value === 'completed'
+      ? historyItems.value.filter(t => t.status === 'completed')
+      : historyItems.value;
+  if (historySubfilter.value === 'all' || historyFilter.value === 'all') return primary;
+  return primary.filter(item => transactionCategory(item) === historySubfilter.value);
+});
+const filteredHistoryCount = computed(() => filteredHistoryItems.value.length);
+const sortedHistoryItems = computed(() => [...filteredHistoryItems.value].sort((a, b) => {
+  const difference = dateMillis(a.createdAt) - dateMillis(b.createdAt);
+  return historySort.value === 'oldest' ? difference : -difference;
+}));
+const filteredHistoryGroups = computed(() => {
+  const groups = new Map();
+  for (const item of sortedHistoryItems.value) {
+    const month = historyMonth(item.createdAt);
+    if (!groups.has(month)) groups.set(month, { month, items: [] });
+    groups.get(month).items.push(item);
+  }
+  return [...groups.values()];
+});
+const openCombined = () => router.push({ path: '/combined-settlement/' + encodeURIComponent(friend.value.name), query: { uid: route.query.uid || route.params.uid } });
 
 const netBalance = computed(() => waitingTotal.value - unpaidTotal.value);
 
@@ -149,81 +176,73 @@ const handleConfirmModal = () => {
   modalState.show = false;
 };
 
-onMounted(async () => {
+let loadVersion = 0;
+const loadFriend = async () => {
+  const version = ++loadVersion;
+  loading.value = true;
+  loadError.value = '';
+  friend.value = null;
   const uid = route.query.uid || route.params.uid;
   const myUid = auth.currentUser?.uid;
-  
-  if (!uid || !myUid) return;
-
+  if (!uid || !myUid) {
+    loadError.value = '相手の情報を確認できません。一覧から開き直してください。';
+    loading.value = false;
+    return;
+  }
   try {
-    const myDoc = await getDoc(doc(db, "users", myUid));
-    if (myDoc.exists()) myPhoto.value = myDoc.data().photo || myDoc.data().photoURL || "";
-
-    const userDoc = await getDoc(doc(db, "users", uid));
-    if (userDoc.exists()) {
-      const data = userDoc.data();
-      friend.value = data;
-      friendPhoto.value = data.photo || data.photoURL || "";
-    }
-
-    // 🌟 この相手との取引を実データから取得し、各リスト・履歴・残高を構築（複合index回避）
-    const statusLabel = (s) => s === 'completed' ? '精算済み' : (s === 'awaiting_approval' ? '承認待ち' : '未払い');
+    const [userDoc, recvSnap, paySnap] = await Promise.all([
+      getDoc(doc(db, 'users', uid)),
+      getDocs(query(collection(db, 'transactions'), where('paidToId', '==', myUid))),
+      getDocs(query(collection(db, 'transactions'), where('paidById', '==', myUid))),
+    ]);
+    if (version !== loadVersion) return;
+    if (!userDoc.exists()) throw new Error('friend-not-found');
     const recvList = [], payList = [], histList = [];
-
-    const recvSnap = await getDocs(query(collection(db, "transactions"), where("paidToId", "==", myUid)));
-    recvSnap.forEach((d) => {
+    const collect = (snap, type, otherField, target) => snap.forEach(d => {
       const t = d.data();
-      if (t.paidById !== uid) return;
-      const s = t.status || 'unpaid';
-      const item = { id: d.id, amount: t.amount || 0, itemName: t.itemName || 'イベント代', status: s, statusLabel: statusLabel(s), type: 'receive', createdAt: t.createdAt, settlementBatch: t.settlementBatch || null };
+      if (t[otherField] !== uid) return;
+      const item = { id: d.id, amount: t.amount || 0, itemName: t.itemName || 'イベント代', eventName: t.eventName || '', status: t.status || 'unpaid', type, createdAt: t.createdAt, settlementBatch: t.settlementBatch || null };
       histList.push(item);
-      if (s !== 'completed') recvList.push(item);
+      if (item.status !== 'completed') target.push(item);
     });
-
-    const paySnap = await getDocs(query(collection(db, "transactions"), where("paidById", "==", myUid)));
-    paySnap.forEach((d) => {
-      const t = d.data();
-      if (t.paidToId !== uid) return;
-      const s = t.status || 'unpaid';
-      const item = { id: d.id, amount: t.amount || 0, itemName: t.itemName || 'イベント代', status: s, statusLabel: statusLabel(s), type: 'pay', createdAt: t.createdAt, settlementBatch: t.settlementBatch || null };
-      histList.push(item);
-      if (s !== 'completed') payList.push(item);
-    });
-
-    // 🌟 申請中のまとめ精算は実質額で1行にまとめる（「まとめて」タブ・承認待ち一覧と同じ数字にする）
-    const toRows = (list) => collapsePendingBatches(list).map((t) => t.isBatchRow
-      ? { ...t, itemName: `まとめ精算・対象${t.settlementBatch.count || 1}件` }
+    collect(recvSnap, 'receive', 'paidById', recvList);
+    collect(paySnap, 'pay', 'paidToId', payList);
+    const toRows = list => collapsePendingBatches(list).map(t => t.isBatchRow
+      ? { ...t, itemName: `まとめて精算（${t.settlementBatch.count || 1}件）` }
       : t);
-    const shownRecv = toRows(recvList);
-    const shownPay = toRows(payList);
-    const sum = (arr) => arr.reduce((s, t) => s + (t.amount || 0), 0);
-
-    histList.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    const shownRecv = toRows(recvList), shownPay = toRows(payList);
+    const sum = arr => arr.reduce((s, t) => s + (t.amount || 0), 0);
+    histList.sort((a, b) => dateMillis(b.createdAt) - dateMillis(a.createdAt));
     receivableItems.value = shownRecv;
     payableItems.value = shownPay;
     historyItems.value = histList;
     waitingTotal.value = sum(shownRecv);
     unpaidTotal.value = sum(shownPay);
+    friend.value = userDoc.data();
   } catch (error) {
-    console.error("データ取得中にエラーが発生しました:", error);
+    if (version === loadVersion) loadError.value = '取引を読み込めませんでした。通信状況を確認して、もう一度お試しください。';
+  } finally {
+    if (version === loadVersion) loading.value = false;
   }
-});
+};
+watch(() => route.query.uid || route.params.uid, () => { loadFriend(); }, { immediate: true });
+onUnmounted(() => { loadVersion++; });
 
 // 🌟 フレンド削除 (ダサい confirm と alert を美しいモーダルに！)
 const handleDeleteFriend = async () => {
-  const friendName = route.params.name;
+  const friendName = friend.value?.name || route.params.name || 'この相手';
   const friendUid = route.params.uid; 
   const myUid = auth.currentUser?.uid;
 
   if (!myUid || !friendUid) {
-    showModal({ type: 'error', title: 'エラー', message: 'ユーザー情報の取得に失敗しました。' });
+    showModal({ type: 'error', title: 'エラー', message: '相手の情報を確認できませんでした。' });
     return;
   }
 
   showModal({
     type: 'warning',
-    title: 'フレンド削除の確認',
-    message: `${friendName} さんをフレンドから削除しますか？\n(相手のリストからもあなたが削除されます)`,
+    title: 'フレンドから削除しますか？',
+    message: `${friendName}さんを、お互いのフレンド一覧から削除します。`,
     showCancel: true,
     confirmText: '削除する',
     onConfirm: async () => {
@@ -246,7 +265,7 @@ const handleDeleteFriend = async () => {
 
         // 削除成功したら完了モーダルを出して、OKを押したら一覧に戻る
         showModal({
-          type: 'success', title: '削除完了', message: `${friendName} さんを削除しました。`,
+          type: 'success', title: '削除しました', message: `${friendName}さんをフレンド一覧から削除しました。`,
           onConfirm: () => router.push('/friend')
         });
       } catch (error) {
@@ -259,130 +278,69 @@ const handleDeleteFriend = async () => {
 </script>
 
 <style scoped>
-/* 🌟 コンテナ全体の余白を調整（共通ヘッダーの下に配置） */
-.friend-detail-container { 
-  height: 100vh; 
-  box-sizing: border-box;
-  background-color: var(--c-surface-2); 
-  display: flex;
-  flex-direction: column;
-}
-
-/* 🌟 ヘッダーをグラデーションでおしゃれに */
-.detail-header { 
-  flex-shrink: 0; 
-  display: flex; 
-  justify-content: space-between; 
-  align-items: center; 
-  padding: 20px 20px 25px; 
-  background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
-  border-radius: 0 0 30px 30px; 
-  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-  margin-bottom: 15px;
-}
-
-.back-btn { background: none; border: none; font-size: 32px; color: var(--c-text); cursor: pointer; transition: 0.2s; }
-.back-btn:active { transform: scale(0.9); }
-.user-info-block { display: flex; align-items: center; gap: 15px; }
-.user-name { font-size: 22px; font-weight: 900; margin: 0; color: var(--c-text); letter-spacing: 0.5px; }
-.delete-link-btn { background: rgba(255, 255, 255, 0.5); border: none; color: var(--c-danger); font-size: 12px; font-weight: 900; padding: 6px 12px; border-radius: 12px; cursor: pointer; transition: 0.2s; }
-.delete-link-btn:active { background: #fee2e2; }
-
-/* 🌟 アイコンの枠をリッチに */
-.main-avatar-wrapper { padding: 3px; background: white; border-radius: 50%; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-.main-avatar-img { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; display: block; }
-.default-avatar { width: 56px; height: 56px; border-radius: 50%; display: block; }
-
-.scroll-content { flex: 1; overflow-y: auto; padding: 15px 20px; scrollbar-width: none; }
-.scroll-content::-webkit-scrollbar { display: none; }
-
-/* 🌟 トータル収支カードを洗練 */
-.total-balance-card { background-color: #fff; border-radius: 28px; padding: 24px; margin-bottom: 25px; box-shadow: 0 8px 30px rgba(33, 105, 163, 0.08); cursor: pointer; text-align: center; border: 1px solid var(--c-surface-2); }
-.balance-label { font-size: 13px; font-weight: 800; color: var(--c-text-sub); margin-bottom: 12px; }
-.balance-main { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 16px; }
-.balance-amount { font-size: 36px; font-weight: 900; margin: 0; letter-spacing: -1px; }
-.balance-sub-info { font-size: 11px; color: var(--c-text-faint); display: flex; justify-content: center; gap: 15px; background: var(--c-surface-2); padding: 8px; border-radius: 12px; }
-/* 初見向け: はっきりした「まとめて精算」ボタン */
-.balance-cta {
-  margin-top: 16px; width: 100%;
-  display: flex; align-items: center; justify-content: center; gap: 4px;
-  padding: 14px; border-radius: var(--r-pill); color: #fff;
-  font-size: 15px; font-weight: var(--fw-black);
-}
-.balance-cta svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
-.balance-cta.cta-recv { background: var(--c-receive); }
-.balance-cta.cta-pay { background: var(--c-pay); }
-.total-balance-card:active { transform: scale(0.99); }
-.total-balance-card.is-flat { cursor: default; }
-.total-balance-card.is-flat:active { transform: none; }
-.balance-none { font-size: 13px; color: var(--c-text-faint); font-weight: var(--fw-bold); margin: 8px 0 2px; }
-.sub-item { display: flex; align-items: center; gap: 5px; }
-.dot { width: 8px; height: 8px; border-radius: 50%; }
-.blue-dot { background-color: #3b82f6; }
-.orange-dot { background-color: var(--c-pay); }
-
-.section-title { font-size: 20px; font-weight: bold; margin-bottom: 20px; text-align: left; }
-.status-section { background-color: #fff; border-radius: 20px; padding: 15px; margin-bottom: 20px; }
-.status-header { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; position: relative; }
-.status-badge { padding: 4px 12px; border-radius: 15px; color: white; font-size: 11px; font-weight: bold; }
-.blue-badge { background-color: #3b82f6; }
-.orange-badge { background-color: var(--c-pay); }
-.total-amount { font-size: 28px; font-weight: bold; }
+.friend-detail-container { min-height: 100%; background: var(--c-bg); }
+.scroll-content { padding: 12px var(--pad) 28px; }
+button { font: inherit; touch-action: manipulation; }
+button:focus-visible { outline: 2px solid var(--c-brand); outline-offset: 3px; }
+.btn-trash { width: 44px; height: 44px; display: grid; place-items: center; color: var(--c-text-sub); background: transparent; border: 0; }
+.btn-trash svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.balance-panel { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-lg); padding: 20px; box-shadow: var(--shadow-card); }
+.balance-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.balance-heading h2 { font-size: 15px; font-weight: var(--fw-bold); }
+.balance-heading > span { font-size: 12px; color: var(--c-text-sub); }
+.balance-main { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+.balance-direction { font-size: 15px; font-weight: var(--fw-bold); }
+.balance-amount { font-size: 34px; font-weight: var(--fw-black); line-height: 1.25; letter-spacing: -.01em; overflow-wrap: anywhere; min-width: 0; }
+.balance-breakdown { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); margin: 20px 0 0; gap: 8px; }
+.balance-breakdown > div { border-radius: var(--r-sm); padding: 12px; min-width: 0; }
+.receive-breakdown { background: var(--c-receive-weak); }
+.pay-breakdown { background: var(--c-pay-weak); }
+.balance-breakdown dt { font-size: 12px; font-weight: var(--fw-bold); color: var(--c-text); margin-bottom: 4px; }
+.balance-breakdown dd { font-size: 18px; font-weight: var(--fw-black); margin: 0; overflow-wrap: anywhere; }
+.balance-cta { width: 100%; border: 0; border-radius: var(--r-pill); padding: 13px 18px; margin-top: 16px; min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: white; background: var(--c-brand); font-size: 15px; font-weight: var(--fw-bold); text-align: left; cursor: pointer; }
+.balance-cta:active { background: var(--c-brand-deep); }
+.balance-cta svg, .ledger-right > svg { width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.balance-note { font-size: 12px; color: var(--c-text-sub); line-height: 1.7; margin: 12px 0 0; }
 .blue-text { color: var(--c-receive); }
-.orange-text { color: var(--c-pay); }
-.pay-all-btn { position: absolute; right: 0; }
-
-.event-list { display: flex; flex-direction: column; gap: 10px; }
-.event-card { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; border-radius: 12px; }
-.blue-card { background-color: #e0f2fe; }
-.orange-card { background-color: #ffedd5; }
-.event-info { display: flex; flex-direction: column; text-align: left; }
-.event-date { font-size: 11px; color: #666; }
-.event-name { font-size: 15px; font-weight: bold; }
-.event-action { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-.event-amount { font-size: 16px; font-weight: bold; }
-.action-btn { padding: 5px 12px; border-radius: 20px; border: none; font-size: 11px; font-weight: bold; color: #fff; cursor: pointer; }
-.green-btn { background-color: var(--c-brand); }
-.red-btn { background-color: var(--c-danger); color: #ffffff; }
-
-.history-toggle-btn { width: 100%; padding: 12px; background-color: #93c5fd; color: #fff; border: none; border-radius: 15px; font-size: 18px; font-weight: bold; margin-bottom: 15px; }
-.history-card { background-color: #fff; display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-radius: 40px; margin-bottom: 10px; }
-.history-event-name { font-size: 16px; font-weight: bold; }
-.history-flow { display: flex; align-items: center; gap: 8px; }
-.avatar { width: 25px; height: 25px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #dcdcdc; }
-.avatar-img { width: 100%; height: 100%; object-fit: cover; }
-.avatar-placeholder { width: 100%; height: 100%; }
-.history-amount { font-size: 18px; font-weight: bold; }
-.check-icon { color: var(--c-brand); display: flex; align-items: center; }
-.check-icon svg { width: 20px; height: 20px; }
-
-/* --- 取引リスト（実データ） --- */
-.tx-section { margin: 0 16px 16px; }
-.tx-section__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.tx-section__total { font-size: 17px; font-weight: var(--fw-black); }
-.chip { display: inline-block; font-size: 11px; font-weight: var(--fw-bold); padding: 4px 11px; border-radius: var(--r-pill); }
-.chip--recv { background: var(--c-receive-weak); color: var(--c-receive); }
-.chip--pay { background: var(--c-pay-weak); color: var(--c-pay-strong); }
-.tx-list { display: flex; flex-direction: column; gap: 8px; }
-.tx { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--c-surface); border-radius: var(--r-md); padding: 13px 14px; box-shadow: var(--shadow-card); cursor: pointer; transition: transform 0.15s ease; }
-.tx:active { transform: scale(0.985); }
-.tx__info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.tx__name { font-size: 14px; font-weight: var(--fw-bold); color: var(--c-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tx__status { font-size: 11px; font-weight: var(--fw-bold); }
-.tx__right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.tx__amount { font-size: 16px; font-weight: var(--fw-black); color: var(--c-ink); }
-.tx__chevron { width: 18px; height: 18px; fill: none; stroke: var(--c-text-faint); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-
-.st-unpaid { color: var(--c-text-faint); }
-.st-awaiting_approval { color: var(--c-pay-strong); }
-.st-completed { color: var(--c-receive); }
-
-/* --- 履歴（実データ） --- */
-.hist-section { margin: 22px 16px 0; }
-.hist-section__title { font-size: 15px; font-weight: var(--fw-bold); color: var(--c-ink); margin-bottom: 12px; }
-.histrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--c-surface); border-radius: var(--r-md); padding: 13px 14px; box-shadow: var(--shadow-card); margin-bottom: 8px; }
-.histrow__info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.histrow__name { font-size: 14px; font-weight: var(--fw-bold); color: var(--c-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.histrow__status { font-size: 11px; font-weight: var(--fw-bold); }
-.histrow__amount { font-size: 16px; font-weight: var(--fw-black); flex-shrink: 0; }
+.orange-text { color: #b45309; }
+.history-section { margin-top: 28px; }
+.section-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.section-title h2 { font-size: 15px; font-weight: var(--fw-bold); }
+.history-title-actions { display: flex; align-items: center; gap: 10px; }
+.history-title-actions > span { font-size: 12px; color: var(--c-text-sub); white-space: nowrap; }
+.history-sort-button { min-height: 40px; padding: 8px 10px; border: 1px solid var(--c-line-bold); border-radius: 999px; background: var(--c-surface); color: var(--c-text-sub); display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: var(--fw-bold); cursor: pointer; white-space: nowrap; }
+.history-sort-button svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s ease; }
+.history-sort-button svg.oldest { transform: rotate(180deg); }
+.history-sort-button:active { transform: scale(.98); }
+.ledger-list { display: flex; flex-direction: column; gap: 8px; }
+.ledger-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; width: 100%; min-height: 80px; background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-md); box-shadow: var(--shadow-sm); text-align: left; color: var(--c-ink); cursor: pointer; }
+.ledger-row:active { background: var(--c-surface-2); }
+.ledger-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.ledger-name { font-size: 15px; font-weight: var(--fw-bold); line-height: 1.5; overflow-wrap: anywhere; }
+.ledger-date, .ledger-event { font-size: 12px; color: var(--c-text-sub); line-height: 1.5; overflow-wrap: anywhere; }
+.ledger-status { font-size: 12px; line-height: 1.5; color: var(--c-text-sub); }
+.status-action { color: var(--c-brand-deep); font-weight: var(--fw-bold); }
+.status-action::before { content: ''; display: inline-block; width: 5px; height: 5px; background: currentColor; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+.status-done::before { content: '✓'; margin-right: 4px; }
+.ledger-right { display: flex; align-items: center; gap: 8px; max-width: 48%; min-width: 0; }
+.ledger-right > svg { color: var(--c-text-sub); }
+.history-money strong { font-size: 16px; font-weight: var(--fw-black); overflow-wrap: anywhere; min-width: 0; }
+.history-money { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 0; text-align: right; }
+.history-money > span { font-size: 11px; font-weight: var(--fw-bold); }
+.history-month { margin-bottom: 20px; }
+.history-month h2 { font-size: 13px; font-weight: var(--fw-medium); color: var(--c-text-sub); margin: 0 0 8px; }
+.history-filter { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; margin: -4px 0 16px; border-radius: var(--r-pill); background: var(--c-surface-2); }
+.history-filter-button { min-width: 0; min-height: 42px; padding: 8px 4px; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--c-text-sub); display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 12px; font-weight: var(--fw-bold); cursor: pointer; }
+.history-filter-button strong { font-size: 12px; }
+.history-filter-button.active { color: var(--c-brand-strong); background: var(--c-surface); box-shadow: var(--shadow-sm); }
+.history-filter-button:active { transform: scale(.98); }
+.history-subfilter { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+.history-subfilter-button { min-height: 40px; padding: 8px 11px; border: 1px solid var(--c-line-bold); border-radius: 999px; background: var(--c-surface); color: var(--c-text-sub); display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: var(--fw-bold); cursor: pointer; }
+.history-subfilter-button strong { font-size: 11px; }
+.history-subfilter-button.active { color: var(--c-brand-deep); border-color: var(--c-brand); background: var(--c-brand-weak); }
+.history-subfilter-button:active { transform: scale(.98); }
+.empty-note, .load-state { font-size: 13px; color: var(--c-text-sub); line-height: 1.8; padding: 16px 0; }
+.load-state { padding: 28px var(--pad); }
+.retry-button { display: block; margin-top: 12px; border: 1px solid var(--c-line-bold); background: white; padding: 10px 16px; border-radius: var(--r-sm); color: var(--c-brand-strong); }
+@media (max-width: 360px) { .balance-panel { padding: 16px; } .balance-breakdown > div { padding: 10px; } .balance-amount { font-size: 28px; } .ledger-row { padding: 14px 12px; gap: 8px; } .ledger-right { gap: 4px; } }
 </style>

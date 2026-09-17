@@ -12,7 +12,7 @@
                 </svg>
               </span>
               <h2 class="add-modal__title">フレンドを追加</h2>
-              <p class="add-modal__sub">名前・ニックネーム・ID で探して申請できます</p>
+              <p class="add-modal__sub">名前・ニックネーム・IDで探して申請できます</p>
             </div>
 
             <div class="seg">
@@ -20,30 +20,37 @@
               <button class="seg__item" :class="{ 'is-active': searchMode === 'id' }" @click="searchMode = 'id'">ID検索</button>
             </div>
 
+            <label for="friend-search-query" class="search-label">{{ searchMode === 'name' ? '名前・ニックネーム' : 'ユーザーID' }}</label>
             <div class="search">
               <svg class="search__icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
-              <input v-model="searchQuery" type="text" :placeholder="searchMode === 'name' ? '名前を入力' : 'IDを入力'" class="search__input" />
+              <input id="friend-search-query" v-model="searchQuery" type="text" :placeholder="searchMode === 'name' ? '名前を入力' : 'IDを入力'" class="search__input" />
             </div>
 
             <div class="results">
-              <template v-if="searchQuery">
+              <div v-if="searching" class="empty-state" role="status">検索中…</div>
+              <div v-else-if="searchError" class="empty-state" role="alert">
+                <p>{{ searchError }}</p><button class="btn-outline" @click="performSearch">もう一度検索</button>
+              </div>
+              <template v-else-if="searchQuery.trim()">
                 <div v-for="user in searchResults" :key="user.uid" class="rescard">
                   <UserAvatar class="rescard__avatar" :name="user.name" :photo="user.photo" :size="36" />
                   <span class="rescard__name">
                     <span class="rescard__nm">{{ user.name }}
-                      <span v-if="isEventMember(user.uid)" class="rescard__tag">同じイベント</span>
-                      <span v-else-if="isAlreadyFriend(user.uid)" class="rescard__tag is-friend">フレンド済み</span>
+                      <span v-if="isAlreadyFriend(user.uid)" class="rescard__tag is-friend">追加済み</span>
+                      <span v-else-if="isPendingRequest(user.uid)" class="rescard__tag is-pending">申請中</span>
+                      <span v-else-if="isEventMember(user.uid)" class="rescard__tag">同じイベント</span>
                     </span>
-                    <span v-if="user.nickname" class="rescard__nick">ニックネーム: {{ user.nickname }}</span>
+                    <span v-if="user.nickname" class="rescard__nick">ニックネーム：{{ user.nickname }}</span>
                   </span>
-                  <button v-if="!isAlreadyFriend(user.uid)" class="rescard__add" @click="selectedUser = user">追加</button>
+                  <button v-if="canRequest(user.uid)" class="rescard__add" @click="selectedUser = user">申請へ</button>
+                  <span v-else-if="relationshipState !== 'ready'" class="rescard__unavailable">状態を確認中</span>
                 </div>
                 <div v-if="searchResults.length === 0" class="empty-state">
                   <span class="empty-state__icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
                   </span>
                   <p class="empty-state__title">見つかりませんでした</p>
-                  <p class="empty-state__desc">名前・ニックネーム・ID を確かめてみてください</p>
+                  <p class="empty-state__desc">名前・ニックネーム・IDを確かめてみてください</p>
                 </div>
               </template>
               <template v-else>
@@ -51,16 +58,19 @@
                 <div v-for="user in eventMembers" :key="user.uid" class="rescard">
                   <UserAvatar class="rescard__avatar" :name="user.name" :photo="user.photo" :size="36" />
                   <span class="rescard__name">
-                    <span class="rescard__nm">{{ user.name }}</span>
-                    <span v-if="user.nickname" class="rescard__nick">ニックネーム: {{ user.nickname }}</span>
+                    <span class="rescard__nm">{{ user.name }}
+                      <span v-if="isPendingRequest(user.uid)" class="rescard__tag is-pending">申請中</span>
+                    </span>
+                    <span v-if="user.nickname" class="rescard__nick">ニックネーム：{{ user.nickname }}</span>
                   </span>
-                  <button class="rescard__add" @click="selectedUser = user">追加</button>
+                  <button v-if="canRequest(user.uid)" class="rescard__add" @click="selectedUser = user">申請へ</button>
+                  <span v-else-if="relationshipState !== 'ready'" class="rescard__unavailable">状態を確認中</span>
                 </div>
                 <div v-if="eventMembers.length === 0" class="empty-state">
                   <span class="empty-state__icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2" /><path d="M3.5 20a5.5 5.5 0 0 1 11 0" /><path d="M18 8v6M15 11h6" /></svg>
                   </span>
-                  <p class="empty-state__title">名前か ID で検索</p>
+                  <p class="empty-state__title">名前かIDで検索</p>
                   <p class="empty-state__desc">相手のニックネームでも見つけられます</p>
                 </div>
               </template>
@@ -70,14 +80,14 @@
           </div>
 
           <div v-else class="confirm">
-            <h2 class="add-modal__title">フレンド追加</h2>
+            <h2 class="add-modal__title">フレンド申請</h2>
 
             <div class="confirm__user">
               <UserAvatar class="confirm__avatar" :name="selectedUser.name" :photo="selectedUser.photo" :size="84" />
               <h3 class="confirm__name">{{ selectedUser.name }}</h3>
             </div>
 
-            <p class="confirm__q">このユーザーをフレンドに追加しますか？</p>
+            <p class="confirm__q">{{ selectedUser.name }}さんにフレンド申請を送りますか？</p>
 
             <div class="confirm-history" v-if="tradeHistory.length > 0">
               <h4 class="ch-title">この人との取引履歴</h4>
@@ -92,7 +102,7 @@
             <MessageField v-model="requestMessage" class="confirm__msg" placeholder="はじめまして。〇〇で一緒だった△△です。" />
 
             <div class="confirm__actions">
-              <button class="btn-brand" @click="executeRequest">申請を送る</button>
+              <button class="btn-brand" :disabled="requestSending" @click="executeRequest">{{ requestSending ? '送信しています…' : '申請を送る' }}</button>
               <button class="btn-outline" @click="selectedUser = null">検索に戻る</button>
             </div>
           </div>
@@ -117,7 +127,7 @@
 </template>
 
 <script setup>
-import { ref, watch, reactive } from 'vue';
+import { ref, watch, reactive, onUnmounted } from 'vue';
 import BaseModal from './BaseModal.vue'; // 🌟 統一モーダルをインポート
 import MessageField from './MessageField.vue';
 import UserAvatar from './UserAvatar.vue';
@@ -131,6 +141,9 @@ const emit = defineEmits(['close']);
 const searchMode = ref('name');
 const searchQuery = ref('');
 const searchResults = ref([]);
+const searching = ref(false);
+const searchError = ref('');
+let searchVersion = 0;
 const selectedUser = ref(null);
 const requestMessage = ref(''); // 申請に添えるひとこと（任意）
 
@@ -151,13 +164,21 @@ const handleConfirmModal = () => {
 
 // 検索処理
 const performSearch = async () => {
+  const version = ++searchVersion;
   const text = searchQuery.value.trim();
-  if (text.length === 0) { searchResults.value = []; return; }
+  const mode = searchMode.value;
+  const myUid = auth.currentUser?.uid;
+  const isCurrent = () => version === searchVersion && props.isOpen && auth.currentUser?.uid === myUid;
+  searchResults.value = [];
+  searchError.value = '';
+  searching.value = false;
+  if (!props.isOpen || !text) return;
+  searching.value = true;
 
   try {
     const results = [];
 
-    if (searchMode.value === 'name') {
+    if (mode === 'name') {
       // 🌟 名前・ニックネームの両方で先頭一致（前方一致）候補を出す
       const usersRef = collection(db, "users");
       const seen = new Set();
@@ -194,25 +215,49 @@ const performSearch = async () => {
       }
     }
 
-    searchResults.value = results;
+    if (isCurrent()) searchResults.value = results;
   } catch (error) {
-    console.error("検索エラー:", error);
+    if (isCurrent()) searchError.value = '検索できませんでした。通信状況を確認してください。';
+  } finally {
+    if (isCurrent()) searching.value = false;
   }
 };
 
-watch(searchQuery, () => performSearch());
+watch([searchQuery, searchMode, () => props.isOpen], () => performSearch(), { flush: 'sync' });
+onUnmounted(() => { searchVersion++; });
 
 // 🌟 同じイベントにいるメンバーを候補として読み込む（既にフレンドの人は除外）
 const eventMembers = ref([]);
 const friendUids = ref(new Set());
+const pendingTargetUids = ref(new Set());
+const relationshipState = ref('loading');
 const isEventMember = (uid) => eventMembers.value.some(m => m.uid === uid);
 const isAlreadyFriend = (uid) => friendUids.value.has(uid);
+const isPendingRequest = (uid) => pendingTargetUids.value.has(uid);
+const canRequest = (uid) => relationshipState.value === 'ready' && !isAlreadyFriend(uid) && !isPendingRequest(uid);
 const loadCandidates = async () => {
   const myUid = auth.currentUser?.uid;
-  if (!myUid) return;
+  relationshipState.value = 'loading';
+  eventMembers.value = [];
+  if (!myUid) { relationshipState.value = 'error'; return; }
   try {
-    const friendsSnap = await getDocs(collection(db, 'users', myUid, 'friends'));
+    const [friendsSnap, requestsSnap] = await Promise.all([
+      getDocs(collection(db, 'users', myUid, 'friends')),
+      getDocs(query(collection(db, 'friendRequests'), where('formId', '==', myUid))),
+    ]);
     friendUids.value = new Set(friendsSnap.docs.map(d => d.id));
+    pendingTargetUids.value = new Set(requestsSnap.docs
+      .map(d => d.data())
+      .filter(request => request.status === 'pending' && request.toId)
+      .map(request => request.toId));
+    relationshipState.value = 'ready';
+  } catch (e) {
+    friendUids.value = new Set();
+    pendingTargetUids.value = new Set();
+    relationshipState.value = 'error';
+    console.error('申請状態の取得エラー:', e);
+  }
+  try {
     const evs = await getDocs(query(collection(db, 'events'), where('participants', 'array-contains', myUid)));
     const uids = new Set();
     evs.forEach(e => (e.data().participants || []).forEach(u => { if (u !== myUid) uids.add(u); }));
@@ -225,9 +270,9 @@ const loadCandidates = async () => {
       } catch (e) {}
     }
     eventMembers.value = arr;
-  } catch (e) { console.error('候補の取得エラー:', e); }
+  } catch (e) { console.error('イベント候補の取得エラー:', e); }
 };
-watch(() => props.isOpen, (v) => { if (v) loadCandidates(); });
+watch(() => props.isOpen, (v) => { if (v) loadCandidates(); }, { immediate: true });
 
 // 🌟 申請確認画面で「この人との本物の取引履歴」を表示
 const tradeHistory = ref([]);
@@ -274,6 +319,7 @@ watch(selectedUser, (u) => {
 });
 
 const close = () => {
+  searchVersion++;
   searchQuery.value = '';
   selectedUser.value = null;
   requestMessage.value = '';
@@ -281,12 +327,15 @@ const close = () => {
 };
 
 // 🌟 申請を送る処理（alertをモーダルに変更）
+const requestSending = ref(false);
 const executeRequest = async () => {
   if (!auth.currentUser) {
     showModal({ type: 'error', title: 'エラー', message: 'ログインが必要です。' });
     return;
   }
   const targetUser = selectedUser.value;
+  if (!targetUser || !canRequest(targetUser.uid) || requestSending.value) return;
+  requestSending.value = true;
 
   try {
     const myDocRef = doc(db, "users", auth.currentUser.uid);
@@ -311,11 +360,12 @@ const executeRequest = async () => {
       status: "pending",
       createdAt: serverTimestamp()
     });
+    pendingTargetUids.value = new Set([...pendingTargetUids.value, targetUser.uid]);
 
     showModal({
       type: 'success',
       title: '申請完了',
-      message: `${targetUser.name}さんにフレンド申請を送りました！`,
+      message: `${targetUser.name}さんにフレンド申請を送りました。`,
       onConfirm: () => {
         emit('close');
       }
@@ -328,6 +378,8 @@ const executeRequest = async () => {
       title: '送信失敗',
       message: '申請に失敗しました。もう一度試してください。'
     });
+  } finally {
+    requestSending.value = false;
   }
 };
 </script>
@@ -343,6 +395,8 @@ const executeRequest = async () => {
 .add-modal {
   width: 100%;
   max-width: 360px;
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
   background: var(--c-surface);
   border-radius: var(--r-xl);
   padding: 22px;
@@ -424,6 +478,8 @@ const executeRequest = async () => {
 .cand-title { font-size: 11px; font-weight: 800; color: var(--c-text-faint); margin: 0 0 2px 4px; }
 .rescard__tag { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 999px; background: var(--c-brand-weak); color: var(--c-brand); font-size: 10px; font-weight: 800; vertical-align: middle; }
 .rescard__tag.is-friend { background: var(--c-surface-2, var(--c-surface-2)); color: var(--c-text-sub); }
+.rescard__tag.is-pending { background: var(--c-pay-weak); color: #92400e; }
+.rescard__unavailable { font-size: 11px; color: var(--c-text-sub); }
 
 .modal-close {
   display: block;
@@ -458,4 +514,6 @@ const executeRequest = async () => {
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+.search-label { display: block; margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--c-text); }
+.search__input { font-size: 16px; }
 </style>
