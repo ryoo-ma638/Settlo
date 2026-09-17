@@ -603,3 +603,20 @@ exports.setupGuestDemo = onCall(
     return { ok: true, eventId, guestName };
   }
 );
+
+// =================================================================
+// 6. イベント全体のまとめて精算
+// =================================================================
+const { createEventNetSettlementService } = require("./eventNetSettlement");
+const eventNetSettlementService = createEventNetSettlementService({
+  db,
+  FieldValue: admin.firestore.FieldValue,
+});
+
+exports.eventNetSettlement = onCall(
+  {
+    region: "asia-northeast1",
+    cors: ['http://localhost:5173', 'https://pairpay-4c17a.web.app', 'https://settlo-app.web.app', 'https://settlo-app.firebaseapp.com'],
+  },
+  async (request) => eventNetSettlementService.handle(request.auth && request.auth.uid, request.data)
+);
