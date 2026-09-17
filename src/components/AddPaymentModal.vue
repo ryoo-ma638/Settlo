@@ -1481,7 +1481,7 @@ watch(participants, list => {
 .empty-items { background: white; padding: 30px; text-align: center; border-radius: 20px; border: 2px dashed var(--c-line-strong); font-size: 12px; font-weight: 800; color: var(--c-text-faint); }
 .receipt-item-card { background: white; border-radius: 20px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); border: 1px solid var(--c-surface-2); }
 .item-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-.item-name-input { flex: 1; border: none; border-bottom: 2px solid var(--c-line-bold); font-size: 15px; font-weight: 900; color: var(--c-text); padding-bottom: 4px; outline: none; }
+.item-name-input { flex: 1; border: none; border-bottom: 2px solid var(--c-line-bold); font-size: 16px; /* 16px未満にするとiOSで入力時に画面が拡大する */ font-weight: 900; color: var(--c-text); padding-bottom: 4px; outline: none; }
 .item-price-box { display: flex; align-items: baseline; gap: 2px; font-weight: 800; color: var(--c-text-sub); }
 .item-price-input { width: 60px; text-align: right; border: none; border-bottom: 2px solid var(--c-line-bold); font-size: 16px; font-weight: 900; color: var(--c-ink); outline: none; }
 .remove-item-btn { background: var(--c-danger-weak); color: var(--c-danger); border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }

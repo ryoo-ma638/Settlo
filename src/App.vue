@@ -18,7 +18,7 @@
     <!-- それ以外は共通のモバイルシェル -->
     <div v-else class="app-shell">
       <AppHeader />
-      <main class="app-main">
+      <main class="app-main" ref="appMain">
         <RouterView />
       </main>
       <AppFooter />
@@ -30,7 +30,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { onAuthStateChanged } from "firebase/auth"
 import { auth } from "./firebase"
@@ -46,6 +46,15 @@ import { refreshPushRegistration, listenForForegroundPush } from './lib/notifica
 
 const route = useRoute()
 const router = useRouter()
+// 🌟 画面を切り替えたら、中身のスクロールを先頭へ戻す。
+//    スクロールしているのは window ではなく .app-main（overflow-y: auto）なので、
+//    ルーターの scrollBehavior では動かない。ここで直接戻す。
+//    下までスクロールした状態で別の画面へ移ると、そのまま下に着地して
+//    上部のタブやボタンが画面外になっていた。
+//    クエリだけの変化（?addPayment=1 などモーダルの開閉）では戻さない。
+const appMain = ref(null)
+watch(() => route.path, () => { appMain.value?.scrollTo({ top: 0 }) })
+
 const authChecked = ref(false)
 // ゲストのデモデータ準備中は、ホームの代わりに読込画面を出す
 const { preparingGuestDemo } = useGuestSetup()
