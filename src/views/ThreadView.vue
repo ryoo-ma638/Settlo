@@ -268,6 +268,7 @@ onMounted(async () => {
           fromUid: route.query.seedFrom || otherUid.value,
           fromName: route.query.seedFromName || otherName.value,
           text: seedText,
+          suppressPush: true,
           createdAt: serverTimestamp(),
           readBy: [route.query.seedFrom || otherUid.value],
         });
@@ -333,17 +334,6 @@ const send = async (preset) => {
       }
       await updateDoc(doc(db, 'threads', threadId), patch);
     } catch (e) {}
-    // 相手へ「〜の件で返信」をお知らせ（1対1のみ・グループは通知を増やしすぎない）
-    if (otherUid.value && !isGroup.value) {
-      try {
-        await addDoc(collection(db, 'notifications'), {
-          toUserId: otherUid.value, type: 'thread_reply',
-          threadId, threadLabel: label.value,
-          fromUserId: myUid, fromUserName: myName.value,
-          isRead: false, createdAt: serverTimestamp(),
-        });
-      } catch (e) {}
-    }
   } catch (e) {
     console.error('メッセージ送信エラー:', e);
     if (!usePreset) draft.value = text; // 失敗時は入力を戻す

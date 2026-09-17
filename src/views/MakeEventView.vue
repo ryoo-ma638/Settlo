@@ -227,18 +227,6 @@ const joinEvent = async () => {
     }
 
     await updateDoc(doc(db, "events", evDoc.id), { participants: arrayUnion(myUid) });
-    // 既存メンバーへ「参加しました」お知らせ
-    for (const uid of (data.participants || [])) {
-      if (uid === myUid) continue;
-      try {
-        await addDoc(collection(db, "notifications"), {
-          toUserId: uid, type: 'event_joined',
-          eventId: evDoc.id, eventName: data.name || '',
-          fromUserId: myUid, fromUserName: myName,
-          isRead: false, createdAt: serverTimestamp(),
-        });
-      } catch (e) {}
-    }
     showModal({ type: 'success', title: '参加完了', message: `「${data.name}」に参加しました！`, onConfirm: () => router.push(`/event/${evDoc.id}`) });
   } catch (e) {
     console.error("参加エラー:", e);

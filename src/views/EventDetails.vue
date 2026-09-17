@@ -308,6 +308,9 @@
       />
       <AddPaymentModal
         :isOpen="modals.addPayment"
+        :eventId="route.params.id || ''"
+        :eventName="eventData.name || ''"
+        :eventEnded="!!eventData.ended"
         :participants="eventData.participants"
         :myName="myName"
         :myUid="auth.currentUser?.uid || ''"
@@ -349,7 +352,7 @@ const getUserInfo = async (uid) => {
 // ==========================================
 // 🌟 1. 2人の import を綺麗に合体！
 // ==========================================
-import { ref, computed, watch, onMounted, onUnmounted, reactive } from 'vue'; // 🌟 reactiveを追加
+import { ref, computed, watch, onMounted, onUnmounted, reactive, nextTick } from 'vue'; // 🌟 reactiveを追加
 import { useRoute, useRouter } from 'vue-router';
 import { formatDate } from '@/lib/format';
 import { ensurePaymentThread, postPaymentEvent, postPaymentEventByTx, resolvePaymentThreadByTx, retirePaymentThread } from '@/lib/thread';
@@ -1073,6 +1076,7 @@ let unsubTx = null;
 // 🌟 履歴（Firestoreの生データ）と、このイベントの取引の状態を別々に持つ。
 //    どちらが更新されても人ごとの精算状況を作り直す（下の watch）。
 const rawHistory = ref([]);
+const historyLoaded = ref(false);
 const txById = ref({});
 const txLoaded = ref(false);
 
@@ -1144,6 +1148,7 @@ onMounted(async () => {
       });
     });
     rawHistory.value = fetched;
+    historyLoaded.value = true;
   }, (err) => {
     // イベント削除後や参加者でない場合は静かに無視（未購読解除の残骸対策）
     if (err?.code !== 'permission-denied') console.error("履歴監視エラー:", err);
@@ -1174,6 +1179,33 @@ watch([rawHistory, txById, txLoaded], () => {
   // 🌟 合計金額も履歴から再計算して反映
   eventData.value.total = decorated.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 }, { deep: false });
+
+// お知らせから開いた場合は、履歴を読み込んでから対象の1件を開く。
+// 使用済みのqueryを消し、履歴の再描画で同じ詳細を開き直さない。
+let notificationHistoryOpened = false;
+watch([
+  () => route.query.history,
+  historyLoaded,
+  rawHistory,
+], async ([request, loaded]) => {
+  const historyId = Array.isArray(request) ? request[0] : request;
+  if (!historyId) { notificationHistoryOpened = false; return; }
+  if (!loaded || notificationHistoryOpened) return;
+  notificationHistoryOpened = true;
+  await nextTick();
+  const history = eventData.value.history.find((item) => item.id === historyId);
+  if (history) {
+    openHistoryDetail(history);
+  } else {
+    showAlert('info', '立て替え履歴が見つかりません', '削除されたか、現在は表示できない履歴です。');
+  }
+  const { history: _history, ...query } = route.query;
+  try {
+    await router.replace({ query });
+  } catch (error) {
+    console.error('履歴詳細のURL更新に失敗:', error);
+  }
+}, { immediate: true });
 
 // リスナーの購読解除（画面離脱・イベント削除時のリーク／権限エラー防止）
 const unsubscribeAll = () => {

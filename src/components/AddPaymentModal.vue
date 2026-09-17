@@ -5,10 +5,110 @@
         
         <div class="modal-header">
           <h2 class="modal-title">{{ editData ? '支払いを編集' : '新しく支払いを追加' }}</h2>
-          <button class="close-btn" @click="closeModal" aria-label="閉じる">×</button>
+          <button class="close-btn" :disabled="batchBusy" @click="closeModal" aria-label="閉じる">×</button>
         </div>
 
-        <div class="modal-body scroll-area">
+        <div v-if="!editData && eventId" class="receipt-mode" role="tablist" aria-label="支払いの入力方法">
+          <button type="button" role="tab" :aria-selected="!batchMode" :class="{ active: !batchMode }" :disabled="batchBusy || batchReading || batchCards.some(c => c.state === 'unknown' || c.state === 'saveFailed') || batchRecoveryError" @click="batchMode = false">1件ずつ入力</button>
+          <button type="button" role="tab" :aria-selected="batchMode" :class="{ active: batchMode }" :disabled="isAnalyzing" @click="batchMode = true">複数レシート</button>
+        </div>
+        <div v-if="batchMode && !editData" class="modal-body scroll-area batch-body">
+          <p v-if="!participants.length" role="status">参加者を読み込むまで登録できません。</p>
+          <p v-if="eventEnded" role="status">終了済みのイベントには新しく登録できません。</p>
+          <input ref="batchFileInput" class="hidden-input" type="file" accept="image/*" multiple @change="onBatchFiles">
+          <input ref="batchCameraInput" class="hidden-input" type="file" accept="image/*" capture="environment" @change="onBatchFiles">
+          <template v-if="!batchFinished">
+            <div class="batch-drop-zone" :class="{ 'is-dragover': batchDragging, 'is-disabled': !batchCanAdd }"
+              @dragenter.prevent="onBatchDragOver" @dragover.prevent="onBatchDragOver" @dragleave.prevent="onBatchDragLeave" @drop.prevent="onBatchDrop">
+              <div class="batch-capture-actions">
+                <button type="button" class="batch-capture-button" :disabled="!batchCanAdd" @click="batchCameraInput.click()">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.2"/></svg>
+                  <strong>カメラで撮影</strong><span>1枚ずつ追加</span>
+                </button>
+                <button type="button" class="batch-capture-button" :disabled="!batchCanAdd" @click="batchFileInput.click()">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="M21 16l-5-5-9 8"/></svg>
+                  <strong>アルバムから</strong><span>最大5枚を選択</span>
+                </button>
+              </div>
+              <p class="batch-drop-copy">PCでは、ここに画像をドラッグしても追加できます</p>
+            </div>
+            <p class="batch-photo-hint">レシート全体が入るように、1枚ずつ大きく写してください。画像は縮小せずに読み取ります。</p>
+            <section class="batch-intro" aria-labelledby="batch-intro-title">
+              <div class="batch-intro-head">
+                <h3 id="batch-intro-title">レシートを1枚ずつ確認</h3>
+                <span>{{ batchCards.length }} / 5枚</span>
+              </div>
+              <p>写真1枚につきレシート1枚。1回5枚まで順番に読み取り、登録後は続けて追加できます。</p>
+            </section>
+          </template>
+          <section v-else class="batch-complete" role="status">
+            <span class="batch-complete-icon" aria-hidden="true">✓</span>
+            <div><h3>{{ batchSavedCount }}件の支払いを保存しました</h3><p>合計 {{ batchSavedTotal.toLocaleString('ja-JP') }}円・レシートごとに別の支払いとして登録しています。</p></div>
+          </section>
+          <p v-if="batchMessage && !batchFinished" role="status" class="batch-message">{{ batchMessage }}</p>
+          <fieldset v-for="(card, index) in batchCards" :key="card.id" class="batch-entry" :disabled="batchBusy">
+            <legend>{{ index + 1 }}枚目のレシート</legend>
+            <article v-if="['saved', 'excluded'].includes(card.state)" class="batch-finished-card" :class="{ excluded: card.state === 'excluded' }">
+              <div class="batch-finished-main"><span>{{ index + 1 }}枚目</span><div><strong>{{ card.store || '店名なし' }}</strong><small>{{ card.date || '日付なし' }}</small></div><b>{{ /^\d+$/.test(card.amount) ? Number(card.amount).toLocaleString('ja-JP') + '円' : '金額なし' }}</b></div>
+              <p v-if="card.state === 'excluded'">登録から除外しました。</p>
+              <template v-else>
+                <p v-if="card.reasonText" class="batch-finished-warning" role="status">{{ card.reasonText }}</p>
+                <details><summary>精算内容を確認</summary><p>{{ card.plan.payment.payer }}が立替え ・ {{ batchSplitLabel(card.plan.payment.splitType) }}</p><div class="batch-share-preview"><span v-for="share in card.plan.shares" :key="share.uid">{{ share.name }} {{ share.amount.toLocaleString('ja-JP') }}円</span></div></details>
+              </template>
+            </article>
+            <ReceiptResultCard v-else :number="index + 1" :store="card.store" :amount="card.amount" :date="card.date" :state="card.state" :reason-text="card.reasonText" :receipt="card.receipt" :image="card.image"
+              @update:store="updateBatchStore(card, $event)" @update:amount="updateBatchAmount(card, $event)" @update:date="updateBatchDate(card, $event)"
+              @remove="excludeBatchCard(card)" @restore="restoreBatchCard(card)" />
+            <section v-if="!card.plan && !['reading', 'excluded'].includes(card.state)" class="batch-settlement" :aria-labelledby="`batch-settlement-${card.id}`">
+              <div class="batch-settlement-head">
+                <h4 :id="`batch-settlement-${card.id}`">2. このレシートの精算</h4>
+                <span :class="{ confirmed: card.settlementConfirmed }">{{ card.settlementConfirmed ? '確認済み' : '未確認' }}</span>
+              </div>
+              <label class="batch-field">立替えた人
+                <select :value="card.payerUid" class="standard-input" @change="updateBatchPayer(card, $event.target.value)">
+                  <option value="" disabled>選んでください</option>
+                  <option v-for="p in participants" :key="p.id" :value="p.id">{{ p.name }}{{ p.id === myUid ? '（自分）' : '' }}</option>
+                </select>
+              </label>
+              <div class="batch-split-tabs" role="group" aria-label="割り方">
+                <button type="button" :class="{ active: card.splitType === 'all' }" @click="setBatchSplitType(card, 'all')">全員で均等</button>
+                <button type="button" :class="{ active: card.splitType === 'custom' }" @click="setBatchSplitType(card, 'custom')">金額を指定</button>
+                <button type="button" :class="{ active: card.splitType === 'item' }" :disabled="!batchCanUseItemSplit(card)" @click="setBatchSplitType(card, 'item')">商品ごと</button>
+              </div>
+              <p v-if="!batchCanUseItemSplit(card)" class="batch-settlement-note">明細の金額がすべて読み取れた場合のみ、商品ごとに分けられます。</p>
+              <div v-if="card.splitType === 'custom'" class="batch-custom-grid">
+                <label v-for="p in participants" :key="p.id">{{ p.name }}
+                  <span><input type="text" inputmode="numeric" pattern="[0-9]*" :value="card.customAmounts[p.id]" @input="updateBatchCustomAmount(card, p.id, $event.target.value)">円</span>
+                </label>
+              </div>
+              <div v-if="card.splitType === 'item'" class="batch-item-splits">
+                <div v-for="(item, itemIndex) in card.allocationItems" :key="itemIndex" class="batch-item-split">
+                  <p><strong>{{ item.name || '品目名不明' }}</strong><span>{{ Number(item.price).toLocaleString('ja-JP') }}円</span></p>
+                  <div><button v-for="p in participants" :key="p.id" type="button" :class="{ active: item.assigneeUids.includes(p.id) }" @click="toggleBatchItemAssignee(card, item, p.id)">{{ p.name }}</button></div>
+                </div>
+              </div>
+              <div class="batch-share-preview">
+                <strong>登録する負担額</strong>
+                <template v-if="batchSettlementPreview(card).ok">
+                  <span v-for="share in batchSettlementPreview(card).shares" :key="share.uid">{{ share.name }} {{ share.amount.toLocaleString('ja-JP') }}円</span>
+                </template>
+                <p v-else role="status">{{ batchSettlementPreview(card).message }}</p>
+              </div>
+              <button type="button" class="batch-confirm-settlement" :class="{ confirmed: card.settlementConfirmed }" :disabled="card.state !== 'ready' || !batchSettlementPreview(card).ok" @click="confirmBatchSettlement(card)">
+                {{ card.settlementConfirmed ? '精算内容を確認済み' : 'この精算内容を確認' }}
+              </button>
+            </section>
+            <section v-else-if="card.plan && !['saved', 'excluded'].includes(card.state)" class="batch-settlement batch-settlement-frozen">
+              <div class="batch-settlement-head"><h4>2. このレシートの精算</h4><span class="confirmed">確認済み</span></div>
+              <p>{{ card.plan.payment.payer }}が立替え ・ {{ batchSplitLabel(card.plan.payment.splitType) }}</p>
+              <div class="batch-share-preview"><span v-for="share in card.plan.shares" :key="share.uid">{{ share.name }} {{ share.amount.toLocaleString('ja-JP') }}円</span></div>
+            </section>
+            <button v-if="card.state === 'unknown'" type="button" class="batch-secondary" :disabled="batchBusy" @click="confirmBatchCard(card)">保存結果を確認</button>
+            <button v-if="card.state === 'saveFailed'" type="button" class="batch-secondary" :disabled="batchBusy || batchRecoveryError || eventEnded" @click="saveBatchCards([card])">同じ登録情報で再送</button>
+          </fieldset>
+          <p v-if="batchCards.length && !batchFinished" role="status" class="batch-message">{{ batchSummary }}</p>
+        </div>
+        <div v-else class="modal-body scroll-area">
           
           <div class="upload-section">
             <input type="file" ref="cameraInput" accept="image/*" capture="environment" class="hidden-input" @change="handleFileUpload">
@@ -256,7 +356,9 @@
         <div class="modal-footer">
           <MessageField v-if="editData" v-model="editNote" class="edit-note" label="変更のひとこと（任意）" placeholder="例：金額を打ち間違えたので直しました" />
 
-          <button class="submit-btn" :disabled="isSubmitting" @click="handleSubmit">{{ editData ? 'この内容で保存する' : 'この内容で追加する' }}</button>
+          <button v-if="batchMode && !editData && batchFinished" class="submit-btn" @click="startNextBatch">続けてレシートを追加</button>
+          <button v-else-if="batchMode && !editData" class="submit-btn" :disabled="!batchCanSave" @click="saveBatchCards(batchTargets)">{{ batchPrimaryLabel }}</button>
+          <button v-else class="submit-btn" :disabled="isSubmitting" @click="handleSubmit">{{ editData ? 'この内容で保存する' : 'この内容で追加する' }}</button>
         </div>
 
       </div>
@@ -284,6 +386,11 @@ import MessageField from '../components/MessageField.vue';
 import GenreIcon from '../components/GenreIcon.vue'; // 🌟 支払いジャンルのアイコン
 import UserAvatar from '../components/UserAvatar.vue';
 import { app } from "../firebase";
+import ReceiptResultCard from './ReceiptResultCard.vue';
+import { evenShares } from '../lib/evenShares.js';
+import { getBatchCardState } from '../lib/batchStates.js';
+import { MAX_AMOUNT, isValidPaymentDate, validateSavePlan, prepareSaveIds, saveOnePayment, confirmSavedOnServer, recoverPaymentSideEffects } from '../lib/batchPaymentSave.js';
+import { publishPaymentAddedNotifications } from '../lib/paymentAddedNotifications.js';
 import { getFunctions, httpsCallable } from "firebase/functions"; // ← AI通信に必要なこれらが抜けていました！
 
 // 🌟 支払いのジャンル候補
@@ -305,6 +412,9 @@ const handleConfirmModal = () => {
 // 🌟 実データ化：イベントの参加者（{ id, name, color/photo, isMe }）を親から受け取る
 const props = defineProps({
   isOpen: Boolean,
+  eventId: { type: String, default: '' },
+  eventName: { type: String, default: '' },
+  eventEnded: { type: Boolean, default: false },
   participants: { type: Array, default: () => [] },
   myName: { type: String, default: '' },
   myUid: { type: String, default: '' },
@@ -458,7 +568,7 @@ const calculateRemaining = () => {
 };
 
 // --- アクション ---
-const closeModal = () => emit('close');
+const closeModal = () => { if (!batchBusy.value) emit('close'); };
 
 
 const resetUpload = () => {
@@ -799,6 +909,464 @@ const executeSubmit = () => {
   emit('submit', payload);
   emit('close'); // 🌟 送信後に閉じる指示を出す
 };
+// 複数枚はレシートごとに立替者と割り方を確認する。保存に入ったカードは内容とIDを固定する。
+const batchMode = ref(false);
+const batchCards = ref([]);
+const batchBusy = ref(false);
+const batchReading = ref(false);
+const batchMessage = ref('');
+const batchRecoveryError = ref(false);
+const batchDragging = ref(false);
+const batchFileInput = ref(null);
+const batchCameraInput = ref(null);
+const batchOperationId = ref('');
+let batchEpoch = 0;
+const storageKey = () => `settlo:receipt-batch:v1:${props.myUid}:${props.eventId}`;
+const defaultBatchPayerUid = () => participants.value.find(p => p.id === props.myUid)?.id || participants.value[0]?.id || '';
+const newBatchCard = () => ({ id: crypto.randomUUID(), store: '', amount: '', date: '', receipt: null, image: '', state: 'reading', reasonText: '順番を待っています。', notice: '', readVersion: 0, plan: null, sideEffectFails: [], payerUid: defaultBatchPayerUid(), splitType: 'all', customAmounts: {}, allocationItems: [], settlementConfirmed: false });
+const hasFrozenCards = computed(() => batchCards.value.some(c => c.plan));
+const batchCanAdd = computed(() => !batchBusy.value && !batchReading.value && !hasFrozenCards.value && !batchRecoveryError.value && !props.eventEnded && batchCards.value.length < 5);
+const batchTargets = computed(() => batchCards.value.filter(c => c.state === 'ready' && c.settlementConfirmed));
+const batchTotal = computed(() => batchTargets.value.reduce((sum, c) => sum + Number(c.amount), 0));
+const batchFinished = computed(() => batchCards.value.length > 0 && batchCards.value.every(c => ['saved', 'excluded'].includes(c.state)));
+const batchSavedCount = computed(() => batchCards.value.filter(c => c.state === 'saved').length);
+const batchSavedTotal = computed(() => batchCards.value.filter(c => c.state === 'saved').reduce((sum, c) => sum + Number(c.plan?.payment?.amount || 0), 0));
+const batchCanSave = computed(() => {
+  if (batchBusy.value || batchReading.value || batchRecoveryError.value || props.eventEnded || !props.myUid || !props.eventId || !batchTargets.value.length) return false;
+  return batchTargets.value.every(card => batchSettlementPreview(card).ok);
+});
+const batchPrimaryLabel = computed(() => {
+  if (batchBusy.value) return '保存結果を確認中…';
+  if (batchTargets.value.length) return `${batchTargets.value.length}件・${batchTotal.value.toLocaleString('ja-JP')}円を登録`;
+  if (batchCards.value.some(c => c.state === 'unknown')) return '保存結果を確認してください';
+  if (batchCards.value.some(c => c.state === 'saveFailed')) return '保存できなかった項目があります';
+  return batchCards.value.length ? 'レシートの内容と精算を確認' : 'レシートを追加してください';
+});
+const batchSummary = computed(() => {
+  const count = state => batchCards.value.filter(c => c.state === state).length;
+  const confirmable = batchCards.value.filter(c => ['ready', 'warn', 'readFailed'].includes(c.state)).length;
+  const confirmed = batchCards.value.filter(c => c.settlementConfirmed && ['ready', 'warn', 'readFailed'].includes(c.state)).length;
+  return `精算確認 ${confirmed}/${confirmable}件・保存済み ${count('saved')}件・保存失敗 ${count('saveFailed')}件・結果不明 ${count('unknown')}件・除外 ${count('excluded')}件`;
+});
+function persistBatch() {
+  try {
+    // 画像は保持しない。送信済みの内容とIDだけを、このタブで再開するために保持する。
+    sessionStorage.setItem(storageKey(), JSON.stringify({ version: 2, operationId: batchOperationId.value, cards: batchCards.value.filter(c => c.plan).map(({ image, ...card }) => card) }));
+    return true;
+  } catch {
+    batchMessage.value = '再開用の登録情報をこのタブに保持できません。新しい送信を止めています。';
+    batchRecoveryError.value = true;
+    return false;
+  }
+}
+function loadBatch() {
+  batchEpoch++;
+  batchCards.value = [];
+  batchBusy.value = false;
+  batchReading.value = false;
+  batchRecoveryError.value = false;
+  batchMode.value = false;
+  batchMessage.value = '';
+  batchOperationId.value = '';
+  if (!props.eventId || !props.myUid) return;
+  try {
+    const raw = sessionStorage.getItem(storageKey());
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (![1, 2].includes(saved.version) || !Array.isArray(saved.cards) || saved.cards.length > 5) throw new Error('invalid-recovery');
+    batchOperationId.value = saved.version === 2 && typeof saved.operationId === 'string' && saved.operationId && !saved.operationId.includes('/')
+      ? saved.operationId
+      : crypto.randomUUID();
+    const historyIds = new Set();
+    for (const c of saved.cards) {
+      if (!c.plan || c.plan.eventId !== props.eventId || !validateSavePlan(c.plan).ok || historyIds.has(c.plan.ids.historyId)) throw new Error('invalid-recovery');
+      historyIds.add(c.plan.ids.historyId);
+      c.state = c.state === 'saved' ? 'saved' : 'unknown';
+      c.amount = String(c.plan.payment.amount);
+      c.store = c.plan.payment.itemName;
+      c.date = c.plan.payment.date.replaceAll('/', '-');
+      c.receipt = c.plan.payment.receipt || null;
+      c.payerUid = c.plan.creditorUid;
+      c.splitType = c.plan.payment.splitType || 'all';
+      c.customAmounts = Object.fromEntries(c.plan.shares.map(share => [share.uid, String(share.amount)]));
+      c.allocationItems = (c.plan.payment.items || []).map(item => ({ ...item, assigneeUids: (item.assignees || []).map(name => participants.value.find(p => p.name === name)?.id).filter(Boolean) }));
+      c.settlementConfirmed = true;
+      c.reasonText = c.state === 'unknown' ? '前回の登録情報を復元しました。保存結果を確認してください。' : c.reasonText;
+    }
+    batchCards.value = saved.cards;
+    if (saved.cards.length) {
+      batchMode.value = true;
+    }
+  } catch {
+    batchMode.value = true;
+    batchRecoveryError.value = true;
+    batchMessage.value = '前回の登録情報を復元できません。二重登録を避けるため送信を止めました。イベントの履歴を確認してください。';
+  }
+}
+const batchSplitLabel = type => ({ all: '全員で均等', custom: '金額を指定', item: '商品ごと' })[type] || '割り方不明';
+function invalidateBatchSettlement(card) {
+  if (!card.plan) card.settlementConfirmed = false;
+}
+function batchCanUseItemSplit(card) {
+  return Array.isArray(card.receipt?.items) && card.receipt.items.length > 0
+    && card.receipt.items.every(item => Number.isInteger(item.lineTotal))
+    && Array.isArray(card.allocationItems) && card.allocationItems.length === card.receipt.items.length
+    && card.allocationItems.every(item => Number.isInteger(Number(item.price)));
+}
+function batchSettlementPreview(card) {
+  const people = participants.value.map(p => ({ id: p.id, name: p.name }));
+  const total = Number(card.amount);
+  if (!Number.isInteger(total) || total < 1 || total > MAX_AMOUNT) return { ok: false, shares: [], message: '金額を確認してください。' };
+  if (!people.some(p => p.id === card.payerUid)) return { ok: false, shares: [], message: '立替えた人を選んでください。' };
+  try {
+    if (card.splitType === 'all') return { ok: true, shares: evenShares(people, total, card.payerUid), message: '' };
+    if (card.splitType === 'custom') {
+      const shares = people.map(p => {
+        const raw = String(card.customAmounts?.[p.id] ?? '');
+        if (!/^\d+$/.test(raw)) throw new Error('custom-empty');
+        return { uid: p.id, name: p.name, amount: Number(raw) };
+      });
+      if (shares.some(s => !Number.isInteger(s.amount) || s.amount < 0 || s.amount > MAX_AMOUNT)) throw new Error('custom-invalid');
+      const sum = shares.reduce((value, share) => value + share.amount, 0);
+      if (sum !== total) return { ok: false, shares, message: `指定額の合計を ${total.toLocaleString('ja-JP')}円にしてください（現在 ${sum.toLocaleString('ja-JP')}円）。` };
+      return { ok: true, shares, message: '' };
+    }
+    if (card.splitType === 'item') {
+      if (!batchCanUseItemSplit(card)) throw new Error('item-unavailable');
+      const amounts = Object.fromEntries(people.map(p => [p.id, 0]));
+      for (const item of card.allocationItems) {
+        const assignees = [...new Set(item.assigneeUids || [])].filter(uid => uid in amounts);
+        if (!assignees.length) return { ok: false, shares: [], message: `「${item.name || '品目名不明'}」を負担する人を選んでください。` };
+        const amount = Number(item.price);
+        const each = Math.floor(amount / assignees.length);
+        assignees.forEach(uid => { amounts[uid] += each; });
+        amounts[assignees.includes(card.payerUid) ? card.payerUid : assignees[0]] += amount - each * assignees.length;
+      }
+      amounts[card.payerUid] += total - Object.values(amounts).reduce((sum, amount) => sum + amount, 0);
+      const shares = people.map(p => ({ uid: p.id, name: p.name, amount: amounts[p.id] }));
+      if (shares.some(s => !Number.isInteger(s.amount) || s.amount < 0)) return { ok: false, shares, message: '値引きを含む明細の負担額を確認できません。金額指定を使ってください。' };
+      return { ok: true, shares, message: '' };
+    }
+  } catch {}
+  return { ok: false, shares: [], message: '割り方を確認してください。' };
+}
+function updateBatchPayer(card, payerUid) {
+  if (card.plan || batchBusy.value) return;
+  card.payerUid = payerUid;
+  invalidateBatchSettlement(card);
+}
+function setBatchSplitType(card, splitType) {
+  if (card.plan || batchBusy.value || !['all', 'custom', 'item'].includes(splitType)) return;
+  if (splitType === 'item' && !batchCanUseItemSplit(card)) return;
+  card.splitType = splitType;
+  if (splitType === 'custom' && !Object.values(card.customAmounts || {}).some(value => String(value) !== '')) {
+    const shares = evenShares(participants.value, Number(card.amount) || 0, card.payerUid);
+    card.customAmounts = Object.fromEntries(shares.map(share => [share.uid, String(share.amount)]));
+  }
+  if (splitType === 'item') card.allocationItems.forEach(item => { if (!item.assigneeUids.length) item.assigneeUids = participants.value.map(p => p.id); });
+  invalidateBatchSettlement(card);
+}
+function updateBatchCustomAmount(card, uid, value) {
+  if (card.plan || batchBusy.value) return;
+  card.customAmounts[uid] = String(value || '').replace(/\D/g, '').slice(0, 8);
+  invalidateBatchSettlement(card);
+}
+function toggleBatchItemAssignee(card, item, uid) {
+  if (card.plan || batchBusy.value) return;
+  const index = item.assigneeUids.indexOf(uid);
+  if (index >= 0) item.assigneeUids.splice(index, 1); else item.assigneeUids.push(uid);
+  invalidateBatchSettlement(card);
+}
+function confirmBatchSettlement(card) {
+  if (card.plan || card.state !== 'ready' || !batchSettlementPreview(card).ok) return;
+  card.settlementConfirmed = true;
+}
+function refreshBatchCard(card) {
+  if (card.plan || card.state === 'excluded' || card.state === 'reading') return;
+  const validAmount = /^\d+$/.test(card.amount) && Number(card.amount) >= 1 && Number(card.amount) <= MAX_AMOUNT;
+  const validDate = isValidPaymentDate(card.date.replaceAll('-', '/'));
+  card.state = validAmount && validDate ? 'ready' : 'warn';
+  card.reasonText = [!validAmount && '1〜99,999,999円の整数を入力してください。', !validDate && 'レシートの日付を入力してください。', card.notice].filter(Boolean).join(' ');
+}
+function updateBatchAmount(card, value) {
+  if (!getBatchCardState(card.state).canEditAmount || batchBusy.value) return;
+  card.amount = value;
+  invalidateBatchSettlement(card);
+  refreshBatchCard(card);
+}
+function updateBatchStore(card, value) {
+  if (!getBatchCardState(card.state).canEditAmount || batchBusy.value) return;
+  card.store = String(value || '').slice(0, 60);
+  invalidateBatchSettlement(card);
+}
+function updateBatchDate(card, value) {
+  if (!getBatchCardState(card.state).canEditAmount || batchBusy.value) return;
+  card.date = value;
+  invalidateBatchSettlement(card);
+  refreshBatchCard(card);
+}
+function excludeBatchCard(card) {
+  if (!getBatchCardState(card.state).canExclude || batchBusy.value) return;
+  card.previousState = card.state;
+  card.readVersion++;
+  card.state = 'excluded';
+}
+function restoreBatchCard(card) {
+  if (!getBatchCardState(card.state).canRestore || batchBusy.value) return;
+  card.state = card.previousState === 'reading' ? 'readFailed' : card.previousState;
+  if (card.previousState === 'reading') card.notice = '読み取り中に除外しました。金額と日付を手で入力してください。';
+}
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reader.onabort = () => reject(new Error('read-failed'));
+    reader.readAsDataURL(file);
+  });
+}
+function normalizeBatchReceipt(data) {
+  const text = (value, limit) => typeof value === 'string' ? value.trim().slice(0, limit) : '';
+  const number = (value, min, max) => {
+    if (value === null || value === undefined || value === '' || !['number', 'string'].includes(typeof value)) return null;
+    const n = Number(value);
+    return Number.isFinite(n) && n >= min && n <= max ? n : null;
+  };
+  const time = text(data.time, 20);
+  const registrationNumber = text(data.registrationNumber, 20);
+  return {
+    storeName: text(data.storeName, 60),
+    date: typeof data.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.date) && isValidPaymentDate(data.date.replaceAll('-', '/')) ? data.date : '',
+    time: /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time) ? time : '',
+    currency: text(data.currency, 8).toUpperCase(),
+    totalAmount: number(data.totalAmount, 0, MAX_AMOUNT),
+    pointsUsed: number(data.pointsUsed, 0, MAX_AMOUNT),
+    taxIncluded: typeof data.taxIncluded === 'boolean' ? data.taxIncluded : null,
+    registrationNumber: /^T\d{13}$/.test(registrationNumber) ? registrationNumber : '',
+    items: (Array.isArray(data.items) ? data.items : []).slice(0, 100).map(raw => {
+      const item = raw && typeof raw === 'object' ? raw : {};
+      const quantity = number(item.quantity, 1, 999);
+      return {
+        name: text(item.name, 60),
+        lineTotal: number(item.lineTotal ?? item.price, -9999999, 9999999),
+        quantity: Number.isInteger(quantity) ? quantity : null,
+        taxRate: number(item.taxRate, 0, 100),
+      };
+    }),
+  };
+}
+function batchReceiptItems(receipt) {
+  // 印字どおりの明細はreceiptに保持。既存の再編集画面へは金額が判明した行だけを渡す。
+  return (receipt?.items || []).filter(item => Number.isInteger(item.lineTotal)).map(item => {
+    const qty = item.quantity || 1;
+    const taxRate = item.taxRate ?? 0;
+    return { name: item.name || '不明な商品', lineTotal: item.lineTotal, qty, taxRate,
+      rawPrice: qty > 1 ? Math.round(item.lineTotal / qty) : item.lineTotal,
+      price: receipt.taxIncluded === false ? Math.floor(item.lineTotal * (1 + taxRate / 100)) : item.lineTotal,
+      assignees: [],
+    };
+  });
+}
+async function processBatchFiles(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length || batchBusy.value || batchReading.value || hasFrozenCards.value || batchRecoveryError.value || props.eventEnded) return;
+  if (batchCards.value.length + files.length > 5) {
+    batchMessage.value = '一度に確認できるのは5枚までです。選ぶ枚数を減らしてください。';
+    return;
+  }
+  const epoch = batchEpoch;
+  const cards = files.map(() => newBatchCard());
+  batchCards.value.push(...cards);
+  batchReading.value = true;
+  batchMessage.value = '1枚ずつ読み取ります。内容を確認してから登録してください。';
+  for (let i = 0; i < cards.length; i++) {
+    const card = batchCards.value.find(c => c.id === cards[i].id);
+    if (epoch !== batchEpoch) return;
+    if (card.state === 'excluded') continue;
+    const version = card.readVersion;
+    card.reasonText = 'この写真を読み取っています。';
+    batchMessage.value = `${batchCards.value.indexOf(card) + 1} / ${batchCards.value.length}枚目を読み取り中です。`;
+    try {
+      if (!files[i].type.startsWith('image/') || files[i].size > 4 * 1024 * 1024) throw new Error('invalid-file');
+      const image = await readFileAsDataUrl(files[i]);
+      if (epoch !== batchEpoch || version !== card.readVersion) continue;
+      card.image = image;
+      // サーバーの120秒制限まで待つ。手前で次の画像へ進めて通信を重ねない。
+      const result = await httpsCallable(getFunctions(app, 'asia-northeast1'), 'analyzeReceipt', { timeout: 130000 })({ image });
+      if (epoch !== batchEpoch || version !== card.readVersion) continue;
+      const data = normalizeBatchReceipt(result?.data || {});
+      card.receipt = data;
+      card.allocationItems = batchReceiptItems(data).map(item => ({ ...item, assigneeUids: [] }));
+      card.store = data.storeName;
+      const foreign = data.currency && data.currency !== 'JPY';
+      const total = data.totalAmount;
+      card.amount = !foreign && Number.isInteger(total) ? String(total) : '';
+      card.date = data.date;
+      card.notice = foreign ? '外貨の可能性があります。円で支払った金額を確認して入力してください。' : '';
+      if (data.pointsUsed > 0) card.notice += ` ポイント利用 ${data.pointsUsed.toLocaleString()}円。合計はポイントを引く前の金額です。`;
+      if (data.items.some(item => !Number.isInteger(item.lineTotal))) card.notice += ' 金額が不明な明細があります。写真と照らして合計を確認してください。';
+      card.state = 'warn';
+      refreshBatchCard(card);
+    } catch (error) {
+      if (epoch !== batchEpoch || version !== card.readVersion) continue;
+      card.state = 'readFailed';
+      card.notice = error.message === 'invalid-file' ? '4MB以下の画像を選んでください。手入力もできます。' : '読み取れませんでした。金額と日付を手で入力してください。';
+      card.reasonText = card.notice;
+    }
+  }
+  if (epoch === batchEpoch) {
+    batchReading.value = false;
+    batchMessage.value = '写真ごとの金額・日付と、読み取り詳細を確認してから登録してください。';
+  }
+}
+async function onBatchFiles(event) {
+  // FileListはinputのvalueを空にすると同時に空になるため、先に独立した配列へ退避する。
+  const files = Array.from(event.target.files || []);
+  event.target.value = '';
+  return processBatchFiles(files);
+}
+function onBatchDragOver() {
+  if (batchCanAdd.value) batchDragging.value = true;
+}
+function onBatchDragLeave(event) {
+  if (!event.currentTarget?.contains(event.relatedTarget)) batchDragging.value = false;
+}
+async function onBatchDrop(event) {
+  batchDragging.value = false;
+  if (!batchCanAdd.value) {
+    batchMessage.value = batchCards.value.length >= 5
+      ? '一度に確認できるのは5枚までです。登録後に次のレシートを追加できます。'
+      : '現在の読み取りまたは保存を完了してから追加してください。';
+    return;
+  }
+  return processBatchFiles(event.dataTransfer?.files);
+}
+function describeBatchFailure(reason) {
+  const messages = {
+    ended: 'イベントは終了しています。',
+    'participants-changed': 'イベントの参加者が変更されています。',
+    'permission-denied': '登録する権限を確認できませんでした。',
+    unauthenticated: 'ログイン状態を確認してください。',
+    'invalid-date': '日付が正しくありません。',
+    'invalid-amount': '金額が正しくありません。',
+    'invalid-event': 'イベントを確認できませんでした。',
+    'not-saved': 'サーバーで未保存を確認しました。',
+    'no-firestore': '保存の準備ができませんでした。',
+  };
+  return messages[reason] || '登録内容または通信状態を確認してください。';
+}
+function saveResultToCard(card, result) {
+  card.state = ({ saved: 'saved', already: 'saved', failed: 'saveFailed', unknown: 'unknown' })[result.status] || 'unknown';
+  card.sideEffectFails = result.sideEffectFails || card.sideEffectFails || [];
+  card.reasonText = result.status === 'already' ? '同じIDの保存を確認しました。追加登録はしていません。'
+    : card.state === 'unknown' ? '保存結果が分かりません。このタブを残して「保存結果を確認」を押してください。'
+    : card.state === 'saveFailed' ? `保存されていません。${describeBatchFailure(result.reason)} 登録情報を保持しています。` : '';
+  if (card.sideEffectFails.includes('チャット')) card.reasonText += ' 支払いは保存済みですが、チャットの反映を確認できません。';
+  if (card.sideEffectFails.includes('お知らせ')) card.reasonText += ' 支払いは保存済みですが、お知らせの反映を確認できません。';
+}
+async function notifySavedCards(cards) {
+  const targets = cards.filter(card => card.state === 'saved' && card.plan?.ids?.historyId);
+  if (!targets.length) return;
+  try {
+    await publishPaymentAddedNotifications({
+      eventId: props.eventId,
+      operationId: batchOperationId.value,
+      historyIds: [...new Set(targets.map(card => card.plan.ids.historyId))],
+    });
+    targets.forEach(card => { card.sideEffectFails = card.sideEffectFails.filter(kind => kind !== 'お知らせ'); });
+  } catch {
+    targets.forEach(card => {
+      if (!card.sideEffectFails.includes('お知らせ')) card.sideEffectFails.push('お知らせ');
+      if (!card.reasonText.includes('お知らせの反映を確認できません')) {
+        card.reasonText += ' 支払いは保存済みですが、お知らせの反映を確認できません。';
+      }
+    });
+  }
+  persistBatch();
+}
+async function saveBatchCards(cards) {
+  if (batchBusy.value || batchReading.value || batchRecoveryError.value || props.eventEnded || !props.eventId || !props.myUid) return;
+  const targets = cards.filter(c => c.state === 'saveFailed' ? !!c.plan : (c.state === 'ready' && c.settlementConfirmed));
+  const epoch = batchEpoch;
+  const baseContext = { eventId: props.eventId, eventName: props.eventName, participantUids: participants.value.map(p => p.id), participantNames: Object.fromEntries(participants.value.map(p => [p.id, p.name])), eventEnded: props.eventEnded };
+  const confirmed = [];
+  batchBusy.value = true;
+  try {
+    for (const card of targets) {
+      if (epoch !== batchEpoch) return;
+      if (!card.plan) {
+        if (!batchOperationId.value) batchOperationId.value = crypto.randomUUID();
+        const preview = batchSettlementPreview(card);
+        if (!preview.ok) throw new Error('invalid-settlement');
+        const shares = preview.shares;
+        const context = { ...baseContext, creditorUid: card.payerUid };
+        const ids = await prepareSaveIds({ ...context, shares });
+        if (epoch !== batchEpoch) return;
+        const items = card.splitType === 'item'
+          ? card.allocationItems.map(({ assigneeUids, ...item }) => ({ ...item, assignees: assigneeUids.map(uid => context.participantNames[uid]).filter(Boolean) }))
+          : batchReceiptItems(card.receipt);
+        const payment = { payer: context.participantNames[context.creditorUid], itemName: card.store || '不明な店舗', amount: Number(card.amount), date: card.date.replaceAll('-', '/'),
+          time: card.receipt?.time || '', registrationNumber: card.receipt?.registrationNumber || null,
+          splitType: card.splitType, taxMode: card.receipt?.taxIncluded === false ? 'aggregate' : 'included',
+          items, receipt: card.receipt ? JSON.parse(JSON.stringify(card.receipt)) : null,
+          remainder: card.notice ? { amount: 0, name: context.participantNames[context.creditorUid], reason: card.notice } : null };
+        const plan = { ...context, shares, ids, payment };
+        if (!validateSavePlan(plan).ok) throw new Error('invalid-plan');
+        card.plan = plan;
+      }
+      card.state = 'saving';
+      if (!persistBatch()) { card.state = 'saveFailed'; return; }
+      let result;
+      try { result = await saveOnePayment({ ...card.plan, previousSideEffectFails: card.sideEffectFails }); }
+      catch { result = { status: 'unknown' }; }
+      if (epoch !== batchEpoch) return;
+      saveResultToCard(card, result);
+      if (['saved', 'already'].includes(result.status)) confirmed.push(card);
+      if (!persistBatch()) return;
+    }
+    if (epoch === batchEpoch) await notifySavedCards(confirmed);
+  } catch {
+    batchMessage.value = '登録の準備ができませんでした。参加者・立替者・金額・日付を確認してください。';
+  } finally { if (epoch === batchEpoch) batchBusy.value = false; }
+}
+async function confirmBatchCard(card) {
+  if (batchBusy.value || card.state !== 'unknown' || !card.plan) return;
+  const epoch = batchEpoch;
+  batchBusy.value = true;
+  try {
+    const result = await confirmSavedOnServer({ eventId: card.plan.eventId, historyId: card.plan.ids.historyId, plan: card.plan });
+    if (epoch !== batchEpoch) return;
+    saveResultToCard(card, result);
+    if (result.status === 'saved') {
+      const recovery = await recoverPaymentSideEffects({ ...card.plan, previousSideEffectFails: card.sideEffectFails });
+      card.sideEffectFails = recovery.sideEffectFails || card.sideEffectFails;
+      card.reasonText = card.sideEffectFails.includes('チャット')
+        ? '支払いは保存済みですが、チャットの反映を確認できません。'
+        : '支払いとチャットの保存を確認しました。';
+      await notifySavedCards([card]);
+    }
+    persistBatch();
+  } finally { if (epoch === batchEpoch) batchBusy.value = false; }
+}
+function startNextBatch() {
+  if (batchBusy.value || batchReading.value || batchRecoveryError.value || batchCards.value.some(c => !['saved', 'excluded'].includes(c.state))) return;
+  batchCards.value = [];
+  batchOperationId.value = '';
+  if (!persistBatch()) return;
+  batchMessage.value = '';
+}
+watch(() => [props.eventId, props.myUid], loadBatch, { immediate: true });
+watch(participants, list => {
+  if (hasFrozenCards.value) return;
+  const ids = new Set(list.map(p => p.id));
+  const fallback = list.find(p => p.id === props.myUid)?.id || list[0]?.id || '';
+  batchCards.value.forEach(card => {
+    if (!ids.has(card.payerUid)) card.payerUid = fallback;
+    card.allocationItems?.forEach(item => { item.assigneeUids = (item.assigneeUids || []).filter(uid => ids.has(uid)); });
+    card.customAmounts = Object.fromEntries(Object.entries(card.customAmounts || {}).filter(([uid]) => ids.has(uid)));
+    invalidateBatchSettlement(card);
+  });
+}, { deep: true });
+
 </script>
 
 <style scoped>
@@ -990,4 +1558,80 @@ const executeSubmit = () => {
 .match-status { font-size: 12px; font-weight: 900; margin: 0; padding: 6px 12px; border-radius: 10px; display: inline-block; align-self: flex-start; transition: 0.3s; }
 .match-status.matched { color: var(--c-brand); background: var(--c-brand-tint); }
 .match-status.error { color: var(--c-danger); background: #fee2e2; border: 1px dashed var(--c-danger); }
+</style>
+<style scoped>
+.receipt-mode { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; margin: 12px 24px; padding: 4px; border: 1px solid var(--c-line-bold); border-radius: 16px; background: var(--c-surface-2); }
+.receipt-mode button { min-width: 0; min-height: 46px; padding: 10px 8px; border: 0; border-radius: 12px; background: transparent; color: var(--c-text-sub); font-size: 14px; font-weight: 800; }
+.receipt-mode button.active { color: var(--c-brand-strong); background: var(--c-brand-weak); box-shadow: inset 0 0 0 1.5px var(--c-brand); }
+.receipt-mode button:focus-visible { outline: 3px solid color-mix(in srgb, var(--c-brand) 28%, transparent); outline-offset: 2px; }
+.batch-body { overscroll-behavior: contain; padding-bottom: 34px; }
+.batch-intro { margin-top: 14px; padding: 16px; border: 1px solid var(--c-line-bold); border-radius: 18px; background: white; }
+.batch-intro-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.batch-intro h3 { margin: 0; font-size: 16px; color: var(--c-ink); }
+.batch-intro-head span { flex: 0 0 auto; padding: 5px 10px; border-radius: 999px; background: var(--c-brand-weak); color: var(--c-brand-strong); font-size: 12px; font-weight: 900; }
+.batch-intro p { margin: 8px 0 0; color: var(--c-text-sub); font-size: 12px; font-weight: 700; line-height: 1.65; }
+.batch-complete { display: flex; align-items: center; gap: 12px; padding: 16px; border: 1px solid color-mix(in srgb, var(--c-brand) 35%, white); border-radius: 18px; background: var(--c-brand-weak); }
+.batch-complete-icon { flex: 0 0 auto; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; background: var(--c-brand); color: white; font-size: 22px; font-weight: 900; }
+.batch-complete h3 { margin: 0; color: var(--c-brand-strong); font-size: 16px; }
+.batch-complete p { margin: 4px 0 0; color: var(--c-text-sub); font-size: 12px; line-height: 1.55; }
+.batch-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; margin: 12px 0; }
+.batch-field .standard-input { font-size: 16px; }
+.batch-entry { margin: 16px 0; padding: 0; border: 0; min-width: 0; }
+.batch-entry legend { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.batch-finished-card { padding: 14px 16px; border: 1px solid var(--c-line-bold); border-radius: 16px; background: white; }
+.batch-finished-main { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 10px; }
+.batch-finished-main > span { min-width: 48px; height: 28px; padding: 0 9px; display: grid; place-items: center; box-sizing: border-box; border-radius: 999px; background: var(--c-brand-weak); color: var(--c-brand-strong); font-size: 11px; font-weight: 900; line-height: 1; white-space: nowrap; }
+.batch-finished-main div { min-width: 0; }
+.batch-finished-main strong, .batch-finished-main small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.batch-finished-main strong { font-size: 14px; }.batch-finished-main small { margin-top: 3px; color: var(--c-text-sub); font-size: 11px; }
+.batch-finished-main b { color: var(--c-ink); font-size: 16px; white-space: nowrap; }
+.batch-finished-card > p, .batch-finished-card details p { margin: 9px 0 0; color: var(--c-text-sub); font-size: 12px; }
+.batch-finished-card > .batch-finished-warning { padding: 9px 10px; border-radius: 10px; background: #fff7ed; color: #9a3412; font-weight: 700; line-height: 1.55; }
+.batch-finished-card details { margin-top: 9px; border-top: 1px solid var(--c-line-bold); }
+.batch-finished-card summary { min-height: 42px; display: flex; align-items: center; color: var(--c-brand-strong); font-size: 12px; font-weight: 800; cursor: pointer; }
+.batch-finished-card.excluded { opacity: .7; }
+.batch-settlement { margin-top: 10px; padding: 16px; border: 1px solid var(--c-line-bold); border-radius: 20px; background: white; }
+.batch-settlement-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.batch-settlement-head h4 { margin: 0; color: var(--c-ink); font-size: 15px; }
+.batch-settlement-head span { flex: 0 0 auto; padding: 5px 9px; border-radius: 999px; background: var(--c-surface-2); color: var(--c-text-sub); font-size: 11px; font-weight: 900; }
+.batch-settlement-head span.confirmed { background: var(--c-brand-weak); color: var(--c-brand-strong); }
+.batch-split-tabs { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px; margin: 12px 0; }
+.batch-split-tabs button { min-height: 44px; padding: 7px 5px; border: 1px solid var(--c-line-bold); border-radius: 11px; background: var(--c-surface-2); color: var(--c-text-sub); font-size: 11px; font-weight: 800; }
+.batch-split-tabs button.active { border-color: var(--c-brand); background: var(--c-brand-weak); color: var(--c-brand-strong); }
+.batch-split-tabs button:disabled { opacity: .42; }
+.batch-settlement-note { margin: 8px 0; color: var(--c-text-sub); font-size: 11px; line-height: 1.55; }
+.batch-custom-grid { display: grid; gap: 8px; }
+.batch-custom-grid label { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--c-text-sub); font-size: 13px; font-weight: 700; }
+.batch-custom-grid label span { display: flex; align-items: center; gap: 5px; }
+.batch-custom-grid input { width: 100px; min-height: 42px; box-sizing: border-box; border: 1px solid var(--c-line-bold); border-radius: 10px; background: var(--c-surface-2); padding: 8px; text-align: right; font-size: 16px; font-weight: 800; }
+.batch-item-splits { display: grid; gap: 10px; margin: 12px 0; }
+.batch-item-split { padding: 11px; border: 1px solid var(--c-line-bold); border-radius: 12px; background: var(--c-surface-2); }
+.batch-item-split p { display: flex; justify-content: space-between; gap: 8px; margin: 0 0 8px; font-size: 12px; }
+.batch-item-split div { display: flex; flex-wrap: wrap; gap: 6px; }
+.batch-item-split button { min-height: 38px; padding: 7px 9px; border: 1px solid var(--c-line-bold); border-radius: 999px; background: white; color: var(--c-text-sub); font-size: 11px; }
+.batch-item-split button.active { border-color: var(--c-brand); background: var(--c-brand-weak); color: var(--c-brand-strong); font-weight: 800; }
+.batch-share-preview { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; padding: 11px; border-radius: 12px; background: var(--c-surface-2); }
+.batch-share-preview strong { flex-basis: 100%; font-size: 12px; }
+.batch-share-preview span { padding: 5px 8px; border-radius: 999px; background: white; color: var(--c-text); font-size: 11px; font-weight: 800; }
+.batch-share-preview p { margin: 0; color: var(--c-pay-strong); font-size: 12px; line-height: 1.55; }
+.batch-confirm-settlement { width: 100%; min-height: 46px; margin-top: 12px; border: 1px solid var(--c-brand); border-radius: 12px; background: white; color: var(--c-brand-strong); font-size: 14px; font-weight: 900; }
+.batch-confirm-settlement.confirmed { background: var(--c-brand); color: white; }
+.batch-confirm-settlement:disabled { opacity: .45; }
+.batch-settlement-frozen p { margin: 10px 0; color: var(--c-text-sub); font-size: 12px; }
+.batch-capture-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.batch-drop-zone { padding: 8px; border: 2px dashed transparent; border-radius: 20px; transition: border-color .16s ease, background .16s ease; }
+.batch-drop-zone.is-dragover { border-color: var(--c-brand); background: var(--c-brand-weak); }
+.batch-drop-zone.is-disabled { opacity: .72; }
+.batch-drop-copy { display: block; margin: 9px 4px 1px; color: var(--c-text-sub); font-size: 11px; font-weight: 700; text-align: center; }
+.batch-capture-button { flex: 1 1 130px; min-height: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 12px 8px; border: 1px solid var(--c-line-bold); border-radius: 16px; background: white; color: var(--c-text); }
+.batch-capture-button svg { width: 25px; height: 25px; fill: none; stroke: var(--c-brand); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.batch-capture-button strong { font-size: 14px; }
+.batch-capture-button span { color: var(--c-text-sub); font-size: 11px; }
+.batch-capture-button:disabled { opacity: .45; }
+.batch-photo-hint { margin: 10px 2px 0; color: var(--c-text-sub); font-size: 12px; line-height: 1.6; }
+.batch-message { font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.batch-secondary { min-height: 46px; padding: 12px 14px; font-size: 14px; border: 1px solid var(--c-line-bold); border-radius: 12px; background: white; color: var(--c-text); }
+.batch-secondary:disabled, .receipt-mode button:disabled { opacity: .5; }
+@media (max-width: 600px) { .batch-drop-copy { display: none; } }
+@media (max-width: 360px) { .batch-body { padding: 16px; } }
 </style>

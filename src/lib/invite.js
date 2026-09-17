@@ -1,12 +1,12 @@
 // イベント招待（event_invite 通知）の共通処理。
 // お知らせベルだけでなく、イベント一覧・ホームの招待カードからも同じ手順で参加/辞退できるようにする。
 // 手順は既存のお知らせベルと同じ：
-//   参加 … events.participants に自分を追加 → 既存メンバーへ event_joined 通知 → 招待通知を既読化
+//   参加 … events.participants に自分を追加 → 招待通知を既読化
 //   辞退 … 招待した人へ invite_rejected 通知 → 招待通知を既読化
 
 import { db, auth } from '@/firebase';
 import {
-  collection, doc, addDoc, getDoc, updateDoc,
+  collection, doc, addDoc, updateDoc,
   query, where, onSnapshot, arrayUnion, serverTimestamp,
 } from 'firebase/firestore';
 import { getMyName, getUserName } from './userName';
@@ -36,41 +36,13 @@ export function subscribePendingInvites(uid, onChange) {
   }, () => { onChange([]); });
 }
 
-// 招待を受ける＝自分をイベント参加者に追加し、既存メンバーへ参加をお知らせする。
+// 招待を受ける＝自分をイベント参加者に追加する。
 // 成功したら { ok: true, eventId } を返す。
 export async function acceptEventInvite(invite) {
   const myUid = auth.currentUser?.uid;
   if (!myUid || !invite?.eventId) return { ok: false, eventId: null };
 
-  // 追加する前の参加者を控える（この人たちにお知らせを送る）
-  let existing = [];
-  let evName = invite.eventName || '';
-  try {
-    const ev = await getDoc(doc(db, 'events', invite.eventId));
-    if (ev.exists()) {
-      existing = ev.data().participants || [];
-      evName = ev.data().name || evName;
-    }
-  } catch (e) { /* 読めなくても通知の内容で続行する */ }
-
   await updateDoc(doc(db, 'events', invite.eventId), { participants: arrayUnion(myUid) });
-
-  const myName = await myDisplayName(myUid);
-  for (const uid of existing) {
-    if (uid === myUid) continue;
-    try {
-      await addDoc(collection(db, 'notifications'), {
-        toUserId: uid,
-        type: 'event_joined',
-        eventId: invite.eventId,
-        eventName: evName,
-        fromUserId: myUid,
-        fromUserName: myName,
-        isRead: false,
-        createdAt: serverTimestamp(),
-      });
-    } catch (e) { /* 1人分の通知が失敗しても参加自体は成立させる */ }
-  }
 
   if (invite.id) {
     try { await updateDoc(doc(db, 'notifications', invite.id), { isRead: true }); } catch (e) {}
