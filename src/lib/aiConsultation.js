@@ -61,7 +61,7 @@ export function buildConditionalReplySuggestions({ conditions = {}, amount = 0 }
     }
     return [
       { label: '支払える条件を伝える', text: `${usableMethod ? `${usableMethod}で` : ''}${deadline || '都合のよい日までに'}${amountText ? `${amountText}を` : ''}支払えます。` },
-      { label: '難しい場合を相談する', text: `${usableMethod ? `支払い方法は${usableMethod}を希望します。` : ''}${deadline ? `${deadline}が難しい場合は、別の日を相談させてください。` : '支払日を相談させてください。'}` },
+      { label: '難しい場合を相談する', text: `${usableMethod ? `支払い方法は${usableMethod}を希望します。` : ''}${dueDate ? `${dueDate}が難しい場合は、別の日を相談させてください。` : '支払日を相談させてください。'}` },
     ];
   }
 
@@ -73,7 +73,7 @@ export function buildConditionalReplySuggestions({ conditions = {}, amount = 0 }
   }
   return [
     { label: '希望条件を伝える', text: `${amountText ? `${amountText}を` : ''}${usableMethod ? `${usableMethod}で` : ''}${deadline || '都合のよい日までに'}お願いできますか？` },
-    { label: '難しい場合も確認する', text: `${usableMethod ? `支払い方法は${usableMethod}を希望します。` : ''}${deadline ? `${deadline}が難しい場合は、` : ''}対応できる方法と日を教えてください。` },
+    { label: '難しい場合も確認する', text: `${usableMethod ? `支払い方法は${usableMethod}を希望します。` : ''}${dueDate ? `${dueDate}が難しい場合は、` : ''}対応できる方法と日を教えてください。` },
   ];
 }
 
