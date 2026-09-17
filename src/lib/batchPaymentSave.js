@@ -548,6 +548,10 @@ async function runSideEffects(ctx) {
     if (!sideEffectFails.includes(kind)) sideEffectFails.push(kind)
     console.error(`支払いは保存できたが「${kind}」の反映に失敗:`, e)
   }
+  const clearFailed = (kind) => {
+    const index = sideEffectFails.indexOf(kind)
+    if (index >= 0) sideEffectFails.splice(index, 1)
+  }
 
   if (debtors.length === 0) return // 割り勘の相手がいない＝チャットは作らない
 
@@ -572,6 +576,7 @@ async function runSideEffects(ctx) {
   try {
     if (status === 'saved') {
       await b.ensurePaymentThread(historyId, info())
+      clearFailed('チャット')
       return
     }
 
@@ -583,6 +588,9 @@ async function runSideEffects(ctx) {
     const missing = await paymentThreadMissingOnServer(b, historyId)
     if (missing === true) {
       await b.ensurePaymentThread(historyId, info())
+      clearFailed('チャット')
+    } else if (missing === false) {
+      clearFailed('チャット')
     } else if (missing === null) {
       // 確かめられなかった＝「チャットは反映済み」とは言えない。警告を残す。
       markFailed('チャット', new Error('チャットの有無を確認できませんでした'))
@@ -590,6 +598,53 @@ async function runSideEffects(ctx) {
   } catch (e) {
     markFailed('チャット', e)
   }
+}
+
+/**
+ * 保存結果が不明だった後に履歴の確定を確認できた場合、金額を再送せず付随処理だけを補う。
+ * チャットが既にあれば触らず、無いとサーバーで確認できた場合だけ作成する。
+ */
+export async function recoverPaymentSideEffects(args) {
+  const {
+    eventId,
+    eventName = '',
+    creditorUid,
+    shares,
+    payment = {},
+    ids,
+    participantNames = {},
+    previousSideEffectFails = [],
+    timeoutMs = 10000,
+  } = args || {}
+  const sideEffectFails = [...new Set((previousSideEffectFails || []).filter(Boolean))]
+  const historyId = ids?.historyId || null
+  const check = validateSavePlan(args)
+  if (!check.ok) return makeResult('unknown', historyId, sideEffectFails, check.reason)
+
+  let b
+  try { b = await getBindings() }
+  catch { return makeResult('saved', historyId, [...new Set([...sideEffectFails, 'チャット'])], 'no-firestore') }
+
+  const debtors = debtorsOf(shares, creditorUid)
+  const idByUid = new Map(ids.transactions.map(item => [item.uid, item.id]))
+  const transactionIds = debtors.map(item => idByUid.get(item.uid))
+  await withTimeout(runSideEffects({
+    bindings: b,
+    status: 'already',
+    historyId,
+    debtors,
+    creditorUid,
+    eventId,
+    eventName,
+    itemName: normalizeItemName(payment.itemName),
+    total: Number(payment.amount),
+    transactionIds,
+    participantNames,
+    sideEffectFails,
+  }), timeoutMs).catch(() => {
+    if (!sideEffectFails.includes('チャット')) sideEffectFails.push('チャット')
+  })
+  return makeResult('saved', historyId, sideEffectFails, sideEffectFails.length ? 'side-effect-failed' : null)
 }
 
 /**

@@ -36,7 +36,7 @@ function fakeDb() {
 
 test('保存済みだけに個別通知を作り、同じ登録の再試行で通知を増やさない', async () => {
   const { db, docs } = fakeDb();
-  const input = { db, timestamp: () => 'server-time', authUid: 'u1', data: { eventId: 'e1', historyIds: ['h1', 'missing', 'h2'] } };
+  const input = { db, timestamp: () => 'server-time', authUid: 'u1', data: { eventId: 'e1', operationId: 'op-1', historyIds: ['h1', 'missing', 'h2'] } };
   const first = await publishForRequest(input);
   assert.deepEqual(first, { receiptCount: 2, recipientCount: 2, createdCount: 6 });
   const notifications = [...docs].filter(([path]) => path.startsWith('notifications/')).map(([, value]) => value);
@@ -53,12 +53,23 @@ test('保存済みだけに個別通知を作り、同じ登録の再試行で�
 test('負担額0円の参加者へ送らず、受信者ごとに関係する明細だけを要約する', async () => {
   const { db, docs } = fakeDb();
   docs.set('events/e1/history/h2', { itemName:'夕食', amount:2000, payerUid:'u1', shares:[{uid:'u1',amount:1000},{uid:'u3',amount:1000},{uid:'u2',amount:0},{uid:'u4',amount:0}] });
-  const result = await publishForRequest({ db, timestamp: () => 'server-time', authUid:'u1', data:{eventId:'e1',historyIds:['h1','h2']} });
+  const result = await publishForRequest({ db, timestamp: () => 'server-time', authUid:'u1', data:{eventId:'e1',operationId:'op-2',historyIds:['h1','h2']} });
   assert.deepEqual(result, { receiptCount:2, recipientCount:2, createdCount:5 });
   const notifications = [...docs].filter(([path]) => path.startsWith('notifications/')).map(([, value]) => value);
   assert.equal(notifications.some(item => item.toUserId === 'u4'), false);
   const summaries = notifications.filter(item => item.type === 'payment_batch_added');
   assert.deepEqual(summaries.map(item => [item.toUserId,item.count,item.amount]).sort(), [['u2',1,1000],['u3',2,3000]]);
+});
+
+test('一部保存後の再確認でも同じ登録操作の要約通知を増やさない', async () => {
+  const { db, docs } = fakeDb();
+  const base = { db, timestamp: () => 'server-time', authUid:'u1' };
+  await publishForRequest({ ...base, data:{eventId:'e1',operationId:'same-operation',historyIds:['h1']} });
+  await publishForRequest({ ...base, data:{eventId:'e1',operationId:'same-operation',historyIds:['h2']} });
+  const notifications = [...docs].filter(([path]) => path.startsWith('notifications/')).map(([, value]) => value);
+  assert.equal(notifications.filter(item => item.type === 'payment_batch_added').length, 2, '受信者ごとに要約は1件だけ');
+  assert.equal(notifications.filter(item => item.type === 'payment_added').length, 4, '個別のお知らせは各支払いを保持する');
+  assert.ok(notifications.filter(item => item.type === 'payment_batch_added').every(item => item.operationId === 'same-operation'));
 });
 
 test('個別通知のpushを止め、要約だけに本文を作る', () => {

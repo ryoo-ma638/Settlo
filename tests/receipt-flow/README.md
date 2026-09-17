@@ -169,6 +169,6 @@ RECEIPT_EMULATOR_TEST=1 node --test tests/receipt-flow/emulator.test.mjs
 - 単枚追加も追加のお知らせを作る案。追加のプッシュだけオフにでき、アプリ内記録は残る設定が望ましい。承認依頼/拒否等の対応が必要な通知は追加通知の集約へ巻き込まない。これらは提案で、通知送信の実行許可・実装済みとは扱わない。
 - 現コードは`notifications`の各作成でプッシュを呼ぶため、**表示上4件をまとめるだけでは通知連発を防げない**。アプリ内用の個別通知とプッシュ用の送信経路をサーバーで分離する変更が必要。ネイティブOSの自動グループ化やFCMの未配信メッセージ置換に、1回の送信保証を依存させない。
 - 保存をサーバーで確認できた件だけ通知対象にする。保存不明は成功件数へ含めない。受信者・履歴IDで個別通知、受信者・登録操作IDで送信管理を識別し、再確認/再試行で追加通知を増やさない。途中でアプリが閉じても動くサーバー側の確定・再開処理が必要で、フロントの最後に1回呼ぶだけでは不十分。外部push配信の厳密なexactly-onceは保証しない。要約通知の遷移先で各レシートを確認できることも完成条件にする。
-- 本体/Functions/通知表示・設定は今回未編集。専用の画面案のみ、別入口の案、5枚の仮上限、個別お知らせ＋プッシュ要約1件の見本へ更新。
+- 現在の統合候補では、本体・Functions・通知表示・設定まで実装済み。登録操作IDを再開情報へ保持し、一部保存後の再確認でも同じ受信者への要約プッシュ文書を増やさない。実端末でのFCM受信とFunctions配備後の確認は未実施。
 
 参照した公式指針： [Apple Notifications](https://developer.apple.com/design/human-interface-guidelines/notifications/)（同じ事柄の通知連発を避ける）、[Androidの通知グループ](https://developer.android.com/develop/ui/views/notifications/group)（個別内容を保持しつつ要約だけで知らせる設計）、[FCMの置換可能メッセージ](https://firebase.google.com/docs/cloud-messaging/customize-messages/collapsible-message-types)。OS固有APIをSettloのWebアプリへそのまま使えるという意味ではなく、通知の情報量と割り込み回数を分ける設計の参考。5枚という数値はこれらの公式指針から導いたものではない。

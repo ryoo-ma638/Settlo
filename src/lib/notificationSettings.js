@@ -1,19 +1,8 @@
 import { app, db } from '../firebase'
 import { doc, getDoc, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore'
 import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging'
-
-export const DEFAULT_NOTIFICATION_SETTINGS = Object.freeze({
-  pushEnabled: true,
-  payments: true,
-  chat: true,
-  invites: true,
-  events: false,
-})
-
-export const normalizeNotificationSettings = (value = {}) => ({
-  ...DEFAULT_NOTIFICATION_SETTINGS,
-  ...(value && typeof value === 'object' ? value : {}),
-})
+import { normalizeNotificationSettings, foregroundPushTarget } from './notificationSettingsCore.js'
+export { DEFAULT_NOTIFICATION_SETTINGS, normalizeNotificationSettings, commitNotificationSettingsChange, foregroundPushTarget } from './notificationSettingsCore.js'
 
 export async function loadNotificationSettings(uid) {
   if (!uid) return normalizeNotificationSettings()
@@ -55,6 +44,7 @@ export async function enablePushForCurrentDevice(uid) {
     : await Notification.requestPermission()
   if (permission !== 'granted') return { status: permission }
   await registerCurrentDevice(uid)
+  await listenForForegroundPush()
   return { status: 'granted' }
 }
 
@@ -78,6 +68,14 @@ export async function listenForForegroundPush() {
   foregroundUnsubscribe = onMessage(messaging, (payload) => {
     const title = payload.data?.title || payload.notification?.title || 'Settlo'
     const body = payload.data?.body || payload.notification?.body || '新しいお知らせがあります'
-    try { new Notification(title, { body, icon: '/favicon.ico', tag: payload.data?.tag }) } catch (e) {}
+    try {
+      const notice = new Notification(title, { body, icon: '/favicon.ico', tag: payload.data?.tag, data: { url: payload.data?.url || '/' } })
+      notice.onclick = (event) => {
+        event.preventDefault()
+        window.focus()
+        window.location.assign(foregroundPushTarget(notice.data?.url, window.location.href))
+        notice.close()
+      }
+    } catch (e) {}
   })
 }

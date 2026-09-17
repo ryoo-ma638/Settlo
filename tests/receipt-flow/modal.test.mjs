@@ -221,11 +221,16 @@ test('保存できた明細だけを通知し、失敗分の再試行は別の1�
     store.bindings.runTransaction=(...args)=>{ attempt++; if(attempt===2) return Promise.reject({code:'permission-denied'}); return originalRun(...args); };
     confirmReady(h.api);
     await h.api.saveBatchCards(h.api.batchTargets.value);
-    assert.deepEqual(notifications, [{eventId:'demo-event', historyIds:[first.plan.ids.historyId, third.plan.ids.historyId]}]);
+    assert.equal(notifications.length,1);
+    assert.equal(notifications[0].eventId,'demo-event');
+    assert.ok(notifications[0].operationId);
+    assert.deepEqual(notifications[0].historyIds,[first.plan.ids.historyId, third.plan.ids.historyId]);
     assert.ok(!notifications[0].historyIds.includes(failed.plan.ids.historyId), '保存失敗の明細を追加済み通知へ含めない');
     store.bindings.runTransaction=originalRun;
     await h.api.saveBatchCards([failed]);
-    assert.deepEqual(notifications[1], {eventId:'demo-event', historyIds:[failed.plan.ids.historyId]});
+    assert.equal(notifications[1].eventId,'demo-event');
+    assert.equal(notifications[1].operationId,notifications[0].operationId,'再試行でも同じ登録操作IDを使う');
+    assert.deepEqual(notifications[1].historyIds,[failed.plan.ids.historyId]);
   } finally {h.stop();}
 });
 test('読取中の除外→復帰で遅延結果を上書きせず、追加のOCRを呼ばない', async () => {
@@ -259,6 +264,7 @@ test('結果不明は閉じ直し/再作成でも同じIDを保持し、確認�
     await h.api.confirmBatchCard(h.api.batchCards.value[0]);
     assert.equal(h.api.batchCards.value[0].state,'saved'); assert.equal(store.calls.commits,1);
     assert.equal(store.docs.get('events/demo-event').totalAmount,1000);
+    assert.equal(store.calls.threads,1,'金額を再送せず、欠けたチャットだけを補う');
   } finally {h.stop();}
 });
 test('結果不明→未保存確認→本人の再送でだけ同じIDを使う', async () => {

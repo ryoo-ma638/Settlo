@@ -389,7 +389,7 @@ import { app } from "../firebase";
 import ReceiptResultCard from './ReceiptResultCard.vue';
 import { evenShares } from '../lib/evenShares.js';
 import { getBatchCardState } from '../lib/batchStates.js';
-import { MAX_AMOUNT, isValidPaymentDate, validateSavePlan, prepareSaveIds, saveOnePayment, confirmSavedOnServer } from '../lib/batchPaymentSave.js';
+import { MAX_AMOUNT, isValidPaymentDate, validateSavePlan, prepareSaveIds, saveOnePayment, confirmSavedOnServer, recoverPaymentSideEffects } from '../lib/batchPaymentSave.js';
 import { publishPaymentAddedNotifications } from '../lib/paymentAddedNotifications.js';
 import { getFunctions, httpsCallable } from "firebase/functions"; // ← AI通信に必要なこれらが抜けていました！
 
@@ -919,6 +919,7 @@ const batchRecoveryError = ref(false);
 const batchDragging = ref(false);
 const batchFileInput = ref(null);
 const batchCameraInput = ref(null);
+const batchOperationId = ref('');
 let batchEpoch = 0;
 const storageKey = () => `settlo:receipt-batch:v1:${props.myUid}:${props.eventId}`;
 const defaultBatchPayerUid = () => participants.value.find(p => p.id === props.myUid)?.id || participants.value[0]?.id || '';
@@ -950,7 +951,7 @@ const batchSummary = computed(() => {
 function persistBatch() {
   try {
     // 画像は保持しない。送信済みの内容とIDだけを、このタブで再開するために保持する。
-    sessionStorage.setItem(storageKey(), JSON.stringify({ version: 1, cards: batchCards.value.filter(c => c.plan).map(({ image, ...card }) => card) }));
+    sessionStorage.setItem(storageKey(), JSON.stringify({ version: 2, operationId: batchOperationId.value, cards: batchCards.value.filter(c => c.plan).map(({ image, ...card }) => card) }));
     return true;
   } catch {
     batchMessage.value = '再開用の登録情報をこのタブに保持できません。新しい送信を止めています。';
@@ -966,12 +967,16 @@ function loadBatch() {
   batchRecoveryError.value = false;
   batchMode.value = false;
   batchMessage.value = '';
+  batchOperationId.value = '';
   if (!props.eventId || !props.myUid) return;
   try {
     const raw = sessionStorage.getItem(storageKey());
     if (!raw) return;
     const saved = JSON.parse(raw);
-    if (saved.version !== 1 || !Array.isArray(saved.cards) || saved.cards.length > 5) throw new Error('invalid-recovery');
+    if (![1, 2].includes(saved.version) || !Array.isArray(saved.cards) || saved.cards.length > 5) throw new Error('invalid-recovery');
+    batchOperationId.value = saved.version === 2 && typeof saved.operationId === 'string' && saved.operationId && !saved.operationId.includes('/')
+      ? saved.operationId
+      : crypto.randomUUID();
     const historyIds = new Set();
     for (const c of saved.cards) {
       if (!c.plan || c.plan.eventId !== props.eventId || !validateSavePlan(c.plan).ok || historyIds.has(c.plan.ids.historyId)) throw new Error('invalid-recovery');
@@ -1264,6 +1269,7 @@ async function notifySavedCards(cards) {
   try {
     await publishPaymentAddedNotifications({
       eventId: props.eventId,
+      operationId: batchOperationId.value,
       historyIds: [...new Set(targets.map(card => card.plan.ids.historyId))],
     });
     targets.forEach(card => { card.sideEffectFails = card.sideEffectFails.filter(kind => kind !== 'お知らせ'); });
@@ -1288,6 +1294,7 @@ async function saveBatchCards(cards) {
     for (const card of targets) {
       if (epoch !== batchEpoch) return;
       if (!card.plan) {
+        if (!batchOperationId.value) batchOperationId.value = crypto.randomUUID();
         const preview = batchSettlementPreview(card);
         if (!preview.ok) throw new Error('invalid-settlement');
         const shares = preview.shares;
@@ -1330,7 +1337,11 @@ async function confirmBatchCard(card) {
     if (epoch !== batchEpoch) return;
     saveResultToCard(card, result);
     if (result.status === 'saved') {
-      card.reasonText = '支払いの保存を確認しました。';
+      const recovery = await recoverPaymentSideEffects({ ...card.plan, previousSideEffectFails: card.sideEffectFails });
+      card.sideEffectFails = recovery.sideEffectFails || card.sideEffectFails;
+      card.reasonText = card.sideEffectFails.includes('チャット')
+        ? '支払いは保存済みですが、チャットの反映を確認できません。'
+        : '支払いとチャットの保存を確認しました。';
       await notifySavedCards([card]);
     }
     persistBatch();
@@ -1339,6 +1350,7 @@ async function confirmBatchCard(card) {
 function startNextBatch() {
   if (batchBusy.value || batchReading.value || batchRecoveryError.value || batchCards.value.some(c => !['saved', 'excluded'].includes(c.state))) return;
   batchCards.value = [];
+  batchOperationId.value = '';
   if (!persistBatch()) return;
   batchMessage.value = '';
 }

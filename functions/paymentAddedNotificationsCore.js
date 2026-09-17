@@ -18,8 +18,9 @@ function pushPolicy(data) {
 
 async function publishForRequest({ db, timestamp, authUid, data }) {
   const eventId = data && data.eventId;
+  const operationId = data && data.operationId;
   const historyIds = unique(Array.isArray(data && data.historyIds) ? data.historyIds : []);
-  if (!validId(eventId) || historyIds.length < 1 || historyIds.length > MAX_RECEIPTS || !historyIds.every(validId)) {
+  if (!validId(eventId) || !validId(operationId) || historyIds.length < 1 || historyIds.length > MAX_RECEIPTS || !historyIds.every(validId)) {
     throw appError('invalid-argument', '登録済みの支払いを1〜5件指定してください。');
   }
 
@@ -69,13 +70,13 @@ async function publishForRequest({ db, timestamp, authUid, data }) {
           },
         });
       }
-      const operationId = relatedReceipts.map(item => item.historyId).sort().join('.');
       refsAndData.push({
-        ref: db.collection('notifications').doc(`payment-batch-added.${operationId}.${uid}`),
+        ref: db.collection('notifications').doc(`payment-batch-added.${eventId}.${authUid}.${data.operationId}.${uid}`),
         data: {
           type: 'payment_batch_added', toUserId: uid, fromUserId: authUid, fromUserName,
           eventId, eventName: String(event.name || '').slice(0, 100),
           historyIds: relatedReceipts.map(item => item.historyId), count: relatedReceipts.length,
+          operationId: data.operationId,
           amount: relatedReceipts.reduce((sum, item) => sum + item.amount, 0),
           isRead: true, pushOnly: true, createdAt: timestamp(),
         },
