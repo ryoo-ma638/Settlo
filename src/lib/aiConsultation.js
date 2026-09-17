@@ -7,48 +7,79 @@ const safeCount = (value) => {
   return Number.isFinite(number) && number >= 0 ? Math.floor(number) : 0;
 };
 
-const PAYMENT_METHODS = new Set(['paypay', 'other', 'ask']);
+const PAYMENT_METHODS = new Set(['paypay', 'cash', 'bank']);
+const METHOD_LABELS = { paypay: 'PayPay', cash: '現金', bank: '銀行振込' };
+const PAYMENT_ROLES = new Set(['payer', 'receiver']);
+const METHOD_MODES = new Set(['ask', 'specified']);
+
+const uniqueMethods = (value) => [...new Set((Array.isArray(value) ? value : [])
+  .map((method) => cleanText(method, 20).toLowerCase())
+  .filter((method) => PAYMENT_METHODS.has(method)))];
 
 export function normalizeReplyConditions(value = {}) {
-  const paymentMethod = PAYMENT_METHODS.has(value.paymentMethod) ? value.paymentMethod : 'ask';
+  const methodMode = METHOD_MODES.has(value.methodMode) ? value.methodMode : 'ask';
+  const allowedMethods = uniqueMethods(value.allowedMethods);
+  const blockedMethods = uniqueMethods(value.blockedMethods);
+  const conflicts = [];
+  if (methodMode === 'ask' && (allowedMethods.length || blockedMethods.length)) {
+    conflicts.push('方法を相手に聞く場合は、方法の指定を解除してください。');
+  }
+  allowedMethods.forEach((method) => {
+    if (blockedMethods.includes(method)) {
+      conflicts.push(`${METHOD_LABELS[method]}を「利用できる」と「利用しない」の両方には設定できません。`);
+    }
+  });
   return {
-    paymentMethod,
+    role: PAYMENT_ROLES.has(value.role) ? value.role : 'receiver',
+    methodMode,
+    allowedMethods,
+    blockedMethods,
     dueDate: cleanText(value.dueDate, 40),
+    valid: conflicts.length === 0,
+    conflicts,
   };
 }
 
 // 本人が選んだ支払い方法・日付だけを条件に使い、金額や期限を推測しない。
 export function buildConditionalReplySuggestions({ conditions = {}, amount = 0 } = {}) {
-  const { paymentMethod, dueDate } = normalizeReplyConditions(conditions);
+  const normalized = normalizeReplyConditions(conditions);
+  if (!normalized.valid) return [];
+  const { role, methodMode, allowedMethods, blockedMethods, dueDate } = normalized;
   const amountText = safeCount(amount) > 0 ? `${safeCount(amount).toLocaleString('ja-JP')}円` : '';
   const deadline = dueDate ? `${dueDate}までに` : '';
-  const timing = deadline || '都合のよい日までに';
+  const methods = allowedMethods.map((method) => METHOD_LABELS[method]);
+  const blocked = blockedMethods.map((method) => METHOD_LABELS[method]);
+  const methodText = methods.length ? methods.join('または') : '';
+  const blockedText = blocked.length ? `${blocked.join('・')}以外` : '';
+  const usableMethod = methodText || blockedText;
 
-  if (paymentMethod === 'other') {
+  if (role === 'payer') {
+    if (methodMode === 'ask') {
+      return [
+        { label: '支払い条件を確認する', text: `${amountText ? `${amountText}の` : ''}支払い方法と支払える日を確認して、改めて連絡します。` },
+      ];
+    }
     return [
-      { label: 'PayPay以外をお願いする', text: `PayPay以外の方法でお願いできますか？${deadline ? `${deadline}、` : ''}銀行振込や現金など、可能な方法を教えてください。` },
-      { label: '相手の希望を聞く', text: `PayPay以外で、${timing}対応できる支払い方法を教えてください。` },
+      { label: '支払える条件を伝える', text: `${usableMethod ? `${usableMethod}で` : ''}${deadline || '都合のよい日までに'}${amountText ? `${amountText}を` : ''}支払えます。` },
+      { label: '難しい場合を相談する', text: `${usableMethod ? `支払い方法は${usableMethod}を希望します。` : ''}${deadline ? `${deadline}が難しい場合は、別の日を相談させてください。` : '支払日を相談させてください。'}` },
     ];
   }
-  if (paymentMethod === 'paypay') {
+
+  if (methodMode === 'ask') {
     return [
-      { label: 'PayPayでお願いする', text: `PayPayで大丈夫です。${deadline ? `${deadline}お願いします。` : '支払える日を教えてください。'}` },
-      { label: '難しい場合も確認する', text: `PayPayでお願いします。${deadline ? `${deadline}が難しい場合は、` : ''}別の方法や支払える日を教えてください。` },
-    ];
-  }
-  if (dueDate) {
-    return [
-      { label: '日付を指定する', text: `${amountText ? `${amountText}を` : ''}${dueDate}までにお願いできますか？支払い方法は都合のよい方法を教えてください。` },
-      { label: '難しい場合も確認する', text: `${dueDate}までの支払いが難しい場合は、支払える日と方法を教えてください。` },
+      { label: '方法と日付を確認する', text: `${amountText ? `金額は${amountText}です。` : ''}${dueDate ? `${dueDate}までにお願いできますか？` : ''}利用できる支払い方法と、${dueDate ? '難しい場合は支払える日を' : '支払える日を'}教えてください。` },
+      ...(dueDate ? [{ label: '日付を先に伝える', text: `${dueDate}までにお願いできますか？支払い方法は都合のよい方法を教えてください。` }] : []),
     ];
   }
   return [
-    { label: '方法と日付を確認する', text: `支払い方法と、支払える日を教えてください。${amountText ? `金額は${amountText}です。` : ''}` },
+    { label: '希望条件を伝える', text: `${amountText ? `${amountText}を` : ''}${usableMethod ? `${usableMethod}で` : ''}${deadline || '都合のよい日までに'}お願いできますか？` },
+    { label: '難しい場合も確認する', text: `${usableMethod ? `支払い方法は${usableMethod}を希望します。` : ''}${deadline ? `${deadline}が難しい場合は、` : ''}対応できる方法と日を教えてください。` },
   ];
 }
 
 // Geminiへ渡す内容を、現在の相談に必要な事実と直近の会話だけに絞る。
-// 氏名は送らず、同じ相手を同じ匿名ラベルへ置き換える。
+// 話者IDとfromNameは送らず、同じ相手を同じ匿名ラベルへ置き換える。
+// 件名や本文は利用者の入力を含むため、外部API接続時は送信前の説明と追加の匿名化が必要。
 export function buildAiConsultationRequest({ thread = {}, messages = [], myUid = '', replyConditions = {} } = {}) {
   const aliases = new Map();
   let nextAlias = 1;
@@ -70,7 +101,7 @@ export function buildAiConsultationRequest({ thread = {}, messages = [], myUid =
     }));
 
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     facts: {
       subject: cleanText(thread.subjectLabel, 160),
       eventName: cleanText(thread.eventName, 120),
@@ -91,6 +122,7 @@ export function buildAiConsultationRequest({ thread = {}, messages = [], myUid =
       doNotPerformActions: true,
       replySuggestionsAreDraftsOnly: true,
       branchReplySuggestionsBySelectedConditions: true,
+      userTextMayContainPersonalInformation: true,
     },
   };
 }

@@ -64,8 +64,9 @@
         <p v-if="item.type !== 'event'" class="tcard__record-note">共有するお金の記録は、この画面から消せません。</p>
         <div class="tcard__actions">
           <button v-if="item.type === 'event'" class="btn-brand act" @click="askRestoreEvent(item)">表示を戻す</button>
-          <button v-else-if="item.type === 'payment'" class="btn-brand act" @click="askRestorePayment(item)">取引を復元</button>
-          <button v-else class="btn-brand act" @click="askRestoreSettlement(item)">未精算へ戻す</button>
+          <button v-else-if="item.type === 'payment' && item._loc !== 'shared'" class="btn-brand act" @click="askRestorePayment(item)">取引を復元</button>
+          <button v-else-if="item.type !== 'event' && item._loc !== 'shared'" class="btn-brand act" @click="askRestoreSettlement(item)">未精算へ戻す</button>
+          <button v-else class="btn-outline act" disabled>安全確認中</button>
           <button v-if="item.type === 'event'" class="btn-outline act" @click="askDeleteForever(item)">記録を削除</button>
         </div>
       </div>
@@ -96,7 +97,8 @@
           {{ item.restoredBy === myUid ? '元に戻しました。相手が「正しくない」を選ぶとゴミ箱に戻ります' : `${item.createdByName || '相手'}さんが元に戻しました。お知らせから「正しい／正しくない」を選んでください` }}
         </p>
         <p class="tcard__note" v-else>相手（{{ counterpartyNames(item) }}）の承認を待っています</p>
-        <div class="tcard__actions" v-if="item.status === 'pending'">
+        <p v-if="item._loc === 'shared'" class="tcard__record-note">通知側の安全な復元処理と接続後に操作できます。</p>
+        <div class="tcard__actions" v-if="item.status === 'pending' && item._loc !== 'shared'">
           <button class="btn-outline act" @click="askCancelPending(item)">依頼を取り消す</button>
         </div>
       </div>
@@ -124,11 +126,10 @@ import { ref, computed, reactive, onMounted, onUnmounted } from 'vue';
 import { db, auth } from '@/firebase';
 import {
   collection, query, where, orderBy, onSnapshot, doc, getDoc,
-  updateDoc, deleteDoc, addDoc, serverTimestamp, arrayRemove, increment
+  setDoc, updateDoc, deleteDoc, addDoc, serverTimestamp, arrayRemove, increment
 } from 'firebase/firestore';
 import PageHeader from '@/components/PageHeader.vue';
 import BaseModal from '@/components/BaseModal.vue';
-import { createTrashRestoreStore } from '@/lib/trashRestoreStore';
 
 const tab = ref('event');
 const userItems = ref([]);   // 自分専用（イベントの非表示など）
@@ -140,7 +141,6 @@ const myName = ref('メンバー');
 const myUid = ref('');
 let unsubUser = null;
 let unsubShared = null;
-const trashRestoreStore = createTrashRestoreStore(db);
 
 // 2つのゴミ箱を新しい順にまとめる
 const items = computed(() => {
@@ -160,7 +160,7 @@ const txItems = computed(() => trashedItems.value.filter(i => i.type !== 'event'
 const currentItems = computed(() => (tab.value === 'event' ? eventItems.value : txItems.value));
 const tabHint = computed(() => {
   if (tab.value === 'event') return '自分の一覧から非表示にしたイベントです。イベント本体や、ほかの参加者の一覧には影響しません。';
-  if (tab.value === 'tx') return '削除した立て替えの復元と、精算済みを未精算へ戻す依頼を行います。共有する記録は手動で消せません。';
+  if (tab.value === 'tx') return '削除した立て替えと精算済みの記録を確認します。共有する記録は手動で消せません。安全な復元処理の接続中は操作できません。';
   return '復元の確認、または未精算に戻す承認を待っています。判断中の記録は手動で消せません。現行では元の削除日から7日で自動整理されます。';
 });
 
@@ -199,103 +199,57 @@ const handleConfirm = async (reason) => {
   try { await cb(reason); } finally { restoreBusy.value = false; }
 };
 
-// ---- イベントを元に戻す（相手が「正しくない」を選ぶとゴミ箱に戻る） ----
-// 復元は確認＋任意の理由つき（相手/参加者へ「正しいですか？」の判断が飛ぶため）
+// ---- 自分のイベント一覧へ表示を戻す ----
 const askRestoreEvent = (item) => {
   askConfirm(
     'イベントを一覧に戻しますか？',
-    `「${item.eventName || 'イベント'}」を自分のイベント一覧に再表示します。イベント本体や、ほかの参加者の一覧は変わりません。参加者には操作確認のお知らせが届きます。`,
-    (reason) => restoreEvent(item, reason),
-    { confirmText: '表示を戻す', cancelText: 'やめる', withReason: true, reasonPlaceholder: '表示を戻す理由を書けます（任意・参加者に届きます）' }
+    `「${item.eventName || 'イベント'}」を自分のイベント一覧に再表示します。イベント本体や、ほかの参加者の一覧は変わりません。参加者への通知や確認依頼は送りません。`,
+    () => restoreEvent(item),
+    { confirmText: '表示を戻す', cancelText: 'やめる' }
   );
 };
 const askRestorePayment = (item) => {
-  const shared = item._loc === 'shared';
+  if (item._loc === 'shared') return;
   askConfirm(
     '削除した取引を復元しますか？',
-    `「${item.itemName || '支払い'}」（¥${Number(item.amount || 0).toLocaleString()}）の貸し借りを復元します。${shared ? '相手に内容確認のお知らせが届き、「正しくない」が選ばれた場合は再び削除状態に戻ります。' : ''}`,
-    (reason) => restorePayment(item, reason),
-    shared
-      ? { confirmText: '取引を復元', cancelText: 'やめる', withReason: true, reasonPlaceholder: '復元する理由を書けます（任意・相手に届きます）' }
-      : { confirmText: '取引を復元', cancelText: 'やめる' }
+    `「${item.itemName || '支払い'}」（¥${Number(item.amount || 0).toLocaleString()}）の貸し借りを復元します。`,
+    () => restorePayment(item),
+    { confirmText: '取引を復元', cancelText: 'やめる' }
   );
 };
 
-const restoreEvent = async (item, reason) => {
+const restoreEvent = async (item) => {
   const uid = auth.currentUser?.uid;
   if (!uid) return;
   try {
     // 自分の非表示を解除
     await updateDoc(doc(db, 'events', item.eventId), { hiddenBy: arrayRemove(uid) });
-    // 他の参加者に「復帰しました。正しいですか？」とお知らせ
-    try {
-      const ev = await getDoc(doc(db, 'events', item.eventId));
-      const parts = ev.exists() ? (ev.data().participants || []) : [];
-      for (const p of parts) {
-        if (p === uid) continue;
-        await addDoc(collection(db, 'notifications'), {
-          toUserId: p, type: 'event_restored',
-          eventId: item.eventId, eventName: item.eventName || '',
-          fromUserId: uid, fromUserName: myName.value,
-          userMessage: reason || null,
-          isRead: false, createdAt: serverTimestamp(),
-        });
-      }
-    } catch (e) { console.error('復元通知エラー:', e); }
-    // 🌟 控えは消さずに「復元の確認待ち」として残す
-    //    （相手が「正しくない」を選ぶと hiddenBy が戻り、自己修復でゴミ箱状態に戻る）
-    await updateDoc(doc(db, 'users', uid, 'trash', item.id), {
-      status: 'restored', restoredBy: uid, restoredAt: serverTimestamp(),
-    });
-  } catch (e) { console.error('イベント復元エラー:', e); }
-};
-
-// 🌟 自己修復：復元確認待ちのイベントについて、相手が「正しくない」を選んで
-//    hiddenBy に自分が戻されていたら、ゴミ箱状態（trashed）に自動で戻す
-const reconciling = new Set();
-const reconcileRestoredEvents = async (list) => {
-  const uid = auth.currentUser?.uid;
-  if (!uid) return;
-  for (const item of list) {
-    if (item.type !== 'event' || item.status !== 'restored' || reconciling.has(item.id)) continue;
-    reconciling.add(item.id);
-    try {
-      const ev = await getDoc(doc(db, 'events', item.eventId));
-      if (ev.exists() && (ev.data().hiddenBy || []).includes(uid)) {
-        await updateDoc(doc(db, 'users', uid, 'trash', item.id), { status: 'trashed' });
-      }
-    } catch (e) {} finally { reconciling.delete(item.id); }
+    await deleteDoc(doc(db, 'users', uid, 'trash', item.id));
+  } catch (e) {
+    console.error('イベント表示の復元エラー:', e);
+    actionError.value = 'イベントを一覧へ戻せませんでした。通信状況を確認してください。';
   }
 };
 
-// ---- 削除した支払いを元に戻す（取引・履歴を作り直し、相手に「正しいですか？」確認を送る） ----
-const restorePayment = async (item, reason) => {
+// ---- 旧形式の自分専用データだけを元に戻す ----
+const restorePayment = async (item) => {
+  if (item._loc === 'shared') return;
   const uid = auth.currentUser?.uid;
   if (!uid) return;
   try {
-    if (item._loc === 'shared') {
-      const result = await trashRestoreStore.restoreDeletedPayment({
-        trashId: item.id,
-        actorUid: uid,
-        actorName: myName.value,
-        reason,
-      });
-      if (!['restored', 'already-restored'].includes(result.status)) {
-        console.error('支払い復元を確定できません:', result.status);
-        actionError.value = '取引を復元できませんでした。状態を確認して、もう一度お試しください。';
-      }
-      return;
-    }
-
-    // 旧形式（自分専用）は既存データの互換用。現在の支払い削除は共有ゴミ箱を使う。
     const eventId = item.eventId;
+    const histRef = doc(collection(db, 'events', eventId, 'history'));
     const newTxIds = [];
     for (const tx of (item.transactionSnapshots || [])) {
-      const ref = await addDoc(collection(db, 'transactions'), { ...tx, createdAt: serverTimestamp() });
+      const ref = await addDoc(collection(db, 'transactions'), {
+        ...tx,
+        historyId: histRef.id,
+        createdAt: serverTimestamp(),
+      });
       newTxIds.push(ref.id);
     }
     const hs = item.historySnapshot || {};
-    const histRef = await addDoc(collection(db, 'events', eventId, 'history'), {
+    await setDoc(histRef, {
       ...hs, transactionIds: newTxIds, status: 'unpaid', timestamp: serverTimestamp(),
     });
     await updateDoc(doc(db, 'events', eventId), { totalAmount: increment(Number(item.amount) || 0) });
@@ -308,6 +262,7 @@ const restorePayment = async (item, reason) => {
 
 // ---- 決済を未精算に戻す（相手の承認待ちへ） ----
 const askRestoreSettlement = (item) => {
+  if (item._loc === 'shared') return;
   askConfirm(
     '未精算へ戻す確認を依頼しますか？',
     `「${item.itemName}」（¥${Number(item.amount || 0).toLocaleString()}）を未精算へ戻すには相手の承認が必要です。承認されるまでは精算済みのままです。実際の送金は取り消されません。`,
@@ -316,29 +271,15 @@ const askRestoreSettlement = (item) => {
   );
 };
 const requestSettlementRestore = async (item, reason) => {
+  if (item._loc === 'shared') return;
   const uid = auth.currentUser?.uid;
   if (!uid) return;
   try {
-    if (item._loc === 'shared') {
-      const result = await trashRestoreStore.requestSettlementRestore({
-        trashId: item.id,
-        actorUid: uid,
-        actorName: myName.value,
-        reason,
-      });
-      if (!['pending', 'already-pending'].includes(result.status)) {
-        console.error('未精算戻し依頼を確定できません:', result.status);
-        actionError.value = '確認を依頼できませんでした。状態を確認して、もう一度お試しください。';
-      }
-      return;
-    }
-
-    // 旧形式（自分専用）は従来の通知形式を維持する。
     await updateDoc(trashRef(item), { status: 'pending' });
     for (const c of (item.counterparties || [])) {
       await addDoc(collection(db, 'notifications'), {
         toUserId: c.uid, type: 'settlement_restore_request',
-        trashId: item._loc === 'shared' ? item.id : null, // 承認/拒否でゴミ箱側の状態も更新するため
+        trashId: null,
         eventId: item.eventId || null, eventName: item.eventName || '',
         historyId: item.historyId || null, itemName: item.itemName || '決済',
         amount: item.amount || 0, transactionIds: item.transactionIds || [],
@@ -357,21 +298,7 @@ const requestSettlementRestore = async (item, reason) => {
 const askCancelPending = (item) => {
   askConfirm('依頼を取り消しますか？', `「${item.itemName}」を未精算に戻す依頼を取り消します。`, async () => {
     try {
-      const uid = auth.currentUser?.uid;
-      if (item._loc === 'shared' && uid && item.restoreRequestId) {
-        const result = await trashRestoreStore.cancelSettlementRestore({
-          trashId: item.id,
-          actorUid: uid,
-          restoreRequestId: item.restoreRequestId,
-        });
-        if (!['cancelled', 'stale-request'].includes(result.status)) {
-          console.error('未精算戻し依頼を取り消せません:', result.status);
-          actionError.value = '依頼を取り消せませんでした。状態を確認してください。';
-        }
-      } else {
-        // requestIdのない旧データは従来どおりゴミ箱へ戻す。
-        await updateDoc(trashRef(item), { status: 'trashed' });
-      }
+      await updateDoc(trashRef(item), { status: 'trashed' });
     } catch (e) {
       console.error(e);
       actionError.value = '依頼を取り消せませんでした。通信状況を確認してください。';
@@ -404,7 +331,6 @@ onMounted(() => {
   const qUser = query(collection(db, 'users', uid, 'trash'), orderBy('trashedAt', 'desc'));
   unsubUser = onSnapshot(qUser, (snap) => {
     userItems.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    reconcileRestoredEvents(userItems.value); // 復元が「正しくない」で差し戻されていたらゴミ箱状態に戻す
     loading.value = false;
   }, (err) => {
     loading.value = false;
@@ -518,4 +444,5 @@ onUnmounted(() => { if (unsubUser) unsubUser(); if (unsubShared) unsubShared(); 
 
 .tcard__actions { display: flex; gap: 8px; margin-top: 14px; }
 .act { padding: 10px 14px; font-size: 13.5px; flex: 1; border-radius: var(--r-md, 12px); font-weight: var(--fw-bold); }
+.act:disabled { cursor: not-allowed; opacity: .58; }
 </style>

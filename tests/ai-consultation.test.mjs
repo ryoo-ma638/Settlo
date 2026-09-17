@@ -8,7 +8,7 @@ import {
   normalizeReplyConditions,
 } from '../src/lib/aiConsultation.js';
 
-test('金額と状態を事実として保ち、氏名を送らず直近20件だけに絞る', () => {
+test('金額と状態を保ち、話者IDとfromNameを除いて直近20件だけに絞る', () => {
   const messages = Array.from({ length: 24 }, (_, index) => ({
     id: `m${index + 1}`,
     fromUid: index % 2 ? 'me' : 'other-user',
@@ -22,7 +22,7 @@ test('金額と状態を事実として保ち、氏名を送らず直近20件だ
       amount: 300, transactionStatus: 'unpaid', participantCount: 3,
       progressDone: 1, progressTotal: 2,
     },
-    replyConditions: { paymentMethod: 'other', dueDate: '9月20日' },
+    replyConditions: { role: 'receiver', methodMode: 'specified', allowedMethods: ['cash', 'bank'], dueDate: '9月20日' },
     messages,
   });
 
@@ -33,23 +33,30 @@ test('金額と状態を事実として保ち、氏名を送らず直近20件だ
   assert.equal(result.messages[0].id, 'm5');
   assert.equal(result.messages[0].speaker, 'participant_1');
   assert.equal(result.messages[1].speaker, 'self');
-  assert.deepEqual(result.replyConditions, { paymentMethod: 'other', dueDate: '9月20日' });
+  assert.deepEqual(result.replyConditions, {
+    role: 'receiver', methodMode: 'specified', allowedMethods: ['cash', 'bank'], blockedMethods: [],
+    dueDate: '9月20日', valid: true, conflicts: [],
+  });
   assert.doesNotMatch(JSON.stringify(result), /実名/);
 });
 
-test('本人がPayPay以外を選ぶと、別の方法を尋ねる返信だけを作る', () => {
+test('受取側は複数の支払い方法と日付を同時に指定できる', () => {
   const replies = buildConditionalReplySuggestions({
-    conditions: { paymentMethod: 'other' }, amount: 300,
+    conditions: {
+      role: 'receiver', methodMode: 'specified',
+      allowedMethods: ['cash', 'bank'], blockedMethods: ['paypay'], dueDate: '9月20日',
+    },
+    amount: 300,
   });
   assert.equal(replies.length, 2);
-  assert.match(replies[0].text, /PayPay以外/);
-  assert.match(replies[0].text, /銀行振込や現金/);
-  assert.doesNotMatch(replies[0].text, /PayPayで大丈夫/);
+  assert.match(replies[0].text, /現金または銀行振込/);
+  assert.match(replies[0].text, /9月20日まで/);
+  assert.match(replies[0].text, /300円/);
 });
 
 test('本人が日付を指定した場合だけ、金額と指定日を返信案へ入れる', () => {
   const replies = buildConditionalReplySuggestions({
-    conditions: { paymentMethod: 'ask', dueDate: '9月20日' }, amount: 300,
+    conditions: { methodMode: 'ask', dueDate: '9月20日' }, amount: 300,
   });
   assert.match(replies[0].text, /300円/);
   assert.match(replies[0].text, /9月20日まで/);
@@ -58,10 +65,29 @@ test('本人が日付を指定した場合だけ、金額と指定日を返信�
   assert.doesNotMatch(unspecified[0].text, /9月20日/);
 });
 
-test('不正な条件は推測せず、安全な未指定へ戻す', () => {
-  assert.deepEqual(normalizeReplyConditions({ paymentMethod: 'crypto', dueDate: 'x'.repeat(80) }), {
-    paymentMethod: 'ask', dueDate: 'x'.repeat(40),
+test('矛盾する方法は黙って上書きせず、選び直しを要求する', () => {
+  const conditions = normalizeReplyConditions({
+    methodMode: 'specified', allowedMethods: ['paypay', 'cash'], blockedMethods: ['paypay'],
   });
+  assert.equal(conditions.valid, false);
+  assert.match(conditions.conflicts[0], /PayPay/);
+  assert.deepEqual(buildConditionalReplySuggestions({ conditions }), []);
+});
+
+test('相手に聞く条件と方法指定は排他にし、条件解除後は有効に戻る', () => {
+  const invalid = normalizeReplyConditions({ methodMode: 'ask', allowedMethods: ['cash'] });
+  assert.equal(invalid.valid, false);
+  assert.match(invalid.conflicts[0], /指定を解除/);
+  assert.equal(normalizeReplyConditions({ methodMode: 'ask', allowedMethods: [] }).valid, true);
+});
+
+test('支払側には自分が支払える条件、受取側には相手へお願いする文を出す', () => {
+  const base = { methodMode: 'specified', allowedMethods: ['paypay', 'cash'], dueDate: '9月20日' };
+  const payer = buildConditionalReplySuggestions({ conditions: { ...base, role: 'payer' }, amount: 300 });
+  const receiver = buildConditionalReplySuggestions({ conditions: { ...base, role: 'receiver' }, amount: 300 });
+  assert.match(payer[0].text, /支払えます/);
+  assert.match(receiver[0].text, /お願いできますか/);
+  assert.doesNotMatch(payer[0].text, /お願いできますか/);
 });
 
 test('AI出力は件数と文字数を制限し、存在しない根拠IDを捨てる', () => {

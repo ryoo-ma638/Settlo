@@ -27,6 +27,13 @@ test('共有する金銭記録には手動削除を出さない', () => {
   assert.match(source, /if \(item.type !== 'event'\) return/);
 });
 
+test('通知側へ未接続の共有復元は実行させない', () => {
+  assert.match(source, /item\._loc !== 'shared'/);
+  assert.match(source, /if \(item\._loc === 'shared'\) return/);
+  assert.match(source, /安全確認中/);
+  assert.match(source, /通知側の安全な復元処理と接続後に操作できます/);
+});
+
 test('画面名と復元操作を対象別の言葉で区別する', () => {
   assert.match(source, /PageHeader title="元に戻す"/);
   assert.match(source, />表示を戻す<\/button>/);
@@ -34,9 +41,10 @@ test('画面名と復元操作を対象別の言葉で区別する', () => {
   assert.match(source, />未精算へ戻す<\/button>/);
 });
 
-test('確認文は影響範囲・相手確認・送金が戻らないことを説明する', () => {
+test('イベント表示と旧形式の未精算戻しは影響範囲を説明する', () => {
   assert.match(source, /ほかの参加者の一覧は変わりません/);
-  assert.match(source, /「正しくない」が選ばれた場合は再び削除状態に戻ります/);
+  assert.match(source, /参加者への通知や確認依頼は送りません/);
+  assert.doesNotMatch(source, /type: 'event_restored'/);
   assert.match(source, /承認されるまでは精算済みのままです/);
   assert.match(source, /実際の送金は取り消されません/);
 });
