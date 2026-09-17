@@ -49,6 +49,48 @@
       </div>
     </div>
 
+    <!-- 返信の下書き。条件を選ぶと文案が出る。入力欄に入れるだけで、送信は本人が行う -->
+    <div v-if="txData" class="rh">
+      <button class="rh__toggle" @click="replyOpen = !replyOpen">
+        {{ replyOpen ? '返信の下書きを閉じる' : '返信を考える' }}
+      </button>
+      <div v-if="replyOpen" class="rh__body">
+        <p class="rh__note">条件を選ぶと文案が出ます。入力欄に入るだけで、送信はご自身で行います。</p>
+
+        <p class="rh__label">支払い方法</p>
+        <div class="rh__row">
+          <button class="rh__chip" :class="{ 'is-on': replyMethodMode === 'ask' }" @click="setMethodMode('ask')">相手に聞く</button>
+          <button class="rh__chip" :class="{ 'is-on': replyMethodMode === 'specified' }" @click="setMethodMode('specified')">指定する</button>
+        </div>
+
+        <template v-if="replyMethodMode === 'specified'">
+          <p class="rh__label">使える方法</p>
+          <div class="rh__row">
+            <button v-for="m in METHODS" :key="'a'+m.key" class="rh__chip"
+              :class="{ 'is-on': replyAllowed.includes(m.key) }" @click="toggleMethod('allow', m.key)">{{ m.name }}</button>
+          </div>
+          <p class="rh__label">使わない方法</p>
+          <div class="rh__row">
+            <button v-for="m in METHODS" :key="'b'+m.key" class="rh__chip"
+              :class="{ 'is-ng': replyBlocked.includes(m.key) }" @click="toggleMethod('block', m.key)">{{ m.name }}</button>
+          </div>
+        </template>
+
+        <p class="rh__label">期限（任意）</p>
+        <input v-model="replyDueDate" class="rh__date" type="text" maxlength="20" placeholder="例：9月20日" />
+
+        <p v-for="c in replyConflicts" :key="c" class="rh__warn">{{ c }}</p>
+
+        <template v-if="replySuggestions.length">
+          <p class="rh__label">返信案</p>
+          <button v-for="r in replySuggestions" :key="r.label" class="rh__sug" @click="useSuggestion(r.text)">
+            <span class="rh__sug-label">{{ r.label }}</span>
+            <span class="rh__sug-text">{{ r.text }}</span>
+          </button>
+        </template>
+      </div>
+    </div>
+
     <div class="thread__quick">
       <button v-for="q in QUICK_REPLIES" :key="q" class="quick-chip" :disabled="sending" @click="send(q)">{{ q }}</button>
     </div>
@@ -72,7 +114,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
 import {
@@ -84,11 +126,48 @@ import { ensureThread, resolveThreadForTx, postPaymentEventByTx } from '@/lib/th
 import { getUserName } from '@/lib/userName';
 import { groupReadLabel, lastReadMessageId } from '@/lib/readReceipt';
 import { logApprovalBoth } from '@/lib/approvalLog';
+import { buildConditionalReplySuggestions, normalizeReplyConditions } from '@/lib/aiConsultation';
 import { findBatchApprovalRequests, revertCounterTransactions, COUNTER_REVERT_TEXT } from '@/lib/settlement';
 import { REJECTED_PATCH, COMPLETED_PATCH } from '@/lib/transactionPatch';
 
 // クイック返信の定型文
 const QUICK_REPLIES = ['ありがとう！', '確認しました', 'もう少し待って', 'OKです'];
+
+// 返信の下書き。支払い方法と期限だけを条件にし、金額や状況は推測しない。
+// 出した文案は入力欄へ入れるだけで、送信は本人が行う（勝手に送らない）。
+const METHODS = [{ key: 'paypay', name: 'PayPay' }, { key: 'cash', name: '現金' }, { key: 'bank', name: '銀行振込' }];
+const replyOpen = ref(false);
+const replyRole = ref('receiver');
+const replyMethodMode = ref('ask');
+const replyAllowed = ref([]);
+const replyBlocked = ref([]);
+const replyDueDate = ref('');
+
+// 「相手に聞く」と方法の指定は同時に選べない（条件が矛盾するため）
+const setMethodMode = (mode) => {
+  replyMethodMode.value = mode;
+  if (mode === 'ask') { replyAllowed.value = []; replyBlocked.value = []; }
+};
+const toggleMethod = (kind, key) => {
+  const list = kind === 'allow' ? replyAllowed : replyBlocked;
+  const other = kind === 'allow' ? replyBlocked : replyAllowed;
+  const i = list.value.indexOf(key);
+  if (i >= 0) { list.value.splice(i, 1); return; }
+  const j = other.value.indexOf(key);
+  if (j >= 0) other.value.splice(j, 1);  // 「使える」と「使わない」の両方には入れない
+  list.value.push(key);
+};
+const useSuggestion = (text) => { draft.value = text; replyOpen.value = false; };
+
+const replyConditions = () => ({
+  role: replyRole.value, methodMode: replyMethodMode.value,
+  allowedMethods: replyAllowed.value, blockedMethods: replyBlocked.value,
+  dueDate: replyDueDate.value,
+});
+const replySuggestions = computed(() => buildConditionalReplySuggestions({
+  conditions: replyConditions(), amount: Number(txData.value?.amount) || 0,
+}));
+const replyConflicts = computed(() => normalizeReplyConditions(replyConditions()).conflicts);
 
 const route = useRoute();
 const router = useRouter();
@@ -121,6 +200,11 @@ const readLabel = (m) => {
 // 承認待ちの取引（返信画面から承認/拒否できるように）
 const txId = route.query.tx || '';
 const txData = ref(null);
+
+// 返信の下書きの「立場」は取引から自動で決める（自分が債務者なら払う側）
+watch(txData, (t) => {
+  if (t) replyRole.value = t.paidById === myUid ? 'payer' : 'receiver';
+}, { immediate: true });
 let unsubTx = null;
 const approving = ref(false);
 const canApprove = computed(() => !isGroup.value && txData.value && txData.value.status === 'awaiting_approval' && txData.value.paidToId === myUid);
@@ -404,6 +488,23 @@ const send = async (preset) => {
 .thread__approve-ng { background: var(--c-surface); color: var(--c-text-sub); border: 1px solid var(--c-line-bold); }
 .thread__approve-ok:disabled, .thread__approve-ng:disabled { opacity: 0.5; }
 
+/* 返信の下書き。既存のクイック返信と同じ面に置く */
+.rh { background: var(--c-surface); border-top: 1px solid var(--c-line); }
+.rh__toggle { width: 100%; padding: 10px var(--pad); background: none; border: 0; color: var(--c-brand); font-size: 13px; font-weight: var(--fw-bold); text-align: left; cursor: pointer; }
+.rh__body { padding: 0 var(--pad) 12px; }
+.rh__note { margin: 0 0 10px; font-size: 12px; color: var(--c-text-sub); line-height: 1.6; }
+.rh__label { margin: 10px 0 6px; font-size: 12px; font-weight: var(--fw-bold); color: var(--c-text-sub); }
+.rh__row { display: flex; flex-wrap: wrap; gap: 6px; }
+.rh__chip { padding: 8px 12px; min-height: 36px; border: 1px solid var(--c-line-bold); border-radius: 999px; background: var(--c-surface); color: var(--c-text-sub); font-size: 12px; font-weight: var(--fw-bold); cursor: pointer; }
+.rh__chip.is-on { border-color: var(--c-brand); background: var(--c-brand-weak); color: var(--c-brand); }
+.rh__chip.is-ng { border-color: var(--c-line-strong); background: var(--c-surface-2); color: var(--c-text-faint); text-decoration: line-through; }
+.rh__chip:active { transform: scale(0.96); }
+.rh__date { width: 100%; padding: 10px 12px; border: 1px solid var(--c-line-bold); border-radius: 10px; background: var(--c-surface-2); box-sizing: border-box; }
+.rh__warn { margin: 10px 0 0; font-size: 12px; color: var(--c-danger); line-height: 1.6; }
+.rh__sug { display: block; width: 100%; margin-top: 8px; padding: 10px 12px; border: 1px solid var(--c-line-bold); border-radius: 12px; background: var(--c-surface); text-align: left; cursor: pointer; }
+.rh__sug:active { background: var(--c-surface-2); }
+.rh__sug-label { display: block; font-size: 11px; font-weight: var(--fw-bold); color: var(--c-brand); margin-bottom: 4px; }
+.rh__sug-text { display: block; font-size: 13px; color: var(--c-ink); line-height: 1.6; }
 .thread__quick { display: flex; gap: 8px; overflow-x: auto; padding: 8px var(--pad); background: var(--c-surface); border-top: 1px solid var(--c-line); }
 .quick-chip {
   flex-shrink: 0; background: var(--c-brand-weak); color: var(--c-brand);
