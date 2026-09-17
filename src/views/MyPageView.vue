@@ -16,7 +16,10 @@
         <p class="profile__type">{{ accountType }}</p>
       </section>
 
-      <section class="menu" data-tour="mypage-menu">
+      <div data-tour="mypage-menu">
+        <section class="menu-group" aria-labelledby="menu-0">
+          <h2 class="menu-heading" id="menu-0">自分とフレンド</h2>
+          <div class="menu">
         <button class="menu__item" @click="$router.push('/edit-profile')">
           <svg class="menu__icon" viewBox="0 0 24 24"><path d="M4 20h4L18 10l-4-4L4 16z"/><path d="M13 7l4 4"/></svg>
           <span class="menu__label">プロフィールを変更</span>
@@ -28,7 +31,11 @@
           <span class="menu__label">フレンド管理</span>
           <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
         </button>
-
+          </div>
+        </section>
+        <section class="menu-group" aria-labelledby="menu-1">
+          <h2 class="menu-heading" id="menu-1">支払いの確認</h2>
+          <div class="menu">
         <button class="menu__item" @click="$router.push('/payment-history')">
           <svg class="menu__icon" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
           <span class="menu__label">お支払い履歴</span>
@@ -47,24 +54,31 @@
           <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
         </button>
 
-        <button class="menu__item" @click="$router.push('/help')">
-          <svg class="menu__icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 1 1 3.6 2.6c-.8.5-1.2 1-1.2 1.9"/><path d="M12 17h.01"/></svg>
-          <span class="menu__label">アプリの使い方</span>
-          <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
-        </button>
-
         <button class="menu__item" @click="$router.push('/trash')">
           <svg class="menu__icon" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12"/></svg>
           <span class="menu__label">ゴミ箱</span>
           <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
         </button>
-
+          </div>
+        </section>
+        <section class="menu-group" aria-labelledby="menu-2">
+          <h2 class="menu-heading" id="menu-2">使い方</h2>
+          <div class="menu">
+        <button class="menu__item" @click="$router.push('/help')">
+          <svg class="menu__icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 1 1 3.6 2.6c-.8.5-1.2 1-1.2 1.9"/><path d="M12 17h.01"/></svg>
+          <span class="menu__label">アプリの使い方</span>
+          <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+          </div>
+        </section>
+        <div class="menu menu-logout">
         <button class="menu__item menu__item--danger" @click="logout">
           <svg class="menu__icon" viewBox="0 0 24 24"><path d="M15 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3"/><path d="M10 8l-4 4 4 4"/><path d="M6 12h10"/></svg>
           <span class="menu__label">ログアウト</span>
           <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
         </button>
-      </section>
+        </div>
+      </div>
     </main>
   </div>
 </template>
@@ -213,4 +227,10 @@ onMounted(async () => {
 }
 .menu__item--danger { color: var(--c-danger); }
 .menu__item--danger .menu__icon { stroke: var(--c-danger); }
+
+.menu-group + .menu-group { margin-top: 20px; }
+.menu-heading { margin: 0 4px 8px; color: var(--c-text-sub); font-size: 13px; font-weight: var(--fw-bold); }
+.menu-logout { margin-top: 24px; }
+.profile__name, .menu__label { overflow-wrap: anywhere; }
+.menu__item:focus-visible { outline: 2px solid var(--c-brand); outline-offset: -3px; }
 </style>

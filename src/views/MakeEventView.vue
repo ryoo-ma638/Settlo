@@ -60,7 +60,7 @@
         </div>
 
         <div class="actions">
-          <button class="btn-brand" :disabled="loading" @click="createEvent">
+          <button class="btn-brand" data-footer-action="create-event" :disabled="loading" @click="createEvent">
             {{ loading ? '作成中…' : '作成する' }}
           </button>
         </div>
@@ -69,7 +69,7 @@
       <div v-else>
         <div class="field">
           <label class="field__label">招待コードを入力</label>
-          <input v-model="joinCode" type="text" placeholder="例：A1B2C3" class="input input--code" maxlength="8" />
+          <input ref="joinCodeInput" v-model="joinCode" type="text" placeholder="例：A1B2C3" class="input input--code" maxlength="8" />
         </div>
         <div class="actions">
           <button class="btn-brand" :disabled="loading" @click="joinEvent">参加する</button>
@@ -95,7 +95,7 @@
 </template>
 
 <script setup>
-import { ref, watch, reactive } from 'vue';
+import { ref, watch, reactive, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc, arrayUnion } from 'firebase/firestore';
@@ -113,6 +113,7 @@ const eventName = ref('');
 const eventMemo = ref('');
 const selectedIcon = ref('食事');
 const joinCode = ref('');
+const joinCodeInput = ref(null);
 const loading = ref(false);
 // 鍵付き＝参加にリーダーの承認が必要なイベント（既定はオフ＝これまで通り誰でも参加できる）
 const isLocked = ref(false);
@@ -247,9 +248,12 @@ const joinEvent = async () => {
   }
 };
 
-watch(isJoinMode, () => {
+watch(isJoinMode, async (active) => {
   window.scrollTo({ top: 0, behavior: 'smooth' });
-});
+  if (!active) return;
+  await nextTick();
+  joinCodeInput.value?.focus();
+}, { immediate: true });
 </script>
 
 <style scoped>

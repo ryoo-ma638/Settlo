@@ -13,9 +13,12 @@
       <span>イベント</span>
     </button>
 
-    <button class="botnav__fab" data-tour="nav-add" @click="showAddSheet = true" aria-label="追加">
-      <svg viewBox="0 0 24 24" class="botnav__fab-icon"><path d="M12 6v12M6 12h12"/></svg>
-    </button>
+    <div class="botnav__fab-wrap">
+      <span v-if="contextHint" class="botnav__hint" aria-hidden="true">{{ contextHint }}</span>
+      <button class="botnav__fab" data-tour="nav-add" @click="openAdd" :aria-label="addLabel">
+        <svg viewBox="0 0 24 24" class="botnav__fab-icon"><path d="M12 6v12M6 12h12"/></svg>
+      </button>
+    </div>
 
     <!-- ＋ の選択シート：イベント作成 / お支払い追加 -->
     <Teleport to="body">
@@ -65,7 +68,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import NotifBadge from './NotifBadge.vue';
 import { useNotificationCounts } from '../composables/useNotificationCounts';
@@ -73,6 +76,37 @@ import { useNotificationCounts } from '../composables/useNotificationCounts';
 const route = useRoute();
 const router = useRouter();
 const showAddSheet = ref(false);
+const isEventDetail = computed(() => /^\/event\/[^/]+$/.test(route.path));
+const isEventList = computed(() => route.path === '/event' && route.query.pick !== 'payment');
+const addLabel = computed(() => {
+  if (isEventDetail.value) return 'このイベントにお支払いを追加';
+  if (isEventList.value || route.path === '/make-event') return 'イベントを作成';
+  return '追加';
+});
+const contextHint = computed(() => {
+  if (isEventDetail.value) return 'お支払いを追加';
+  if (isEventList.value) return 'イベントを作成';
+  return '';
+});
+const openAdd = () => {
+  if (isEventDetail.value) {
+    // 詳細画面内の既存ボタンを動かし、画面側の入力条件や終了済み判定をそのまま使う。
+    const addPaymentButton = document.querySelector('[data-tour="ev-addpay"]');
+    if (addPaymentButton instanceof HTMLButtonElement && !addPaymentButton.disabled) {
+      addPaymentButton.click();
+    }
+  } else if (isEventList.value) {
+    router.push('/make-event');
+  } else if (route.path === '/make-event') {
+    // 作成画面では、フォーム内の正式な「作成する」と同じ処理を使う。
+    const createButton = document.querySelector('[data-footer-action="create-event"]');
+    if (createButton instanceof HTMLButtonElement && !createButton.disabled) {
+      createButton.click();
+    }
+  } else {
+    showAddSheet.value = true;
+  }
+};
 
 // フレンド/支払い/イベントの未読件数（リアルタイム）を下ナビのバッジに出す
 const { counts } = useNotificationCounts();
@@ -89,6 +123,7 @@ const isActive = (path) => {
 
 <style scoped>
 .botnav {
+  position: relative;
   flex-shrink: 0;
   /* ⚠️ iPhoneのホームバー余白（safe-area）は高さに「足す」こと。
      66pxの内側に食い込ませるとタブが半分に潰れて見える（実際に起きた） */
@@ -98,6 +133,40 @@ const isActive = (path) => {
   background: var(--c-surface);
   border-top: 1px solid var(--c-line);
   padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.botnav__fab-wrap {
+  position: relative;
+  flex: 0 0 66px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.botnav__hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  z-index: 2;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: var(--c-ink);
+  color: #fff;
+  font-size: 12px;
+  font-weight: var(--fw-bold);
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: var(--shadow-pop);
+  pointer-events: none;
+}
+.botnav__hint::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--c-ink);
 }
 
 .botnav__tab {
@@ -142,7 +211,7 @@ const isActive = (path) => {
   align-self: center;
   width: 54px;
   height: 54px;
-  margin: 0 6px;
+  margin: 0;
   border-radius: 50%;
   background: var(--c-brand);
   display: flex;
