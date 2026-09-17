@@ -1,12 +1,12 @@
 <template>
     <div class="action-container">
-      <PageHeader title="トータル精算" />
+      <PageHeader :title="isRemind ? '受け取り手続き' : '支払い手続き'" />
   
       <main class="content">
         <div class="summary-card" :class="isRemind ? 'blue-mode' : 'orange-mode'">
           <p class="summary-label">{{ $route.params.name }} さん{{ isRemind ? 'へ請求する' : 'に支払う' }}金額</p>
           <h2 class="total-amount">¥{{ Number($route.query.amount).toLocaleString() }}</h2>
-          <p class="hint-badge">複数の貸し借りを相殺した金額です</p>
+          <p class="hint-badge">選んだ貸し借りを差し引いた金額です</p>
           <p v-if="breakdownText" class="hint-detail">{{ breakdownText }}</p>
         </div>
   

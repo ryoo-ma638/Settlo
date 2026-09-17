@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test": "node tests/settlement.test.mjs && node --test tests/paypay-link.test.mjs && node --test tests/friend-transaction-counts.test.mjs tests/friend-view-counts.test.mjs",
+    "test": "node tests/settlement.test.mjs && node --test tests/paypay-link.test.mjs && node --test tests/friend-transaction-counts.test.mjs tests/friend-view-counts.test.mjs tests/friend-detail.test.mjs tests/combined-settlement-flow.test.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "dev:paypay": "node scripts/preview-paypay.mjs"

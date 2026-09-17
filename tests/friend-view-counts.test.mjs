@@ -14,8 +14,9 @@ export const collection=(_db,...path)=>({path:path.join('/')});
 export const where=(field,op,value)=>({field,op,value});
 export const query=(ref,...filters)=>({...ref,filters});
 export const onSnapshot=(ref,next,error)=>{const stream={ref,next,error,active:true};streams.push(stream);return()=>{stream.active=false;};};
-export const doc=()=>{},getDoc=async()=>({exists:()=>false}),serverTimestamp=()=>{};
-export const setDoc=(...args)=>writes.push(args),deleteDoc=setDoc,addDoc=setDoc;
+export const doc=()=>{},getDoc=async()=>({exists:()=>false}),getDocFromServer=getDoc,serverTimestamp=()=>{};
+export const setDoc=(...args)=>writes.push(args),updateDoc=setDoc,deleteDoc=setDoc,addDoc=setDoc;
+export const writeBatch=()=>({set(){},delete(){},commit(){return Promise.resolve();}});
 export default {};
 `).toString('base64');
 const io = await import(mockUrl);
@@ -93,4 +94,12 @@ test('確認が双方向に残るときも一覧に両方渡し、取得失敗�
   assert.deepEqual(state.processedList.find(r=>r.id==='friend').settlement,{unsettled:2,myConfirmation:1,theirConfirmation:1});
   stream('transactions','paidById').error(new Error('offline'));
   assert.equal(state.processedList.find(r=>r.id==='friend').settlement,null);
+});
+test('申請状態を確認できなかった後も、確認ボタンから再取得して承認画面を開ける',async()=>{
+  const request={id:'request-1',formId:'friend',formName:'相手'};
+  state.markApprovalUnknown(request.id);
+  assert.equal(state.approvalStateFor(request),'unknown');
+  await state.openApproveModal(request);
+  assert.equal(state.approvalStateFor(request),'ready');
+  assert.equal(state.isApproveModalOpen,true);
 });

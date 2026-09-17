@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div v-if="isOpen" class="modal-overlay" @click.self="$emit('close')">
+    <div v-if="isOpen" class="modal-overlay" @click.self="close">
       <div class="confirm-view">
         <h2 class="modal-title">フレンド承認</h2>
         
@@ -14,7 +14,8 @@
         <h3 class="name">{{ requestUser.name || requestUser.formName }}</h3>
         </div>
 
-        <p class="question">このユーザーからのフレンド申請を承認しますか？</p>
+        <p class="question">{{ requestUser?.name || requestUser?.formName }}さんからのフレンド申請を承認しますか？</p>
+        <p v-if="approvalState === 'unknown'" class="approval-warning" role="alert">申請の状態を確認できませんでした。通信状況を確認して、もう一度開き直してください。</p>
 
         <div class="trade-history" v-if="tradeHistory.length > 0">
           <h4 class="history-title">この人との取引履歴</h4>
@@ -27,8 +28,9 @@
         <p v-else-if="historyLoaded" class="no-history">この人との取引履歴はまだありません</p>
 
         <div class="actions">
-          <button class="btn execute-btn" @click="approve">承認する</button>
-          <button class="btn cancel-btn" @click="onCancelClick">キャンセル</button>
+          <button class="btn execute-btn" :disabled="saving || approvalState !== 'ready'" @click="approve">{{ saving ? '承認しています…' : approvalState === 'loading' ? '状態を確認しています…' : '承認する' }}</button>
+          <button class="btn cancel-btn" :disabled="saving" @click="close">閉じる</button>
+          <button class="reject-link" :disabled="saving" @click="confirmReject">この申請を拒否する</button>
         </div>
       </div>
     </div>
@@ -57,7 +59,9 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 
 const props = defineProps({
   isOpen: Boolean,
-  requestUser: Object
+  requestUser: Object,
+  saving: Boolean,
+  approvalState: { type: String, default: 'loading' },
 });
 const emit = defineEmits(['close', 'approve', 'reject']);
 
@@ -118,31 +122,25 @@ const handleCancelModal = () => {
   if (modalState.onCancel) modalState.onCancel();
 };
 
-// 🌟 キャンセル時：心当たりがあるか確認（誤操作・知らない人の防止）
-const onCancelClick = () => {
+const close = () => {
+  if (!props.saving) emit('close');
+};
+
+// 拒否は、閉じる操作とは分けて明示的に確認する。
+const confirmReject = () => {
   showModal({
     type: 'warning',
-    title: '確認',
-    message: 'このフレンドは心当たりのない人ですか？\n「はい」で申請を拒否します。',
+    title: '申請を拒否しますか？',
+    message: 'このフレンド申請を一覧から削除します。',
     showCancel: true,
-    confirmText: 'はい',
-    cancelText: 'いいえ',
-    onConfirm: () => { emit('reject', props.requestUser); emit('close'); }, // 知らない人 → 申請を拒否
-    // いいえ → 確認だけ閉じて承認画面に戻る（onCancel なし）
+    confirmText: '拒否する',
+    cancelText: '戻る',
+    onConfirm: () => { emit('reject', props.requestUser); emit('close'); },
   });
 };
 
 const approve = () => {
-  // 🌟 alert を美しいモーダルに
-  showModal({
-    type: 'success',
-    title: '承認完了',
-    message: `${props.requestUser.name || props.requestUser.formName} さんとフレンドになりました！`,
-    onConfirm: () => {
-      emit('approve', props.requestUser);
-      emit('close');
-    }
-  });
+  if (!props.saving && props.approvalState === 'ready') emit('approve', props.requestUser);
 };
 </script>
 
@@ -155,6 +153,7 @@ const approve = () => {
 .avatar { width: 80px; height: 80px; border-radius: 50%; }
 .name { font-size: 22px; margin: 0; font-weight: bold; }
 .question { font-size: 14px; font-weight: bold; color: var(--c-text); margin-bottom: 20px; }
+.approval-warning { margin: -8px 0 18px; padding: 10px; border-radius: 10px; background: var(--c-pay-weak); color: var(--c-text); font-size: 12px; line-height: 1.6; text-align: left; }
 
 .trade-history { background: #fff; padding: 15px; border-radius: 15px; text-align: left; margin-bottom: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
 .history-title { font-size: 12px; color: var(--c-text-sub); margin: 0 0 10px 0; }
@@ -168,6 +167,8 @@ const approve = () => {
 .btn { width: 100%; padding: 15px; border-radius: 15px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; }
 .execute-btn { background: var(--c-brand); color: white; } 
 .cancel-btn { background: var(--c-line-bold); color: var(--c-text-sub); }
+.btn:disabled, .reject-link:disabled { cursor: wait; opacity: .65; }
+.reject-link { border: 0; padding: 4px; background: transparent; color: var(--c-text-sub); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
 
 .avatar-wrapper-large { display: flex; margin: 0 auto 15px auto; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
 </style>
