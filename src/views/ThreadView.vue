@@ -419,7 +419,7 @@ const send = async (preset) => {
 .thread__input {
   flex: 1; box-sizing: border-box; resize: none; max-height: 120px;
   background: var(--c-surface-2); border: 1px solid var(--c-line-strong);
-  border-radius: var(--r-lg); padding: 10px 14px; font-size: 14px; font-family: inherit;
+  border-radius: var(--r-lg); padding: 10px 14px; font-size: 16px; /* 16px未満にするとiOSで入力時に画面が拡大する */ font-family: inherit;
   color: var(--c-ink); outline: none;
 }
 .thread__input:focus { border-color: var(--c-brand); }

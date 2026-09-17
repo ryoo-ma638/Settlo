@@ -62,11 +62,12 @@
           {{ item.createdByName || '相手' }}さんが{{ item.type === 'payment' ? '削除' : '完了に' }}しました
         </p>
         <p v-if="item.type !== 'event'" class="tcard__record-note">共有するお金の記録は、この画面から消せません。</p>
-        <div class="tcard__actions">
+        <p v-if="item._loc === 'shared' && item.type !== 'event'" class="tcard__record-note">相手と共有している記録のため、この画面からは戻せません。</p>
+        <!-- 共有の取引はボタンが1つも出ないので、空の箱で余白だけ残さない -->
+        <div class="tcard__actions" v-if="item.type === 'event' || item._loc !== 'shared'">
           <button v-if="item.type === 'event'" class="btn-brand act" @click="askRestoreEvent(item)">表示を戻す</button>
           <button v-else-if="item.type === 'payment' && item._loc !== 'shared'" class="btn-brand act" @click="askRestorePayment(item)">取引を復元</button>
           <button v-else-if="item.type !== 'event' && item._loc !== 'shared'" class="btn-brand act" @click="askRestoreSettlement(item)">未精算へ戻す</button>
-          <button v-else class="btn-outline act" disabled>安全確認中</button>
           <button v-if="item.type === 'event'" class="btn-outline act" @click="askDeleteForever(item)">記録を削除</button>
         </div>
       </div>
@@ -97,7 +98,7 @@
           {{ item.restoredBy === myUid ? '元に戻しました。相手が「正しくない」を選ぶとゴミ箱に戻ります' : `${item.createdByName || '相手'}さんが元に戻しました。お知らせから「正しい／正しくない」を選んでください` }}
         </p>
         <p class="tcard__note" v-else>相手（{{ counterpartyNames(item) }}）の承認を待っています</p>
-        <p v-if="item._loc === 'shared'" class="tcard__record-note">通知側の安全な復元処理と接続後に操作できます。</p>
+        <p v-if="item._loc === 'shared'" class="tcard__record-note">相手と共有している記録のため、この画面からは取り消せません。</p>
         <div class="tcard__actions" v-if="item.status === 'pending' && item._loc !== 'shared'">
           <button class="btn-outline act" @click="askCancelPending(item)">依頼を取り消す</button>
         </div>

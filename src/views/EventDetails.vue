@@ -1589,7 +1589,7 @@ onMounted(() => {
 /* 🌟 イベント編集モーダル */
 .edit-body { display: flex; flex-direction: column; }
 .edit-label { font-size: 12px; font-weight: 800; color: var(--c-text-sub); margin-bottom: 8px; }
-.edit-input { width: 100%; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--c-line-bold); background: var(--c-surface-2); font-size: 15px; font-weight: 800; color: var(--c-ink); outline: none; box-sizing: border-box; margin-bottom: 20px; }
+.edit-input { width: 100%; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--c-line-bold); background: var(--c-surface-2); font-size: 16px; /* 16px未満にするとiOSで入力時に画面が拡大する */ font-weight: 800; color: var(--c-ink); outline: none; box-sizing: border-box; margin-bottom: 20px; }
 .edit-input:focus { border-color: var(--c-brand); background: #fff; }
 .edit-genre-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 24px; }
 .edit-genre { background: var(--c-surface-2); border: 1.5px solid var(--c-line-bold); border-radius: 16px; padding: 14px 4px 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--c-text-sub); cursor: pointer; transition: 0.15s; }

@@ -120,7 +120,7 @@ const handleSend = () => {
 .text p { margin: 0; font-size: 11px; color: var(--c-text-sub); font-weight: bold; }
 .radio-card.active .text h4 { color: var(--c-danger); }
 .sub-input { display: flex; align-items: center; gap: 10px; padding: 0 10px 10px; margin-top: -5px; }
-.num-input, .date-input { padding: 10px; border-radius: 12px; border: 1px solid var(--c-line-strong); outline: none; font-weight: bold; font-size: 14px; }
+.num-input, .date-input { padding: 10px; border-radius: 12px; border: 1px solid var(--c-line-strong); outline: none; font-weight: bold; font-size: 16px; /* 16px未満にするとiOSで入力時に画面が拡大する */ }
 .num-input { width: 80px; text-align: right; }
 .date-input { flex: 1; }
 .unit { font-size: 14px; font-weight: bold; color: var(--c-text-strong); }
