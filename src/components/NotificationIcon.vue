@@ -61,6 +61,9 @@
                     <template v-else-if="req.type === 'thread_reply'">
                       <button class="mini-btn" @click="openThreadFromReply(req)">会話を開く</button>
                     </template>
+                    <template v-else-if="req.type === 'payment_added'">
+                      <button class="mini-btn" @click="goToPaymentDetail(req)">イベントを見る</button>
+                    </template>
                     <template v-else>
                       <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
                       <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
@@ -143,6 +146,9 @@
               </template>
               <template v-else-if="req.type === 'thread_reply'">
                 <button class="mini-btn" @click="openThreadFromReply(req)">会話を開く</button>
+              </template>
+              <template v-else-if="req.type === 'payment_added'">
+                <button class="mini-btn" @click="goToPaymentDetail(req)">イベントを見る</button>
               </template>
               <template v-else>
                 <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
@@ -294,6 +300,7 @@ const notifBatch = (req) => {
 
 // 通知タイプごとの表示文言・ボタン
 const notifText = (req) => {
+  if (req.type === 'payment_added') return `さんが「${req.itemName || '支払い'}」（¥${Number(req.amount || 0).toLocaleString()}）を追加しました`;
   if (req.type === 'event_settlement_approval_request') return `さんからまとめて精算の受取確認が届いています（¥${(req.amount || 0).toLocaleString()}）`;
   if (req.type === 'event_settlement_rejected') return `さんがまとめて精算の入金を確認できませんでした（¥${(req.amount || 0).toLocaleString()}）`;
   if (req.type === 'event_settlement_approved') return `さんがまとめて精算の受取を確認しました（¥${(req.amount || 0).toLocaleString()}）`;
@@ -337,6 +344,7 @@ const notifText = (req) => {
   return 'さんから支払いの承認リクエストが届いています';
 };
 const notifAction = (req) => {
+  if (req.type === 'payment_added') return 'イベントを見る';
   if (req.type === 'approval_rejected') return 'もう一度支払う';
   if (req.type === 'payment_reminder') return '支払う';
   if (['payment_edited', 'payment_reverted', 'event_edited', 'invite_rejected', 'event_joined', 'settlement_restore_approved', 'settlement_restore_rejected', 'event_left_rejected', 'event_restore_rejected', 'event_rejoin_approved', 'event_join_approved'].includes(req.type)) return 'イベントを見る';
@@ -350,11 +358,11 @@ const isInfoOnly = (t) => INFO_ONLY_TYPES.includes(t);
 const REMOVED_TYPES = ['friend_removed', 'event_member_removed'];
 const isRemovedType = (t) => REMOVED_TYPES.includes(t);
 // 返信できるお知らせ（フレンドを解除された相手には返信の入口を出さない）
-const canReply = (req) => req.type !== 'thread_reply' && req.type !== 'friend_removed'
+const canReply = (req) => !['thread_reply', 'friend_removed', 'payment_added'].includes(req.type)
   && !isEventSettlementType(req.type) && !!req.fromUserId && !req.batch;
 const notifClass = (req) => {
   if (['approval_rejected', 'invite_rejected', 'settlement_restore_rejected', 'restore_reverted', 'event_left_rejected', 'event_restore_rejected', 'event_rejoin_rejected', 'event_join_rejected', 'event_settlement_rejected'].includes(req.type)) return 'notif-item--reject';
-  if (['payment_edited', 'payment_reverted', 'payment_deleted', 'event_edited', 'event_joined', 'event_restored', 'settlement_restore_approved', 'payment_completed', 'profile_updated', 'friend_removed', 'event_member_removed', 'event_rejoin_approved', 'event_join_approved', 'event_settlement_approved'].includes(req.type)) return 'notif-item--info';
+  if (['payment_added', 'payment_edited', 'payment_reverted', 'payment_deleted', 'event_edited', 'event_joined', 'event_restored', 'settlement_restore_approved', 'payment_completed', 'profile_updated', 'friend_removed', 'event_member_removed', 'event_rejoin_approved', 'event_join_approved', 'event_settlement_approved'].includes(req.type)) return 'notif-item--info';
   return 'notif-item--pay';
 };
 
@@ -395,6 +403,12 @@ const goToPaymentDetail = async (req) => {
   try {
     // 「詳細を見る／イベントを見る」だけでは通知を消さない（承認/拒否/確認したときだけ消える）
     showModal.value = false;
+    if (req.type === 'payment_added') {
+      if (!req.eventId || !req.historyId) return;
+      await updateDoc(doc(db, "notifications", req.id), { isRead: true });
+      router.push(`/event/${encodeURIComponent(req.eventId)}?history=${encodeURIComponent(req.historyId)}`);
+      return;
+    }
     // 編集/削除通知は該当イベントへ（対象の取引はもう無い/変わっているため）
     if (req.type === 'payment_edited' || req.type === 'payment_deleted') {
       if (req.eventId) router.push(`/event/${req.eventId}`);
@@ -489,7 +503,7 @@ const acceptInvite = async (req) => {
   try {
     const myUid = auth.currentUser?.uid;
     if (req.eventId && myUid) {
-      // 追加前の参加者を取得（この人たちに参加をお知らせする）
+      // 追加前の参加者を取得（承認制かどうかの判定に使う）
       let existing = [];
       let evName = req.eventName || '';
       let evLocked = false;
@@ -522,18 +536,6 @@ const acceptInvite = async (req) => {
       }
 
       await updateDoc(doc(db, "events", req.eventId), { participants: arrayUnion(myUid) });
-      // 既存メンバーへ通知
-      for (const uid of existing) {
-        if (uid === myUid) continue;
-        try {
-          await addDoc(collection(db, "notifications"), {
-            toUserId: uid, type: 'event_joined',
-            eventId: req.eventId, eventName: evName,
-            fromUserId: myUid, fromUserName: myName,
-            isRead: false, createdAt: serverTimestamp(),
-          });
-        } catch (e) {}
-      }
     }
     await updateDoc(doc(db, "notifications", req.id), { isRead: true });
     showModal.value = false;
@@ -1186,18 +1188,6 @@ const approveRejoin = async (req) => {
         fromUserId: myUid, fromUserName: myName,
         isRead: false, createdAt: serverTimestamp(),
       });
-      // 既存メンバーへ「参加しました」のお知らせ（招待の承認と同じ流儀）
-      for (const uid of existing) {
-        if (uid === myUid || uid === memberUid) continue;
-        try {
-          await addDoc(collection(db, "notifications"), {
-            toUserId: uid, type: 'event_joined',
-            eventId: req.eventId, eventName: evName,
-            fromUserId: memberUid, fromUserName: senderName(req),
-            isRead: false, createdAt: serverTimestamp(),
-          });
-        } catch (e) {}
-      }
     }
     await updateDoc(doc(db, "notifications", req.id), { isRead: true });
     showToast(`${senderName(req)}さんをイベントに戻しました`);
@@ -1254,18 +1244,6 @@ const approveJoin = async (req) => {
         fromUserId: myUid, fromUserName: myName,
         isRead: false, createdAt: serverTimestamp(),
       });
-      // 既存メンバーへ「参加しました」のお知らせ（招待の承認と同じ流儀）
-      for (const uid of existing) {
-        if (uid === myUid || uid === memberUid) continue;
-        try {
-          await addDoc(collection(db, "notifications"), {
-            toUserId: uid, type: 'event_joined',
-            eventId: req.eventId, eventName: evName,
-            fromUserId: memberUid, fromUserName: senderName(req),
-            isRead: false, createdAt: serverTimestamp(),
-          });
-        } catch (e) {}
-      }
     }
     await updateDoc(doc(db, "notifications", req.id), { isRead: true });
     showToast(`${senderName(req)}さんをイベントに追加しました`);

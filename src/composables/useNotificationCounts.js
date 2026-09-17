@@ -24,7 +24,7 @@ const FRIEND_TYPES = new Set([
 // チャット返信 thread_reply はチャットバッジ側で数えるので、支払いバッジには含めない（二重計上を避ける）。
 const PAYMENT_TYPES = new Set([
   'approval_request', 'settlement_restore_request',
-  'payment_reminder', 'approval_rejected', 'payment_completed', 'payment_edited',
+  'payment_reminder', 'approval_rejected', 'payment_completed', 'payment_edited', 'payment_added',
   'payment_deleted', 'payment_delete_rejected', 'payment_reverted',
   'settlement_restore_approved', 'settlement_restore_rejected',
   'restore_check', 'restore_reverted',

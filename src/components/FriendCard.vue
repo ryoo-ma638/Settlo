@@ -4,14 +4,14 @@
       <UserAvatar class="fcard__avatar" :name="user.name" :photo="user.photo" :size="44" />
       <div class="fcard__info">
         <span class="fcard__name">{{ user.name }}</span>
-        <span class="fcard__relationship">{{ user.isFriend ? 'フレンド' : '未フレンド' }}<span v-if="user.isTrading">・取引中</span></span>
+        <span class="fcard__relationship">{{ user.isFriend ? 'フレンド' : 'フレンドではありません' }}<span v-if="user.isTrading">・取引あり</span></span>
       </div>
       <span v-if="user.tradeCountState === 'ready' && user.net" class="fcard__bal" :class="user.net < 0 ? 'is-pay' : 'is-receive'">
         {{ user.net < 0 ? '支払う' : '受け取る' }}
         <span class="fcard__bal-amt">¥{{ Math.abs(user.net).toLocaleString() }}</span>
       </span>
       <span v-else-if="user.settlement?.unsettled && user.tradeCountState === 'ready'" class="fcard__bal fcard__bal--neutral">
-        差し引き<span class="fcard__bal-amt">¥0</span>
+        差額<span class="fcard__bal-amt">¥0</span>
       </span>
       <svg class="fcard__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
     </div>
@@ -26,8 +26,8 @@
       <span v-else class="fcard__count">{{ user.tradeCountState === 'error' ? '取引を取得できません' : '取引を確認中' }}</span>
     </div>
 
-    <div v-if="user.settlement?.myConfirmation || user.settlement?.theirConfirmation" class="fcard__pending" title="確認待ちの件数は、未精算の明細数の内訳です">
-      <span v-if="user.settlement.myConfirmation" class="fcard__pending-own"><svg class="fcard__status-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5 8 2 2 4-4"/></svg>自分の受取確認 <strong>{{ user.settlement.myConfirmation }}件</strong></span>
+    <div v-if="user.settlement?.myConfirmation || user.settlement?.theirConfirmation" class="fcard__pending" title="確認待ちの件数は、未精算の明細に含まれます">
+      <span v-if="user.settlement.myConfirmation" class="fcard__pending-own"><svg class="fcard__status-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5 8 2 2 4-4"/></svg>受け取りを確認 <strong>{{ user.settlement.myConfirmation }}件</strong></span>
       <span v-if="user.settlement.theirConfirmation" class="fcard__pending-other"><svg class="fcard__status-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/></svg>相手の確認待ち <strong>{{ user.settlement.theirConfirmation }}件</strong></span>
     </div>
   </button>

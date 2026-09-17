@@ -1,6 +1,6 @@
 <template>
     <div class="combined-container">
-      <PageHeader title="トータル精算" />
+      <PageHeader title="精算する内容を選ぶ" />
   
       <main class="content">
         <div class="final-card" :class="netBalance >= 0 ? 'receive-bg' : 'pay-bg'">
@@ -17,24 +17,25 @@
   
         <section class="breakdown-section">
           <div class="section-header">
-            <h3 class="section-sub">合算の内訳</h3>
+            <h3 class="section-sub">今回済ませる分</h3>
             <button v-if="filterType !== 'all'" class="reset-filter-btn" @click="filterType = 'all'">すべて表示</button>
           </div>
           
           <div class="comparison-row">
             <div class="comp-box blue-border" :class="{ 'active-box': filterType === 'waiting' }" @click="filterType = 'waiting'">
-              <span>お支払い待ち</span>
+              <span>受け取る分</span>
               <strong>¥{{ waitingTotal.toLocaleString() }}</strong>
             </div>
             <div class="comp-operator">ー</div>
             <div class="comp-box orange-border" :class="{ 'active-box': filterType === 'pay' }" @click="filterType = 'pay'">
-              <span>未払い</span>
+              <span>支払う分</span>
               <strong>¥{{ unpaidTotal.toLocaleString() }}</strong>
             </div>
           </div>
+          <p class="selection-guide">支払いだけ、受け取りだけでも進められます。先に済ませたい明細を残してください。</p>
   
           <div class="event-history">
-            <p class="history-label">対象のイベント一覧（タップで詳細）</p>
+            <p class="history-label">−で今回は外す／＋で戻す（枠をタップすると詳細）</p>
             <div
               v-for="item in displayedEvents"
               :key="item.id"
@@ -69,14 +70,14 @@
 
           <template v-if="hasIncluded">
             <button v-if="settleNet >= 0" class="main-btn blue-btn" @click="goToActionPage('remind')">
-              ¥{{ Math.abs(settleNet).toLocaleString() }} をまとめて催促する
+              ¥{{ Math.abs(settleNet).toLocaleString() }} の受け取りへ
             </button>
             <button v-else class="main-btn orange-btn" @click="goToActionPage('pay')">
-              ¥{{ Math.abs(settleNet).toLocaleString() }} をまとめて支払う
+              ¥{{ Math.abs(settleNet).toLocaleString() }} の支払いへ
             </button>
           </template>
           <button v-else-if="pendingTotal === 0" class="main-btn orange-btn" disabled>
-            まとめて精算する
+            先に済ませたい分を選ぶ
           </button>
         </footer>
       </main>
@@ -272,6 +273,7 @@ onMounted(async () => {
   .blue-border { border-color: var(--c-receive); }
   .orange-border { border-color: var(--c-pay); }
   .comp-operator { padding: 0 10px; font-weight: bold; color: var(--c-text-faint); }
+  .selection-guide { margin: -4px 2px 14px; color: var(--c-text-sub); font-size: 13px; line-height: 1.6; }
   
   .event-history { background: white; border-radius: 20px; padding: 20px; }
   .history-label { font-size: 12px; color: var(--c-text-faint); margin-bottom: 10px; }

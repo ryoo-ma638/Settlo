@@ -1,25 +1,21 @@
 <template>
   <div class="chats">
-    <PageHeader title="チャット" fallback="/" />
+    <PageHeader title="相談" fallback="/" />
 
-    <div class="chats__seg-wrap">
-      <div class="seg">
-        <button class="seg__item" :class="{ 'is-active': mode === 'event' }" @click="mode = 'event'">イベントごと</button>
-        <button class="seg__item" :class="{ 'is-active': mode === 'person' }" @click="mode = 'person'">人ごと</button>
-      </div>
-    </div>
+    <p class="chats__intro">イベントや立て替えについて、最近の相談を新しい順に表示します。</p>
 
     <main class="chats__body">
       <div v-if="loading" class="chats__empty">読み込み中…</div>
+      <div v-else-if="loadError" class="chats__empty" role="alert">
+        <p>{{ loadError }}</p><button class="retry-button" @click="subscribe">もう一度読み込む</button>
+      </div>
       <template v-else>
-        <template v-for="g in groups" :key="g.key">
-          <h2 class="chats__group">{{ g.title }}</h2>
-          <button
-            v-for="m in g.matters"
-            :key="g.key + m.threadId"
-            class="prow"
-            @click="$router.push(`/thread/${m.threadId}`)"
-          >
+        <button
+          v-for="m in visibleMatters"
+          :key="m.threadId"
+          class="prow"
+          @click="$router.push(`/thread/${m.threadId}`)"
+        >
             <span class="prow__avatar" :class="{ 'is-group': m.isGroup }" :style="{ background: avatarColor(m.title) }">
               <svg v-if="m.isGroup" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19v-1a4 4 0 0 1 4-4h3a4 4 0 0 1 4 4v1"/><path d="M16.5 5.4a3.2 3.2 0 0 1 0 6.1"/></svg>
               <template v-else>{{ avatarInitial(m.title) }}</template>
@@ -30,18 +26,20 @@
                 <span class="prow__time">{{ fmtTime(m.lastAt) }}</span>
               </span>
               <span v-if="m.subject" class="prow__subject">{{ m.subject }}</span>
+              <span class="prow__people">{{ m.isGroup ? `参加者 ${m.participantCount}人` : `相手：${m.otherNames}` }}</span>
               <span class="prow__msg">{{ m.lastMessage || 'やりとりを開く' }}</span>
             </span>
             <span v-if="m.unread > 0" class="prow__badge">{{ m.unread > 99 ? '99+' : m.unread }}</span>
-          </button>
-        </template>
+        </button>
 
-        <div v-if="groups.length === 0" class="chats__empty">
+        <button v-if="hasMore" class="chats__more" @click="showMore">以前の相談を表示</button>
+
+        <div v-if="visibleMatters.length === 0" class="chats__empty">
           <span class="chats__empty-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-11.9 7.6L3 21l1.9-6.1A8.4 8.4 0 1 1 21 11.5z" /></svg>
           </span>
-          <p class="chats__empty-title">まだチャットはありません</p>
-          <p class="chats__empty-desc">立て替えを追加するか、お知らせの「返信」から会話が始まります</p>
+          <p class="chats__empty-title">まだ相談はありません</p>
+          <p class="chats__empty-desc">イベントや立て替えの相談がここに表示されます。</p>
         </div>
       </template>
     </main>
@@ -57,9 +55,12 @@ import { formatDate } from '../lib/format';
 import { avatarColor, avatarInitial } from '@/lib/avatar';
 
 const myUid = auth.currentUser?.uid || '';
-const mode = ref('event'); // 'event' = イベントごと / 'person' = 人ごと
 const matters = ref([]);   // 表示対象のスレッド（件）一覧
+const DISPLAY_STEP = 30;
+const visibleCount = ref(DISPLAY_STEP);
 const loading = ref(true);
+const loadError = ref('');
+let subscriptionVersion = 0;
 let unsub = null;
 
 const fmtTime = (ts) => {
@@ -70,30 +71,24 @@ const fmtTime = (ts) => {
   return sameDay ? `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}` : formatDate(d);
 };
 
-// イベントごと / 人ごと でグループ化して見出し付きで並べる
-const groups = computed(() => {
-  const list = [...matters.value].sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0));
-  const map = new Map();
-  const push = (key, title, m) => {
-    if (!map.has(key)) map.set(key, { key, title, matters: [] });
-    map.get(key).matters.push(m);
-  };
-  if (mode.value === 'event') {
-    list.forEach((m) => push(m.eventId || 'none', m.eventName || 'イベント外', m));
-  } else {
-    // 人ごと：件に関わる相手それぞれの見出しに出す
-    list.forEach((m) => {
-      if (m.others.length === 0) push('none', 'その他', m);
-      m.others.forEach((o) => push(o.uid, o.name, m));
-    });
-  }
-  return [...map.values()];
-});
+const sortedMatters = computed(() => [...matters.value]
+  .sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0)));
+const visibleMatters = computed(() => sortedMatters.value.slice(0, visibleCount.value));
+const hasMore = computed(() => visibleMatters.value.length < sortedMatters.value.length);
+const showMore = () => { visibleCount.value += DISPLAY_STEP; };
 
-onMounted(() => {
-  if (!myUid) { loading.value = false; return; }
+const subscribe = () => {
+  const version = ++subscriptionVersion;
+  if (unsub) { unsub(); unsub = null; }
+  loading.value = true;
+  loadError.value = '';
+  matters.value = [];
+  visibleCount.value = DISPLAY_STEP;
+  if (!myUid) { loadError.value = 'ログイン状態を確認して、開き直してください。'; loading.value = false; return; }
   const q = query(collection(db, 'threads'), where('participants', 'array-contains', myUid));
   unsub = onSnapshot(q, (snap) => {
+    if (version !== subscriptionVersion) return;
+    loadError.value = '';
     const out = [];
     snap.docs.forEach((docSnap) => {
       const t = docSnap.data();
@@ -102,10 +97,8 @@ onMounted(() => {
         .filter((u) => u !== myUid)
         .map((u) => ({ uid: u, name: (t.participantNames && t.participantNames[u]) || '相手' }));
       const isGroup = (t.participants || []).length > 2;
-      // 件のタイトル：グループはイベント/件名、1対1は相手名
-      const title = isGroup
-        ? (t.eventName || t.itemName || 'みんなの精算')
-        : (others[0]?.name || '相手');
+      // 相談の起点を先に示す。イベント外の1対1だけ相手名を使う。
+      const title = t.eventName || (isGroup ? (t.itemName || 'みんなの精算') : (others[0]?.name || '相手'));
       out.push({
         threadId: docSnap.id,
         title,
@@ -117,24 +110,28 @@ onMounted(() => {
         eventName: t.eventName || '',
         others,
         isGroup,
+        participantCount: (t.participants || []).length,
+        otherNames: others.map((o) => o.name).join('・') || '相手',
       });
     });
     matters.value = out;
     loading.value = false;
-  }, (e) => { console.error('チャット一覧の取得に失敗:', e); loading.value = false; });
-});
-onUnmounted(() => { if (unsub) unsub(); });
+  }, () => {
+    if (version !== subscriptionVersion) return;
+    matters.value = [];
+    loadError.value = 'チャットを読み込めませんでした。通信状況を確認してください。';
+    loading.value = false;
+  });
+};
+onMounted(subscribe);
+onUnmounted(() => { subscriptionVersion++; if (unsub) unsub(); });
 </script>
 
 <style scoped>
-.chats__seg-wrap { padding: 10px var(--pad); background: var(--c-surface); border-bottom: 1px solid var(--c-line); }
+.chats__intro { margin: 0; padding: 10px var(--pad); background: var(--c-surface); border-bottom: 1px solid var(--c-line); color: var(--c-text-sub); font-size: 12px; line-height: 1.5; }
 /* 面の白は行（.prow）側が持つ。ここで白を敷くと空状態や短い一覧で
    途中から背景が切り替わり、画面中央に境界線が出てしまう */
 .chats__body { padding: 0 0 24px; min-height: 100%; }
-.chats__group {
-  font-size: 12px; font-weight: var(--fw-black); color: var(--c-text-sub);
-  padding: 14px var(--pad) 6px; background: var(--c-bg);
-}
 .prow {
   width: 100%; display: flex; align-items: center; gap: 12px;
   padding: 13px var(--pad); background: var(--c-surface); border: none;
@@ -151,14 +148,16 @@ onUnmounted(() => { if (unsub) unsub(); });
 .prow__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .prow__top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .prow__name { font-size: 15px; font-weight: var(--fw-bold); color: var(--c-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.prow__time { flex-shrink: 0; font-size: 11px; color: var(--c-text-faint); font-weight: var(--fw-medium); }
+.prow__time { flex-shrink: 0; font-size: 12px; color: var(--c-text-sub); font-weight: var(--fw-medium); }
 .prow__subject { font-size: 12px; font-weight: var(--fw-bold); color: var(--c-brand); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prow__people { font-size: 12px; color: var(--c-text-sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prow__msg { font-size: 13px; color: var(--c-text-sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prow__badge {
   flex-shrink: 0; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
   background: var(--c-danger); color: #fff; font-size: 11px; font-weight: var(--fw-black);
   display: flex; align-items: center; justify-content: center;
 }
+.chats__more { display: block; min-height: 44px; margin: 14px auto 0; padding: 8px 18px; border: 1px solid var(--c-line-bold); border-radius: 10px; background: var(--c-surface); color: var(--c-brand); font: inherit; font-weight: var(--fw-bold); cursor: pointer; }
 
 .chats__empty { text-align: center; padding: 60px 24px; color: var(--c-text-faint); }
 .chats__empty-icon {
@@ -168,4 +167,5 @@ onUnmounted(() => { if (unsub) unsub(); });
 .chats__empty-icon svg { width: 30px; height: 30px; }
 .chats__empty-title { font-size: 15px; font-weight: var(--fw-bold); color: var(--c-text); margin: 0 0 4px; }
 .chats__empty-desc { font-size: 13px; font-weight: var(--fw-medium); margin: 0; }
+.retry-button { margin-top: 12px; min-height: 44px; padding: 8px 16px; border: 1px solid var(--c-line); border-radius: 8px; background: var(--c-surface); color: var(--c-brand); font: inherit; cursor: pointer; }
 </style>

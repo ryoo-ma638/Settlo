@@ -7,30 +7,34 @@
     <main class="friend__body">
       <button class="btn-brand friend__add" data-tour="friend-add" @click="isModalOpen = true">
         <svg class="friend__add-icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-        友達を追加する
+        フレンドを追加
       </button>
 
       <div class="reqs" v-if="pendingRequests.length > 0">
         <p class="reqs__alert">
-          友達申請が届いています
+          フレンド申請が届いています
           <span class="reqs__count">{{ pendingRequests.length }}</span>
         </p>
         <div class="reqcard" v-for="req in pendingRequests" :key="req.id">
           <UserAvatar class="reqcard__avatar" :name="req.formName" :photo="req.formPhoto" :size="46" />
           <span class="reqcard__name">{{ req.formName }}</span>
-          <button class="reqcard__btn" @click="openApproveModal(req)">確認</button>
+          <button
+            class="reqcard__btn"
+            :disabled="approvalStateFor(req) === 'loading' || approvalStateFor(req) === 'saving'"
+            @click="openApproveModal(req)"
+          >{{ approvalStateLabel(req) }}</button>
         </div>
       </div>
 
-      <h2 class="friend__list-title">友達リスト</h2>
+      <h2 class="friend__list-title">フレンド一覧</h2>
 
       <div class="controls">
         <div class="select">
           <select v-model="currentFilter" aria-label="フレンドの絞り込み">
             <option value="all">すべて表示</option>
             <option value="friend_only">フレンドのみ</option>
-            <option value="trading">取引中</option>
-            <option value="not_friend">取引あり（未フレンド）</option>
+            <option value="trading">取引あり</option>
+            <option value="not_friend">取引あり（フレンド以外）</option>
           </select>
         </div>
         <div class="select">
@@ -54,7 +58,7 @@
           <div v-if="processedList.length === 0" class="empty-box">
             <template v-if="friendData.length === 0">
               <p class="empty-box__title">まだフレンドがいません</p>
-              <p class="empty-box__desc">上の「友達を追加する」からIDを検索して追加できます</p>
+              <p class="empty-box__desc">上の「フレンドを追加」から名前やIDで検索できます</p>
             </template>
             <template v-else>絞り込みに合うフレンドがいません</template>
           </div>
@@ -68,6 +72,8 @@
       <FriendApproveModal
         :isOpen="isApproveModalOpen"
         :requestUser="selectedRequestUser"
+        :saving="approvalSaving"
+        :approvalState="selectedRequestUser ? approvalStateFor(selectedRequestUser) : 'loading'"
         @close="isApproveModalOpen = false"
         @approve="handleApproveDone"
         @reject="handleRejectRequest"
@@ -98,7 +104,7 @@ import { auth, db } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
   collection,  query,  where,  onSnapshot,
-  doc,  getDoc,  setDoc,  deleteDoc, addDoc,  serverTimestamp
+  doc, getDoc, getDocFromServer, setDoc, updateDoc, deleteDoc, addDoc, serverTimestamp, writeBatch
 } from 'firebase/firestore';
 
 import FriendAddModal from '@/components/FriendAddModal.vue';
@@ -152,6 +158,7 @@ const addTradingUserToList = async (targetUser) => {
 
 const friendData = ref([]);
 const pendingRequests = ref([]);
+const pendingRequestsError = ref(false);
 const loading = ref(true); // フレンド一覧の初回読込中は true（スケルトン表示）
 const countUid = ref(null);
 const countRows = reactive({ received: [], paid: [] });
@@ -169,7 +176,6 @@ const stopSubscriptions = () => {
   subscriptions = [];
 };
 onUnmounted(() => { stopAuth?.(); stopSubscriptions(); });
-
 const balanceByUid = ref({}); // 相手UID → net（>0=受け取る / <0=支払う。全イベント横断）
 // 相手ごとの受取/支払を集計して net を更新
 const recvByUid = {}; const payByUid = {};
@@ -204,6 +210,7 @@ onMounted(() => {
         where("status", "==", "pending")
       );
       listen(qReq, (snapshot) => {
+        pendingRequestsError.value = false;
         pendingRequests.value = snapshot.docs.map(doc => {
           const data = doc.data();
           return {
@@ -212,6 +219,10 @@ onMounted(() => {
             formPhoto: data.formPhoto || data.photo || data.photoURL || ""
           };
         });
+        pendingRequests.value.forEach(request => verifyApprovalRequest(request));
+      }, () => {
+        pendingRequestsError.value = true;
+        pendingRequests.value = [];
       });
 
       // 相手ごとの残高（受取＝相手が自分に払う／支払＝自分が相手に払う・未完了のみ）
@@ -250,20 +261,77 @@ onMounted(() => {
 
 const isApproveModalOpen = ref(false);
 const selectedRequestUser = ref(null);
+const approvalSaving = ref(false);
+const approvalStates = ref({});
+const approvalCheckVersions = new Map();
+const unknownStorageKey = 'settlo-approval-unknown-requests';
+const storedUnknownIds = (() => {
+  try { return new Set(JSON.parse(sessionStorage.getItem(unknownStorageKey) || '[]')); }
+  catch { return new Set(); }
+})();
 
-const openApproveModal = (user) => {
+const saveUnknownIds = () => {
+  try { sessionStorage.setItem(unknownStorageKey, JSON.stringify([...storedUnknownIds])); }
+  catch {}
+};
+const setApprovalState = (requestId, state) => {
+  approvalStates.value = { ...approvalStates.value, [requestId]: state };
+};
+const markApprovalUnknown = (requestId) => {
+  if (!requestId) return;
+  storedUnknownIds.add(requestId);
+  saveUnknownIds();
+  setApprovalState(requestId, 'unknown');
+};
+const verifyApprovalRequest = async (request) => {
+  if (!request?.id || !request.formId || !auth.currentUser?.uid) {
+    if (request?.id) setApprovalState(request.id, 'unknown');
+    return 'unknown';
+  }
+  const version = (approvalCheckVersions.get(request.id) || 0) + 1;
+  approvalCheckVersions.set(request.id, version);
+  setApprovalState(request.id, 'loading');
+  try {
+    const currentFriend = await getDocFromServer(doc(db, 'users', auth.currentUser.uid, 'friends', request.formId));
+    if (approvalCheckVersions.get(request.id) !== version) return approvalStates.value[request.id];
+    if (currentFriend.exists()) {
+      markApprovalUnknown(request.id);
+      return 'unknown';
+    }
+    storedUnknownIds.delete(request.id);
+    saveUnknownIds();
+    setApprovalState(request.id, 'ready');
+    return 'ready';
+  } catch {
+    markApprovalUnknown(request.id);
+    return 'unknown';
+  }
+};
+const approvalStateFor = (request) => {
+  if (approvalSaving.value && selectedRequestUser.value?.id === request?.id) return 'saving';
+  if (pendingRequestsError.value || storedUnknownIds.has(request?.id)) return 'unknown';
+  return approvalStates.value[request?.id] || 'loading';
+};
+const approvalStateLabel = (request) => ({
+  loading: '確認中…', ready: '確認', saving: '承認中…', unknown: '状態を確認',
+}[approvalStateFor(request)]);
+
+const openApproveModal = async (user) => {
+  if (approvalSaving.value) return;
+  if (approvalStateFor(user) === 'unknown') await verifyApprovalRequest(user);
   selectedRequestUser.value = user;
   isApproveModalOpen.value = true;
 };
 
 // 🌟 「知らない人」としてフレンド申請を拒否（申請を削除）
 const handleRejectRequest = async (request) => {
+  if (approvalSaving.value) return;
   try {
     if (request?.id) {
       await deleteDoc(doc(db, "friendRequests", request.id));
     }
     isApproveModalOpen.value = false;
-    showModal({ type: 'info', title: '申請を拒否しました', message: '心当たりのない申請を削除しました。' });
+    showModal({ type: 'info', title: '申請を拒否しました', message: 'フレンド申請を一覧から削除しました。' });
   } catch (error) {
     console.error("申請拒否エラー:", error);
     showModal({ type: 'error', title: 'エラー', message: '申請の拒否に失敗しました。' });
@@ -271,25 +339,23 @@ const handleRejectRequest = async (request) => {
 };
 
 const handleApproveDone = async (request) => {
+  if (approvalSaving.value) return;
+  if (approvalStateFor(request) !== 'ready') return;
   if (!request.formId) {
     showModal({ type: 'error', title: 'エラー', message: 'この申請データには送信者ID(fromId)が含まれていないため、承認できません。' });
     return;
   }
 
-  const myUid = auth.currentUser.uid;
+  const myUid = auth.currentUser?.uid;
+  if (!myUid) {
+    showModal({ type: 'error', title: 'エラー', message: 'ログイン状態を確認して、一覧から開き直してください。' });
+    return;
+  }
   const friendUid = request.formId;
+  approvalSaving.value = true;
+  markApprovalUnknown(request.id);
 
   try {
-    await setDoc(doc(db, "users", myUid, "friends", request.formId), {
-      uid: request.formId,
-      name: request.formName,
-      photo: request.formPhoto || "",
-      isFriend: true,
-      isTrading: false,
-      tradeCount: 0,
-      addedAt: serverTimestamp()
-    });
-
     const myDoc = await getDoc(doc(db, "users", myUid));
     let myName = "名前なし";
     let myPhoto = "";
@@ -300,7 +366,17 @@ const handleApproveDone = async (request) => {
       myPhoto = myData.photo || "";
     }
 
-    await setDoc(doc(db, "users", friendUid, "friends", myUid), {
+    const batch = writeBatch(db);
+    batch.set(doc(db, "users", myUid, "friends", request.formId), {
+      uid: request.formId,
+      name: request.formName,
+      photo: request.formPhoto || "",
+      isFriend: true,
+      isTrading: false,
+      tradeCount: 0,
+      addedAt: serverTimestamp()
+    });
+    batch.set(doc(db, "users", friendUid, "friends", myUid), {
       uid: myUid,
       name: myName,
       photo: myPhoto || "",
@@ -309,8 +385,7 @@ const handleApproveDone = async (request) => {
       tradeCount: 0,
       isTrading: false
     });
-
-    await addDoc(collection(db, "friendRequests"), {
+    batch.set(doc(collection(db, "friendRequests")), {
       toId: friendUid,
       formId: myUid,
       formName: myName,
@@ -318,13 +393,24 @@ const handleApproveDone = async (request) => {
       status: "accepted",
       createdAt: serverTimestamp()
     });
-
-    await deleteDoc(doc(db, "friendRequests", request.id));
+    batch.delete(doc(db, "friendRequests", request.id));
+    await batch.commit();
 
     isApproveModalOpen.value = false;
+    selectedRequestUser.value = null;
+    storedUnknownIds.delete(request.id);
+    saveUnknownIds();
+    showModal({ type: 'success', title: '承認完了', message: `${request.formName}さんとフレンドになりました。` });
   } catch (error) {
     console.error("承認エラーの詳細:", error);
-    showModal({ type: 'error', title: '承認エラー', message: '承認に失敗しました。もう一度試すか、電波状況を確認してください。' });
+    isApproveModalOpen.value = false;
+    selectedRequestUser.value = null;
+    const state = await verifyApprovalRequest(request);
+    showModal(state === 'ready'
+      ? { type: 'error', title: '承認を保存できませんでした', message: '保存が始まっていないことを確認しました。通信状況を確認してから、もう一度お試しください。' }
+      : { type: 'error', title: '承認結果を確認できません', message: '途中まで保存された可能性があります。状態を確認できるまで、同じ申請をもう一度承認しないでください。' });
+  } finally {
+    approvalSaving.value = false;
   }
 };
 

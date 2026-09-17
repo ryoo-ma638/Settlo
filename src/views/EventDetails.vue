@@ -355,6 +355,9 @@
       />
       <AddPaymentModal
         :isOpen="modals.addPayment"
+        :eventId="route.params.id || ''"
+        :eventName="eventData.name || ''"
+        :eventEnded="!!eventData.ended"
         :participants="eventData.participants"
         :myName="myName"
         :myUid="auth.currentUser?.uid || ''"
@@ -1187,6 +1190,7 @@ let unsubTx = null;
 // 🌟 履歴（Firestoreの生データ）と、このイベントの取引の状態を別々に持つ。
 //    どちらが更新されても人ごとの精算状況を作り直す（下の watch）。
 const rawHistory = ref([]);
+const historyLoaded = ref(false);
 const txById = ref({});
 const txLoaded = ref(false);
 const settlementPlan = ref(null);
@@ -1555,6 +1559,7 @@ onMounted(async () => {
       });
     });
     rawHistory.value = fetched;
+    historyLoaded.value = true;
   }, (err) => {
     // イベント削除後や参加者でない場合は静かに無視（未購読解除の残骸対策）
     if (err?.code !== 'permission-denied') console.error("履歴監視エラー:", err);
@@ -1595,6 +1600,33 @@ watch([rawHistory, txById, txLoaded], () => {
   // 🌟 合計金額も履歴から再計算して反映
   eventData.value.total = decorated.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 }, { deep: false });
+
+// お知らせから開いた場合は、履歴を読み込んでから対象の1件を開く。
+// 使用済みのqueryを消し、履歴の再描画で同じ詳細を開き直さない。
+let notificationHistoryOpened = false;
+watch([
+  () => route.query.history,
+  historyLoaded,
+  rawHistory,
+], async ([request, loaded]) => {
+  const historyId = Array.isArray(request) ? request[0] : request;
+  if (!historyId) { notificationHistoryOpened = false; return; }
+  if (!loaded || notificationHistoryOpened) return;
+  notificationHistoryOpened = true;
+  await nextTick();
+  const history = eventData.value.history.find((item) => item.id === historyId);
+  if (history) {
+    openHistoryDetail(history);
+  } else {
+    showAlert('info', '立て替え履歴が見つかりません', '削除されたか、現在は表示できない履歴です。');
+  }
+  const { history: _history, ...query } = route.query;
+  try {
+    await router.replace({ query });
+  } catch (error) {
+    console.error('履歴詳細のURL更新に失敗:', error);
+  }
+}, { immediate: true });
 
 // リスナーの購読解除（画面離脱・イベント削除時のリーク／権限エラー防止）
 const unsubscribeAll = () => {
@@ -1988,7 +2020,7 @@ const handleDeleteEvent = () => {
 /* 🌟 イベント編集モーダル */
 .edit-body { display: flex; flex-direction: column; }
 .edit-label { font-size: 12px; font-weight: 800; color: var(--c-text-sub); margin-bottom: 8px; }
-.edit-input { width: 100%; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--c-line-bold); background: var(--c-surface-2); font-size: 15px; font-weight: 800; color: var(--c-ink); outline: none; box-sizing: border-box; margin-bottom: 20px; }
+.edit-input { width: 100%; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--c-line-bold); background: var(--c-surface-2); font-size: 16px; /* 16px未満にするとiOSで入力時に画面が拡大する */ font-weight: 800; color: var(--c-ink); outline: none; box-sizing: border-box; margin-bottom: 20px; }
 .edit-input:focus { border-color: var(--c-brand); background: #fff; }
 .edit-genre-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 24px; }
 .edit-genre { background: var(--c-surface-2); border: 1.5px solid var(--c-line-bold); border-radius: 16px; padding: 14px 4px 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--c-text-sub); cursor: pointer; transition: 0.15s; }
