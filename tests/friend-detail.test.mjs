@@ -3,7 +3,8 @@ import { test, beforeEach, afterEach } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { parse, compileScript } from '@vue/compiler-sfc';
 import { createRenderer, h } from 'vue';
-import { dateMillis, registrationLabel, historyMonth, transactionStatus, transactionCategory } from '../src/lib/friendHistory.js';
+import { dateMillis, registrationLabel, historyMonth, transactionStatus, transactionCategory, statusTone } from '../src/lib/friendHistory.js';
+import { eventSettlementStatusLabel } from '../src/lib/eventSettlementGuard.js';
 const mockUrl='data:text/javascript;base64,'+Buffer.from(`
 import {reactive} from ${JSON.stringify(import.meta.resolve('vue'))};
 export const route=reactive({query:{uid:'friend'},params:{uid:'friend',name:'相手'}});
@@ -18,7 +19,7 @@ export default {};
 `).toString('base64');
 const ioModule=await import(mockUrl);const {io,route}=ioModule;
 const {descriptor}=parse(readFileSync(new URL('../src/views/FriendDetailView.vue',import.meta.url),'utf8'));
-const source=compileScript(descriptor,{id:'friend-detail-test'}).content.replace(/from ['"]([^'"]+)['"]/g,(_all,name)=>'from '+JSON.stringify(name==='vue'?import.meta.resolve('vue'):name==='../lib/friendHistory.js'?new URL('../src/lib/friendHistory.js',import.meta.url).href:name==='@/lib/balance'?new URL('../src/lib/balance.js',import.meta.url).href:mockUrl));
+const source=compileScript(descriptor,{id:'friend-detail-test'}).content.replace(/from ['"]([^'"]+)['"]/g,(_all,name)=>'from '+JSON.stringify(name==='vue'?import.meta.resolve('vue'):name==='../lib/friendHistory.js'?new URL('../src/lib/friendHistory.js',import.meta.url).href:name==='@/lib/balance'?new URL('../src/lib/balance.js',import.meta.url).href:name==='@/lib/eventSettlementGuard'?new URL('../src/lib/eventSettlementGuard.js',import.meta.url).href:mockUrl));
 const Component=(await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'))).default;Component.render=()=>null;
 const renderer=createRenderer({createComment:()=>({}),insert(){},remove(){},parentNode(){},nextSibling(){}});
 let app,state;const tick=()=>new Promise(resolve=>setImmediate(resolve));
@@ -90,4 +91,27 @@ test('確認待ちは自分の受け取り確認と相手待ちを区別する',
 });
 test('画面を閉じた後の応答で取引を復活させない',async()=>{
  let resolve;io.defer=new Promise(r=>resolve=r);await mount();app.unmount();app=null;resolve();await tick();assert.equal(state.friend,null);
+});
+
+// まとめて精算に予約された取引を、通常の未払い・精算済みと取り違えないこと。
+// 予約中と確定済みを同じ扱いにすると、絞り込みの件数と中身がずれる。
+const settled = (status, type) => ({
+ status, type,
+ eventSettlementLabel: eventSettlementStatusLabel({ eventSettlementPlanId: 'plan1', eventId: 'ev1', status }) || null,
+});
+test('まとめて精算に予約された未完了の取引は、未払いではなく「まとめて精算中」に分ける',()=>{
+ assert.equal(transactionCategory(settled('unpaid','pay')),'event-settlement');
+ assert.equal(transactionCategory(settled('unpaid','receive')),'event-settlement');
+ assert.equal(transactionStatus(settled('unpaid','pay')),'イベントでまとめて精算中');
+ assert.equal(statusTone(settled('unpaid','pay')),'status-wait');
+ // 予約が無い取引は今までどおり
+ assert.equal(transactionCategory({status:'unpaid',type:'pay'}),'unpaid');
+ assert.equal(transactionCategory({status:'unpaid',type:'receive'}),'waiting-payment');
+});
+test('まとめて精算で完了した取引は「支払った／受け取った」に数え、済みの色にする',()=>{
+ assert.equal(transactionCategory(settled('completed','pay')),'paid');
+ assert.equal(transactionCategory(settled('completed','receive')),'received');
+ assert.equal(statusTone(settled('completed','pay')),'status-done');
+ // 表示文は確定済みと分かる言い方を残す
+ assert.equal(transactionStatus(settled('completed','pay')),'まとめて精算で確定済み');
 });

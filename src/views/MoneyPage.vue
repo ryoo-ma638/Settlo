@@ -138,6 +138,7 @@ import SkeletonRows from '../components/SkeletonRows.vue'
 import UserAvatar from '../components/UserAvatar.vue'
 import { formatDate } from '../lib/format'
 import { balancesByPerson } from '../lib/balance'
+import { isEventSettlementReserved } from '../lib/eventSettlementGuard'
 
 const route = useRoute()
 const router = useRouter()
@@ -233,7 +234,7 @@ onMounted(() => {
         for (const transactionDoc of snapshot.docs) {
           const data = transactionDoc.data();
           const s = data.status || 'unpaid';
-          if (s === 'completed') continue; // 完了済みは未決済リストに出さない
+          if (s === 'completed' || isEventSettlementReserved(data)) continue; // イベント全体の精算はイベント側だけで操作する
 
           const otherUid = data.paidById; // 支払う人のID
           if (!otherUid) continue; // 🛡️ 相手UIDが無い不正データはスキップ（クラッシュ防止）
@@ -286,7 +287,7 @@ onMounted(() => {
         for (const transactionDoc of snapshot.docs) {
           const data = transactionDoc.data();
           const s = data.status || 'unpaid';
-          if (s === 'completed') continue;
+          if (s === 'completed' || isEventSettlementReserved(data)) continue;
 
           const otherUid = data.paidToId;
           if (!otherUid) continue; // 🛡️ 相手UIDが無い不正データはスキップ（クラッシュ防止）

@@ -18,13 +18,16 @@
               <div v-for="req in paymentReqs" :key="req.id" class="notif-item" :class="notifClass(req)">
                 <div class="notif-body">
                   <p><strong>{{ senderName(req) }}</strong>{{ notifText(req) }}</p>
-                  <p v-if="req.message" class="notif-sub">{{ req.message }}</p>
+                  <p v-if="req.message && !isEventSettlementType(req.type)" class="notif-sub">{{ req.message }}</p>
                   <p v-if="req.userMessage" class="notif-msg">{{ req.userMessage }}</p>
                   <p v-if="req.changes" class="notif-changes">{{ req.changes }}</p>
                   <div class="notif-actions">
                     <template v-if="req.type === 'event_invite'">
                       <button class="mini-btn" @click="acceptInvite(req)">参加する</button>
                       <button class="mini-btn mini-btn--ghost" @click="rejectInvite(req)">心当たりがない</button>
+                    </template>
+                    <template v-else-if="isEventSettlementType(req.type)">
+                      <button class="mini-btn" @click="openEventSettlement(req)">{{ req.type === 'event_settlement_approval_request' ? '受取確認へ' : 'まとめて精算を見る' }}</button>
                     </template>
                     <template v-else-if="req.type === 'settlement_restore_request'">
                       <button class="mini-btn" @click="approveRestore(req)">承認する</button>
@@ -101,13 +104,16 @@
         <div v-for="req in paymentReqs" :key="req.id" class="notif-item" :class="notifClass(req)">
           <div class="notif-body">
             <p><strong>{{ senderName(req) }}</strong>{{ notifText(req) }}</p>
-            <p v-if="req.message" class="notif-sub">{{ req.message }}</p>
+            <p v-if="req.message && !isEventSettlementType(req.type)" class="notif-sub">{{ req.message }}</p>
             <p v-if="req.userMessage" class="notif-msg">{{ req.userMessage }}</p>
             <p v-if="req.changes" class="notif-changes">{{ req.changes }}</p>
             <div class="notif-actions">
               <template v-if="req.type === 'event_invite'">
                 <button class="mini-btn" @click="acceptInvite(req)">参加する</button>
                 <button class="mini-btn mini-btn--ghost" @click="rejectInvite(req)">心当たりがない</button>
+              </template>
+              <template v-else-if="isEventSettlementType(req.type)">
+                <button class="mini-btn" @click="openEventSettlement(req)">{{ req.type === 'event_settlement_approval_request' ? '受取確認へ' : 'まとめて精算を見る' }}</button>
               </template>
               <template v-else-if="req.type === 'settlement_restore_request'">
                 <button class="mini-btn" @click="approveRestore(req)">承認する</button>
@@ -214,6 +220,7 @@ import { revertCounterTransactions, COUNTER_REVERT_TEXT, UNPAID_PATCH } from '@/
 import { batchBreakdownText } from '@/lib/format';
 import { showToast } from '@/lib/toast';
 import { getMyName, getUserName, isSelfName } from '@/lib/userName';
+import { eventSettlementRouteOf } from '@/lib/eventSettlementGuard';
 
 const router = useRouter();
 
@@ -258,6 +265,23 @@ const openThreadFromReply = async (req) => {
 };
 const friendReqs = ref([]);
 const paymentReqs = ref([]);
+const EVENT_SETTLEMENT_TYPES = [
+  'event_settlement_approval_request',
+  'event_settlement_rejected',
+  'event_settlement_approved',
+];
+const isEventSettlementType = (type) => EVENT_SETTLEMENT_TYPES.includes(type);
+const openEventSettlement = (req) => {
+  showModal.value = false;
+  const target = eventSettlementRouteOf({
+    eventId: req.eventId,
+    eventSettlementPlanId: req.planId,
+  }, {
+    ...(req.legId ? { leg: req.legId } : {}),
+    ...(req.paymentRequestId ? { request: req.paymentRequestId } : {}),
+  });
+  if (target) router.push(target);
+};
 
 // まとめ精算のお知らせから「相殺の内訳」を組み立てる。
 // 内訳を持たない古いお知らせは null＝従来どおりの文言になる。
@@ -277,6 +301,9 @@ const notifBatch = (req) => {
 // 通知タイプごとの表示文言・ボタン
 const notifText = (req) => {
   if (req.type === 'payment_added') return `さんが「${req.itemName || '支払い'}」（¥${Number(req.amount || 0).toLocaleString()}）を追加しました`;
+  if (req.type === 'event_settlement_approval_request') return `さんからまとめて精算の受取確認が届いています（¥${(req.amount || 0).toLocaleString()}）`;
+  if (req.type === 'event_settlement_rejected') return `さんがまとめて精算の入金を確認できませんでした（¥${(req.amount || 0).toLocaleString()}）`;
+  if (req.type === 'event_settlement_approved') return `さんがまとめて精算の受取を確認しました（¥${(req.amount || 0).toLocaleString()}）`;
   if (req.type === 'approval_rejected') return 'さんがあなたの承認リクエストを拒否しました';
   if (req.type === 'payment_reminder') return 'さんから支払いの催促が届いています';
   if (req.type === 'thread_reply') return `さんが「${req.threadLabel || '取引の件'}」で返信しました`;
@@ -331,10 +358,11 @@ const isInfoOnly = (t) => INFO_ONLY_TYPES.includes(t);
 const REMOVED_TYPES = ['friend_removed', 'event_member_removed'];
 const isRemovedType = (t) => REMOVED_TYPES.includes(t);
 // 返信できるお知らせ（フレンドを解除された相手には返信の入口を出さない）
-const canReply = (req) => !['thread_reply', 'friend_removed', 'payment_added'].includes(req.type) && !!req.fromUserId && !req.batch;
+const canReply = (req) => !['thread_reply', 'friend_removed', 'payment_added'].includes(req.type)
+  && !isEventSettlementType(req.type) && !!req.fromUserId && !req.batch;
 const notifClass = (req) => {
-  if (['approval_rejected', 'invite_rejected', 'settlement_restore_rejected', 'restore_reverted', 'event_left_rejected', 'event_restore_rejected', 'event_rejoin_rejected', 'event_join_rejected'].includes(req.type)) return 'notif-item--reject';
-  if (['payment_added', 'payment_edited', 'payment_reverted', 'payment_deleted', 'event_edited', 'event_joined', 'event_restored', 'settlement_restore_approved', 'payment_completed', 'profile_updated', 'friend_removed', 'event_member_removed', 'event_rejoin_approved', 'event_join_approved'].includes(req.type)) return 'notif-item--info';
+  if (['approval_rejected', 'invite_rejected', 'settlement_restore_rejected', 'restore_reverted', 'event_left_rejected', 'event_restore_rejected', 'event_rejoin_rejected', 'event_join_rejected', 'event_settlement_rejected'].includes(req.type)) return 'notif-item--reject';
+  if (['payment_added', 'payment_edited', 'payment_reverted', 'payment_deleted', 'event_edited', 'event_joined', 'event_restored', 'settlement_restore_approved', 'payment_completed', 'profile_updated', 'friend_removed', 'event_member_removed', 'event_rejoin_approved', 'event_join_approved', 'event_settlement_approved'].includes(req.type)) return 'notif-item--info';
   return 'notif-item--pay';
 };
 
@@ -447,6 +475,16 @@ const notice = (type, title, message) => { Object.assign(modalState, { type, tit
 // 招待の拒否時の二段階確認ダイアログ
 const confirmState = reactive({ show: false, title: '', message: '', onConfirm: null, withReason: false, reasonPlaceholder: '' });
 const acting = ref(false); // 🌟 承認/拒否/判断ボタンの二重送信ガード（重複通知・重複履歴を防ぐ）
+const reservedTransactionFor = async (transactionIds = []) => {
+  for (const transactionId of transactionIds) {
+    if (!transactionId) continue;
+    const snapshot = await getDoc(doc(db, 'transactions', transactionId));
+    if (snapshot.exists() && snapshot.data().eventSettlementPlanId) {
+      return { id: snapshot.id, ...snapshot.data() };
+    }
+  }
+  return null;
+};
 const askConfirm = (title, message, onConfirm, opts = {}) => { Object.assign(confirmState, { title, message, onConfirm, withReason: !!opts.withReason, reasonPlaceholder: opts.reasonPlaceholder || 'なぜそう思うか書けます（任意・相手に届きます）', show: true }); };
 // 🌟 確認モーダルの「確定」連打を防ぐ（拒否・判断NG・再主張などすべてがここを通る）
 const doConfirm = async (reason) => {
@@ -619,6 +657,11 @@ const approveRestore = async (req) => {
   acting.value = true;
   try {
     const myUid = auth.currentUser?.uid;
+    const reserved = await reservedTransactionFor(req.transactionIds || []);
+    if (reserved) {
+      notice('info', 'まとめて精算で確定した支払いです', 'この支払いだけを未精算には戻せません。イベントのまとめて精算から記録を確認してください。');
+      return;
+    }
     for (const tid of (req.transactionIds || [])) {
       try {
         const t = await getDoc(doc(db, "transactions", tid));
@@ -971,7 +1014,18 @@ const reRestoreEvent = (req) => {
 
 // --- 未精算戻しの判断ループ ---
 // 拒否（settlement_restore_rejected）に「正しくない」＝もう一度依頼を送る
-const reRequestRestore = (req) => {
+const reRequestRestore = async (req) => {
+  try {
+    const reserved = await reservedTransactionFor(req.transactionIds || []);
+    if (reserved) {
+      notice('info', 'まとめて精算で確定した支払いです', 'この支払いだけを未精算には戻せません。イベントのまとめて精算から記録を確認してください。');
+      return;
+    }
+  } catch (error) {
+    console.error('まとめて精算状態の確認エラー:', error);
+    notice('error', '状態を確認できませんでした', '画面を開き直して、もう一度お試しください。');
+    return;
+  }
   askConfirm('もう一度依頼しますか？', `「${req.itemName || ''}」を未精算に戻す依頼を、もう一度 ${senderName(req)}さんに送ります。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;

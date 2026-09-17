@@ -165,6 +165,9 @@ const tabHint = computed(() => {
   return '復元の確認、または未精算に戻す承認を待っています。判断中の記録は手動で消せません。現行では元の削除日から7日で自動整理されます。';
 });
 
+const itemUsesEventSettlement = (item) => (item?.transactionSnapshots || [])
+  .some((transaction) => !!transaction?.eventSettlementPlanId);
+
 // 項目がどちらのゴミ箱にあるかを見て正しい参照を返す
 const trashRef = (item) => (item._loc === 'shared'
   ? doc(db, 'trash', item.id)
@@ -211,6 +214,14 @@ const askRestoreEvent = (item) => {
 };
 const askRestorePayment = (item) => {
   if (item._loc === 'shared') return;
+  if (itemUsesEventSettlement(item)) {
+    Object.assign(alertState, {
+      type: 'info', title: 'まとめて精算に含まれています',
+      message: 'この支払いだけを元に戻すことはできません。イベントのまとめて精算から記録を確認してください。',
+      showCancel: false, confirmText: 'OK', onConfirm: null, show: true,
+    });
+    return;
+  }
   askConfirm(
     '削除した取引を復元しますか？',
     `「${item.itemName || '支払い'}」（¥${Number(item.amount || 0).toLocaleString()}）の貸し借りを復元します。`,
@@ -264,6 +275,14 @@ const restorePayment = async (item) => {
 // ---- 決済を未精算に戻す（相手の承認待ちへ） ----
 const askRestoreSettlement = (item) => {
   if (item._loc === 'shared') return;
+  if (itemUsesEventSettlement(item)) {
+    Object.assign(alertState, {
+      type: 'info', title: 'まとめて精算で確定済みです',
+      message: 'この支払いだけを未精算には戻せません。イベントのまとめて精算から記録を確認してください。',
+      showCancel: false, confirmText: 'OK', onConfirm: null, show: true,
+    });
+    return;
+  }
   askConfirm(
     '未精算へ戻す確認を依頼しますか？',
     `「${item.itemName}」（¥${Number(item.amount || 0).toLocaleString()}）を未精算へ戻すには相手の承認が必要です。承認されるまでは精算済みのままです。実際の送金は取り消されません。`,

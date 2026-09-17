@@ -125,6 +125,7 @@ import BaseModal from '@/components/BaseModal.vue'; // 🌟 Eventブランチの
 import InviteCard from '@/components/InviteCard.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import { subscribePendingInvites } from '@/lib/invite';
+import { isEventSettlementReserved } from '@/lib/eventSettlementGuard';
 import api from '@/services/api';
 import { getMyName } from '@/lib/userName';
 
@@ -278,7 +279,8 @@ onMounted(() => {
       unsubReceivable = onSnapshot(qReceivable, async (snapshot) => {
         let total = 0;
         // 相手UID(paidById)が無い不正データは除外（お支払い画面と合計を一致させる）
-        const docs = snapshot.docs.filter(d => (d.data().status || 'unpaid') !== 'completed' && d.data().paidById);
+        const docs = snapshot.docs.filter(d => (d.data().status || 'unpaid') !== 'completed'
+          && d.data().paidById && !isEventSettlementReserved(d.data()));
         const list = await Promise.all(docs.map(async (d) => {
           const data = d.data();
           total += data.amount || 0;
@@ -295,7 +297,8 @@ onMounted(() => {
       unsubPayable = onSnapshot(qPayable, async (snapshot) => {
         let total = 0;
         // 相手UID(paidToId)が無い不正データは除外（お支払い画面と合計を一致させる）
-        const docs = snapshot.docs.filter(d => (d.data().status || 'unpaid') !== 'completed' && d.data().paidToId);
+        const docs = snapshot.docs.filter(d => (d.data().status || 'unpaid') !== 'completed'
+          && d.data().paidToId && !isEventSettlementReserved(d.data()));
         const list = await Promise.all(docs.map(async (d) => {
           const data = d.data();
           total += data.amount || 0;

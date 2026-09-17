@@ -32,7 +32,7 @@
                 <span class="amount-direction">{{ item.type === 'pay' ? '支払い' : '受け取り' }}</span>
                 <span class="tnum">{{ item.type === 'pay' ? '-' : '+' }} ¥{{ item.amount.toLocaleString() }}</span>
               </span>
-              <span class="status-badge" :class="{ pending: item.status === 'unpaid', awaiting: item.status === 'awaiting_approval' }">{{ statusLabel(item.status) }}</span>
+              <span class="status-badge" :class="{ pending: item.status === 'unpaid', awaiting: item.status === 'awaiting_approval' }">{{ item.eventSettlementLabel || statusLabel(item.status) }}</span>
               <span class="detail-arrow" aria-hidden="true">›</span>
             </span>
           </button>
@@ -55,6 +55,7 @@ import PageHeader from '@/components/PageHeader.vue';
 import SkeletonRows from '@/components/SkeletonRows.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import { formatDate } from '@/lib/format';
+import { eventSettlementRouteOf, eventSettlementStatusLabel, isEventSettlementReserved } from '@/lib/eventSettlementGuard';
 
 const router = useRouter(); // ルーターを準備
 const currentFilter = ref('all');
@@ -105,6 +106,8 @@ onMounted(() => {
           id: d.id, date: formatFullDate(data.createdAt), name: info.name, photo: info.photo,
           eventName: data.itemName || 'イベント代', amount: data.amount || 0,
           type: 'pay', status: data.status || 'unpaid',
+          eventId: data.eventId || null, eventSettlementPlanId: data.eventSettlementPlanId || null,
+          eventSettlementLabel: eventSettlementStatusLabel(data),
           _ts: data.createdAt?.seconds || 0
         };
       }
@@ -122,6 +125,8 @@ onMounted(() => {
           id: d.id, date: formatFullDate(data.createdAt), name: info.name, photo: info.photo,
           eventName: data.itemName || 'イベント代', amount: data.amount || 0,
           type: 'receive', status: data.status || 'unpaid',
+          eventId: data.eventId || null, eventSettlementPlanId: data.eventSettlementPlanId || null,
+          eventSettlementLabel: eventSettlementStatusLabel(data),
           _ts: data.createdAt?.seconds || 0
         };
       }
@@ -141,6 +146,11 @@ const filteredHistory = computed(() => {
 
 // 🌟 カードがタップされた時の遷移ロジック
 const goToDetail = (item) => {
+  if (isEventSettlementReserved(item)) {
+    const target = eventSettlementRouteOf(item);
+    if (target) router.push(target);
+    return;
+  }
   const prefix = item.type === 'receive' ? 'waiting' : 'unpaid';
   // 🌟 URLの最後に ?status=xxx をつけて、詳細画面に状態を教える
   router.push(`/payment-detail/${prefix}-${item.id}?status=${item.status}`);
