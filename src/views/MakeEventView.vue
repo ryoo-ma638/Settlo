@@ -69,7 +69,7 @@
       <div v-else>
         <div class="field">
           <label class="field__label">招待コードを入力</label>
-          <input ref="joinCodeInput" v-model="joinCode" type="text" placeholder="例：A1B2C3" class="input input--code" maxlength="8" />
+          <input ref="joinCodeInput" data-footer-action="join-code" v-model="joinCode" type="text" placeholder="例：A1B2C3" class="input input--code" maxlength="8" />
         </div>
         <div class="actions">
           <button class="btn-brand" :disabled="loading" @click="joinEvent">参加する</button>
@@ -249,6 +249,13 @@ const joinEvent = async () => {
 };
 
 watch(isJoinMode, async (active) => {
+  const querySaysJoin = route.query.join === '1';
+  if (active !== querySaysJoin) {
+    const nextQuery = { ...route.query };
+    if (active) nextQuery.join = '1';
+    else delete nextQuery.join;
+    await router.replace({ path: route.path, query: nextQuery });
+  }
   window.scrollTo({ top: 0, behavior: 'smooth' });
   if (!active) return;
   await nextTick();

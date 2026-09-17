@@ -15,7 +15,7 @@
 
     <div class="botnav__fab-wrap">
       <span v-if="contextHint" class="botnav__hint" aria-hidden="true">{{ contextHint }}</span>
-      <button class="botnav__fab" data-tour="nav-add" @click="openAdd" :aria-label="addLabel">
+      <button class="botnav__fab" data-tour="nav-add" :disabled="addDisabled" @click="openAdd" :aria-label="addLabel">
         <svg viewBox="0 0 24 24" class="botnav__fab-icon"><path d="M12 6v12M6 12h12"/></svg>
       </button>
     </div>
@@ -72,23 +72,32 @@ import { ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import NotifBadge from './NotifBadge.vue';
 import { useNotificationCounts } from '../composables/useNotificationCounts';
+import { useEventActionContext } from '../composables/useEventActionContext';
 
 const route = useRoute();
 const router = useRouter();
 const showAddSheet = ref(false);
 const isEventDetail = computed(() => /^\/event\/[^/]+$/.test(route.path));
 const isEventList = computed(() => route.path === '/event' && route.query.pick !== 'payment');
+const isJoinMode = computed(() => route.path === '/make-event' && route.query.join === '1');
+const { canAddPayment } = useEventActionContext();
+const addDisabled = computed(() => isEventDetail.value && canAddPayment.value !== true);
 const addLabel = computed(() => {
+  if (isEventDetail.value && canAddPayment.value === false) return '終了済みイベントには追加できません';
   if (isEventDetail.value) return 'このイベントにお支払いを追加';
+  if (isJoinMode.value) return '招待コードを入力';
   if (isEventList.value || route.path === '/make-event') return 'イベントを作成';
   return '追加';
 });
 const contextHint = computed(() => {
+  if (isEventDetail.value && canAddPayment.value === false) return '終了済み';
   if (isEventDetail.value) return 'お支払いを追加';
+  if (isJoinMode.value) return 'コードを入力';
   if (isEventList.value) return 'イベントを作成';
   return '';
 });
 const openAdd = () => {
+  if (addDisabled.value) return;
   if (isEventDetail.value) {
     // 詳細画面内の既存ボタンを動かし、画面側の入力条件や終了済み判定をそのまま使う。
     const addPaymentButton = document.querySelector('[data-tour="ev-addpay"]');
@@ -97,6 +106,8 @@ const openAdd = () => {
     }
   } else if (isEventList.value) {
     router.push('/make-event');
+  } else if (isJoinMode.value) {
+    document.querySelector('[data-footer-action="join-code"]')?.focus();
   } else if (route.path === '/make-event') {
     // 作成画面では、フォーム内の正式な「作成する」と同じ処理を使う。
     const createButton = document.querySelector('[data-footer-action="create-event"]');
@@ -222,6 +233,8 @@ const isActive = (path) => {
   transition: transform 0.12s ease, background-color 0.2s ease;
 }
 .botnav__fab:active { transform: translateY(-14px) scale(0.93); background: var(--c-brand-strong); }
+.botnav__fab:disabled { background: var(--c-line-bold); box-shadow: none; cursor: default; }
+.botnav__fab:disabled:active { transform: translateY(-14px); }
 .botnav__fab-icon {
   width: 26px;
   height: 26px;

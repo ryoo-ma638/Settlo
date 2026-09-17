@@ -111,7 +111,7 @@
       <div class="history-section" ref="timelineSection">
         <div class="section-header">
           <h3 class="section-title">立て替え履歴</h3>
-          <button class="add-payment-btn" data-tour="ev-addpay" @click="openNewPayment">＋ 支払いを追加</button>
+          <button v-if="eventData.ended === false" class="add-payment-btn" data-tour="ev-addpay" @click="openNewPayment">＋ 支払いを追加</button>
         </div>
 
         <div class="filter-wrapper">
@@ -355,6 +355,7 @@ import { formatDate } from '@/lib/format';
 import { ensurePaymentThread, postPaymentEvent, postPaymentEventByTx, resolvePaymentThreadByTx, retirePaymentThread } from '@/lib/thread';
 import { getMyName } from '@/lib/userName';
 import { UNPAID_PATCH } from '@/lib/settlement';
+import { useEventActionContext } from '@/composables/useEventActionContext';
 
 import AddPaymentModal from '@/components/AddPaymentModal.vue';
 import ReceiptPaymentModal from '@/components/ReceiptPaymentModal.vue';
@@ -539,12 +540,16 @@ const eventData = ref({
   total: 0, // 🌟 最初は 0
   invitationCode: '------',
   tag: 'その他', // 🌟 イベントのジャンル
-  ended: false, // 🌟 終了済み（精算を締めた状態・削除とは別）
+  ended: null, // 読み込み完了後に true / false を設定
   leaderUid: null, // 🌟 リーダー（作った人）。古いイベントには無いので null
   locked: false,   // 🌟 鍵付き＝参加にリーダーの承認が必要
   participants: [],
   history: []
 });
+const { setPaymentAvailability } = useEventActionContext();
+watch(() => eventData.value.ended, (ended) => {
+  setPaymentAvailability(ended == null ? null : !ended);
+}, { immediate: true });
 
 // 🌟 自分がリーダーか（リーダーの情報が無い古いイベントでは常に false）
 const isLeader = computed(() => !!eventData.value.leaderUid && eventData.value.leaderUid === auth.currentUser?.uid);
@@ -1177,6 +1182,7 @@ const unsubscribeAll = () => {
   if (unsubTx) { unsubTx(); unsubTx = null; }
 };
 onUnmounted(unsubscribeAll);
+onUnmounted(() => setPaymentAvailability(null));
 
 const goToBatchPayment = (summary) => {
   // 🌟 自分が当事者でない精算は、支払い画面に出せる取引が無い（＝必ず空になる）ので進まない
