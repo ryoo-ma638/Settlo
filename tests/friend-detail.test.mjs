@@ -61,11 +61,25 @@ test('差額0でも貸し借りが両方残っていれば、精算済みにし�
 test('取得失敗を取引なしと表示せず、再試行で読み込める',async()=>{
  io.fail=true;await mount();assert(state.loadError);assert.equal(state.friend,null);io.fail=false;io.rows=[tx('retry','unpaid')];await state.loadFriend();assert.equal(state.loadError,'');assert.equal(state.historyItems.length,1);
 });
-test('まとめ申請は既存と同じ実質額でまとめ、全体詳細へ進む',async()=>{
- const settlementBatch={id:'sample',role:'main',offset:1000,net:2000,count:2};
- io.rows=[tx('one','awaiting_approval','receive',{amount:1500,settlementBatch}),tx('two','awaiting_approval','receive',{amount:1500,settlementBatch})];await mount();
- assert.equal(state.waitingTotal,2000);assert.equal(state.receivableItems.length,1);assert.equal(state.historyItems.length,2);
- state.openTx(state.receivableItems[0],'waiting');assert.equal(io.pushes[0],'/payment-detail/waiting-batch-sample');
+test('まとめ申請はmain側・offset側の実際の履歴から同じまとめ詳細へ進む',async()=>{
+ const base={id:'sample',offset:1000,net:2000,count:2,payerUid:'me',receiverUid:'friend'};
+ io.rows=[
+  tx('main','awaiting_approval','pay',{amount:3000,settlementBatch:{...base,role:'main'}}),
+  tx('offset','completed','receive',{amount:1000,settlementBatch:{...base,role:'offset'}}),
+ ];
+ await mount();assert.equal(state.historyItems.length,2);
+ for(const item of state.historyItems){state.openTx(item,item.type==='pay'?'unpaid':'waiting');}
+ assert.deepEqual(io.pushes,['/payment-detail/unpaid-batch-sample','/payment-detail/unpaid-batch-sample']);
+});
+test('自分が受取人のまとめ履歴は、offset側からも受け取り側の全体詳細へ進む',async()=>{
+ const base={id:'receive-batch',offset:1000,net:2000,count:2,payerUid:'friend',receiverUid:'me'};
+ io.rows=[
+  tx('main','awaiting_approval','receive',{amount:3000,settlementBatch:{...base,role:'main'}}),
+  tx('offset','completed','pay',{amount:1000,settlementBatch:{...base,role:'offset'}}),
+ ];
+ await mount();
+ for(const item of state.historyItems){state.openTx(item,item.type==='pay'?'unpaid':'waiting');}
+ assert.deepEqual(io.pushes,['/payment-detail/waiting-batch-receive-batch','/payment-detail/waiting-batch-receive-batch']);
 });
 test('確認待ちは自分の受け取り確認と相手待ちを区別する',()=>{
  assert.equal(transactionStatus({status:'unpaid',type:'receive'}),'お支払い待ち');

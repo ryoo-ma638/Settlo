@@ -158,9 +158,19 @@ const openCombined = () => router.push({ path: '/combined-settlement/' + encodeU
 
 const netBalance = computed(() => waitingTotal.value - unpaidTotal.value);
 
-// まとめ精算にまとめた行は、1件ずつではなく「まとめ精算の詳細」（相殺の内訳つき）へ
+// まとめ精算に含まれる元明細は、main/offsetのどちらから開いても同じまとめ詳細へ進む。
+// 元明細の向きではなく、batchに記録した実際の支払人・受取人から画面の向きを決める。
 const openTx = (t, prefix) => {
-  router.push(t.isBatchRow ? `/payment-detail/${prefix}-batch-${t.batchId}` : `/payment-detail/${prefix}-${t.id}`);
+  const batch = t.settlementBatch;
+  const batchId = batch?.id || (t.isBatchRow ? t.batchId : null);
+  if (batchId) {
+    const myUid = auth.currentUser?.uid;
+    const batchPrefix = batch?.payerUid === myUid ? 'unpaid'
+      : batch?.receiverUid === myUid ? 'waiting' : prefix;
+    router.push(`/payment-detail/${batchPrefix}-batch-${batchId}`);
+    return;
+  }
+  router.push(`/payment-detail/${prefix}-${t.id}`);
 };
 
 // 🌟 モーダル状態管理
