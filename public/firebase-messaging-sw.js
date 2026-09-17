@@ -24,18 +24,23 @@ messaging.onBackgroundMessage((payload) => {
     icon: '/favicon.ico',
     badge: '/favicon.ico',
     tag: payload.data?.tag || 'settlo-notification',
+    data: { url: payload.data?.url || '/' },
   });
 });
 
 // 通知をタップしたらアプリを開く
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const targetUrl = event.notification.data?.url || '/';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       for (const client of list) {
-        if ('focus' in client) return client.focus();
+        if ('focus' in client) {
+          if ('navigate' in client) return client.navigate(targetUrl).then(() => client.focus());
+          return client.focus();
+        }
       }
-      return clients.openWindow('/');
+      return clients.openWindow(targetUrl);
     })
   );
 });

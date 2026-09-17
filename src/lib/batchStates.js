@@ -127,7 +127,7 @@ export const BATCH_CARD_STATES = Object.freeze({
   /** 保存できたか分からない（応答が返らなかった）。親のボタンから再確認・再送する。 */
   unknown: Object.freeze({
     label: '保存を確認できません',
-    meaning: '返事が返らず、保存できたか分かりません。もう一度送っても二重には入りません。',
+    meaning: '保存できたか分かりません。同じ登録情報を保持し、保存結果を確認してください。',
     canEditAmount: false,
     canExclude: false,
     canRestore: false,
@@ -165,13 +165,13 @@ export function isBatchCardState(state) {
 }
 
 /**
- * 状態の情報を引く。知らない状態が来たら `excluded` と同じ扱い（何もできない）にして、
+ * 状態の情報を引く。知らない状態が来たら操作を止めて、
  * 画面が壊れないようにします。
  * @param {string} state
  * @returns {BatchCardStateSpec}
  */
 export function getBatchCardState(state) {
-  return BATCH_CARD_STATES[state] || BATCH_CARD_STATES.excluded
+  return isBatchCardState(state) ? BATCH_CARD_STATES[state] : { ...BATCH_CARD_STATES.unknown, label: '状態を確認できません' }
 }
 
 /**

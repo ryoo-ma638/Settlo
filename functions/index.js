@@ -7,6 +7,10 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 const db = admin.firestore();
+const paymentAdded = require("./paymentAddedNotifications");
+const { policyForNotification, settingsAllowPush } = require("./pushPolicyCore");
+
+exports.publishPaymentAddedNotifications = paymentAdded.publishPaymentAddedNotifications;
 
 // =================================================================
 // 1. レシート解析AI機能（レシート画像 → 会計データ）
@@ -392,52 +396,21 @@ exports.purgeTrash = onSchedule(
 // =================================================================
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 
-// 通知タイプ → プッシュの本文
-const PUSH_TEXT = {
-  approval_request: "支払いの承認リクエストが届きました",
-  approval_rejected: "承認リクエストが拒否されました",
-  payment_reminder: "支払いの催促が届きました",
-  payment_completed: "支払いが完了しました！",
-  payment_edited: "支払いが編集されました",
-  payment_deleted: "支払いが削除されました。確認してください",
-  payment_delete_rejected: "削除に「正しくない」が選ばれました",
-  event_edited: "イベントが編集されました",
-  event_invite: "イベントに招待されています",
-  invite_rejected: "招待が拒否されました",
-  event_joined: "イベントに新しいメンバーが参加しました",
-  event_restored: "イベントが復元されました。確認してください",
-  event_restore_rejected: "復帰に「正しくない」が選ばれました",
-  event_left_check: "メンバーがイベントから抜けました。確認してください",
-  event_left_rejected: "退出に「正しくない」が選ばれました",
-  restore_check: "取引が元に戻されました。確認してください",
-  restore_reverted: "取引がゴミ箱に戻されました",
-  friend_removed: "フレンドから削除されました。確認してください",
-  event_member_removed: "イベントから外されました。確認してください",
-  event_rejoin_request: "イベントに参加したいとリクエストが届きました",
-  event_rejoin_approved: "イベントへの参加が承認されました",
-  event_rejoin_rejected: "イベントへの参加リクエストが拒否されました",
-  event_join_request: "イベントへの参加リクエストが届きました",
-  event_join_approved: "イベントへの参加が承認されました",
-  event_join_rejected: "イベントへの参加リクエストが拒否されました",
-  settlement_restore_request: "未精算に戻す依頼が届きました",
-  settlement_restore_approved: "未精算に戻す依頼が承認されました",
-  settlement_restore_rejected: "未精算に戻す依頼が拒否されました",
-};
-
 // 宛先ユーザーのトークンにプッシュを送り、無効なトークンは掃除する
-async function sendPushTo(uid, title, body) {
+async function sendPushTo(uid, { body, category, url = "https://settlo-app.web.app/", tag = "settlo" }) {
   if (!uid) return;
   const userSnap = await db.collection("users").doc(uid).get();
   if (!userSnap.exists) return;
-  const tokens = userSnap.data().fcmTokens || [];
+  const user = userSnap.data();
+  if (!settingsAllowPush(user.notificationSettings, category)) return;
+  const tokens = user.fcmTokens || [];
   if (tokens.length === 0) return;
 
   const message = {
     tokens,
-    notification: { title, body },
+    data: { title: "Settlo", body, url, tag },
     webpush: {
-      notification: { icon: "/favicon.ico", badge: "/favicon.ico" },
-      fcmOptions: { link: "https://settlo-app.web.app/" },
+      fcmOptions: { link: url },
     },
   };
   const res = await admin.messaging().sendEachForMulticast(message);
@@ -459,16 +432,34 @@ async function sendPushTo(uid, title, body) {
   }
 }
 
+const appLink = path => `https://settlo-app.web.app/#${path}`;
+const linkForNotification = data => {
+  if (data.type === 'payment_batch_added' && data.eventId && Array.isArray(data.historyIds) && data.historyIds[0]) {
+    return appLink(`/event/${encodeURIComponent(data.eventId)}?history=${encodeURIComponent(data.historyIds[0])}`);
+  }
+  if (data.eventId && data.historyId) return appLink(`/event/${encodeURIComponent(data.eventId)}?history=${encodeURIComponent(data.historyId)}`);
+  if (data.transactionId) {
+    const prefix = data.type === 'approval_request' ? 'waiting' : 'unpaid';
+    return appLink(`/payment-detail/${prefix}-${encodeURIComponent(data.transactionId)}`);
+  }
+  if (data.eventId) return appLink(`/event/${encodeURIComponent(data.eventId)}`);
+  return appLink('/');
+};
+
 // お知らせ（notifications）が作られたらプッシュ
 exports.pushOnNotification = onDocumentCreated(
   { document: "notifications/{id}", region: "asia-northeast1" },
   async (event) => {
     const data = event.data && event.data.data();
     if (!data || !data.toUserId) return;
-    const from = data.fromUserName || "メンバー";
-    let body = `${from}さん: ${PUSH_TEXT[data.type] || data.message || "新しいお知らせがあります"}`;
-    if (data.userMessage) body += `\n「${data.userMessage}」`; // 送信者が添えた自由メッセージ
-    try { await sendPushTo(data.toUserId, "Settlo", body); }
+    const policy = policyForNotification(data);
+    if (!policy.send) return;
+    try { await sendPushTo(data.toUserId, {
+      body: policy.body,
+      category: policy.category,
+      url: linkForNotification(data),
+      tag: `settlo-${data.type}-${event.params.id}`,
+    }); }
     catch (e) { console.error("プッシュ送信エラー:", e); }
   }
 );
@@ -479,9 +470,32 @@ exports.pushOnFriendRequest = onDocumentCreated(
   async (event) => {
     const data = event.data && event.data.data();
     if (!data || !data.toId || data.status !== "pending") return;
-    const from = data.formName || "メンバー";
-    try { await sendPushTo(data.toId, "Settlo", `${from}さんからフレンド申請が届きました`); }
+    try { await sendPushTo(data.toId, {
+      body: "フレンド申請が届いています。",
+      category: "invites",
+      url: appLink('/friend'),
+      tag: 'settlo-friend-request',
+    }); }
     catch (e) { console.error("プッシュ送信エラー:", e); }
+  }
+);
+
+// チャットはベル通知を作らず、スレッドの未読と端末プッシュだけにする。
+exports.pushOnThreadMessage = onDocumentCreated(
+  { document: "threads/{threadId}/messages/{messageId}", region: "asia-northeast1" },
+  async (event) => {
+    const message = event.data && event.data.data();
+    if (!message || message.system === true || message.suppressPush === true || !message.fromUid) return;
+    const threadId = event.params.threadId;
+    const threadSnap = await db.collection('threads').doc(threadId).get();
+    if (!threadSnap.exists) return;
+    const recipients = [...new Set((threadSnap.data().participants || []).filter(uid => uid && uid !== message.fromUid))];
+    await Promise.all(recipients.map(uid => sendPushTo(uid, {
+      body: '新しいチャットメッセージがあります。',
+      category: 'chat',
+      url: appLink(`/thread/${encodeURIComponent(threadId)}`),
+      tag: `settlo-chat-${threadId}`,
+    }).catch(e => console.error('チャットプッシュ送信エラー:', e))));
   }
 );
 

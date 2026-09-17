@@ -33,9 +33,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { onAuthStateChanged } from "firebase/auth"
-import { auth, db } from "./firebase"
-import { doc, setDoc, arrayUnion } from "firebase/firestore"
-import { getMessaging, getToken, onMessage, isSupported } from "firebase/messaging"
+import { auth } from "./firebase"
 
 import AppHeader from './components/AppHeader.vue'
 import AppFooter from './components/AppFooter.vue'
@@ -44,6 +42,7 @@ import ButtonTour from './components/ButtonTour.vue'
 import GlobalToast from './components/GlobalToast.vue'
 import { useGuestSetup } from './composables/useGuestSetup'
 import logoMark from './assets/logo-mark.png'
+import { refreshPushRegistration, listenForForegroundPush } from './lib/notificationSettings'
 
 const route = useRoute()
 const router = useRouter()
@@ -51,40 +50,15 @@ const authChecked = ref(false)
 // ゲストのデモデータ準備中は、ホームの代わりに読込画面を出す
 const { preparingGuestDemo } = useGuestSetup()
 
-// 🌟 プッシュ通知のセットアップ（ログイン後に実行・トークンを保存して実配信できるように）
-//    VAPIDキーは「公開鍵」なので埋め込みOK
-const VAPID_KEY = "BJ1ETrFo6dkYa-TueyQTYuSYQbRi0BD_UJmh2bRigKzzZnhHjU7bsUZgLWrPWvngVsN9iwWTz6yZczxkn53-0_c"
-
-const setupPushNotifications = async (uid) => {
-  try {
-    if (!(await isSupported())) return // 非対応ブラウザ（iOS Safari の非PWA等）は静かにスキップ
-    const permission = await Notification.requestPermission()
-    if (permission !== "granted") return
-
-    const messaging = getMessaging()
-    const token = await getToken(messaging, { vapidKey: VAPID_KEY })
-    if (!token) return
-
-    // トークンを自分のユーザードキュメントに保存（複数端末に対応するため配列）
-    await setDoc(doc(db, "users", uid), { fcmTokens: arrayUnion(token) }, { merge: true })
-
-    // アプリを開いている間に届いた通知はブラウザ通知で表示
-    onMessage(messaging, (payload) => {
-      const title = payload.notification?.title || payload.data?.title || "Settlo"
-      const body = payload.notification?.body || payload.data?.body || "新しいお知らせがあります"
-      try { new Notification(title, { body, icon: "/favicon.ico" }) } catch (e) {}
-    })
-  } catch (err) {
-    console.error("プッシュ通知のセットアップに失敗:", err)
-  }
-}
-
 onMounted(() => {
   onAuthStateChanged(auth, (user) => {
     authChecked.value = true
     if (user) {
       console.log("Settlo ログイン中:", user.uid)
-      setupPushNotifications(user.uid) // ログインしてから通知の許可を求める
+      // 許可画面は通知設定のボタン操作時だけ出す。既に許可済みの端末は登録を更新する。
+      refreshPushRegistration(user.uid).then(() => listenForForegroundPush()).catch((err) => {
+        console.error("プッシュ通知の登録更新に失敗:", err)
+      })
       if (route.path === "/login") {
         router.push("/")
       }

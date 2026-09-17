@@ -23,6 +23,12 @@
           <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
         </button>
 
+        <button class="menu__item" @click="$router.push('/notification-settings')">
+          <svg class="menu__icon" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+          <span class="menu__label">通知設定</span>
+          <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+
         <button class="menu__item" @click="$router.push('/friend')">
           <svg class="menu__icon" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19v-1a4 4 0 0 1 4-4h3a4 4 0 0 1 4 4v1"/><path d="M16.5 5.4a3.2 3.2 0 0 1 0 6.1M17.4 14.2A4 4 0 0 1 20.5 18v1"/></svg>
           <span class="menu__label">フレンド管理</span>
@@ -79,6 +85,7 @@ import api from "../services/api";
 import PageHeader from "../components/PageHeader.vue";
 import UserAvatar from "../components/UserAvatar.vue";
 import { showToast } from "../lib/toast";
+import { unregisterPushForCurrentDevice } from '../lib/notificationSettings';
 
 const router = useRouter();
 const userName = ref("読み込み中...");
@@ -108,6 +115,7 @@ const copyMyId = async () => {
 
 const logout = async () => {
   try {
+    try { await unregisterPushForCurrentDevice(auth.currentUser?.uid); } catch (e) { console.error('端末通知の解除に失敗しました', e); }
     await signOut(auth);
     router.push("/login");
   } catch (error) {

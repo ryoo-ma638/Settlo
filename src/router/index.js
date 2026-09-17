@@ -30,6 +30,7 @@ const routes = [
     { path: '/combined-settlement/:name', name: 'CombinedSettlement', component: () => import('../views/CombinedSettlementView.vue') },
     { path: '/combined-action/:name', name: 'CombinedAction', component: () => import('../views/CombinedActionView.vue') },
     { path: '/edit-profile', name: 'EditProfile', component: EditProfileView },
+    { path: '/notification-settings', name: 'NotificationSettings', component: () => import('../views/NotificationSettingsView.vue') },
 
     { path: '/payment-history', name: 'PaymentHistory', component: PaymentHistoryView },
     { path: '/trash', name: 'Trash', component: () => import('../views/TrashView.vue') },

@@ -53,7 +53,25 @@ export const MAX_ITEM_NAME_LENGTH = 60
 export const FALLBACK_ITEM_NAME = '不明な店舗'
 
 /** 日付は `YYYY/MM/DD` に整形済みであること（当日で埋めない）。 */
-const DATE_PATTERN = /^\d{4}\/\d{1,2}\/\d{1,2}$/
+export function isValidPaymentDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(value)) return false
+  const [year, month, day] = value.split('/').map(Number)
+  if (year < 1000 || month < 1 || month > 12 || day < 1) return false
+  return day <= new Date(Date.UTC(year, month, 0)).getUTCDate()
+}
+const validId = value => typeof value === 'string' && !!value.trim() && !value.includes('/')
+const uniqueIds = values => values.every(validId) && new Set(values).size === values.length
+
+function historyMatchesPlan(data, plan) {
+  const { payment, creditorUid, shares, ids } = plan
+  const signature = list => JSON.stringify(list.map(s => [s.uid, s.amount]).sort((a, b) => a[0].localeCompare(b[0])))
+  return data.payerUid === creditorUid && data.amount === payment.amount && data.date === payment.date
+    && data.itemName === normalizeItemName(payment.itemName)
+    && Array.isArray(data.shares) && signature(data.shares) === signature(shares)
+    && Array.isArray(data.transactionIds)
+    && JSON.stringify([...data.transactionIds].sort()) === JSON.stringify(ids.transactions.map(t => t.id).sort())
+}
+
 
 /**
  * 「確実に保存されていない」と言い切れるエラー。これだけが `failed`（再送してよい）。
@@ -208,39 +226,42 @@ export function validateSavePlan(args) {
     eventEnded = false,
   } = args || {}
 
-  if (!eventId || typeof eventId !== 'string') return ng('invalid-event')
+  if (!validId(eventId)) return ng('invalid-event')
   if (eventEnded === true) return ng('ended')
   if (!Array.isArray(participantUids) || participantUids.length === 0) return ng('no-participants')
+  if (!uniqueIds(participantUids)) return ng('invalid-participants')
   if (!creditorUid || !participantUids.includes(creditorUid)) return ng('invalid-payer')
 
-  const total = Number(payment.amount)
-  if (!Number.isInteger(total) || total < 1 || total > MAX_AMOUNT) return ng('invalid-amount')
-  if (typeof payment.date !== 'string' || !DATE_PATTERN.test(payment.date)) return ng('invalid-date')
+  if (!payment || typeof payment !== 'object') return ng('invalid-amount')
+  const total = payment.amount
+  if (typeof total !== 'number' || !Number.isInteger(total) || total < 1 || total > MAX_AMOUNT) return ng('invalid-amount')
+  if (!isValidPaymentDate(payment.date)) return ng('invalid-date')
 
-  if (!Array.isArray(shares) || shares.length === 0) return ng('invalid-share')
+  if (!Array.isArray(shares) || shares.length !== participantUids.length || !uniqueIds(shares.map(s => s?.uid))) return ng('invalid-share')
   let sum = 0
   for (const s of shares) {
     if (!s || typeof s.uid !== 'string' || !participantUids.includes(s.uid)) return ng('invalid-share')
-    const amount = Number(s.amount)
-    if (!Number.isInteger(amount) || amount < 0 || amount > MAX_AMOUNT) return ng('invalid-share')
+    const amount = s.amount
+    if (typeof s.name !== 'string' || typeof amount !== 'number' || !Number.isInteger(amount) || amount < 0 || amount > MAX_AMOUNT) return ng('invalid-share')
     sum += amount
   }
   // 1円のずれも許さない。ここを緩めると、イベント合計と履歴の金額が食い違う。
   if (sum !== total) return ng('share-mismatch')
 
-  if (!ids || typeof ids.historyId !== 'string' || !ids.historyId || !Array.isArray(ids.transactions)) {
+  if (!ids || !validId(ids.historyId) || !Array.isArray(ids.transactions)) {
     return ng('missing-ids')
   }
   for (const t of ids.transactions) {
-    if (!t || typeof t.id !== 'string' || !t.id || typeof t.uid !== 'string') return ng('missing-ids')
+    if (!t || !validId(t.id) || !validId(t.uid)) return ng('missing-ids')
   }
+  if (!uniqueIds(ids.transactions.map(t => t.id)) || !uniqueIds(ids.transactions.map(t => t.uid))) return ng('plan-mismatch')
   // 採番したあとに負担者の顔ぶれが変わっていたら、勝手に新しいIDを作らずに止める。
   // （新しいIDを作ると、先に確定していた取引が取り残されて二重に見える）
   const debtors = debtorsOf(shares, creditorUid)
   if (debtors.length !== ids.transactions.length) return ng('plan-mismatch')
   const numbered = new Set(ids.transactions.map((t) => t.uid))
   for (const d of debtors) {
-    if (!numbered.has(d.uid)) return ng('plan-mismatch')
+    if (!numbered.has(d.uid) || ids.transactions.find(t => t.uid === d.uid).amount !== d.amount) return ng('plan-mismatch')
   }
 
   return { ok: true, reason: null }
@@ -283,11 +304,12 @@ function buildHistoryPayload({ payment, creditorUid, shares, transactionIds, ser
     remainder: payment.remainder || null, // 不明な残金（差額の負担者＋理由）
     amount: Number(payment.amount),
     date: payment.date,
-    time: payment.time || nowHHMM(),
+    time: payment.time ?? nowHHMM(),
     status: 'unpaid',
     timestamp: serverTimestamp(), // 並び替えに使用
     shares: shares || [], // 各メンバーの負担額（精算サマリーの正データ）
     items: payment.items || [],
+    ...(payment.receipt ? { receipt: payment.receipt } : {}),
     transactionIds, // 決済完了時に transactions 側も更新するための紐付け
   }
 }
@@ -441,8 +463,19 @@ export async function saveOnePayment(args) {
     already = false
     const snap = await tx.get(historyRef) // 読み取りは必ず書き込みより前
     if (snap.exists()) {
+      if (!historyMatchesPlan(snap.data(), args)) throw new Error('plan-conflict')
       already = true
       return // 既に確定済み。合計は足さない
+    }
+    const eventSnap = await tx.get(eventRef)
+    const current = eventSnap.exists() ? eventSnap.data() : null
+    const invalid = !current ? 'invalid-event' : current.ended ? 'ended'
+      : !Array.isArray(current.participants) || !uniqueIds(current.participants) || current.participants.length !== args.participantUids.length
+        || !current.participants.every(uid => args.participantUids.includes(uid)) ? 'participants-changed' : null
+    if (invalid) {
+      const error = new Error(invalid)
+      error.__validationReason = invalid
+      throw error
     }
     for (const d of debtors) {
       tx.set(
@@ -481,7 +514,7 @@ export async function saveOnePayment(args) {
   }
 
   // ---- ここから付随処理（確定の外）。転んでも saved は取り消さない ----
-  await runSideEffects({
+  await withTimeout(runSideEffects({
     bindings: b,
     status,
     historyId,
@@ -494,6 +527,8 @@ export async function saveOnePayment(args) {
     transactionIds,
     participantNames,
     sideEffectFails,
+  }), args.sideEffectTimeoutMs ?? 10000).catch(() => {
+    if (!sideEffectFails.includes('チャット')) sideEffectFails.push('チャット')
   })
 
   return makeResult(status, historyId, sideEffectFails, null)
@@ -597,7 +632,7 @@ function isServerTruth(snap) {
  * @param {number} [params.timeoutMs]
  * @returns {Promise<{ status: 'saved'|'failed'|'unknown', historyId: string|null, reason: string|null }>}
  */
-export async function confirmSavedOnServer({ eventId, historyId, timeoutMs = SAVE_TIMEOUT_MS }) {
+export async function confirmSavedOnServer({ eventId, historyId, plan, timeoutMs = SAVE_TIMEOUT_MS }) {
   if (!eventId || !historyId) return { status: 'unknown', historyId: historyId || null, reason: 'missing-ids' }
   let b
   try {
@@ -611,6 +646,7 @@ export async function confirmSavedOnServer({ eventId, historyId, timeoutMs = SAV
       timeoutMs
     )
     if (!isServerTruth(snap)) return { status: 'unknown', historyId, reason: 'cache-only' }
+    if (snap.exists() && plan && !historyMatchesPlan(snap.data(), plan)) return { status: 'unknown', historyId, reason: 'plan-conflict' }
     return snap.exists()
       ? { status: 'saved', historyId, reason: null }
       : { status: 'failed', historyId, reason: 'not-saved' }

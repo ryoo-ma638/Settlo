@@ -57,7 +57,7 @@
         <div class="map__row"><span class="map__from">支払い</span><span class="map__to">→ 支払い/催促の詳細 ／ 相手ごとのトータル精算 ／ お支払い履歴</span></div>
         <div class="map__row"><span class="map__from">イベント詳細</span><span class="map__to">→ 支払いを追加 ／ 招待 ／ 精算サマリー ／ 立て替え履歴 ／ 終了・削除</span></div>
         <div class="map__row"><span class="map__from">フレンド</span><span class="map__to">→ フレンド詳細 → トータル精算 → まとめて精算の実行</span></div>
-        <div class="map__row"><span class="map__from">マイページ</span><span class="map__to">→ プロフィール編集 ／ 承認待ち ／ チャット ／ お支払い履歴 ／ ゴミ箱 ／ このヘルプ</span></div>
+        <div class="map__row"><span class="map__from">マイページ</span><span class="map__to">→ プロフィール編集 ／ 通知設定 ／ 承認待ち ／ チャット ／ お支払い履歴 ／ ゴミ箱 ／ このヘルプ</span></div>
         <div class="map__row"><span class="map__from">チャット</span><span class="map__to">→ スレッド（会話）→ その件の支払い画面</span></div>
       </div>
 
@@ -210,6 +210,7 @@ const screenGroups = [
         items: [
           { b: 'IDピル', act: '自分のIDをコピー（フレンド検索に使える）' },
           { b: 'プロフィールを変更', act: '→ プロフィール編集' },
+          { b: '通知設定', act: '→ 端末通知のON/OFFと種類別設定' },
           { b: 'フレンド管理', act: '→ フレンド' },
           { b: 'お支払い履歴', act: '→ お支払い履歴' },
           { b: '承認待ち', act: '→ 承認待ち' },
