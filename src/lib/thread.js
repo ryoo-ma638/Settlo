@@ -3,6 +3,7 @@
 import { db, auth } from '@/firebase';
 import { doc, setDoc, getDoc, getDocs, updateDoc, serverTimestamp, collection, addDoc, increment, query, where } from 'firebase/firestore';
 import { getUserName } from './userName';
+import { mergePaymentThreadState, allTransactionsCompleted } from './threadState';
 
 // 通知（お知らせ）から「件」を一意に決めるキー。
 // 両者の通知は同じ実体（イベント/履歴/取引/ゴミ箱）を指すので同じキーになる。
@@ -111,30 +112,49 @@ export function paymentSubject({ eventName, itemName, amount }) {
   return `${ev}${itemName || '立て替え'}${amt}のお支払いの件`;
 }
 
+// 編集で同じ立て替えを保存し直すとき、既存の会話状態を消さずに更新する。
+// 参加者・取引IDは既存値と新しい値を合わせ、既読状態は既存値を優先する。
+function paymentThreadPayload(existing, info = {}) {
+  const current = existing || {};
+  const stable = mergePaymentThreadState(current, info);
+  return {
+    type: 'payment',
+    participants: stable.participants,
+    participantNames: { ...(current.participantNames || {}), ...(info.participantNames || {}) },
+    creditorUid: info.creditorUid || current.creditorUid || null,
+    eventId: info.eventId || current.eventId || null,
+    eventName: info.eventName || current.eventName || '',
+    itemName: info.itemName || current.itemName || '',
+    amount: info.amount ?? current.amount ?? 0,
+    transactionIds: stable.transactionIds,
+    subjectLabel: paymentSubject({
+      eventName: info.eventName || current.eventName,
+      itemName: info.itemName || current.itemName,
+      amount: info.amount ?? current.amount,
+    }),
+    unread: stable.unread,
+  };
+}
+
 // 立て替え追加時にグループチャットを用意する（参加者2人以上のときだけ）
 export async function ensurePaymentThread(historyId, info) {
   const { participants = [], participantNames = {}, creditorUid, eventId, eventName, itemName, amount, transactionIds = [] } = info || {};
   if (!historyId || participants.length < 2) return null;
   const id = paymentThreadId(historyId);
-  const unread = {}; participants.forEach(u => { unread[u] = 0; });
-  await setDoc(doc(db, 'threads', id), {
-    type: 'payment',
-    participants,
-    participantNames,
-    creditorUid: creditorUid || null,
-    eventId: eventId || null,
-    eventName: eventName || '',
-    itemName: itemName || '',
-    amount: amount || 0,
-    transactionIds,
-    subjectLabel: paymentSubject({ eventName, itemName, amount }),
-    lastMessage: '立て替えを記録しました',
-    hiddenBy: [],
-    resolved: false,
-    unread,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  }, { merge: true });
+  const ref = doc(db, 'threads', id);
+  const snap = await getDoc(ref);
+  const existing = snap.exists() ? snap.data() : null;
+  const payload = paymentThreadPayload(existing, {
+    participants, participantNames, creditorUid, eventId, eventName, itemName, amount, transactionIds,
+  });
+  if (!existing) {
+    payload.lastMessage = '立て替えを記録しました';
+    payload.hiddenBy = [];
+    payload.resolved = false;
+    payload.createdAt = serverTimestamp();
+  }
+  payload.updatedAt = serverTimestamp();
+  await setDoc(ref, payload, { merge: true });
   return id;
 }
 
@@ -247,10 +267,13 @@ export async function resolvePaymentThreadIfDone(historyId) {
     if (!snap.exists()) return;
     const txIds = snap.data().transactionIds || [];
     if (txIds.length === 0) return;
+    const states = [];
     for (const tid of txIds) {
       const t = await getDoc(doc(db, 'transactions', tid));
-      if (t.exists() && (t.data().status || 'unpaid') !== 'completed') return; // まだ未完了あり
+      states.push({ exists: t.exists(), status: t.exists() ? (t.data().status || 'unpaid') : null });
     }
+    // 文書が見つからない状態を「完了」と推測しない。会話を残して確認できるようにする。
+    if (!allTransactionsCompleted(states)) return;
     const parts = snap.data().participants || [];
     await updateDoc(ref, { hiddenBy: parts, resolved: true });
   } catch (e) { /* 失敗しても本処理は止めない */ }
