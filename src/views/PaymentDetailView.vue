@@ -704,7 +704,9 @@ const confirmCash = () => {
 .await-banner {
   display: flex; gap: 12px; align-items: flex-start;
   background: var(--c-pay-weak); border: 1px solid #fcd9a5;
-  border-radius: var(--r-md); padding: 14px 16px; margin-bottom: 6px;
+  border-radius: var(--r-md); padding: 14px 16px; 
+  margin-top: 24px;   /* ← 💡 ここに上の余白を追加（お好みで 16px〜32px などに調整してください） */
+  margin-bottom: 6px;
   color: var(--c-pay-strong);
 }
 .await-banner--action { background: var(--c-brand-weak); border-color: #a7e3c8; color: var(--c-brand-strong); }
