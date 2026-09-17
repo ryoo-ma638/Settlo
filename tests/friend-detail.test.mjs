@@ -14,12 +14,11 @@ export const doc=(_db,...p)=>p,collection=doc,where=(field,op,value)=>({field,va
 export const getDoc=async()=>({exists:()=>true,data:()=>({name:'相手'})});
 export const getDocs=async q=>{if(io.defer)await io.defer;if(io.fail)throw Error('offline');const f=q.filters[0];return {forEach:fn=>io.rows.filter(t=>t[f.field]===f.value).forEach(t=>fn({id:t.id,data:()=>t}))};};
 export const deleteDoc=(...a)=>io.writes.push(a),addDoc=deleteDoc,serverTimestamp=()=>{},getMyName=()=>'';
-export const isEventSettlementReserved=(t)=>!!(t&&t.eventSettlementPlanId),eventSettlementRouteOf=(t)=>t&&t.eventId&&t.eventSettlementPlanId?'/event/'+t.eventId+'?settlement='+t.eventSettlementPlanId:null,eventSettlementStatusLabel=(t)=>t&&t.eventSettlementPlanId?'まとめて精算中':null;
 export default {};
 `).toString('base64');
 const ioModule=await import(mockUrl);const {io,route}=ioModule;
 const {descriptor}=parse(readFileSync(new URL('../src/views/FriendDetailView.vue',import.meta.url),'utf8'));
-const source=compileScript(descriptor,{id:'friend-detail-test'}).content.replace(/from ['"]([^'"]+)['"]/g,(_all,name)=>'from '+JSON.stringify(name==='vue'?import.meta.resolve('vue'):name==='../lib/friendHistory.js'?new URL('../src/lib/friendHistory.js',import.meta.url).href:name==='@/lib/balance'?new URL('../src/lib/balance.js',import.meta.url).href:mockUrl));
+const source=compileScript(descriptor,{id:'friend-detail-test'}).content.replace(/from ['"]([^'"]+)['"]/g,(_all,name)=>'from '+JSON.stringify(name==='vue'?import.meta.resolve('vue'):name==='../lib/friendHistory.js'?new URL('../src/lib/friendHistory.js',import.meta.url).href:name==='@/lib/balance'?new URL('../src/lib/balance.js',import.meta.url).href:name==='@/lib/eventSettlementGuard'?new URL('../src/lib/eventSettlementGuard.js',import.meta.url).href:mockUrl));
 const Component=(await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'))).default;Component.render=()=>null;
 const renderer=createRenderer({createComment:()=>({}),insert(){},remove(){},parentNode(){},nextSibling(){}});
 let app,state;const tick=()=>new Promise(resolve=>setImmediate(resolve));

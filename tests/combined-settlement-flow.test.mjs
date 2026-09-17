@@ -23,7 +23,6 @@ export const resolveThreadForTx=async()=>{},postPaymentEventByTx=async()=>{};
 export const makeBatchId=()=> 'batch-test';
 export const stampSettlementBatch=async(batch,entries)=>io.stamps.push({batch,entries});
 export const batchBreakdownText=()=> '対象と相殺の内訳';
-export const isEventSettlementReserved=(t)=>!!(t&&t.eventSettlementPlanId),eventSettlementRouteOf=(t)=>t&&t.eventId&&t.eventSettlementPlanId?'/event/'+t.eventId+'?settlement='+t.eventSettlementPlanId:null,eventSettlementStatusLabel=(t)=>t&&t.eventSettlementPlanId?'まとめて精算中':null;
 export default {};
 `).toString('base64');
 const mock=await import(mockUrl);const {io,route}=mock;
@@ -36,8 +35,11 @@ async function loadComponent(file, actualImports={}){
 const Settlement=await loadComponent('../src/views/CombinedSettlementView.vue',{
  '@/lib/balance':new URL('../src/lib/balance.js',import.meta.url).href,
  '@/lib/format':new URL('../src/lib/format.js',import.meta.url).href,
+ '@/lib/eventSettlementGuard':new URL('../src/lib/eventSettlementGuard.js',import.meta.url).href,
 });
-const Action=await loadComponent('../src/views/CombinedActionView.vue');
+const Action=await loadComponent('../src/views/CombinedActionView.vue',{
+ '@/lib/eventSettlementGuard':new URL('../src/lib/eventSettlementGuard.js',import.meta.url).href,
+});
 const renderer=createRenderer({createComment:()=>({}),insert(){},remove(){},parentNode(){},nextSibling(){}});
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 let app;
