@@ -72,6 +72,7 @@ async function publishForRequest({ db, timestamp, authUid, data }) {
       }
       refsAndData.push({
         ref: db.collection('notifications').doc(`payment-batch-added.${eventId}.${authUid}.${data.operationId}.${uid}`),
+        receipts: relatedReceipts,
         data: {
           type: 'payment_batch_added', toUserId: uid, fromUserId: authUid, fromUserName,
           eventId, eventName: String(event.name || '').slice(0, 100),
@@ -86,9 +87,25 @@ async function publishForRequest({ db, timestamp, authUid, data }) {
     const existing = await Promise.all(refsAndData.map(item => tx.get(item.ref)));
     let createdCount = 0;
     existing.forEach((snap, index) => {
-      if (snap.exists) return;
-      tx.create(refsAndData[index].ref, refsAndData[index].data);
-      createdCount += 1;
+      const item = refsAndData[index];
+      if (!snap.exists) {
+        tx.create(item.ref, item.data);
+        createdCount += 1;
+        return;
+      }
+      if (item.data.type !== 'payment_batch_added') return;
+      const current = snap.data() || {};
+      const previousIds = unique(Array.isArray(current.historyIds) ? current.historyIds : []);
+      const previousSet = new Set(previousIds);
+      const additions = item.receipts.filter(receipt => !previousSet.has(receipt.historyId));
+      if (!additions.length) return;
+      const historyIds = [...previousIds, ...additions.map(receipt => receipt.historyId)];
+      tx.set(item.ref, {
+        historyIds,
+        count: historyIds.length,
+        amount: Number(current.amount || 0) + additions.reduce((sum, receipt) => sum + receipt.amount, 0),
+        updatedAt: timestamp(),
+      }, { merge: true });
     });
     return { receiptCount: receipts.length, recipientCount: recipients.length, createdCount };
   });

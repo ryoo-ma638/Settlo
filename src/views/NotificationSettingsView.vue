@@ -36,7 +36,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { auth } from '../firebase'
 import PageHeader from '../components/PageHeader.vue'
 import SettingSwitch from '../components/SettingSwitch.vue'
@@ -60,8 +60,11 @@ const updateCategory = async (key, value) => {
   if (controlsDisabled.value) return
   const before = snapshotSettings()
   busy.value = true
+  settings[key] = value
+  await nextTick()
   const result = await commitNotificationSettingsChange(before, { [key]: value }, next => saveNotificationSettings(auth.currentUser?.uid, next))
   restoreSettings(result.settings)
+  await nextTick()
   if (result.saved) {
     showToast('通知設定を保存しました')
   } else {
@@ -81,13 +84,17 @@ const togglePush = async (event) => {
       pushStatus.value = result.status
       nextEnabled = result.status === 'granted'
     }
+    settings.pushEnabled = nextEnabled
+    await nextTick()
     const saved = await commitNotificationSettingsChange(before, { pushEnabled: nextEnabled }, next => saveNotificationSettings(auth.currentUser?.uid, next))
     restoreSettings(saved.settings)
+    await nextTick()
     showToast(saved.saved
       ? (settings.pushEnabled ? '端末通知をオンにしました' : '端末通知をオフにしました')
       : '端末通知の設定を保存できませんでした。変更前の状態に戻しました')
   } catch (e) {
     restoreSettings(before)
+    await nextTick()
     showToast('端末通知の設定に失敗しました。変更前の状態に戻しました')
   } finally { busy.value = false }
 }

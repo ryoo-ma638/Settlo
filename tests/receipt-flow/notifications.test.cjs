@@ -20,13 +20,18 @@ function fakeDb() {
     collection: name => ({ doc: id => ref(`${name}/${id}`) }),
     runTransaction: async work => {
       const creates = [];
+      const sets = [];
       const result = await work({
         get: async reference => snap(docs.get(reference.path)),
         create: (reference, data) => creates.push([reference.path, clone(data)]),
+        set: (reference, data, options) => sets.push([reference.path, clone(data), options]),
       });
       for (const [path, data] of creates) {
         if (docs.has(path)) throw new Error('already-exists');
         docs.set(path, data);
+      }
+      for (const [path, data, options] of sets) {
+        docs.set(path, options && options.merge ? { ...(docs.get(path) || {}), ...data } : data);
       }
       return result;
     },
@@ -67,9 +72,12 @@ test('一部保存後の再確認でも同じ登録操作の要約通知を増�
   await publishForRequest({ ...base, data:{eventId:'e1',operationId:'same-operation',historyIds:['h1']} });
   await publishForRequest({ ...base, data:{eventId:'e1',operationId:'same-operation',historyIds:['h2']} });
   const notifications = [...docs].filter(([path]) => path.startsWith('notifications/')).map(([, value]) => value);
-  assert.equal(notifications.filter(item => item.type === 'payment_batch_added').length, 2, '受信者ごとに要約は1件だけ');
+  const summaries = notifications.filter(item => item.type === 'payment_batch_added');
+  assert.equal(summaries.length, 2, '受信者ごとに要約は1件だけ');
+  assert.ok(summaries.every(item => item.count === 2 && item.amount === 3000), '復旧後の要約へ最終件数と合計を反映する');
+  assert.ok(summaries.every(item => item.historyIds.length === 2), '復旧した支払いも同じ要約へ追加する');
   assert.equal(notifications.filter(item => item.type === 'payment_added').length, 4, '個別のお知らせは各支払いを保持する');
-  assert.ok(notifications.filter(item => item.type === 'payment_batch_added').every(item => item.operationId === 'same-operation'));
+  assert.ok(summaries.every(item => item.operationId === 'same-operation'));
 });
 
 test('個別通知のpushを止め、要約だけに本文を作る', () => {
