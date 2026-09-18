@@ -404,17 +404,36 @@ onMounted(async () => {
     // この会話を開いたので自分の未読を0に
     try { await updateDoc(doc(db, 'threads', threadId), { [`unread.${myUid}`]: 0 }); } catch (e) {}
 
-    // グループチャット：紐づく取引を購読して進捗（誰が払ったか・X/Y）を出す
+    // グループチャット：紐づく取引を購読して進捗（誰が払ったか・X/Y）を出す。
+    // 🌟 まとめて引かず、1件ずつ購読する。
+    //    まとめて引くと、1件でも読めない取引があったときに全部返ってこなくなり、
+    //    内訳も返信の下書きも出なくなってしまう。1件ずつなら読めた分だけ出せる。
     if (isGroup.value && threadId.startsWith('pay-')) {
-      const hid = threadId.slice(4);
       const names = existingData?.participantNames || {};
-      unsubPay = onSnapshot(query(collection(db, 'transactions'), where('historyId', '==', hid)), (snap) => {
-        const txs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const ids = (existingData?.transactionIds || []).filter(Boolean);
+      const apply = (rows) => {
+        const txs = ids.map((id) => rows.get(id)).filter(Boolean);
         payTxs.value = txs;
         progressTotal.value = txs.length;
         progressDone.value = txs.filter((t) => (t.status || 'unpaid') === 'completed').length;
         payStatus.value = txs.map((t) => ({ uid: t.paidById, name: names[t.paidById] || '相手', amount: t.amount || 0, done: (t.status || 'unpaid') === 'completed' }));
-      }, () => {});
+      };
+      if (ids.length) {
+        const rows = new Map();
+        const stops = ids.map((id) => onSnapshot(doc(db, 'transactions', id), (d) => {
+          if (d.exists()) rows.set(id, { id, ...d.data() }); else rows.delete(id);
+          apply(rows);
+        }, () => { rows.delete(id); apply(rows); }));
+        unsubPay = () => stops.forEach((stop) => stop());
+      } else {
+        // 古いチャットには取引の控えが無いので、これまでどおり引く
+        const hid = threadId.slice(4);
+        unsubPay = onSnapshot(query(collection(db, 'transactions'), where('historyId', '==', hid)), (snap) => {
+          const rows = new Map(snap.docs.map((d) => [d.id, { id: d.id, ...d.data() }]));
+          ids.push(...rows.keys());
+          apply(rows);
+        }, () => {});
+      }
     }
 
     // 承認待ちの取引なら、その状態を購読して承認/拒否バーを出す（1対1のみ）

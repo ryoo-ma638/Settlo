@@ -28,3 +28,10 @@ test('承認・拒否のバーは1対1のままにする', () => {
   // グループで承認できてしまうと、誰の分を承認したのか分からなくなる
   assert.match(code, /canApprove = computed\(\(\) => !isGroup\.value/);
 });
+
+test('グループの取引は1件ずつ購読する（1件読めなくても止まらない）', () => {
+  // まとめて引くと、読めない取引が1件でもあると全部返ってこなくなり、
+  // 割り勘の内訳も返信の下書きも出なくなる。
+  assert.match(code, /ids\.map\(\(id\) => onSnapshot\(doc\(db, 'transactions', id\)/, '1件ずつ購読していない');
+  assert.match(code, /rows\.delete\(id\); apply\(rows\)/, '読めなかった分を飛ばしていない');
+});
