@@ -35,3 +35,8 @@ test('グループの取引は1件ずつ購読する（1件読めなくても止
   assert.match(code, /ids\.map\(\(id\) => onSnapshot\(doc\(db, 'transactions', id\)/, '1件ずつ購読していない');
   assert.match(code, /rows\.delete\(id\); apply\(rows\)/, '読めなかった分を飛ばしていない');
 });
+
+test('返信の下書きは、AIを使うものだと分かる名前にする', () => {
+  // 「返信を考える」だけだと、AIが文案を出すことが押す前に伝わらない
+  assert.match(source, /AIと返信を考える/, '名前にAIが入っていない');
+});
