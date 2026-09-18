@@ -64,10 +64,22 @@ test('「まとめて精算してみる」は、一覧で止まらず中まで�
   assert.notEqual(settle.to, list.to, '「中身を見る」と同じ行き先になっている');
 });
 
+test('まとめて精算は2種類あり、どちらも手順に入っている', () => {
+  // 「相手ごと」と「イベントごと」は別のもの。片方だけだと違いが伝わらない。
+  const offset = GUEST_TRAIL.find((s) => s.id === 'offset');
+  const settle = GUEST_TRAIL.find((s) => s.id === 'settle');
+  assert.ok(offset && settle, '2種類そろっていない');
+  assert.notEqual(offset.to, settle.to, '同じ行き先になっている');
+  assert.match(offset.title, /相手ごと/, 'どちらの精算か題名で分からない');
+  assert.match(settle.title, /イベントごと/, 'どちらの精算か題名で分からない');
+  // 先に「相手ごと」を見せる。イベント側を始めると、その分は「まとめて」から外れるため
+  assert.ok(GUEST_TRAIL.indexOf(offset) < GUEST_TRAIL.indexOf(settle), '順番が逆');
+});
+
 test('どの手順も、一覧で止まらず目的の場所まで行く', () => {
   // 押した先が一覧だと「何も起きない」ように見える。
   // 相談とレシートは、どれを選ぶかを本人に決めてもらうので一覧でよい。
-  const deep = { event: /open=first/, settle: /open=settlement/, split: /pick=split/, receipt: /pick=payment/ };
+  const deep = { event: /open=first/, offset: /tab=settle/, settle: /open=settlement/, split: /pick=split/, receipt: /pick=payment/ };
   for (const [id, pattern] of Object.entries(deep)) {
     const step = GUEST_TRAIL.find((s) => s.id === id);
     assert.ok(step, `${id} の手順が無い`);
