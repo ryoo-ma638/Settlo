@@ -180,8 +180,12 @@ export function buildPaymentOverview(transactions = [], myUid) {
 }
 
 // イベントのまとめて精算ぶんを、精算1本につき1行だけ足す。
-// eventSettlementNet は精算を始めたときに全部の元取引へ同じ形で書き込まれる。
-// 古い精算にはこれが無いので、そのときだけ従来どおり額面を足す。
+// 額面をそのまま足すと、受け取る分と支払う分が両方ある精算で実際より多く出る。
+//
+// 自分の差し引きは eventSettlementNet（精算を始めたときに元の取引へ書き込む控え）を使う。
+// 控えが無い古い精算では、自分が関わる取引だけから同じ数を出す。
+// まとめて精算の送金額は参加者ごとの差し引きをそのまま解消する形で決まるので、
+// 「自分が受け取る額面の合計 − 自分が払う額面の合計」が自分の差し引きになる。
 function addEventSettlements(overview, eventRows, myUid, issues) {
   const byPlan = new Map();
   for (const row of eventRows) {
@@ -191,10 +195,12 @@ function addEventSettlements(overview, eventRows, myUid, issues) {
   }
   for (const [planId, members] of byPlan) {
     const net = members.map((row) => row.eventSettlementNet).find((value) => value && typeof value === 'object');
-    const mine = net ? signedInteger(net[myUid]) : null;
-    if (mine === null) {
-      // 控えが無い（古い精算）＝これまでどおり1件ずつ額面で出す
-      members.forEach((row) => add(overview, row.side, 'event', row, issues));
+    const stamped = net ? signedInteger(net[myUid]) : null;
+    const mine = stamped === null
+      ? members.reduce((total, row) => total + (row.side === 'receive' ? row.amount : -row.amount), 0)
+      : stamped;
+    if (!Number.isSafeInteger(mine)) {
+      issue(issues, 'event_net_invalid', members[0], planId);
       continue;
     }
     if (mine === 0) continue; // 差し引き0＝この精算で動くお金は無い

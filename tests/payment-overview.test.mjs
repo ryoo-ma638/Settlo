@@ -218,14 +218,35 @@ test('差し引きが0なら、どちらにも出さない', () => {
   assert.equal(o.pay.event.amount, 0);
 });
 
-test('控えが無い古い精算は、これまでどおり1件ずつ額面で出す', () => {
+test('控えが無い古い精算でも、自分の分だけで差し引いて1行にする', () => {
   const rows = [
     { id: 't1', paidById: 'other', paidToId: 'me', amount: 3000, status: 'unpaid', eventSettlementPlanId: 'p-old' },
     { id: 't2', paidById: 'other', paidToId: 'me', amount: 2000, status: 'unpaid', eventSettlementPlanId: 'p-old' },
   ];
   const o = buildPaymentOverview(rows, 'me');
   assert.equal(o.receive.event.amount, 5000);
-  assert.equal(o.receive.event.items.length, 2);
+  assert.equal(o.receive.event.items.length, 1, '1本の精算は1行');
+  assert.equal(o.receive.event.items[0].count, 2, '何件分かは行に持つ');
+});
+
+test('控えが無い古い精算でも、受け取りと支払いが両方あれば差し引く', () => {
+  const rows = [
+    { id: 't1', paidById: 'other', paidToId: 'me', amount: 6000, status: 'unpaid', eventSettlementPlanId: 'p-old' },
+    { id: 't2', paidById: 'me', paidToId: 'other', amount: 975, status: 'unpaid', eventSettlementPlanId: 'p-old' },
+  ];
+  const o = buildPaymentOverview(rows, 'me');
+  assert.equal(o.receive.event.amount, 5025);
+  assert.equal(o.pay.event.amount, 0);
+});
+
+test('控えが無くて差し引き0なら、どちらにも出さない', () => {
+  const rows = [
+    { id: 't1', paidById: 'other', paidToId: 'me', amount: 1500, status: 'unpaid', eventSettlementPlanId: 'p-old' },
+    { id: 't2', paidById: 'me', paidToId: 'other', amount: 1500, status: 'unpaid', eventSettlementPlanId: 'p-old' },
+  ];
+  const o = buildPaymentOverview(rows, 'me');
+  assert.equal(o.receive.event.amount, 0);
+  assert.equal(o.pay.event.amount, 0);
 });
 
 test('精算が2本あれば、それぞれ1行ずつ', () => {
@@ -254,7 +275,7 @@ test('差し引きがマイナス（自分が払う側）でも、1行にまと�
   assert.equal(o.receive.event.amount, 0);
 });
 
-test('壊れた差し引き（小数・文字）は、額面へ戻して落とさない', () => {
+test('壊れた控え（小数・文字）は、自分の取引から数え直す', () => {
   const rows = [
     { id: 't1', paidById: 'other', paidToId: 'me', amount: 3000, status: 'unpaid',
       eventSettlementPlanId: 'p1', eventSettlementNet: { me: 12.5 } },
