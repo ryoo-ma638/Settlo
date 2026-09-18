@@ -812,14 +812,28 @@ exports.consultPaymentReply = onCall(
       throw new HttpsError("resource-exhausted", "少し時間をおいて、もう一度お試しください。");
     }
 
-    // 3. 会話を読む（当事者2人のスレッドは、UIDを並べ替えたIDで決まる）
-    const threadId = `${[myUid, otherUid].sort().join('-')}__t-${transactionId}`;
-    const msgSnap = await db.collection("threads").doc(threadId).collection("messages")
-      .orderBy("createdAt", "asc").limitToLast(aiConsult.LIMITS.messages).get();
-    const messages = msgSnap.docs.map((d) => {
-      const m = d.data();
-      return { id: d.id, text: m.text, fromUid: m.fromUid, system: !!m.system };
-    });
+    // 3. 会話を読む。
+    //    当事者2人のスレッドは、UIDを並べ替えたIDで決まる。
+    //    立て替え1件ごとのグループチャット（pay-履歴ID）にしか会話が無いこともあるので、
+    //    そちらも見る。ただし、自分がそのチャットの参加者であることを必ず確かめる。
+    const readMessages = async (id) => {
+      const snap = await db.collection("threads").doc(id).collection("messages")
+        .orderBy("createdAt", "asc").limitToLast(aiConsult.LIMITS.messages).get();
+      return snap.docs.map((d) => {
+        const m = d.data();
+        return { id: d.id, text: m.text, fromUid: m.fromUid, system: !!m.system };
+      });
+    };
+    const pairThreadId = `${[myUid, otherUid].sort().join('-')}__t-${transactionId}`;
+    let messages = await readMessages(pairThreadId);
+    if (messages.length === 0 && tx.historyId) {
+      const groupId = `pay-${tx.historyId}`;
+      const groupSnap = await db.collection("threads").doc(groupId).get();
+      const participants = groupSnap.exists ? (groupSnap.data().participants || []) : [];
+      if (participants.includes(myUid)) {
+        messages = await readMessages(groupId);
+      }
+    }
     if (messages.length === 0) {
       throw new HttpsError("failed-precondition", "まだやりとりがないため、相談できません。");
     }
