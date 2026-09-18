@@ -79,8 +79,13 @@ const uniqueText = (values, limit, max) => [...new Set((Array.isArray(values) ? 
 // 🌟 AIへ渡すとき、相手は participant_1 のような仮の名前に置き換えている。
 //    返ってきた文にそのまま残ると、読む人には意味が分からない文字列になる。
 //    名前は渡していないので本名には戻せない。読める言い方へ直す。
+//    自分は self で渡している。これも「あなた」へ直す。
 const humanize = (value) => (typeof value === 'string'
-  ? value.replace(/participant[_ ]?(\d+)/gi, '相手').replace(/相手さん/g, '相手')
+  ? value
+      .replace(/participant[_ ]?(\d+)/gi, '相手')
+      .replace(/\bself\b/gi, 'あなた')
+      .replace(/相手さん/g, '相手')
+      .replace(/あなたさん/g, 'あなた')
   : value);
 
 function normalizeResult(raw, validMessageIds = []) {

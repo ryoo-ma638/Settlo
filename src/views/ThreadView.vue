@@ -588,9 +588,12 @@ const send = async (preset) => {
 .thread__approve-ok:disabled, .thread__approve-ng:disabled { opacity: 0.5; }
 
 /* 返信の下書き。既存のクイック返信と同じ面に置く */
-.rh { background: var(--c-surface); border-top: 1px solid var(--c-line); }
-.rh__toggle { width: 100%; padding: 10px var(--pad); background: none; border: 0; color: var(--c-brand); font-size: 13px; font-weight: var(--fw-bold); text-align: left; cursor: pointer; }
-.rh__body { padding: 0 var(--pad) 12px; }
+/* 「指定する」を選ぶと中身が増えて、入力欄が画面の下へ押し出されていた。
+   #app が overflow:hidden なので、そのままだと下まで見られない。
+   高さの上限を決めて、あふれる分はこの枠の中でスクロールさせる。 */
+.rh { background: var(--c-surface); border-top: 1px solid var(--c-line); display: flex; flex-direction: column; min-height: 0; max-height: 68%; }
+.rh__toggle { flex-shrink: 0; width: 100%; padding: 10px var(--pad); background: none; border: 0; color: var(--c-brand); font-size: 13px; font-weight: var(--fw-bold); text-align: left; cursor: pointer; }
+.rh__body { padding: 0 var(--pad) 12px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .rh__note { margin: 0 0 10px; font-size: 12px; color: var(--c-text-sub); line-height: 1.6; }
 .rh__label { margin: 10px 0 6px; font-size: 12px; font-weight: var(--fw-bold); color: var(--c-text-sub); }
 .rh__row { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -604,7 +607,7 @@ const send = async (preset) => {
 .rh__sug:active { background: var(--c-surface-2); }
 .rh__sug-label { display: block; font-size: 11px; font-weight: var(--fw-bold); color: var(--c-brand); margin-bottom: 4px; }
 .rh__sug-text { display: block; font-size: 13px; color: var(--c-ink); line-height: 1.6; }
-.thread__quick { display: flex; gap: 8px; overflow-x: auto; padding: 8px var(--pad); background: var(--c-surface); border-top: 1px solid var(--c-line); }
+.thread__quick { flex-shrink: 0; display: flex; gap: 8px; overflow-x: auto; padding: 8px var(--pad); background: var(--c-surface); border-top: 1px solid var(--c-line); }
 .quick-chip {
   flex-shrink: 0; background: var(--c-brand-weak); color: var(--c-brand);
   border: 1px solid var(--c-brand-tint); border-radius: var(--r-pill);
@@ -614,6 +617,7 @@ const send = async (preset) => {
 .quick-chip:disabled { opacity: 0.5; }
 
 .thread__compose {
+  flex-shrink: 0;
   display: flex; align-items: flex-end; gap: 8px;
   padding: 10px var(--pad) calc(10px + env(safe-area-inset-bottom, 0));
   background: var(--c-surface);
