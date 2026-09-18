@@ -45,6 +45,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue';
+import { markTrailDone } from '@/lib/trailProgressSignal.js';
 import { db, auth } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { SPLIT_MODES, SPLIT_ERRORS, buildDirectTransaction, debtorAmountOf } from '@/lib/directSplit';
@@ -98,6 +99,7 @@ const save = async () => {
   saving.value = true;
   try {
     await addDoc(collection(db, 'transactions'), { ...built.transaction, createdAt: serverTimestamp() });
+    markTrailDone('split'); // お試しの案内へ「やってみた」と伝える
     emit('saved');
     emit('close');
   } catch (e) {

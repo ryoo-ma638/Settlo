@@ -9,9 +9,11 @@
 // 保存する場所の名前は src/lib/guestGuide.js にまとめてある。
 
 // action: 'route' … その画面へ移動する ／ 'event' … 画面の部品を開く合図を出す
+// check:  'tap'   … 見れば済み ／ 'action' … 実際にやったら済み（アプリ側から合図が来る）
 export const GUEST_TRAIL = [
   {
     id: 'notice',
+    check: 'tap',
     minutes: '30秒',
     title: 'お知らせを見る',
     desc: '催促とフレンド申請が届いています。デモ太郎さんの申請を承認すると、フレンドが増えます。',
@@ -20,6 +22,7 @@ export const GUEST_TRAIL = [
   },
   {
     id: 'event',
+    check: 'tap',
     minutes: '40秒',
     title: 'イベントの中身を見る',
     desc: '「札幌旅行（デモ）」に3人ぶんの立て替えが入っています。誰がいくら負担したかまで出ます。',
@@ -28,6 +31,7 @@ export const GUEST_TRAIL = [
   },
   {
     id: 'offset',
+    check: 'action',
     minutes: '30秒',
     title: '相手ごとにまとめて精算する',
     desc: '「まとめて」タブは、全部のイベントをまたいで人ごとに差し引きます。デモ太郎さんとは受け取る¥2,000と払う¥3,000があるので、差し引き¥1,000を払うだけになります。',
@@ -37,6 +41,7 @@ export const GUEST_TRAIL = [
   },
   {
     id: 'settle',
+    check: 'action',
     minutes: '1分',
     title: 'イベントごとにまとめて精算する',
     desc: 'イベントの「精算を始める」で、3人の貸し借りが送金2回にまとまります。金額を押すと、その額になった元の立て替えも見られます。始めた分は、同じお金を二重に精算しないよう上の「まとめて」からは外れます。',
@@ -46,6 +51,7 @@ export const GUEST_TRAIL = [
   },
   {
     id: 'chat',
+    check: 'action',
     minutes: '1分',
     title: '相談して、AIに文案を作ってもらう',
     desc: 'デモ太郎さんから相談が届いています。「返信を考える」→「AIに相談する」で、会話を読んだ文案が3つ出ます。',
@@ -55,6 +61,7 @@ export const GUEST_TRAIL = [
   },
   {
     id: 'split',
+    check: 'action',
     minutes: '30秒',
     title: 'イベントを作らずに1件だけ割り勘',
     desc: 'デモ花子さんははじめからフレンドです。品名と金額を入れるだけで、誰がいくら払う形になるか先に出ます。',
@@ -63,6 +70,7 @@ export const GUEST_TRAIL = [
   },
   {
     id: 'receipt',
+    check: 'tap',
     minutes: '40秒',
     title: 'レシートを読み取る（レシートがあれば）',
     desc: '「＋」→「お支払いを追加」でレシートを撮ると、店名・金額・消費税をAIが入れます。1回に5枚まで。',

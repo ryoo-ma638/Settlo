@@ -151,6 +151,7 @@
 
 <script setup>
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { markTrailDone } from '@/lib/trailProgressSignal.js';
 import { useRoute, useRouter } from 'vue-router';
 import { db, auth, functions } from '@/firebase';
 import {
@@ -219,6 +220,7 @@ const askAi = async () => {
       replyConditions: replyConditions(),
     });
     aiResult.value = res.data;
+    markTrailDone('chat'); // お試しの案内へ「やってみた」と伝える
   } catch (error) {
     console.error('AI相談エラー:', error);
     aiError.value = error?.message || '返信案を作れませんでした。時間をおいて、もう一度お試しください。';
