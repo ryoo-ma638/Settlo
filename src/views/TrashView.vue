@@ -92,7 +92,7 @@
             <template v-else><b class="yen">¥{{ (item.amount || 0).toLocaleString() }}</b><span class="sep">/</span>{{ item.eventName }}</template>
           </p>
           <p class="tcard__note" v-if="item.status === 'restored'">
-            {{ item.restoredBy === myUid ? '元に戻しました。相手が「正しくない」を選ぶとゴミ箱に戻ります' : `${item.createdByName || '相手'}さんが元に戻しました。お知らせから「正しい／正しくない」を選んでください` }}
+            {{ item.restoredBy === myUid ? '元に戻しました。相手が「正しくない」を選ぶと、削除した状態に戻ります' : `${item.createdByName || '相手'}さんが元に戻しました。お知らせから「正しい／正しくない」を選んでください` }}
           </p>
           <p class="tcard__note" v-else>相手（{{ counterpartyNames(item) }}）の承認を待っています</p>
           <p v-if="item._loc === 'shared'" class="tcard__record-note">相手と共有している記録のため、この画面からは取り消せません。</p>
@@ -353,7 +353,7 @@ onMounted(() => {
     loading.value = false;
     loadError.value = err?.code === 'permission-denied'
       ? 'イベントの非表示記録を確認できません。権限またはログイン状態を確認してください。'
-      : 'ゴミ箱を読み込めませんでした。通信状況を確認してください。';
+      : '読み込めませんでした。通信状況を確認してください。';
     console.error('ゴミ箱の読み込みエラー:', err);
   });
   // 共有ゴミ箱（取引・自分が当事者のもの）

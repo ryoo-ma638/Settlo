@@ -350,7 +350,7 @@ const deleteEvent = async (id) => {
   showModal({
     type: 'warning',
     title: 'イベントを削除しますか？',
-    message: 'このイベントを自分の画面から削除します。ゴミ箱に入り、7日以内なら復元できます（相手の画面には残ります）。',
+    message: 'このイベントを自分の画面から非表示にします。イベント一覧の「非表示にしたイベント」から戻せます（相手の画面には残ります）。',
     showCancel: true,
     confirmText: '削除する',
     withReason: true,

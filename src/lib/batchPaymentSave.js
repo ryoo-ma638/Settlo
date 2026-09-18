@@ -42,6 +42,8 @@
  *   ここがずれると、一括で登録した支払いを既存の編集画面で開いたときに壊れます。
  */
 
+import { isSelfName } from './selfName.js'
+
 /** 保存の返事を待つ上限（ミリ秒）。超えたら `unknown`。 */
 export const SAVE_TIMEOUT_MS = 30000
 
@@ -560,7 +562,8 @@ async function runSideEffects(ctx) {
     const participants = [creditorUid, ...debtors.map((d) => d.uid)]
     const names = {}
     participants.forEach((uid) => {
-      names[uid] = participantNames[uid] || 'メンバー'
+      // 一人称は相手の一覧にそのまま出るので、保存の時点で弾く
+      names[uid] = isSelfName(participantNames[uid]) ? 'メンバー' : participantNames[uid]
     })
     return {
       participants,

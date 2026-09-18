@@ -6,14 +6,9 @@ import { doc, getDoc } from 'firebase/firestore';
 
 const FALLBACK = 'メンバー';
 
-// 相手の画面に出てはいけない一人称（過去に保存されたデータにも混ざっている）
-const SELF_WORDS = ['あなた', '自分', 'me', 'You', 'you'];
-
-// 名前として使えない（空 or 一人称）かどうか
-export function isSelfName(name) {
-  if (!name) return true;
-  return SELF_WORDS.includes(String(name).trim());
-}
+// 一人称の判定は selfName.js を正とする（定義を2か所に置かない）
+export { isSelfName, SELF_WORDS } from './selfName.js';
+import { isSelfName } from './selfName.js';
 
 // uid → 名前（1セッション内はキャッシュして読み込みを減らす）
 const cache = new Map();
