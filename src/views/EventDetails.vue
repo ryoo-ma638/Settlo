@@ -330,7 +330,20 @@
             <template v-if="!selectedSummary.isPreview && !selectedSummary.isOthers && selectedSummary.status === 'unpaid'">
               <p v-if="selectedSummary.isMePayer" class="s-hint">支払い後に報告してください</p>
               <p v-else class="s-hint">支払い報告を待っています</p>
+              <!-- 支払う側は相手のPayPayリンクから送金し、受け取る側は自分のリンクを見せて催促できる。
+                   どちらにも操作が無いと、相手が動くまで何もできない画面になってしまう。 -->
+              <PayPayAction
+                v-if="selectedSummary.isMePayer"
+                mode="pay"
+                :opponentUid="selectedSummary.toId"
+              />
+              <PayPayAction
+                v-else-if="selectedSummary.isMeReceiver"
+                mode="remind"
+                :opponentUid="selectedSummary.fromId"
+              />
               <button v-if="selectedSummary.isMePayer" class="action-btn main" :disabled="settlementBusy" @click="reportNetSettlementPayment(selectedSummary)">支払いを報告する</button>
+              <button v-else-if="selectedSummary.isMeReceiver" class="action-btn main" :disabled="settlementBusy" @click="remindNetSettlementPayment(selectedSummary)">支払いを催促する</button>
             </template>
             <template v-else-if="!selectedSummary.isPreview && !selectedSummary.isOthers && selectedSummary.status === 'awaiting_approval'">
               <p v-if="selectedSummary.isMeReceiver" class="s-hint">入金を確認してください</p>
@@ -405,6 +418,7 @@ import { formatDate } from '@/lib/format';
 import { ensurePaymentThread, postPaymentEvent, postPaymentEventByTx, resolvePaymentThreadByTx, retirePaymentThread } from '@/lib/thread';
 import { getMyName } from '@/lib/userName';
 import { UNPAID_PATCH, COMPLETED_PATCH } from '@/lib/transactionPatch';
+import PayPayAction from '@/components/PayPayAction.vue';
 import { useEventActionContext } from '@/composables/useEventActionContext';
 import { buildEventNetSettlement } from '@/lib/eventNetSettlement';
 
@@ -1435,6 +1449,34 @@ const refreshNetSettlement = () => {
       }
     },
     { type: 'info', confirmText: '反映する', cancelText: 'やめる' },
+  );
+};
+
+// 受け取る側から、まだ支払っていない相手へ催促を送る。
+// お知らせの payment_reminder はすでに通知・プッシュとも対応済みなので、同じ種類を使う。
+const remindNetSettlementPayment = (row) => {
+  if (!row?.isMeReceiver || row.status !== 'unpaid' || settlementBusy.value) return;
+  showConfirm(
+    '支払いを催促しますか？',
+    `${row.from} さんへ、¥${row.amount.toLocaleString()} の支払いのお知らせを送ります。`,
+    async () => {
+      settlementBusy.value = true;
+      try {
+        await notifyParticipants([row.fromId], {
+          type: 'payment_reminder',
+          itemName: `${eventData.value.name || 'イベント'}のまとめて精算`,
+          amount: Number(row.amount) || 0,
+          eventName: eventData.value.name || '',
+        });
+        showToast('催促を送りました');
+      } catch (error) {
+        console.error('まとめて精算の催促エラー:', error);
+        showAlert('error', '送れませんでした', '電波状況を確認して、もう一度お試しください。');
+      } finally {
+        settlementBusy.value = false;
+      }
+    },
+    { confirmText: '催促する', cancelText: 'やめる' }
   );
 };
 

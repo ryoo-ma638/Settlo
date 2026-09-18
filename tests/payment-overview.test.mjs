@@ -12,11 +12,11 @@ test('受け取る2件を未払い・承認待ち・完了・差し戻し後に�
   const unpaid = tx('c', 'c', 'a', 1000);
   const reported = tx('b', 'b', 'a', 1000, 'awaiting_approval');
   let result = buildPaymentOverview([unpaid, reported], 'a');
-  assert.deepEqual(amounts(result).receive, { unpaid: 1000, pending: 1000, review: 0 });
+  assert.deepEqual(amounts(result).receive, { unpaid: 1000, pending: 1000, review: 0, event: 0 });
   result = buildPaymentOverview([unpaid, { ...reported, status: 'completed' }], 'a');
-  assert.deepEqual(amounts(result).receive, { unpaid: 1000, pending: 0, review: 0 });
+  assert.deepEqual(amounts(result).receive, { unpaid: 1000, pending: 0, review: 0, event: 0 });
   result = buildPaymentOverview([unpaid, { ...reported, status: 'unpaid', approvalReviewRequired: true }], 'a');
-  assert.deepEqual(amounts(result).receive, { unpaid: 1000, pending: 0, review: 1000 });
+  assert.deepEqual(amounts(result).receive, { unpaid: 1000, pending: 0, review: 1000, event: 0 });
   assert.equal(result.receive.review.items[0].opponentUid, 'b');
 });
 
@@ -138,36 +138,52 @@ test('不正金額・不明UID・無関係・自分自身の取引を除外す�
     tx('self', 'a', 'a', 100),
   ], 'a');
   assert.deepEqual(amounts(result), {
-    receive: { unpaid: 0, pending: 0, review: 0 },
-    pay: { unpaid: 0, pending: 0, review: 0 },
+    receive: { unpaid: 0, pending: 0, review: 0, event: 0 },
+    pay: { unpaid: 0, pending: 0, review: 0, event: 0 },
   });
   assert.deepEqual(result.issues.map((value) => value.code), [
     'amount_invalid', 'party_uid_missing', 'viewer_not_in_transaction', 'self_transaction',
   ]);
 });
 
-test('イベント全体のまとめて精算に予約された取引は、相手ごとの集計に出さない', () => {
-  // イベント側で1本にまとめて精算するので、相手ごとの画面にも出すと二重に精算できてしまう。
+test('イベント全体のまとめて精算に予約された取引は、別区分に出して操作から外す', () => {
+  // 画面から消すと未払いが0円になり「お金が消えた」ように見えるので、金額は出す。
+  // ただし相手ごとのまとめて精算には混ぜない（イベント側と二重に精算できてしまうため）。
   const plain = tx('plain', 'b', 'a', 1000);
   const reserved = tx('reserved', 'c', 'a', 2000, 'unpaid', { eventSettlementPlanId: 'plan-1' });
   const result = buildPaymentOverview([plain, reserved], 'a');
-  assert.deepEqual(amounts(result).receive, { unpaid: 1000, pending: 0, review: 0 });
-  assert.deepEqual(result.receive.unpaid.items.map((item) => item.id), ['plain']);
+  assert.deepEqual(amounts(result).receive, { unpaid: 1000, pending: 0, review: 0, event: 2000 });
+  assert.deepEqual(result.receive.event.items.map((item) => item.id), ['reserved']);
   assert.deepEqual(actionablePaymentItems(result, 'receive').map((item) => item.id), ['plain']);
   // 予約済みは不正データではないので、警告としては出さない
   assert.deepEqual(result.issues, []);
 });
 
-test('予約済みは承認待ちでも差し戻し後でも同じように外す', () => {
+test('予約済みは承認待ちでも差し戻し後でも、イベント側の区分にまとめる', () => {
   const pending = tx('p', 'b', 'a', 500, 'awaiting_approval', { eventSettlementPlanId: 'plan-1' });
   const review = tx('r', 'c', 'a', 700, 'unpaid', { eventSettlementPlanId: 'plan-1', approvalReviewRequired: true });
   const result = buildPaymentOverview([pending, review], 'a');
-  assert.deepEqual(amounts(result).receive, { unpaid: 0, pending: 0, review: 0 });
+  assert.deepEqual(amounts(result).receive, { unpaid: 0, pending: 0, review: 0, event: 1200 });
+  assert.deepEqual(actionablePaymentItems(result, 'receive'), []);
 });
 
-test('予約が外れた取引は、これまでどおり集計へ戻る', () => {
+test('予約済みは、相手ごとのまとめ精算の束にも混ざらない', () => {
+  const batch = { id: 'sb-1', gross: 800, offset: 0, net: 800, count: 1, counterCount: 0, payerUid: 'b', receiverUid: 'a', role: 'main' };
+  const row = tx('x', 'b', 'a', 800, 'awaiting_approval', { settlementBatch: batch, eventSettlementPlanId: 'plan-1' });
+  const result = buildPaymentOverview([row], 'a');
+  assert.deepEqual(amounts(result).receive, { unpaid: 0, pending: 0, review: 0, event: 800 });
+  assert.deepEqual(result.issues, []);
+});
+
+test('予約が外れた取引は、これまでどおり未払いへ戻る', () => {
   const row = tx('x', 'b', 'a', 1200, 'unpaid', { eventSettlementPlanId: 'plan-1' });
-  assert.equal(buildPaymentOverview([row], 'a').receive.unpaid.amount, 0);
+  assert.equal(buildPaymentOverview([row], 'a').receive.event.amount, 1200);
   assert.equal(buildPaymentOverview([{ ...row, eventSettlementPlanId: null }], 'a').receive.unpaid.amount, 1200);
   assert.equal(buildPaymentOverview([{ ...row, eventSettlementPlanId: '  ' }], 'a').receive.unpaid.amount, 1200);
+});
+
+test('完了した予約済みは、どの区分にも出さない', () => {
+  const done = tx('d', 'b', 'a', 900, 'completed', { eventSettlementPlanId: 'plan-1' });
+  const result = buildPaymentOverview([done], 'a');
+  assert.deepEqual(amounts(result).receive, { unpaid: 0, pending: 0, review: 0, event: 0 });
 });

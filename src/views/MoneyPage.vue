@@ -22,6 +22,10 @@
             <span>送金状況の確認が必要</span>
             <strong>¥{{ receivableReviewAmount.toLocaleString() }}・{{ receivableReview.length }}件</strong>
           </div>
+          <div v-if="receivableEvent.length" class="summary__review">
+            <span>イベントでまとめて精算中</span>
+            <strong>¥{{ receivableEventAmount.toLocaleString() }}・{{ receivableEvent.length }}件</strong>
+          </div>
         </div>
 
         <p v-if="!loading && (overviewIssues.length || loadFailed)" class="overview-warning" role="status">一部の取引を確認できないため、確認できた分を表示しています。</p>
@@ -59,6 +63,23 @@
           </div>
         </template>
 
+
+        <!-- イベント全体のまとめて精算に入っている分。ここからは操作せず、イベントへ送る -->
+        <template v-if="!loading && receivableEvent.length">
+          <h2 class="money__section money__section--event">イベントでまとめて精算中（{{ receivableEvent.length }}件）</h2>
+          <p class="review-note">この分はイベントの「まとめて精算」でやり取りします。押すとイベントの精算画面が開きます。</p>
+          <div class="stack">
+            <div v-for="item in receivableEvent" :key="item.id" class="trow trow--event" @click="openEventSettlement(item)">
+              <UserAvatar class="trow__avatar" :name="item.name" :photo="item.photo" :size="40" />
+              <div class="trow__info">
+                <p class="trow__name">{{ item.name }}</p>
+                <p class="trow__sub">{{ item.date }}・{{ item.itemName }}<span class="trow__badge trow__badge--event">イベントで精算中</span></p>
+              </div>
+              <div class="trow__right"><span class="trow__amount tnum">¥{{ item.amount.toLocaleString() }}</span><svg class="trow__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></div>
+            </div>
+          </div>
+        </template>
+
         <h2 class="money__section">お支払い待ち詳細</h2>
         <div class="stack">
           <SkeletonRows v-if="loading" :rows="4" />
@@ -87,6 +108,10 @@
           <div v-if="payableReview.length" class="summary__review">
             <span>送金状況の確認が必要</span>
             <strong>¥{{ payableReviewAmount.toLocaleString() }}・{{ payableReview.length }}件</strong>
+          </div>
+          <div v-if="payableEvent.length" class="summary__review">
+            <span>イベントでまとめて精算中</span>
+            <strong>¥{{ payableEventAmount.toLocaleString() }}・{{ payableEvent.length }}件</strong>
           </div>
         </div>
 
@@ -119,6 +144,23 @@
               <div class="trow__info">
                 <p class="trow__name">{{ item.name }}</p>
                 <p class="trow__sub">{{ item.date }}・{{ item.itemName }}<span class="trow__badge trow__badge--review">送金状況を確認</span></p>
+              </div>
+              <div class="trow__right"><span class="trow__amount tnum">¥{{ item.amount.toLocaleString() }}</span><svg class="trow__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></div>
+            </div>
+          </div>
+        </template>
+
+
+        <!-- イベント全体のまとめて精算に入っている分。ここからは操作せず、イベントへ送る -->
+        <template v-if="!loading && payableEvent.length">
+          <h2 class="money__section money__section--event">イベントでまとめて精算中（{{ payableEvent.length }}件）</h2>
+          <p class="review-note">この分はイベントの「まとめて精算」でやり取りします。押すとイベントの精算画面が開きます。</p>
+          <div class="stack">
+            <div v-for="item in payableEvent" :key="item.id" class="trow trow--event" @click="openEventSettlement(item)">
+              <UserAvatar class="trow__avatar" :name="item.name" :photo="item.photo" :size="40" />
+              <div class="trow__info">
+                <p class="trow__name">{{ item.name }}</p>
+                <p class="trow__sub">{{ item.date }}・{{ item.itemName }}<span class="trow__badge trow__badge--event">イベントで精算中</span></p>
               </div>
               <div class="trow__right"><span class="trow__amount tnum">¥{{ item.amount.toLocaleString() }}</span><svg class="trow__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></div>
             </div>
@@ -183,6 +225,7 @@ import SkeletonRows from '../components/SkeletonRows.vue'
 import UserAvatar from '../components/UserAvatar.vue'
 import { formatDate } from '../lib/format'
 import { balancesByPerson } from '../lib/balance'
+import { eventSettlementRouteOf } from '../lib/eventSettlementGuard'
 import { actionablePaymentItems, buildPaymentOverview } from '../lib/paymentOverview.js'
 
 const route = useRoute()
@@ -226,6 +269,11 @@ const totalReceivable = computed(() => paymentOverview.value.receive.unpaid.amou
 const totalPayable = computed(() => paymentOverview.value.pay.unpaid.amount)
 const receivableReviewAmount = computed(() => paymentOverview.value.receive.review.amount)
 const payableReviewAmount = computed(() => paymentOverview.value.pay.review.amount)
+// イベント全体のまとめて精算に入っている分。金額は出すが、ここからは操作させない。
+const receivableEvent = computed(() => decorate(paymentOverview.value.receive.event.items))
+const payableEvent = computed(() => decorate(paymentOverview.value.pay.event.items))
+const receivableEventAmount = computed(() => paymentOverview.value.receive.event.amount)
+const payableEventAmount = computed(() => paymentOverview.value.pay.event.amount)
 const reviewOpponentUids = computed(() => new Set([
   ...paymentOverview.value.receive.review.items,
   ...paymentOverview.value.pay.review.items,
@@ -246,6 +294,12 @@ const pendingLabel = (m) => {
 }
 const goSettle = (m) => {
   router.push(`/combined-settlement/${encodeURIComponent(m.name || '相手')}?uid=${m.uid}`)
+}
+
+// 押されたらイベントの精算画面へ送る（この画面では操作させない）
+const openEventSettlement = (item) => {
+  const target = eventSettlementRouteOf(item)
+  if (target) router.push(target)
 }
 
 const openRow = (item, prefix) => {
@@ -377,11 +431,13 @@ watch(() => route.query.tab, (newTab) => {
 }
 .money__section--action { color: var(--c-brand-strong); }
 .money__section--review { color: #8a4b20; }
+.money__section--event { color: #1f5f8b; }
 .review-note, .overview-warning { font-size: 12.5px; line-height: 1.6; color: var(--c-text-sub); margin: -4px 2px 10px; }
 .overview-warning { margin: 10px 2px 0; padding: 10px 12px; border: 1px solid var(--c-line); border-radius: 10px; background: var(--c-surface); }
 .trow--action { border: 1.5px solid var(--c-brand); }
 .trow--muted { opacity: 0.82; }
 .trow--review { border: 1px solid #e8c7aa; background: #fffaf5; }
+.trow--event { border: 1px solid #b9d6e8; background: #f6fbff; }
 
 /* まとめて精算（人ごと・3つ目のタブ） */
 .seg--3 .seg__item { font-size: 12.5px; padding: 9px 2px; letter-spacing: -0.01em; }
@@ -431,6 +487,7 @@ watch(() => route.query.tab, (newTab) => {
 .trow__badge--action { background: var(--c-brand-weak); color: var(--c-brand-strong); }
 .trow__badge--remind { background: var(--c-receive-weak); color: var(--c-receive); }
 .trow__badge--review { background: #fff0e1; color: #8a4b20; }
+.trow__badge--event { background: #e7f2fa; color: #1f5f8b; }
 .trow__right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .trow__amount { font-size: 16px; font-weight: var(--fw-black); color: var(--c-ink); }
 .trow__chevron { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: var(--c-text-faint); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
