@@ -22,7 +22,7 @@
             <span>送金状況の確認が必要</span>
             <strong>¥{{ receivableReviewAmount.toLocaleString() }}・{{ receivableReview.length }}件</strong>
           </div>
-          <div v-if="receivableEvent.length" class="summary__review">
+          <div v-if="receivableEvent.length && !receiveHeadline.eventOnly" class="summary__review">
             <span>イベントでまとめて精算中</span>
             <strong>¥{{ receivableEventAmount.toLocaleString() }}・{{ receivableEvent.length }}件</strong>
           </div>
@@ -133,7 +133,7 @@
             <span>送金状況の確認が必要</span>
             <strong>¥{{ payableReviewAmount.toLocaleString() }}・{{ payableReview.length }}件</strong>
           </div>
-          <div v-if="payableEvent.length" class="summary__review">
+          <div v-if="payableEvent.length && !payHeadline.eventOnly" class="summary__review">
             <span>イベントでまとめて精算中</span>
             <strong>¥{{ payableEventAmount.toLocaleString() }}・{{ payableEvent.length }}件</strong>
           </div>
