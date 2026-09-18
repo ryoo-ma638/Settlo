@@ -27,6 +27,16 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
         </button>
         <p v-if="netBalance === 0" class="balance-note">{{ hasOpenItems ? '支払う分と受け取る分は同じ金額ですが、未精算の明細が残っています。' : '未精算の取引はありません' }}</p>
+        <!-- イベントを作らずに、この人との立て替えを1件だけ記録する -->
+        <button class="balance-sub balance-sub--add" @click="splitOpen = true">
+          この人と割り勘を記録する
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <!-- 相手ごとの会話一覧。これまでどこからも開けなかった -->
+        <button class="balance-sub" @click="openChats">
+          この人との会話を見る
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
       </section>
 
       <section class="history-section" aria-label="取引履歴">
@@ -79,6 +89,14 @@
     </main>
     <BaseModal :show="modalState.show" :type="modalState.type" :title="modalState.title" :message="modalState.message" :showCancel="modalState.showCancel" :confirmText="modalState.confirmText" :cancelText="modalState.cancelText" @confirm="handleConfirmModal" @cancel="modalState.show = false" @close="modalState.show = false" />
   </div>
+
+    <FriendPaymentModal
+      :isOpen="splitOpen"
+      :friendName="friend?.name || '相手'"
+      :friendUid="route.query.uid || route.params.uid || ''"
+      @close="splitOpen = false"
+      @saved="loadFriend"
+    />
 </template>
 
 <script setup>
@@ -88,6 +106,7 @@ import { db, auth } from '@/firebase';
 import { doc, deleteDoc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import BaseModal from '@/components/BaseModal.vue'; // 🌟 統一モーダル追加
 import { getMyName } from '@/lib/userName';
+import FriendPaymentModal from '@/components/FriendPaymentModal.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import { collapsePendingBatches } from '@/lib/balance';
 import { registrationLabel, historyMonth, dateMillis, transactionStatus, transactionCategory, statusTone } from '../lib/friendHistory.js';
@@ -158,6 +177,11 @@ const filteredHistoryGroups = computed(() => {
   }
   return [...groups.values()];
 });
+// 相手ごとの会話一覧へ。取引に紐づく会話が複数あるときにまとめて見られる。
+const splitOpen = ref(false);
+
+const openChats = () => router.push('/chats/' + encodeURIComponent(route.query.uid || route.params.uid || ''));
+
 const openCombined = () => router.push({ path: '/combined-settlement/' + encodeURIComponent(friend.value.name), query: { uid: route.query.uid || route.params.uid } });
 
 const netBalance = computed(() => waitingTotal.value - unpaidTotal.value);
@@ -310,6 +334,10 @@ const handleDeleteFriend = async () => {
 </script>
 
 <style scoped>
+.balance-sub--add { border-color: var(--c-brand); color: var(--c-brand); font-weight: var(--fw-bold); }
+.balance-sub { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 8px; padding: 10px; border: 1px solid var(--c-line); border-radius: var(--r-md, 10px); background: var(--c-surface); font-size: 13px; color: var(--c-text); cursor: pointer; }
+.balance-sub svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
 .friend-detail-container { min-height: 100%; background: var(--c-bg); }
 .scroll-content { padding: 12px var(--pad) 28px; }
 button { font: inherit; touch-action: manipulation; }
