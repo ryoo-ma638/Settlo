@@ -519,6 +519,103 @@ function createEventNetSettlementService({ db, FieldValue }) {
     });
   }
 
+  // 元の取引が精算の開始時から変わっていないことを確かめる。
+  // 変わっていたら完了させない（別の金額で締めてしまわないため）。
+  function assertSourcesUnchanged(plan, planId, sourceSnaps) {
+    const expected = new Map(plan.sourceTransactions.map((row) => [row.id, row]));
+    sourceSnaps.forEach((snap) => {
+      const source = snap.exists ? snap.data() : null;
+      const original = expected.get(snap.id);
+      if (!source || !original || source.eventId !== plan.eventId
+        || source.eventSettlementPlanId !== planId
+        || (source.status || "unpaid") !== "unpaid"
+        || source.paidById !== original.paidById || source.paidToId !== original.paidToId
+        || asYen(source.amount) !== original.amount) {
+        fail("failed-precondition", "元の取引が変わっています。完了できません。");
+      }
+    });
+  }
+
+  // 最後の1本が終わったら、元の取引・精算・イベントをまとめて締める。
+  function finishPlanIfDone({ transaction, allCompleted, sourceRefs, planRef, planId, plan }) {
+    if (allCompleted) {
+      sourceRefs.forEach((ref) => transaction.update(ref, { status: "completed", completedAt: now() }));
+      transaction.update(planRef, { status: "completed", version: FieldValue.increment(1), completedAt: now(), updatedAt: now() });
+      transaction.update(db.collection("events").doc(plan.eventId), {
+        activeEventSettlementPlanId: null,
+        lastEventSettlementPlanId: planId,
+      });
+    } else {
+      transaction.update(planRef, { version: FieldValue.increment(1), updatedAt: now() });
+    }
+  }
+
+  // 🌟 受け取る本人が、相手の報告を待たずに「受け取った」と確定する。
+  //    現金で受け取ったのに相手がアプリを触らないと、行がいつまでも閉じられないため。
+  //    個別の支払いにある「受け取った（完了にする）」と同じ考え方。
+  //    報告を経ていないことが後から分かるよう、印を残す。
+  async function confirmReceipt(uid, input) {
+    const planId = assertText(input.planId, "精算ID");
+    const legId = assertText(input.legId, "支払いID");
+    const requestId = assertText(input.requestId, "受取確認ID");
+    const planRef = db.collection("eventSettlementPlans").doc(planId);
+    const legRef = planRef.collection("legs").doc(legId);
+    return db.runTransaction(async (transaction) => {
+      const planSnap = await transaction.get(planRef);
+      const legSnap = await transaction.get(legRef);
+      const actorSnap = await transaction.get(db.collection("users").doc(uid));
+      if (!planSnap.exists || !legSnap.exists) fail("not-found", "まとめて精算の支払いが見つかりません。");
+      const plan = planSnap.data();
+      const leg = legSnap.data();
+      if (!plan.participantIds.includes(uid)) fail("permission-denied", "このイベントの参加者だけが操作できます。");
+      if (leg.toId !== uid) fail("permission-denied", "受け取る本人だけが確認できます。");
+      if (leg.lastDecision === "received" && leg.lastDecisionRequestId === requestId) {
+        return { planId, legId, status: leg.status, planStatus: plan.status, replay: true };
+      }
+      if (plan.status !== "open" || leg.status !== "unpaid") {
+        fail("failed-precondition", "支払い状況が変わっています。画面を開き直してください。");
+      }
+
+      const legRefs = plan.legIds.map((id) => planRef.collection("legs").doc(id));
+      const legSnaps = [];
+      for (const ref of legRefs) legSnaps.push(await transaction.get(ref));
+      const sourceRefs = plan.sourceTransactionIds.map((id) => db.collection("transactions").doc(id));
+      const sourceSnaps = [];
+      for (const ref of sourceRefs) sourceSnaps.push(await transaction.get(ref));
+
+      const allCompleted = legSnaps.every((snap) => (snap.id === legId
+        ? true
+        : snap.exists && snap.data().status === "completed"));
+      if (allCompleted) assertSourcesUnchanged(plan, planId, sourceSnaps);
+
+      transaction.update(legRef, {
+        status: "completed",
+        lastDecision: "received",
+        lastDecisionRequestId: requestId,
+        reviewRequired: false,
+        // 相手の報告を待たずに受け取り側が閉じた印
+        confirmedWithoutReport: true,
+        completedAt: now(),
+        updatedAt: now(),
+      });
+      finishPlanIfDone({ transaction, allCompleted, sourceRefs, planRef, planId, plan });
+      transaction.set(db.collection("notifications").doc(`event-net-received-${stableId(planId, legId, requestId)}`), {
+        toUserId: leg.fromId,
+        fromUserId: uid,
+        fromUserName: actorSnap.exists ? (actorSnap.data().name || "メンバー") : "メンバー",
+        type: "event_settlement_received",
+        eventId: plan.eventId,
+        planId,
+        legId,
+        amount: leg.amount,
+        message: "受け取りを確認したので、まとめて精算の支払いを完了にしました",
+        isRead: false,
+        createdAt: now(),
+      });
+      return { planId, legId, status: "completed", planStatus: allCompleted ? "completed" : "open", replay: false };
+    });
+  }
+
   async function decide(uid, input) {
     const planId = assertText(input.planId, "精算ID");
     const legId = assertText(input.legId, "支払いID");
@@ -584,20 +681,7 @@ function createEventNetSettlementService({ db, FieldValue }) {
       const allCompleted = legSnaps.every((snap) => snap.id === legId
         ? true
         : snap.exists && snap.data().status === "completed");
-      if (allCompleted) {
-        const expected = new Map(plan.sourceTransactions.map((row) => [row.id, row]));
-        sourceSnaps.forEach((snap) => {
-          const source = snap.exists ? snap.data() : null;
-          const original = expected.get(snap.id);
-          if (!source || !original || source.eventId !== plan.eventId
-            || source.eventSettlementPlanId !== planId
-            || (source.status || "unpaid") !== "unpaid"
-            || source.paidById !== original.paidById || source.paidToId !== original.paidToId
-            || asYen(source.amount) !== original.amount) {
-            fail("failed-precondition", "元の取引が変わっています。完了できません。");
-          }
-        });
-      }
+      if (allCompleted) assertSourcesUnchanged(plan, planId, sourceSnaps);
 
       transaction.update(legRef, {
         status: "completed",
@@ -607,16 +691,7 @@ function createEventNetSettlementService({ db, FieldValue }) {
         completedAt: now(),
         updatedAt: now(),
       });
-      if (allCompleted) {
-        sourceRefs.forEach((ref) => transaction.update(ref, { status: "completed", completedAt: now() }));
-        transaction.update(planRef, { status: "completed", version: FieldValue.increment(1), completedAt: now(), updatedAt: now() });
-        transaction.update(db.collection("events").doc(plan.eventId), {
-          activeEventSettlementPlanId: null,
-          lastEventSettlementPlanId: planId,
-        });
-      } else {
-        transaction.update(planRef, { version: FieldValue.increment(1), updatedAt: now() });
-      }
+      finishPlanIfDone({ transaction, allCompleted, sourceRefs, planRef, planId, plan });
       transaction.set(db.collection("notifications").doc(`event-net-decision-${stableId(planId, legId, requestId, decision)}`), {
         toUserId: leg.fromId,
         fromUserId: uid,
@@ -641,10 +716,11 @@ function createEventNetSettlementService({ db, FieldValue }) {
     if (input.action === "refresh") return refresh(uid, input);
     if (input.action === "report") return report(uid, input);
     if (input.action === "decide") return decide(uid, input);
+    if (input.action === "confirmReceipt") return confirmReceipt(uid, input);
     fail("invalid-argument", "操作が指定されていません。");
   }
 
-  return { start, refresh, report, decide, handle };
+  return { start, refresh, report, decide, confirmReceipt, handle };
 }
 
 module.exports = { createEventNetSettlementService, calculatePlan, calculateRefreshedPlan };
