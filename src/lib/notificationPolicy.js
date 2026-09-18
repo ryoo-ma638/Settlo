@@ -29,6 +29,9 @@ export const needsAction = (notification) => !!notification && KEEP_UNTIL_ANSWER
 /** まだ読んでいないお知らせか（isRead が無い古いものは未読として扱う） */
 export const isUnread = (notification) => !!notification && notification.isRead !== true;
 
+/** ゴミ箱（元に戻す）へ移したお知らせか。お知らせ一覧には出さない */
+export const isInTrash = (notification) => !!notification && notification.inTrash === true;
+
 /** 確認を押すだけで過去へ送ってよいお知らせか */
 export const canDismiss = (notification) => isUnread(notification) && !needsAction(notification);
 
@@ -39,14 +42,17 @@ const newestFirst = (a, b) => (b?.createdAt?.seconds || 0) - (a?.createdAt?.seco
  * archiveLimit は過去に出す上限。古いものまで全部出すと画面が重くなるため。
  */
 export function splitNotifications(rows = [], { archiveLimit = 50 } = {}) {
-  const list = (Array.isArray(rows) ? rows : []).filter(Boolean);
+  // ゴミ箱へ移したものは、いま出す分にも過去にも出さない（「元に戻す」画面で見る）
+  const list = (Array.isArray(rows) ? rows : []).filter((n) => n && !isInTrash(n));
   const active = list.filter(isUnread).sort(newestFirst);
   const archived = list.filter((n) => !isUnread(n)).sort(newestFirst);
+  const trashed = (Array.isArray(rows) ? rows : []).filter(isInTrash).sort(newestFirst);
   return {
     active,
     archived: archived.slice(0, archiveLimit),
     archivedTotal: archived.length,
     unreadCount: active.length,
     dismissible: active.filter((n) => !needsAction(n)),
+    trashed,
   };
 }

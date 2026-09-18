@@ -105,9 +105,14 @@
                       <p><strong>{{ senderName(req) }}</strong>{{ notifText(req) }}</p>
                       <p v-if="req.message && !isEventSettlementType(req.type)" class="notif-sub">{{ req.message }}</p>
                       <!-- 何の知らせだったのかを開いて確かめられるようにする -->
-                      <button class="past-detail-toggle" @click="togglePast(req.id)">
-                        {{ openedPastId === req.id ? '閉じる' : '中身を見る' }}
-                      </button>
+                      <span class="past-actions">
+                        <button class="past-detail-toggle" @click="togglePast(req.id)">
+                          {{ openedPastId === req.id ? '閉じる' : '中身を見る' }}
+                        </button>
+                        <button class="past-detail-toggle past-detail-toggle--del" :disabled="trashingId === req.id" @click="moveToTrash(req)">
+                          {{ trashingId === req.id ? '移動中…' : '削除' }}
+                        </button>
+                      </span>
                       <div v-if="openedPastId === req.id" class="past-detail">
                         <dl v-if="detailOf(req).rows.length" class="past-detail__rows">
                           <div v-for="row in detailOf(req).rows" :key="row.label">
@@ -222,9 +227,14 @@
               <div class="notif-body">
                 <p><strong>{{ senderName(req) }}</strong>{{ notifText(req) }}</p>
                 <p v-if="req.message && !isEventSettlementType(req.type)" class="notif-sub">{{ req.message }}</p>
-                <button class="past-detail-toggle" @click="togglePast(req.id)">
-                  {{ openedPastId === req.id ? '閉じる' : '中身を見る' }}
-                </button>
+                <span class="past-actions">
+                  <button class="past-detail-toggle" @click="togglePast(req.id)">
+                    {{ openedPastId === req.id ? '閉じる' : '中身を見る' }}
+                  </button>
+                  <button class="past-detail-toggle past-detail-toggle--del" :disabled="trashingId === req.id" @click="moveToTrash(req)">
+                    {{ trashingId === req.id ? '移動中…' : '削除' }}
+                  </button>
+                </span>
                 <div v-if="openedPastId === req.id" class="past-detail">
                   <dl v-if="detailOf(req).rows.length" class="past-detail__rows">
                     <div v-for="row in detailOf(req).rows" :key="row.label">
@@ -347,6 +357,28 @@ const showPast = ref(false);
 const openedPastId = ref('');
 const togglePast = (id) => { openedPastId.value = openedPastId.value === id ? '' : id; };
 const detailOf = (req) => notificationDetail(req);
+
+// 🌟 過去のお知らせを「元に戻す」画面へ移す。
+//    消さずに印を付けるだけなので、あとから中身を確かめられる。
+//    そこから7日で自動的に消える（定期処理）。
+const trashingId = ref('');
+const moveToTrash = async (req) => {
+  if (!req?.id || trashingId.value) return;
+  trashingId.value = req.id;
+  try {
+    await updateDoc(doc(db, 'notifications', req.id), {
+      inTrash: true,
+      trashedAt: serverTimestamp(),
+    });
+    if (openedPastId.value === req.id) openedPastId.value = '';
+    notice('success', '移動しました', 'マイページの「元に戻す」から確かめられます。7日で自動的に消えます。');
+  } catch (e) {
+    console.error('お知らせの移動に失敗:', e);
+    notice('error', '移動できませんでした', '通信状況を確認して、もう一度お試しください。');
+  } finally {
+    trashingId.value = '';
+  }
+};
 const EVENT_SETTLEMENT_TYPES = [
   'event_settlement_started',
   'event_settlement_approval_request',
@@ -1595,4 +1627,7 @@ defineExpose({ open });
 .past-detail__note { margin: 8px 0 0; font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .past-detail__when { margin: 8px 0 0; font-size: 11px; color: var(--c-text-faint, #94a3b8); }
 .past-detail__none { margin: 0; font-size: 12px; color: var(--c-text-sub, #6b7280); }
+.past-actions { display: flex; gap: 6px; margin-top: 6px; }
+.past-detail-toggle--del { color: var(--c-danger, #c2410c); border-color: var(--c-danger-weak, #fed7aa); }
+.past-detail-toggle--del:disabled { opacity: 0.55; cursor: default; }
 </style>

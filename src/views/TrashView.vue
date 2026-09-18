@@ -15,14 +15,40 @@
           <span>確認中</span>
           <span v-if="pendingItems.length" class="ttab__cnt">{{ pendingItems.length }}</span>
         </button>
+        <button class="ttab" :class="{ 'is-on': tab === 'notice' }" @click="tab = 'notice'">
+          <svg class="ttab__icon" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+          <span>お知らせ</span>
+          <span v-if="noticeItems.length" class="ttab__cnt">{{ noticeItems.length }}</span>
+        </button>
       </div>
 
       <p class="hint">{{ tabHint }}</p>
       <p v-if="loadError" class="load-error" role="alert">{{ loadError }}</p>
       <p v-if="actionError" class="load-error" role="alert">{{ actionError }}</p>
 
+      <!-- 消したお知らせ -->
+      <div v-if="tab === 'notice'" class="list">
+        <div v-if="loading" class="empty">読み込み中…</div>
+        <div v-else-if="noticeItems.length === 0" class="empty">消したお知らせはありません</div>
+        <div v-for="n in noticeItems" :key="n.id" class="tcard">
+          <div class="tcard__main">
+            <p class="tcard__title">{{ noticeTitle(n) }}</p>
+            <dl v-if="detailOf(n).rows.length" class="ndetail">
+              <div v-for="row in detailOf(n).rows" :key="row.label">
+                <dt>{{ row.label }}</dt><dd>{{ row.value }}</dd>
+              </div>
+            </dl>
+            <p v-if="detailOf(n).note" class="tcard__sub">{{ detailOf(n).note }}</p>
+            <p class="tcard__sub">{{ noticeRemainText(n) }}</p>
+          </div>
+          <div class="tcard__actions">
+            <button class="tbtn tbtn--ghost" :disabled="busyId === n.id" @click="deleteNotice(n)">完全に削除</button>
+          </div>
+        </div>
+      </div>
+
       <!-- イベント / 取引 タブ（削除・完了したもの） -->
-      <div v-if="tab === 'restore'" class="list">
+      <div v-else-if="tab === 'restore'" class="list">
         <template v-if="loading">
           <div v-for="n in 3" :key="'sk' + n" class="tcard tcard--sk">
             <div class="tcard__head">
@@ -129,6 +155,23 @@ import {
 } from 'firebase/firestore';
 import PageHeader from '@/components/PageHeader.vue';
 import BaseModal from '@/components/BaseModal.vue';
+import { notificationDetail } from '@/lib/notificationDetail';
+
+// 消したお知らせの見出し。種類ごとの言い方をここに集める。
+const NOTICE_LABEL = {
+  payment_reminder: 'からの催促',
+  approval_request: 'からの承認のお願い',
+  payment_completed: 'との精算の連絡',
+  payment_added: 'が追加した立て替え',
+  payment_edited: 'が変えた立て替え',
+  payment_deleted: 'が消した立て替え',
+  friend_request: 'からのフレンド申請',
+  friend_approved: 'とフレンドになった知らせ',
+  thread_reply: 'からの返信',
+  event_invite: 'からのイベントの招待',
+  event_settlement_started: 'が始めたまとめて精算',
+  event_settlement_approval_request: 'からのまとめて精算の受取確認',
+};
 
 const tab = ref('restore');
 const userItems = ref([]);   // 自分専用（イベントの非表示など）
@@ -139,6 +182,7 @@ const actionError = ref('');
 const myName = ref('メンバー');
 const myUid = ref('');
 let unsubUser = null;
+let unsubNotice = null;
 let unsubShared = null;
 
 // 2つのゴミ箱を新しい順にまとめる
@@ -159,8 +203,40 @@ const restoreItems = computed(() => trashedItems.value.filter(i => i.type !== 'e
 const currentItems = computed(() => restoreItems.value);
 const tabHint = computed(() => {
   if (tab.value === 'restore') return '削除した立て替えの復元と、精算済みを未精算へ戻す依頼を行います。共有する記録は手動で消せません。';
+  if (tab.value === 'notice') return '過去のお知らせから消したものです。ここに入って7日で自動的に消えます。すぐ消すこともできます。';
   return '相手の確認を待っている操作です。ここから同じ操作を繰り返すことはできません。元の削除日から7日で自動的に整理されます。';
 });
+
+// ---- 消したお知らせ ----
+const notices = ref([]);
+const busyId = ref('');
+const noticeItems = computed(() => [...notices.value]
+  .sort((a, b) => (b.trashedAt?.seconds || 0) - (a.trashedAt?.seconds || 0)));
+const detailOf = (n) => notificationDetail(n);
+const noticeTitle = (n) => {
+  const who = n.fromUserName ? `${n.fromUserName}さん` : '';
+  return `${who}${NOTICE_LABEL[n.type] || 'からのお知らせ'}`;
+};
+// ここに入ってから7日。残りを日で伝える
+const noticeRemainText = (n) => {
+  const ms = n.trashedAt?.toMillis ? n.trashedAt.toMillis() : null;
+  if (ms === null) return '自動で消える日は、次の整理のときに決まります';
+  const left = Math.ceil((ms + 7 * 24 * 60 * 60 * 1000 - Date.now()) / (24 * 60 * 60 * 1000));
+  if (left <= 0) return 'まもなく自動で消えます';
+  return `あと${left}日で自動的に消えます`;
+};
+const deleteNotice = async (n) => {
+  if (!n?.id || busyId.value) return;
+  busyId.value = n.id;
+  try {
+    await deleteDoc(doc(db, 'notifications', n.id));
+  } catch (e) {
+    console.error('お知らせの削除に失敗:', e);
+    actionError.value = 'お知らせを消せませんでした。通信状況を確認してください。';
+  } finally {
+    busyId.value = '';
+  }
+};
 
 const itemUsesEventSettlement = (item) => (item?.transactionSnapshots || [])
   .some((transaction) => !!transaction?.eventSettlementPlanId);
@@ -344,6 +420,15 @@ onMounted(() => {
     if (md.exists() && md.data().name) myName.value = md.data().name;
     else myName.value = auth.currentUser?.displayName || 'メンバー';
   }).catch(() => {});
+  // 消したお知らせ（自分あて・ゴミ箱へ移したもの）
+  const qNotice = query(collection(db, 'notifications'), where('toUserId', '==', uid));
+  unsubNotice = onSnapshot(qNotice, (snap) => {
+    notices.value = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(n => n.inTrash === true);
+  }, (err) => {
+    console.error('消したお知らせの読み込みエラー:', err);
+  });
   // 自分専用ゴミ箱（イベントの非表示など）
   const qUser = query(collection(db, 'users', uid, 'trash'), orderBy('trashedAt', 'desc'));
   unsubUser = onSnapshot(qUser, (snap) => {
@@ -369,7 +454,7 @@ onMounted(() => {
     console.error('共有ゴミ箱の読み込みエラー:', err);
   });
 });
-onUnmounted(() => { if (unsubUser) unsubUser(); if (unsubShared) unsubShared(); });
+onUnmounted(() => { if (unsubUser) unsubUser(); if (unsubShared) unsubShared(); if (unsubNotice) unsubNotice(); });
 </script>
 
 <style scoped>
@@ -466,4 +551,8 @@ onUnmounted(() => { if (unsubUser) unsubUser(); if (unsubShared) unsubShared(); 
 .tcard__actions { display: flex; gap: 8px; margin-top: 14px; }
 .act { padding: 10px 14px; font-size: 13.5px; flex: 1; border-radius: var(--r-md, 12px); font-weight: var(--fw-bold); }
 .act:disabled { cursor: not-allowed; opacity: .58; }
+.ndetail { margin: 6px 0 0; }
+.ndetail > div { display: flex; gap: 10px; font-size: 12px; line-height: 1.7; }
+.ndetail dt { flex: 0 0 auto; width: 4.5em; margin: 0; color: var(--c-text-sub, #6b7280); }
+.ndetail dd { margin: 0; min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
 </style>
