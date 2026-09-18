@@ -434,6 +434,7 @@ import { ensurePaymentThread, postPaymentEvent, postPaymentEventByTx, resolvePay
 import { getMyName } from '@/lib/userName';
 import { eventEndState, endByMe } from '@/lib/eventEnd';
 import { payerNameOf as payerNameFrom } from '@/lib/payerName.js';
+import { markTrailDone } from '@/lib/trailProgressSignal.js';
 import { publishPaymentAddedNotifications } from '@/lib/paymentAddedNotifications.js';
 import { UNPAID_PATCH, COMPLETED_PATCH } from '@/lib/transactionPatch';
 import PayPayAction from '@/components/PayPayAction.vue';
@@ -1488,6 +1489,7 @@ const startNetSettlement = () => {
       try {
         const result = await callNetSettlement({ action: 'start', eventId: route.params.id, requestId: requestId() });
         subscribeSettlementPlan(result.planId);
+        markTrailDone('settle'); // お試しの案内へ「やってみた」と伝える
         showToast(result.alreadyActive ? '進行中のまとめて精算を表示します' : 'まとめて精算を開始しました');
       } catch (error) {
         console.error('まとめて精算の作成エラー:', error);

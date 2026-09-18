@@ -23,6 +23,7 @@
               <span class="trail__step-title">
                 {{ step.title }}
                 <span class="trail__time">{{ step.minutes }}</span>
+                <span v-if="step.check === 'action' && !isDone(step.id)" class="trail__todo">やると✓</span>
               </span>
               <span class="trail__desc">{{ step.desc }}</span>
             </span>
@@ -39,12 +40,13 @@
 </template>
 
 <script setup>
-  import { ref, computed, onMounted } from 'vue';
+  import { ref, computed, onMounted, onUnmounted } from 'vue';
   import { useRouter } from 'vue-router';
   import { auth } from '@/firebase';
   import { onAuthStateChanged } from 'firebase/auth';
   import { GUEST_TRAIL, trailProgress, nextTrailStep, markDone, normalizeDone } from '@/lib/guestTrail.js';
   import { TRAIL_KEY, TRAIL_HIDDEN_KEY as HIDE_KEY } from '@/lib/guestGuide.js';
+  import { TRAIL_DONE_EVENT } from '@/lib/trailProgressSignal.js';
   const router = useRouter();
   const steps = GUEST_TRAIL;
   const isGuest = ref(false);
@@ -66,21 +68,30 @@
   const isDone = (id) => done.value.includes(id);
   const show = computed(() => isGuest.value && !hidden.value);
 
-  const run = (step) => {
-    done.value = markDone(done.value, step.id);
+  // 見るだけの手順は押した時点で済み。
+  // 実際の操作がある手順は、やり終えたところから合図が来るまで済みにしない。
+  const complete = (id) => {
+    if (!id || done.value.includes(id)) return;
+    done.value = markDone(done.value, id);
     save(TRAIL_KEY, done.value);
+  };
+  const run = (step) => {
+    if (step.check !== 'action') complete(step.id);
     if (step.action === 'event') window.dispatchEvent(new CustomEvent(step.event));
     else router.push(step.to);
   };
+  const onTrailDone = (event) => complete(event && event.detail && event.detail.id);
   const reset = () => { done.value = []; save(TRAIL_KEY, []); };
   const hide = () => { hidden.value = true; save(HIDE_KEY, true); };
 
   onMounted(() => {
+    window.addEventListener(TRAIL_DONE_EVENT, onTrailDone);
     done.value = normalizeDone(load(TRAIL_KEY, []));
     hidden.value = load(HIDE_KEY, false) === true;
     isGuest.value = auth.currentUser?.isAnonymous === true;
     onAuthStateChanged(auth, (user) => { isGuest.value = user?.isAnonymous === true; });
   });
+  onUnmounted(() => window.removeEventListener(TRAIL_DONE_EVENT, onTrailDone));
 </script>
 
 <style scoped>
@@ -104,6 +115,7 @@
 .trail__text { flex: 1; min-width: 0; }
 .trail__step-title { display: block; font-size: 13px; font-weight: var(--fw-bold, 700); color: var(--c-ink, #0f172a); line-height: 1.45; }
 .trail__step.is-done .trail__step-title { color: var(--c-text-sub, #475569); }
+.trail__todo { margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--c-brand-weak, #ecfdf5); color: var(--c-brand-strong, #0f7a4d); font-size: 10px; font-weight: var(--fw-bold, 700); white-space: nowrap; }
 .trail__time { margin-left: 6px; font-size: 10px; font-weight: 400; color: var(--c-text-sub, #475569); white-space: nowrap; }
 .trail__desc { display: block; margin-top: 3px; font-size: 11px; line-height: 1.55; color: var(--c-text-sub, #475569); overflow-wrap: anywhere; }
 .trail__go { flex-shrink: 0; align-self: center; color: var(--c-text-faint, #94a3b8); font-size: 15px; }

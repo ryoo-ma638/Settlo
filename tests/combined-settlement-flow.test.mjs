@@ -36,6 +36,8 @@ const Settlement=await loadComponent('../src/views/CombinedSettlementView.vue',{
  '@/lib/balance':new URL('../src/lib/balance.js',import.meta.url).href,
  '@/lib/format':new URL('../src/lib/format.js',import.meta.url).href,
  '@/lib/eventSettlementGuard':new URL('../src/lib/eventSettlementGuard.js',import.meta.url).href,
+ // お試し案内への合図は本物を通す（ただの合図なので差し替える必要が無い）
+ '@/lib/trailProgressSignal.js':new URL('../src/lib/trailProgressSignal.js',import.meta.url).href,
 });
 // 取引の状態を書き換える形（確認の印を含む）は本物を読む。
 // ここを偽物にすると、印の付け外しが壊れていてもテストが通ってしまう。
