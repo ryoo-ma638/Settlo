@@ -1,120 +1,122 @@
 <template>
-  <div class="screen">
+  <div class="trash">
     <PageHeader title="取引を元に戻す" fallback="/mypage" />
 
-    <div class="ttabs">
-      <!-- 取引だけを扱う。隠したイベントはイベント一覧から戻す。 -->
-      <button class="ttab" :class="{ 'is-on': tab === 'restore' }" @click="tab = 'restore'">
-        <svg class="ttab__icon" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4.5V10h5.5"/></svg>
-        <span>復元できる取引</span>
-        <span v-if="restoreItems.length" class="ttab__cnt">{{ restoreItems.length }}</span>
-      </button>
-      <button class="ttab" :class="{ 'is-on': tab === 'pending' }" @click="tab = 'pending'">
-        <svg class="ttab__icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
-        <span>確認中</span>
-        <span v-if="pendingItems.length" class="ttab__cnt">{{ pendingItems.length }}</span>
-      </button>
-    </div>
+    <div class="trash__body">
+      <div class="ttabs">
+        <!-- 取引だけを扱う。隠したイベントはイベント一覧から戻す。 -->
+        <button class="ttab" :class="{ 'is-on': tab === 'restore' }" @click="tab = 'restore'">
+          <svg class="ttab__icon" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4.5V10h5.5"/></svg>
+          <span>復元できる取引</span>
+          <span v-if="restoreItems.length" class="ttab__cnt">{{ restoreItems.length }}</span>
+        </button>
+        <button class="ttab" :class="{ 'is-on': tab === 'pending' }" @click="tab = 'pending'">
+          <svg class="ttab__icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+          <span>確認中</span>
+          <span v-if="pendingItems.length" class="ttab__cnt">{{ pendingItems.length }}</span>
+        </button>
+      </div>
 
-    <p class="hint">{{ tabHint }}</p>
-    <p v-if="loadError" class="load-error" role="alert">{{ loadError }}</p>
-    <p v-if="actionError" class="load-error" role="alert">{{ actionError }}</p>
+      <p class="hint">{{ tabHint }}</p>
+      <p v-if="loadError" class="load-error" role="alert">{{ loadError }}</p>
+      <p v-if="actionError" class="load-error" role="alert">{{ actionError }}</p>
 
-    <!-- イベント / 取引 タブ（削除・完了したもの） -->
-    <div v-if="tab === 'restore'" class="list">
-      <template v-if="loading">
-        <div v-for="n in 3" :key="'sk' + n" class="tcard tcard--sk">
-          <div class="tcard__head">
-            <span class="skeleton skeleton--text" style="width:60px;height:18px"></span>
-            <span class="skeleton skeleton--text" style="width:44px;height:14px"></span>
+      <!-- イベント / 取引 タブ（削除・完了したもの） -->
+      <div v-if="tab === 'restore'" class="list">
+        <template v-if="loading">
+          <div v-for="n in 3" :key="'sk' + n" class="tcard tcard--sk">
+            <div class="tcard__head">
+              <span class="skeleton skeleton--text" style="width:60px;height:18px"></span>
+              <span class="skeleton skeleton--text" style="width:44px;height:14px"></span>
+            </div>
+            <div class="skeleton skeleton--text" style="width:65%;height:16px;margin:8px 0 6px"></div>
+            <div class="skeleton skeleton--text" style="width:40%;height:12px"></div>
+            <div class="skeleton" style="height:40px;margin-top:14px;border-radius:12px"></div>
           </div>
-          <div class="skeleton skeleton--text" style="width:65%;height:16px;margin:8px 0 6px"></div>
-          <div class="skeleton skeleton--text" style="width:40%;height:12px"></div>
-          <div class="skeleton" style="height:40px;margin-top:14px;border-radius:12px"></div>
+        </template>
+        <div v-if="!loading && currentItems.length === 0" class="empty">
+          <span class="empty__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 7h16" /><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+              <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
+              <path d="M10 11v6" /><path d="M14 11v6" />
+            </svg>
+          </span>
+          <p>復元できる取引はありません</p>
         </div>
-      </template>
-      <div v-if="!loading && currentItems.length === 0" class="empty">
-        <span class="empty__icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M4 7h16" /><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-            <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
-            <path d="M10 11v6" /><path d="M14 11v6" />
-          </svg>
-        </span>
-        <p>復元できる取引はありません</p>
+
+        <div v-for="item in currentItems" :key="item._loc + item.id" class="tcard">
+          <div class="tcard__head">
+            <span class="tcard__badge" :class="item.type === 'event' ? 'is-event' : 'is-pay'">{{ typeLabel(item.type) }}</span>
+            <span class="tcard__days" :class="{ 'is-soon': daysLeft(item) <= 2 }">あと{{ daysLeft(item) }}日</span>
+          </div>
+          <p class="tcard__ttl">{{ item.type === 'event' ? item.eventName : item.itemName }}</p>
+          <p class="tcard__meta">
+            <template v-if="item.type === 'event'">ジャンル：{{ item.eventTag || 'その他' }}</template>
+            <template v-else><b class="yen">¥{{ (item.amount || 0).toLocaleString() }}</b><span class="sep">/</span>{{ item.eventName }}</template>
+          </p>
+          <p class="tcard__note" v-if="item._loc === 'shared' && item.createdBy && item.createdBy !== myUid">
+            {{ item.createdByName || '相手' }}さんが{{ item.type === 'payment' ? '削除' : '完了に' }}しました
+          </p>
+          <p v-if="item.type !== 'event'" class="tcard__record-note">共有するお金の記録は、この画面から消せません。</p>
+          <p v-if="item._loc === 'shared' && item.type !== 'event'" class="tcard__record-note">相手と共有している記録のため、この画面からは戻せません。</p>
+          <!-- 共有の取引はボタンが1つも出ないので、空の箱で余白だけ残さない -->
+          <div class="tcard__actions" v-if="item.type === 'event' || item._loc !== 'shared'">
+            <button v-if="item.type === 'event'" class="btn-brand act" @click="askRestoreEvent(item)">表示を戻す</button>
+            <button v-else-if="item.type === 'payment' && item._loc !== 'shared'" class="btn-brand act" @click="askRestorePayment(item)">取引を復元</button>
+            <button v-else-if="item.type !== 'event' && item._loc !== 'shared'" class="btn-brand act" @click="askRestoreSettlement(item)">未精算へ戻す</button>
+            <button v-if="item.type === 'event'" class="btn-outline act" @click="askDeleteForever(item)">記録を削除</button>
+          </div>
+        </div>
       </div>
 
-      <div v-for="item in currentItems" :key="item._loc + item.id" class="tcard">
-        <div class="tcard__head">
-          <span class="tcard__badge" :class="item.type === 'event' ? 'is-event' : 'is-pay'">{{ typeLabel(item.type) }}</span>
-          <span class="tcard__days" :class="{ 'is-soon': daysLeft(item) <= 2 }">あと{{ daysLeft(item) }}日</span>
+      <!-- 保留タブ（相手の承認待ち） -->
+      <div v-else class="list">
+        <div v-if="!loading && pendingItems.length === 0" class="empty">
+          <span class="empty__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" />
+            </svg>
+          </span>
+          <p>保留中のものはありません</p>
         </div>
-        <p class="tcard__ttl">{{ item.type === 'event' ? item.eventName : item.itemName }}</p>
-        <p class="tcard__meta">
-          <template v-if="item.type === 'event'">ジャンル：{{ item.eventTag || 'その他' }}</template>
-          <template v-else><b class="yen">¥{{ (item.amount || 0).toLocaleString() }}</b><span class="sep">/</span>{{ item.eventName }}</template>
-        </p>
-        <p class="tcard__note" v-if="item._loc === 'shared' && item.createdBy && item.createdBy !== myUid">
-          {{ item.createdByName || '相手' }}さんが{{ item.type === 'payment' ? '削除' : '完了に' }}しました
-        </p>
-        <p v-if="item.type !== 'event'" class="tcard__record-note">共有するお金の記録は、この画面から消せません。</p>
-        <p v-if="item._loc === 'shared' && item.type !== 'event'" class="tcard__record-note">相手と共有している記録のため、この画面からは戻せません。</p>
-        <!-- 共有の取引はボタンが1つも出ないので、空の箱で余白だけ残さない -->
-        <div class="tcard__actions" v-if="item.type === 'event' || item._loc !== 'shared'">
-          <button v-if="item.type === 'event'" class="btn-brand act" @click="askRestoreEvent(item)">表示を戻す</button>
-          <button v-else-if="item.type === 'payment' && item._loc !== 'shared'" class="btn-brand act" @click="askRestorePayment(item)">取引を復元</button>
-          <button v-else-if="item.type !== 'event' && item._loc !== 'shared'" class="btn-brand act" @click="askRestoreSettlement(item)">未精算へ戻す</button>
-          <button v-if="item.type === 'event'" class="btn-outline act" @click="askDeleteForever(item)">記録を削除</button>
+
+        <div v-for="item in pendingItems" :key="item._loc + item.id" class="tcard tcard--wait">
+          <div class="tcard__head">
+            <span class="tcard__badge is-wait">{{ item.status === 'restored' ? '復元の確認待ち' : '承認待ち' }}</span>
+            <span class="tcard__days" :class="{ 'is-soon': daysLeft(item) <= 2 }">あと{{ daysLeft(item) }}日</span>
+          </div>
+          <p class="tcard__ttl">{{ item.type === 'event' ? item.eventName : item.itemName }}</p>
+          <p class="tcard__meta">
+            <template v-if="item.type === 'event'">ジャンル：{{ item.eventTag || 'その他' }}</template>
+            <template v-else><b class="yen">¥{{ (item.amount || 0).toLocaleString() }}</b><span class="sep">/</span>{{ item.eventName }}</template>
+          </p>
+          <p class="tcard__note" v-if="item.status === 'restored'">
+            {{ item.restoredBy === myUid ? '元に戻しました。相手が「正しくない」を選ぶとゴミ箱に戻ります' : `${item.createdByName || '相手'}さんが元に戻しました。お知らせから「正しい／正しくない」を選んでください` }}
+          </p>
+          <p class="tcard__note" v-else>相手（{{ counterpartyNames(item) }}）の承認を待っています</p>
+          <p v-if="item._loc === 'shared'" class="tcard__record-note">相手と共有している記録のため、この画面からは取り消せません。</p>
+          <div class="tcard__actions" v-if="item.status === 'pending' && item._loc !== 'shared'">
+            <button class="btn-outline act" @click="askCancelPending(item)">依頼を取り消す</button>
+          </div>
         </div>
       </div>
+
+      <BaseModal
+        :show="alertState.show"
+        :type="alertState.type"
+        :title="alertState.title"
+        :message="alertState.message"
+        :showCancel="alertState.showCancel"
+        :confirmText="alertState.confirmText"
+        :cancelText="alertState.cancelText"
+        :withReason="alertState.withReason"
+        :reasonPlaceholder="alertState.reasonPlaceholder"
+        @confirm="handleConfirm"
+        @cancel="alertState.show = false"
+        @close="alertState.show = false"
+      />
     </div>
-
-    <!-- 保留タブ（相手の承認待ち） -->
-    <div v-else class="list">
-      <div v-if="!loading && pendingItems.length === 0" class="empty">
-        <span class="empty__icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" />
-          </svg>
-        </span>
-        <p>保留中のものはありません</p>
-      </div>
-
-      <div v-for="item in pendingItems" :key="item._loc + item.id" class="tcard tcard--wait">
-        <div class="tcard__head">
-          <span class="tcard__badge is-wait">{{ item.status === 'restored' ? '復元の確認待ち' : '承認待ち' }}</span>
-          <span class="tcard__days" :class="{ 'is-soon': daysLeft(item) <= 2 }">あと{{ daysLeft(item) }}日</span>
-        </div>
-        <p class="tcard__ttl">{{ item.type === 'event' ? item.eventName : item.itemName }}</p>
-        <p class="tcard__meta">
-          <template v-if="item.type === 'event'">ジャンル：{{ item.eventTag || 'その他' }}</template>
-          <template v-else><b class="yen">¥{{ (item.amount || 0).toLocaleString() }}</b><span class="sep">/</span>{{ item.eventName }}</template>
-        </p>
-        <p class="tcard__note" v-if="item.status === 'restored'">
-          {{ item.restoredBy === myUid ? '元に戻しました。相手が「正しくない」を選ぶとゴミ箱に戻ります' : `${item.createdByName || '相手'}さんが元に戻しました。お知らせから「正しい／正しくない」を選んでください` }}
-        </p>
-        <p class="tcard__note" v-else>相手（{{ counterpartyNames(item) }}）の承認を待っています</p>
-        <p v-if="item._loc === 'shared'" class="tcard__record-note">相手と共有している記録のため、この画面からは取り消せません。</p>
-        <div class="tcard__actions" v-if="item.status === 'pending' && item._loc !== 'shared'">
-          <button class="btn-outline act" @click="askCancelPending(item)">依頼を取り消す</button>
-        </div>
-      </div>
-    </div>
-
-    <BaseModal
-      :show="alertState.show"
-      :type="alertState.type"
-      :title="alertState.title"
-      :message="alertState.message"
-      :showCancel="alertState.showCancel"
-      :confirmText="alertState.confirmText"
-      :cancelText="alertState.cancelText"
-      :withReason="alertState.withReason"
-      :reasonPlaceholder="alertState.reasonPlaceholder"
-      @confirm="handleConfirm"
-      @cancel="alertState.show = false"
-      @close="alertState.show = false"
-    />
   </div>
 </template>
 
@@ -371,7 +373,11 @@ onUnmounted(() => { if (unsubUser) unsubUser(); if (unsubShared) unsubShared(); 
 </script>
 
 <style scoped>
-.screen { padding-bottom: 40px; }
+/* 外枠には左右の余白を付けない。共通の .screen を使うとヘッダーごと内側へ
+   押し込まれ、他の画面と戻るボタンの位置がそろわなくなる。
+   余白は本文だけに付ける（相談・履歴など他画面と同じ作り）。 */
+.trash { padding-bottom: calc(var(--nav-h) + 28px); }
+.trash__body { padding: 4px var(--pad) 0; }
 
 /* タブ（はっきり見える大きめボタン） */
 .ttabs {
