@@ -96,3 +96,15 @@ export function splitHiddenEvents(events = [], myUid = '') {
     hidden: list.filter((event) => isHiddenFor(event, myUid)),
   };
 }
+
+// ========== ホームに出す「進行中のイベント」 ==========
+
+/**
+ * 終了したイベントは「進行中」に出さない。並びは新しい順で、イベント一覧とそろえる。
+ * 画面の中に書くと確かめられないので、ここへ出している。
+ */
+export function ongoingEventsOf(events = []) {
+  return (Array.isArray(events) ? events : [])
+    .filter((event) => event && !event.ended)
+    .sort((a, b) => (b?.createdAt?.seconds || 0) - (a?.createdAt?.seconds || 0));
+}

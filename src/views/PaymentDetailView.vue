@@ -614,8 +614,11 @@ const rejectPayment = () => {
       submitting.value = true;
       try {
         await updateAllItems('rejected'); // 未払いに戻す → 相手が再リクエスト可能。送金済みか分からないので確認の印を立てる
-        await clearApprovalNotifs(); // お知らせの承認リクエストを消す
+        // ⚠️ 逆方向を戻すのが先。お知らせを既読にしてからでは手遅れになる。
+        //    逆方向の取引IDは「未読の承認リクエスト」からしか辿れないため、
+        //    先に既読にすると自分で対象を見つけられなくして、相手の分が完了のまま残る。
         const revertedCounter = await revertBatchCounterparts(); // 双方向のまとめ精算なら逆方向も戻す
+        await clearApprovalNotifs(); // 残っている承認リクエストのお知らせを消す
         for (const it of items.value) {
           await logApprovalBoth({ myUid: auth.currentUser?.uid, myName: await getMyName(), otherUid: it.opponentUid, otherName: it.name, kind: 'payment', outcome: 'rejected', itemName: it.itemName, amount: it.amount });
           await postPaymentEventByTx(it.id, { text: `${it.name || '相手'}さんの支払いを差し戻しました（未払いに戻りました）`, kind: 'rejected', actorUid: auth.currentUser?.uid });
