@@ -41,7 +41,18 @@
             <p v-if="detailOf(n).note" class="tcard__sub">{{ detailOf(n).note }}</p>
             <p class="tcard__sub">{{ noticeRemainText(n) }}</p>
           </div>
+          <!-- 消したあとに状況が変わっていることがある。押せるかどうかを先に見せる -->
+          <p v-if="actionOf(n).reason" class="ndetail__why" :class="{ 'is-block': !actionOf(n).can }">
+            {{ actionOf(n).reason }}
+          </p>
           <div class="tcard__actions">
+            <button
+              v-if="actionOf(n).can"
+              class="tbtn"
+              :disabled="busyId === n.id"
+              @click="resumeNotice(n)"
+            >{{ actionLabelOf(n) }}</button>
+            <button v-else-if="noticeChecked(n)" class="tbtn tbtn--disabled" disabled>手続きできません</button>
             <button class="tbtn tbtn--ghost" :disabled="busyId === n.id" @click="deleteNotice(n)">完全に削除</button>
           </div>
         </div>
@@ -147,7 +158,7 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, onMounted, onUnmounted } from 'vue';
+import { ref, computed, reactive, watch, onMounted, onUnmounted } from 'vue';
 import { db, auth } from '@/firebase';
 import {
   collection, query, where, orderBy, onSnapshot, doc, getDoc,
@@ -156,6 +167,8 @@ import {
 import PageHeader from '@/components/PageHeader.vue';
 import BaseModal from '@/components/BaseModal.vue';
 import { notificationDetail } from '@/lib/notificationDetail';
+import { noticeActionState, noticeActionLabel } from '@/lib/noticeAction';
+import { useRouter } from 'vue-router';
 
 // 消したお知らせの見出し。種類ごとの言い方をここに集める。
 const NOTICE_LABEL = {
@@ -179,6 +192,7 @@ const sharedItems = ref([]); // 共有ゴミ箱（取引・両当事者が見ら
 const loading = ref(true);   // 初回読込中は true（スケルトン表示）
 const loadError = ref('');
 const actionError = ref('');
+const router = useRouter();
 const myName = ref('メンバー');
 const myUid = ref('');
 let unsubUser = null;
@@ -212,6 +226,11 @@ const notices = ref([]);
 const busyId = ref('');
 const noticeItems = computed(() => [...notices.value]
   .sort((a, b) => (b.trashedAt?.seconds || 0) - (a.trashedAt?.seconds || 0)));
+// お知らせのタブを開いたときに、対象の取引・イベントを確かめる
+watch([() => tab.value, noticeItems], ([t, list]) => {
+  if (t !== 'notice') return;
+  list.forEach((n) => { loadNoticeTarget(n); });
+}, { immediate: true });
 const detailOf = (n) => notificationDetail(n);
 const noticeTitle = (n) => {
   const who = n.fromUserName ? `${n.fromUserName}さん` : '';
@@ -225,6 +244,58 @@ const noticeRemainText = (n) => {
   if (left <= 0) return 'まもなく自動で消えます';
   return `あと${left}日で自動的に消えます`;
 };
+// 🌟 対象の取引とイベントを読んで、いま手続きできるかを決める。
+//    読んだ結果は覚えておく（画面を開くたびに何度も引かない）。
+const noticeTargets = reactive({});
+const noticeChecked = (n) => Object.prototype.hasOwnProperty.call(noticeTargets, n.id);
+const loadNoticeTarget = async (n) => {
+  if (noticeChecked(n)) return;
+  noticeTargets[n.id] = { transaction: null, event: null };
+  try {
+    if (n.transactionId) {
+      const snap = await getDoc(doc(db, 'transactions', n.transactionId));
+      noticeTargets[n.id].transaction = snap.exists() ? { id: snap.id, ...snap.data() } : null;
+    }
+    if (n.eventId) {
+      const snap = await getDoc(doc(db, 'events', n.eventId));
+      noticeTargets[n.id].event = snap.exists() ? { id: snap.id, ...snap.data() } : null;
+    }
+  } catch (e) {
+    console.error('お知らせの対象を確認できませんでした:', e);
+  }
+};
+const actionOf = (n) => noticeActionState({
+  notification: n,
+  transaction: noticeTargets[n.id]?.transaction ?? null,
+  event: noticeTargets[n.id]?.event ?? null,
+});
+const actionLabelOf = (n) => noticeActionLabel(actionOf(n));
+
+// 手続きに戻す。お知らせ一覧へ戻したうえで、その件の画面へ連れて行く。
+// お金を動かす操作そのものは、これまで使われている画面のボタンに任せる。
+const resumeNotice = async (n) => {
+  if (busyId.value) return;
+  busyId.value = n.id;
+  try {
+    await updateDoc(doc(db, 'notifications', n.id), {
+      inTrash: false, trashedAt: null, isRead: false, readAt: null,
+    });
+    const tx = noticeTargets[n.id]?.transaction;
+    if (tx && tx.id) {
+      const prefix = tx.paidById === myUid.value ? 'unpaid' : 'waiting';
+      router.push(`/payment-detail/${prefix}-${tx.id}`);
+      return;
+    }
+    if (n.eventId) { router.push(`/event/${n.eventId}`); return; }
+    router.push('/');
+  } catch (e) {
+    console.error('手続きに戻せませんでした:', e);
+    actionError.value = '手続きに戻せませんでした。通信状況を確認してください。';
+  } finally {
+    busyId.value = '';
+  }
+};
+
 const deleteNotice = async (n) => {
   if (!n?.id || busyId.value) return;
   busyId.value = n.id;
@@ -555,4 +626,7 @@ onUnmounted(() => { if (unsubUser) unsubUser(); if (unsubShared) unsubShared(); 
 .ndetail > div { display: flex; gap: 10px; font-size: 12px; line-height: 1.7; }
 .ndetail dt { flex: 0 0 auto; width: 4.5em; margin: 0; color: var(--c-text-sub, #6b7280); }
 .ndetail dd { margin: 0; min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
+.ndetail__why { margin: 6px 0 0; font-size: 12px; line-height: 1.6; color: var(--c-text-sub, #6b7280); }
+.ndetail__why.is-block { color: var(--c-danger, #c2410c); }
+.tbtn--disabled { opacity: 0.5; cursor: default; }
 </style>
