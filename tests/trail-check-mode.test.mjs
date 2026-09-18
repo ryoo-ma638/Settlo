@@ -35,7 +35,7 @@ test('やり終えた印は端末に残す（別の画面で操作しても消�
 
 test('やり終えたところから合図を出している', () => {
   const places = {
-    'src/views/CombinedSettlementView.vue': "markTrailDone('offset')",
+    'src/views/CombinedActionView.vue': "markTrailDone('offset')",
     'src/views/EventDetails.vue': "markTrailDone('settle')",
     'src/views/ThreadView.vue': "markTrailDone('chat')",
     'src/components/FriendPaymentModal.vue': "markTrailDone('split')",
@@ -43,6 +43,13 @@ test('やり終えたところから合図を出している', () => {
   for (const [path, call] of Object.entries(places)) {
     assert.ok(strip(path).includes(call), `${path} から合図が出ていない`);
   }
+});
+
+test('相手ごとの精算は、画面を見ただけでは済みにしない', () => {
+  // 一覧から相手を選んで内容を見るところまでは「見ただけ」。
+  // 実際に手続きへ進んだところで済みにする。
+  const view = strip('src/views/CombinedSettlementView.vue');
+  assert.ok(!view.includes('markTrailDone'), '内容を見た時点で済みにしている');
 });
 
 test('やってみる手順には、済みの付き方が書いてある', () => {

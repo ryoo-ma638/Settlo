@@ -737,6 +737,21 @@ exports.setupGuestDemo = onCall(
       fromUserId: TARO, fromUserName: "デモ太郎",
       isRead: false, createdAt: now,
     });
+    // 6-2) イベントに入れない立て替えを2件。
+    //      「まとめて」（相手ごと）は、イベント側の精算を始めると
+    //      その分が外れる。全部がイベントの中だと、始めたとたんに
+    //      「精算できる相手はいません」になって試せなくなるため、
+    //      イベントの外にも貸し借りを置いておく。
+    //      受け取る分と支払う分を1件ずつにして、差し引きも見えるようにする。
+    await db.collection("transactions").add({
+      paidById: HANAKO, paidToId: uid, paidByName: "デモ花子", amount: 1000,
+      itemName: "コンビニ", status: "unpaid", createdAt: now,
+    });
+    await db.collection("transactions").add({
+      paidById: uid, paidToId: HANAKO, paidByName: guestName, amount: 500,
+      itemName: "カフェ代", status: "unpaid", createdAt: now,
+    });
+
     // 申請の体験はデモ太郎から。承認するとフレンドが増える
     await db.collection("friendRequests").add({
       toId: uid, toName: guestName,

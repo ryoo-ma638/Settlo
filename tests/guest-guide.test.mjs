@@ -25,7 +25,7 @@ test('最初からやり直すときは、案内の記録を全部消す', () =>
 });
 
 test('鍵の並びに、はじめてガイドと道案内の両方が入っている', () => {
-  assert.deepEqual(TRAIL_KEYS, [TRAIL_KEY, TRAIL_HIDDEN_KEY]);
+  assert.ok(TRAIL_KEYS.includes(TRAIL_KEY) && TRAIL_KEYS.includes(TRAIL_HIDDEN_KEY), '道案内の鍵が足りない');
   assert.ok(ALL_GUIDE_KEYS.includes(ONBOARDING_KEY));
   assert.equal(new Set(ALL_GUIDE_KEYS).size, ALL_GUIDE_KEYS.length, '鍵が重複している');
 });
@@ -57,4 +57,14 @@ test('案内の記録は1か所にまとめる', () => {
       .split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
     assert.ok(!/'settlo_onboarding_done'|'settlo_guest_trail/.test(source), `${path} が鍵の名前を直接書いている`);
   }
+});
+
+test('進み具合の保存は版をつけ、古いものも消す', () => {
+  // 「押したら済み」だった頃の記録を持ち越すと、
+  // 実際にやっていない手順に印が付いたままになる
+  assert.match(TRAIL_KEY, /_v\d+$/, '版がついていない');
+  const store = fakeStore({ [TRAIL_KEY]: '["event"]', settlo_guest_trail: '["settle"]' });
+  showTrailAgain(store);
+  assert.equal(store.getItem(TRAIL_KEY), null);
+  assert.equal(store.getItem('settlo_guest_trail'), null, '古い記録が残っている');
 });

@@ -43,6 +43,10 @@
   
   <script setup>
   import { computed, reactive, ref } from 'vue'; // 🌟 reactiveを追加
+  import { onMounted } from 'vue';
+  import { markTrailDone } from '@/lib/trailProgressSignal.js';
+  // 精算の中身を選んで、実際に手続きへ進んだところで「やってみた」と伝える
+  onMounted(() => markTrailDone('offset'));
   import { useRoute, useRouter } from 'vue-router';
   import { db, auth } from '@/firebase';
   import { collection, query, where, getDocs, getDoc, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';

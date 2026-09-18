@@ -94,3 +94,19 @@ test('フレンドと割り勘は、押した先が空にならない', () => {
   assert.match(split.desc, /はじめからフレンド/, 'フレンドが用意されていることが書かれていない');
   assert.ok(!/手順1.*承認/.test(split.desc), 'ほかの手順に頼ったままになっている');
 });
+
+test('イベントの精算を始めても、相手ごとの精算は空にならない', async () => {
+  // 手順3と手順4は別のもの。4をやったせいで3が試せなくなると、順番に縛られる。
+  const { friendNetFromTransactions } = await import('../src/lib/friendBalance.js');
+  const inEvent = [
+    { id: 'a', paidById: 'taro', paidToId: 'me', amount: 2000, status: 'unpaid', eventId: 'e' },
+    { id: 'b', paidById: 'me', paidToId: 'taro', amount: 3000, status: 'unpaid', eventId: 'e' },
+  ];
+  const outside = [
+    { id: 'c', paidById: 'hanako', paidToId: 'me', amount: 1000, status: 'unpaid' },
+    { id: 'd', paidById: 'me', paidToId: 'hanako', amount: 500, status: 'unpaid' },
+  ];
+  const started = [...inEvent.map((t) => ({ ...t, eventSettlementPlanId: 'p1' })), ...outside];
+  const net = friendNetFromTransactions(started, 'me');
+  assert.deepEqual(net, { hanako: 500 }, 'イベントの精算を始めると誰も残らない');
+});
