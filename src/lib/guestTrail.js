@@ -8,11 +8,13 @@
 
 // 保存する場所の名前は src/lib/guestGuide.js にまとめてある。
 
+// where:  自分の指でたどるときに押す場所。押す先が分からないまま迷わないように書く
 // action: 'route' … その画面へ移動する ／ 'event' … 画面の部品を開く合図を出す
 // check:  'tap'   … 見れば済み ／ 'action' … 実際にやったら済み（アプリ側から合図が来る）
 export const GUEST_TRAIL = [
   {
     id: 'notice',
+    where: '右上のベル',
     check: 'tap',
     minutes: '30秒',
     title: 'お知らせを見る',
@@ -22,6 +24,7 @@ export const GUEST_TRAIL = [
   },
   {
     id: 'event',
+    where: '下の「イベント」',
     check: 'tap',
     minutes: '40秒',
     title: 'イベントの中身を見る',
@@ -31,6 +34,7 @@ export const GUEST_TRAIL = [
   },
   {
     id: 'offset',
+    where: '下の「支払い」→「まとめて」',
     check: 'action',
     minutes: '30秒',
     title: '相手ごとにまとめて精算する',
@@ -41,6 +45,7 @@ export const GUEST_TRAIL = [
   },
   {
     id: 'settle',
+    where: '「イベント」→「精算を始める」',
     check: 'action',
     minutes: '1分',
     title: 'イベントごとにまとめて精算する',
@@ -51,6 +56,7 @@ export const GUEST_TRAIL = [
   },
   {
     id: 'chat',
+    where: '左上のふきだし',
     check: 'action',
     minutes: '1分',
     title: '相談して、AIに文案を作ってもらう',
@@ -61,6 +67,7 @@ export const GUEST_TRAIL = [
   },
   {
     id: 'split',
+    where: '「＋」→「フレンドと割り勘」',
     check: 'action',
     minutes: '30秒',
     title: 'イベントを作らずに1件だけ割り勘',
@@ -70,6 +77,7 @@ export const GUEST_TRAIL = [
   },
   {
     id: 'receipt',
+    where: '「＋」→「お支払いを追加」',
     check: 'tap',
     minutes: '40秒',
     title: 'レシートを読み取る（レシートがあれば）',
