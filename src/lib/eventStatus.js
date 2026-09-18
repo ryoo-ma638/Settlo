@@ -105,7 +105,18 @@ export function decorateHistory(raw, txById = {}, { loaded = true } = {}) {
   const anyPending = shares.some((s) => s && s.isDebt && s.status === PENDING)
     || (rawShares.length === 0 && txIds.some((id) => normalizeStatus(txById[id]?.status) === PENDING));
 
-  return withTotals(raw, shares, status, anyPending);
+  // 🌟 shares が無い古い履歴は、取引そのものを負担者ぶんとして数える。
+  //    これが無いと debts が空になり、残額が必ず0円になっていた。
+  //    一方で精算サマリー（settlementSummary.js）は splitType と参加者から
+  //    金額を作り直すので、同じ立て替えが「残り0円」と「2,000円」に割れていた。
+  const legacyDebts = rawShares.length === 0
+    ? txIds
+      .map((id) => txById[id])
+      .filter(Boolean)
+      .map((t) => ({ amount: Number(t.amount) || 0, settled: normalizeStatus(t.status) === DONE }))
+    : null;
+
+  return withTotals(raw, shares, status, anyPending, legacyDebts);
 }
 
 // その負担額が「誰かに払う分」か（立替者本人の取り分と0円は対象外）
@@ -115,8 +126,9 @@ function isDebtShare(share, payerUid) {
   return (Number(share.amount) || 0) > 0;
 }
 
-function withTotals(raw, shares, status, pending) {
-  const debts = shares.filter((s) => s && s.isDebt);
+function withTotals(raw, shares, status, pending, legacyDebts = null) {
+  // legacyDebts は shares が無い古い履歴のときだけ渡る（取引から作った負担分）
+  const debts = legacyDebts || shares.filter((s) => s && s.isDebt);
   const settledCount = debts.filter((s) => s.settled).length;
   const outstanding = debts
     .filter((s) => !s.settled)
