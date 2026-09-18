@@ -89,3 +89,13 @@ test('ログインのたびに名前を上書きしない', () => {
   assert.match(user, /if \(!data\.name\)/);
   assert.ok(!/name: user\.displayName \|\| "名前なし",\s*\n\s*email/.test(user), '毎回 name を書いてはいけない');
 });
+
+test('未払いが残っているのに「全部片付いています」と言わない', () => {
+  // ホームの枠が見ているのは承認待ち・要確認・イベントで精算中の3行だけで、
+  // ふつうの未払いは入っていない。残っているのに終わったように読ませない。
+  const carousel = read('components/PaymentCarousel.vue');
+  assert.match(carousel, /hasOutstanding/);
+  assert.match(carousel, /hasOutstanding \? '承認待ちや差し戻しはありません/);
+  // 判定には unpaid も含める（3行だけ見ていたのが原因）
+  assert.match(carousel, /\['unpaid', 'pending', 'review', 'event'\]/);
+});
