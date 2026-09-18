@@ -6,6 +6,7 @@ import * as Vue from 'vue';
 import * as eventStatus from '../src/lib/eventStatus.js';
 import { buildEventNetSettlement } from '../src/lib/eventNetSettlement.js';
 import { eventEndState, endByMe } from '../src/lib/eventEnd.js';
+import { payerNameOf as payerNameFrom } from '../src/lib/payerName.js';
 
 // 実際の画面の選択欄と computed を検証する。通信・保存・精算計算は対象外。
 const { descriptor } = parse(readFileSync(new URL('../src/views/EventDetails.vue', import.meta.url), 'utf8'));
@@ -13,7 +14,9 @@ const models = Object.fromEntries([...descriptor.template.content.matchAll(/<sel
 const importNames = new Set();
 const compiled = compileScript(descriptor, { id: 'event-filters-test' }).content
   .replace(/^import\s+(.+?)\s+from\s+['"][^'"]+['"];?.*$/gm, (_line, imports) => {
-    for (const name of imports.replace(/[{}]/g, '').split(',').map(value => value.trim())) importNames.add(name);
+    for (const name of imports.replace(/[{}]/g, '').split(',').map(value => value.trim().split(/\s+as\s+/).pop().trim())) {
+      if (name) importNames.add(name);
+    }
     return '';
   }).replace('export default', 'return');
 const externalCalls = [];
@@ -36,8 +39,8 @@ Object.assign(bindings, eventStatus, Object.fromEntries([...importNames].filter(
   } }),
   useEventActionContext: () => ({ setPaymentAvailability() {} }),
   buildEventNetSettlement,
-  // 終了の判断は本物を使う（計算だけなので差し替える必要が無い）
-  eventEndState, endByMe,
+  // 終了の判断と名前の出し方は本物を使う（計算だけなので差し替える必要が無い）
+  eventEndState, endByMe, payerNameFrom,
 });
 const Component = new Function(...Object.keys(bindings), compiled)(...Object.values(bindings));
 Component.render = () => null;
@@ -509,4 +512,14 @@ test('終了済みの追加要求は画面を開かずに消費し、後の再�
   await Vue.nextTick();
   assert.equal(state.modals.addPayment, false);
   assert.equal(state.alertState.show, false);
+});
+
+test('立て替えた人の名前が、読み込み中でも「メンバー」にならない', () => {
+  // 精算を確定した直後は参加者の名前が仮のままになることがある。
+  // そのとき記録に残っている名前へ落とせているかを、画面の関数越しに確かめる。
+  const state = mount();
+  state.eventData.participants = [{ id: 'u1', name: 'メンバー' }];
+  assert.equal(state.payerNameOf({ payerUid: 'u1', payer: 'ゲスト394' }), 'ゲスト394');
+  state.eventData.participants = [{ id: 'u1', name: '本当の名前' }];
+  assert.equal(state.payerNameOf({ payerUid: 'u1', payer: 'ゲスト394' }), '本当の名前');
 });

@@ -353,7 +353,12 @@
                 :opponentUid="selectedSummary.fromId"
               />
               <button v-if="selectedSummary.isMePayer" class="action-btn main" :disabled="settlementBusy" @click="reportNetSettlementPayment(selectedSummary)">支払いを報告する</button>
-              <button v-else-if="selectedSummary.isMeReceiver" class="action-btn main" :disabled="settlementBusy" @click="remindNetSettlementPayment(selectedSummary)">支払いを催促する</button>
+              <template v-else-if="selectedSummary.isMeReceiver">
+                <button class="action-btn main" :disabled="settlementBusy" @click="remindNetSettlementPayment(selectedSummary)">支払いを催促する</button>
+                <!-- 現金で受け取ったのに相手がアプリを触らないと、この行が閉じられないため -->
+                <button class="action-btn sub" :disabled="settlementBusy" @click="confirmNetSettlementReceipt(selectedSummary)">受け取った（完了にする）</button>
+                <p class="s-hint">現金などで受け取り済みなら、相手の報告を待たずに完了にできます。</p>
+              </template>
             </template>
             <template v-else-if="!selectedSummary.isPreview && !selectedSummary.isOthers && selectedSummary.status === 'awaiting_approval'">
               <p v-if="selectedSummary.isMeReceiver" class="s-hint">入金を確認してください</p>
@@ -428,6 +433,7 @@ import { formatDate } from '@/lib/format';
 import { ensurePaymentThread, postPaymentEvent, postPaymentEventByTx, resolvePaymentThreadByTx, retirePaymentThread } from '@/lib/thread';
 import { getMyName } from '@/lib/userName';
 import { eventEndState, endByMe } from '@/lib/eventEnd';
+import { payerNameOf as payerNameFrom } from '@/lib/payerName.js';
 import { publishPaymentAddedNotifications } from '@/lib/paymentAddedNotifications.js';
 import { UNPAID_PATCH, COMPLETED_PATCH } from '@/lib/transactionPatch';
 import PayPayAction from '@/components/PayPayAction.vue';
@@ -885,14 +891,9 @@ const openEditPayment = (h) => {
 // 🌟 支払いの変更を関係者（立替者＋負担者）へ通知（自分以外）
 // 割り勘方法の表示ラベル（差分表示用）
 const splitLabel = (t) => ({ all: '全員で均等', custom: '金額指定', item: '商品ごと' }[t] || t || 'なし');
-// 🌟 立替者名は payerUid から現在の参加者名で表示（改名に追従）
-const payerNameOf = (h) => {
-  if (h && h.payerUid) {
-    const p = eventData.value.participants.find(x => x.id === h.payerUid);
-    if (p && p.name) return p.name;
-  }
-  return (h && h.payer) || 'メンバー';
-};
+// 🌟 立替者名は payerUid から現在の参加者名で表示（改名に追従）。
+//    読み込み中の仮の名前は使わない。判断は src/lib/payerName.js にまとめた。
+const payerNameOf = (h) => payerNameFrom(h, eventData.value.participants);
 
 // 🌟 変更を参加者（自分以外）へ通知する汎用ヘルパー
 const notifyParticipants = async (uids, notifData) => {
@@ -1580,6 +1581,32 @@ const reportNetSettlementPayment = (row) => {
   );
 };
 
+// 🌟 受け取る本人が、相手の報告を待たずに完了にする。
+//    現金で受け取ったのに相手がアプリを触らないと、行がいつまでも閉じられないため。
+const confirmNetSettlementReceipt = (row) => {
+  if (!row?.isMeReceiver || row.status !== 'unpaid' || settlementBusy.value) return;
+  showConfirm(
+    '受け取り済みとして完了にしますか？',
+    `¥${row.amount.toLocaleString()} を実際に受け取った場合だけ完了にしてください。${row.from} さんには完了したことが届きます。`,
+    async () => {
+      settlementBusy.value = true;
+      try {
+        await callNetSettlement({
+          action: 'confirmReceipt', planId: settlementPlan.value.id, legId: row.id, requestId: requestId(),
+        });
+        modals.value.summaryDetail = false;
+        showToast('受け取り済みにしました');
+      } catch (error) {
+        console.error('まとめて精算の受取確定エラー:', error);
+        showAlert('error', '完了にできませんでした', error?.message || '画面を開き直して、もう一度お試しください。');
+      } finally {
+        settlementBusy.value = false;
+      }
+    },
+    { type: 'warning', confirmText: '完了にする', cancelText: 'やめる' },
+  );
+};
+
 const decideNetSettlement = (row, decision) => {
   if (!row?.isMeReceiver || row.status !== 'awaiting_approval' || settlementBusy.value) return;
   const approved = decision === 'approved';
@@ -2200,6 +2227,8 @@ const handleDeleteEvent = () => {
 .receipt-actions { display: grid; gap: 8px; }
 .receipt-actions .action-btn { padding: 12px; border-radius: 12px; font-size: 14px; }
 .action-btn.reject { background: #fff; color: var(--c-danger-strong); border: 1px solid #fecaca; }
+/* 主な導線（催促）の下に置く、控えめな2つ目の選択肢 */
+.action-btn.sub { margin-top: 10px; padding: 14px; font-size: 14px; background: #fff; color: var(--c-text); border: 1px solid var(--c-line); box-shadow: none; }
 
 .warning-modal { background: var(--c-danger-weak); }
 .warning-title { color: var(--c-danger) !important; }
