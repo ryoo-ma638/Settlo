@@ -366,6 +366,7 @@ exports.calculateSettlement = onCall(
 // =================================================================
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { purgeDecision } = require("./trashPurgeCore");
+const { noticeDecision } = require("./noticeLifecycleCore");
 
 exports.purgeTrash = onSchedule(
   {
@@ -406,6 +407,38 @@ exports.purgeTrash = onSchedule(
     }
     if (count % 400 !== 0) await batch.commit();
     console.log(`復元用の控え: 全${snap.size}件を確認／${count}件を自動削除／${kept}件は相手の確認待ちのため残す／${young}件はまだ7日以内`);
+
+    // 🌟 お知らせの片付け（過去に入って7日 → 元に戻す へ／そこから7日 → 消す）
+    //    判断は noticeLifecycleCore.js。ここは書き込みだけを行う。
+    //    ⚠️ ここで落ちても控えの削除（上）は済んでいるので、try で包んで分ける。
+    try {
+      const nowMs = Date.now();
+      const noticeSnap = await db.collection("notifications").get();
+      let stamped = 0, moved = 0, removed = 0;
+      let nb = db.batch();
+      let writes = 0;
+      const flush = async () => { if (writes) { await nb.commit(); nb = db.batch(); writes = 0; } };
+      for (const d of noticeSnap.docs) {
+        const decision = noticeDecision(d.data(), nowMs);
+        if (decision === "keep") continue;
+        if (decision === "stamp-read") {
+          nb.update(d.ref, { readAt: admin.firestore.FieldValue.serverTimestamp() });
+          stamped++;
+        } else if (decision === "to-trash") {
+          nb.update(d.ref, { inTrash: true, trashedAt: admin.firestore.FieldValue.serverTimestamp() });
+          moved++;
+        } else if (decision === "delete") {
+          nb.delete(d.ref);
+          removed++;
+        }
+        writes++;
+        if (writes >= 400) await flush();
+      }
+      await flush();
+      console.log(`お知らせ: 全${noticeSnap.size}件を確認／${stamped}件に日付を入れる／${moved}件を元に戻すへ／${removed}件を削除`);
+    } catch (e) {
+      console.error("お知らせの片付けに失敗:", e);
+    }
   }
 );
 
