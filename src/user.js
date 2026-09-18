@@ -20,7 +20,6 @@ export const saveUser = async (user) => {
     if (snap.exists()) {
       const data = snap.data() || {};
       if (!data.name) payload.name = user.displayName || "名前なし";
-      if (!data.email && user.email) payload.email = user.email;
       // 画像を読むキーが画面によって違うので、片方しか無いときはそろえる
       if (!data.photo && (data.photoURL || user.photoURL)) payload.photo = data.photoURL || user.photoURL;
       if (!data.photoURL && (data.photo || user.photoURL)) payload.photoURL = data.photo || user.photoURL;

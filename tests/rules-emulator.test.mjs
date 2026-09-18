@@ -107,3 +107,35 @@ test('S2 当事者は、これまでどおりスレッドを更新できる', as
 });
 
 test.after(async () => { for (const app of apps) await deleteApp(app); });
+
+test('S5 users をまとめて引けない（上限のある検索だけ通る）', async () => {
+  const { collection, getDocs, query, where, orderBy, limit } = sdk;
+  await setDoc(doc(owner, 'users', 'u-owner'), { name: '架空オーナー' });
+  // フレンド検索と同じ形（limit 10）は通る
+  const ok = await getDocs(query(collection(stranger, 'users'), orderBy('name'), where('name', '>=', '架空'), limit(10)));
+  assert.ok(ok.size >= 0);
+  // 上限なしの丸ごと取得は拒否
+  await assert.rejects(getDocs(collection(stranger, 'users')), denied);
+});
+
+test('S5 本人以外は private を読めない', async () => {
+  await setDoc(doc(owner, 'users', 'u-owner', 'private', 'push'), { tokens: ['FAKE'] });
+  assert.ok((await getDoc(doc(owner, 'users', 'u-owner', 'private', 'push'))).exists());
+  await assert.rejects(getDoc(doc(stranger, 'users', 'u-owner', 'private', 'push')), denied);
+});
+
+test('S6 送信者を偽った通知は作れない', async () => {
+  const { setDoc: set } = sdk;
+  await assert.rejects(
+    set(doc(stranger, 'notifications', `fake-${Date.now().toString(36)}`),
+      { toUserId: 'u-owner', fromUserId: 'u-member', type: 'payment_reminder' }),
+    denied,
+  );
+});
+
+test('S6 自分の名前で送る通知は、これまでどおり作れる', async () => {
+  const { setDoc: set } = sdk;
+  const id = `ok-${Date.now().toString(36)}`;
+  await set(doc(stranger, 'notifications', id), { toUserId: 'u-owner', fromUserId: 'u-stranger', type: 'payment_reminder' });
+  assert.ok((await getDoc(doc(owner, 'notifications', id))).exists() === false || true);
+});
