@@ -126,3 +126,41 @@ test("元の取引が変わっていたら完了させない", async () => {
     (e) => e.code === "failed-precondition",
   );
 });
+
+// 3人・2本の精算。A が B へ 4,000、A が C へ 1,000。
+const seed3 = () => ({
+  "events/e1": { activeEventSettlementPlanId: "p1", participants: ["A", "B", "C"] },
+  "eventSettlementPlans/p1": {
+    eventId: "e1", participantIds: ["A", "B", "C"], status: "open", version: 1,
+    legIds: ["leg-1", "leg-2"],
+    sourceTransactionIds: ["t1"],
+    sourceTransactions: [{ id: "t1", paidById: "A", paidToId: "B", amount: 5000 }],
+  },
+  "eventSettlementPlans/p1/legs/leg-1": { fromId: "A", toId: "B", amount: 4000, status: "unpaid", sourceTransactionIds: ["t1"] },
+  "eventSettlementPlans/p1/legs/leg-2": { fromId: "A", toId: "C", amount: 1000, status: "unpaid", sourceTransactionIds: ["t1"] },
+  "transactions/t1": {
+    id: "t1", paidById: "A", paidToId: "B", amount: 5000, status: "unpaid",
+    eventId: "e1", eventSettlementPlanId: "p1",
+    eventSettlementNet: { A: -5000, B: 4000, C: 1000 },
+  },
+  "users/B": { name: "ビー" },
+});
+
+test("自分の行だけ終わったら、その人の差し引きを控えから減らす", async () => {
+  // これをしないと、受け取り終わった人のホームに、まだ受け取る額が残って見える
+  const { db, service } = makeService(seed3());
+  const out = await service.confirmReceipt("B", { planId: "p1", legId: "leg-1", requestId: "r1" });
+  assert.equal(out.planStatus, "open", "残りがあるので精算はまだ終わらない");
+  const tx = db.store.get("transactions/t1");
+  assert.equal(tx.status, "unpaid", "残りがあるうちは元の取引を締めない");
+  assert.deepEqual(tx.eventSettlementNet, { A: -1000, C: 1000 }, "Bのぶんが控えから消える");
+});
+
+test("残り1本を終えたら、元の取引も精算も締まる", async () => {
+  const { db, service } = makeService(seed3());
+  await service.confirmReceipt("B", { planId: "p1", legId: "leg-1", requestId: "r1" });
+  await service.confirmReceipt("C", { planId: "p1", legId: "leg-2", requestId: "r2" });
+  assert.equal(db.store.get("transactions/t1").status, "completed");
+  assert.equal(db.store.get("eventSettlementPlans/p1").status, "completed");
+  assert.equal(db.store.get("events/e1").activeEventSettlementPlanId, null);
+});

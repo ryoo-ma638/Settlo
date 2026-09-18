@@ -537,7 +537,7 @@ function createEventNetSettlementService({ db, FieldValue }) {
   }
 
   // 最後の1本が終わったら、元の取引・精算・イベントをまとめて締める。
-  function finishPlanIfDone({ transaction, allCompleted, sourceRefs, planRef, planId, plan }) {
+  function finishPlanIfDone({ transaction, allCompleted, sourceRefs, planRef, planId, plan, legSnaps, legId }) {
     if (allCompleted) {
       sourceRefs.forEach((ref) => transaction.update(ref, { status: "completed", completedAt: now() }));
       transaction.update(planRef, { status: "completed", version: FieldValue.increment(1), completedAt: now(), updatedAt: now() });
@@ -545,9 +545,17 @@ function createEventNetSettlementService({ db, FieldValue }) {
         activeEventSettlementPlanId: null,
         lastEventSettlementPlanId: planId,
       });
-    } else {
-      transaction.update(planRef, { version: FieldValue.increment(1), updatedAt: now() });
+      return;
     }
+    transaction.update(planRef, { version: FieldValue.increment(1), updatedAt: now() });
+    // 🌟 まだ残りがある。終わった行のぶん、控えの差し引きを減らす。
+    //    これをしないと、受け取り終わった人のホームに、まだ受け取る額が残って見える
+    //    （3人以上で、自分の行だけ先に終わったとき）。
+    const remaining = (legSnaps || [])
+      .filter((snap) => snap.id !== legId && snap.exists && snap.data().status !== "completed")
+      .map((snap) => snap.data());
+    const net = netOfTransfers(remaining);
+    sourceRefs.forEach((ref) => transaction.update(ref, { eventSettlementNet: net }));
   }
 
   // 🌟 受け取る本人が、相手の報告を待たずに「受け取った」と確定する。
@@ -598,7 +606,7 @@ function createEventNetSettlementService({ db, FieldValue }) {
         completedAt: now(),
         updatedAt: now(),
       });
-      finishPlanIfDone({ transaction, allCompleted, sourceRefs, planRef, planId, plan });
+      finishPlanIfDone({ transaction, allCompleted, sourceRefs, planRef, planId, plan, legSnaps, legId });
       transaction.set(db.collection("notifications").doc(`event-net-received-${stableId(planId, legId, requestId)}`), {
         toUserId: leg.fromId,
         fromUserId: uid,
@@ -691,7 +699,7 @@ function createEventNetSettlementService({ db, FieldValue }) {
         completedAt: now(),
         updatedAt: now(),
       });
-      finishPlanIfDone({ transaction, allCompleted, sourceRefs, planRef, planId, plan });
+      finishPlanIfDone({ transaction, allCompleted, sourceRefs, planRef, planId, plan, legSnaps, legId });
       transaction.set(db.collection("notifications").doc(`event-net-decision-${stableId(planId, legId, requestId, decision)}`), {
         toUserId: leg.fromId,
         fromUserId: uid,
