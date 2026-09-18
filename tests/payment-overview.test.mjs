@@ -187,3 +187,78 @@ test('完了した予約済みは、どの区分にも出さない', () => {
   const result = buildPaymentOverview([done], 'a');
   assert.deepEqual(amounts(result).receive, { unpaid: 0, pending: 0, review: 0, event: 0 });
 });
+
+// ---- イベントのまとめて精算は、額面ではなく実際に動く額で1回だけ数える ----
+test('双方向の精算では、額面の合計ではなく差し引きを出す', () => {
+  // A(自分)がBへ6,000、BがAへ975。実際に動くのは A→B の 5,025 ではなく…
+  // ここでは「自分が受け取る 5,025」の形（net が + ）を確かめる
+  const net = { me: 5025, other: -5025 };
+  const rows = [
+    { id: 't1', paidById: 'other', paidToId: 'me', amount: 6000, status: 'unpaid',
+      eventSettlementPlanId: 'p1', eventSettlementNet: net },
+    { id: 't2', paidById: 'me', paidToId: 'other', amount: 975, status: 'unpaid',
+      eventSettlementPlanId: 'p1', eventSettlementNet: net },
+  ];
+  const o = buildPaymentOverview(rows, 'me');
+  assert.equal(o.receive.event.amount, 5025, '差し引きを出す');
+  assert.equal(o.pay.event.amount, 0, '反対側には出さない');
+  assert.equal(o.receive.event.items.length, 1, '精算1本につき1行');
+});
+
+test('差し引きが0なら、どちらにも出さない', () => {
+  const net = { me: 0, other: 0 };
+  const rows = [
+    { id: 't1', paidById: 'other', paidToId: 'me', amount: 3000, status: 'unpaid',
+      eventSettlementPlanId: 'p1', eventSettlementNet: net },
+    { id: 't2', paidById: 'me', paidToId: 'other', amount: 3000, status: 'unpaid',
+      eventSettlementPlanId: 'p1', eventSettlementNet: net },
+  ];
+  const o = buildPaymentOverview(rows, 'me');
+  assert.equal(o.receive.event.amount, 0);
+  assert.equal(o.pay.event.amount, 0);
+});
+
+test('控えが無い古い精算は、これまでどおり1件ずつ額面で出す', () => {
+  const rows = [
+    { id: 't1', paidById: 'other', paidToId: 'me', amount: 3000, status: 'unpaid', eventSettlementPlanId: 'p-old' },
+    { id: 't2', paidById: 'other', paidToId: 'me', amount: 2000, status: 'unpaid', eventSettlementPlanId: 'p-old' },
+  ];
+  const o = buildPaymentOverview(rows, 'me');
+  assert.equal(o.receive.event.amount, 5000);
+  assert.equal(o.receive.event.items.length, 2);
+});
+
+test('精算が2本あれば、それぞれ1行ずつ', () => {
+  const rows = [
+    { id: 'a', paidById: 'x', paidToId: 'me', amount: 9999, status: 'unpaid',
+      eventSettlementPlanId: 'p1', eventSettlementNet: { me: 1000 } },
+    { id: 'b', paidById: 'y', paidToId: 'me', amount: 8888, status: 'unpaid',
+      eventSettlementPlanId: 'p2', eventSettlementNet: { me: 2000 } },
+  ];
+  const o = buildPaymentOverview(rows, 'me');
+  assert.equal(o.receive.event.amount, 3000);
+  assert.equal(o.receive.event.items.length, 2);
+});
+
+test('差し引きがマイナス（自分が払う側）でも、1行にまとめる', () => {
+  const net = { me: -5025, other: 5025 };
+  const rows = [
+    { id: 't1', paidById: 'me', paidToId: 'other', amount: 6000, status: 'unpaid',
+      eventSettlementPlanId: 'p1', eventSettlementNet: net },
+    { id: 't2', paidById: 'other', paidToId: 'me', amount: 975, status: 'unpaid',
+      eventSettlementPlanId: 'p1', eventSettlementNet: net },
+  ];
+  const o = buildPaymentOverview(rows, 'me');
+  assert.equal(o.pay.event.amount, 5025);
+  assert.equal(o.pay.event.items.length, 1);
+  assert.equal(o.receive.event.amount, 0);
+});
+
+test('壊れた差し引き（小数・文字）は、額面へ戻して落とさない', () => {
+  const rows = [
+    { id: 't1', paidById: 'other', paidToId: 'me', amount: 3000, status: 'unpaid',
+      eventSettlementPlanId: 'p1', eventSettlementNet: { me: 12.5 } },
+  ];
+  const o = buildPaymentOverview(rows, 'me');
+  assert.equal(o.receive.event.amount, 3000);
+});

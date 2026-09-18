@@ -15,9 +15,9 @@
       <div v-if="currentTab === 'waiting'">
         <SkeletonRows v-if="loading" :rows="1" />
         <div v-else class="summary summary--receive">
-          <p class="summary__label">相手の支払い待ち</p>
-          <div class="summary__amount tnum">¥{{ totalReceivable.toLocaleString() }}</div>
-          <span class="summary__badge">{{ receivableUnpaid.length }}件</span>
+          <p class="summary__label">{{ receiveHeadline.caption }}</p>
+          <div class="summary__amount tnum">¥{{ receiveHeadline.amount.toLocaleString() }}</div>
+          <span class="summary__badge">{{ receiveHeadline.count }}件</span>
           <div v-if="receivableReview.length" class="summary__review">
             <span>送金状況の確認が必要</span>
             <strong>¥{{ receivableReviewAmount.toLocaleString() }}・{{ receivableReview.length }}件</strong>
@@ -85,16 +85,16 @@
         <!-- イベント全体のまとめて精算に入っている分。ここからは操作せず、イベントへ送る -->
         <template v-if="!loading && receivableEvent.length">
           <h2 class="money__section money__section--event">イベントでまとめて精算中（{{ receivableEvent.length }}件）</h2>
-          <p class="review-note">この分はイベントの「まとめて精算」でやり取りします。押すとイベントの精算画面が開きます。</p>
+          <p class="review-note">この分はイベントの「まとめて精算」でやり取りします。金額は受け取る分と支払う分を差し引いた後の額です。押すとイベントの精算画面が開きます。</p>
           <div class="stack">
             <div v-for="item in receivableEvent" :key="item.id" class="trow trow--event" role="button" tabindex="0"
             @click="openEventSettlement(item)"
             @keydown.enter="openEventSettlement(item)"
             @keydown.space.prevent="openEventSettlement(item)">
-              <UserAvatar class="trow__avatar" :name="item.name" :photo="item.photo" :size="40" />
+              <UserAvatar class="trow__avatar" :name="eventRowName(item)" :photo="item.isEventNetRow ? '' : item.photo" :size="40" />
               <div class="trow__info">
-                <p class="trow__name">{{ item.name }}</p>
-                <p class="trow__sub">{{ item.date }}・{{ item.itemName }}<span class="trow__badge trow__badge--event">イベントで精算中</span></p>
+                <p class="trow__name">{{ eventRowName(item) }}</p>
+                <p class="trow__sub"><template v-if="item.isEventNetRow">差し引き後にやり取りする金額・{{ item.count }}件分</template><template v-else>{{ item.date }}・{{ item.itemName }}</template><span class="trow__badge trow__badge--event">イベントで精算中</span></p>
               </div>
               <div class="trow__right"><span class="trow__amount tnum">¥{{ item.amount.toLocaleString() }}</span><svg class="trow__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></div>
             </div>
@@ -126,9 +126,9 @@
       <div v-else-if="currentTab === 'unpaid'">
         <SkeletonRows v-if="loading" :rows="1" />
         <div v-else class="summary summary--pay">
-          <p class="summary__label">現在の未払い</p>
-          <div class="summary__amount tnum">¥{{ totalPayable.toLocaleString() }}</div>
-          <span class="summary__badge">{{ payableUnpaid.length }}件</span>
+          <p class="summary__label">{{ payHeadline.eventOnly ? 'イベントで精算中' : '現在の未払い' }}</p>
+          <div class="summary__amount tnum">¥{{ payHeadline.amount.toLocaleString() }}</div>
+          <span class="summary__badge">{{ payHeadline.count }}件</span>
           <div v-if="payableReview.length" class="summary__review">
             <span>送金状況の確認が必要</span>
             <strong>¥{{ payableReviewAmount.toLocaleString() }}・{{ payableReview.length }}件</strong>
@@ -193,16 +193,16 @@
         <!-- イベント全体のまとめて精算に入っている分。ここからは操作せず、イベントへ送る -->
         <template v-if="!loading && payableEvent.length">
           <h2 class="money__section money__section--event">イベントでまとめて精算中（{{ payableEvent.length }}件）</h2>
-          <p class="review-note">この分はイベントの「まとめて精算」でやり取りします。押すとイベントの精算画面が開きます。</p>
+          <p class="review-note">この分はイベントの「まとめて精算」でやり取りします。金額は受け取る分と支払う分を差し引いた後の額です。押すとイベントの精算画面が開きます。</p>
           <div class="stack">
             <div v-for="item in payableEvent" :key="item.id" class="trow trow--event" role="button" tabindex="0"
             @click="openEventSettlement(item)"
             @keydown.enter="openEventSettlement(item)"
             @keydown.space.prevent="openEventSettlement(item)">
-              <UserAvatar class="trow__avatar" :name="item.name" :photo="item.photo" :size="40" />
+              <UserAvatar class="trow__avatar" :name="eventRowName(item)" :photo="item.isEventNetRow ? '' : item.photo" :size="40" />
               <div class="trow__info">
-                <p class="trow__name">{{ item.name }}</p>
-                <p class="trow__sub">{{ item.date }}・{{ item.itemName }}<span class="trow__badge trow__badge--event">イベントで精算中</span></p>
+                <p class="trow__name">{{ eventRowName(item) }}</p>
+                <p class="trow__sub"><template v-if="item.isEventNetRow">差し引き後にやり取りする金額・{{ item.count }}件分</template><template v-else>{{ item.date }}・{{ item.itemName }}</template><span class="trow__badge trow__badge--event">イベントで精算中</span></p>
               </div>
               <div class="trow__right"><span class="trow__amount tnum">¥{{ item.amount.toLocaleString() }}</span><svg class="trow__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></div>
             </div>
@@ -271,7 +271,7 @@ import UserAvatar from '../components/UserAvatar.vue'
 import { formatDate } from '../lib/format'
 import { balancesByPerson } from '../lib/balance'
 import { eventSettlementRouteOf } from '../lib/eventSettlementGuard'
-import { actionablePaymentItems, buildPaymentOverview } from '../lib/paymentOverview.js'
+import { actionablePaymentItems, buildPaymentOverview, headlineOf } from '../lib/paymentOverview.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -310,8 +310,11 @@ const payableReview = computed(() => decorate(paymentOverview.value.pay.review.i
 // 送金状況を確認中の取引は、再送金の対象へ混ぜない。
 const receivableList = computed(() => decorate(actionablePaymentItems(paymentOverview.value, 'receive')))
 const payableList = computed(() => decorate(actionablePaymentItems(paymentOverview.value, 'pay')))
-const totalReceivable = computed(() => paymentOverview.value.receive.unpaid.amount)
-const totalPayable = computed(() => paymentOverview.value.pay.unpaid.amount)
+// 大きい数字はホームのカードと同じ作り方にする。
+// 未払い＋送金状況の確認が必要な分＋イベントでまとめて精算中の分。
+// 片方だけ額面、片方だけ差し引きだと、同じ相手で違う数字が出て迷わせる。
+const receiveHeadline = computed(() => headlineOf(paymentOverview.value, 'receive'))
+const payHeadline = computed(() => headlineOf(paymentOverview.value, 'pay'))
 const receivableReviewAmount = computed(() => paymentOverview.value.receive.review.amount)
 const payableReviewAmount = computed(() => paymentOverview.value.pay.review.amount)
 // イベント全体のまとめて精算に入っている分。金額は出すが、ここからは操作させない。
@@ -356,6 +359,10 @@ const goSettle = (m) => {
 }
 
 // 押されたらイベントの精算画面へ送る（この画面では操作させない）
+// まとめて精算の1行は、相手1人ではなくイベント全体の差し引き。
+// 相手の名前を出すと、その人とだけのやり取りに見えてしまう。
+const eventRowName = (item) => (item.isEventNetRow ? (item.eventName || 'イベント') : item.name)
+
 const openEventSettlement = (item) => {
   const target = eventSettlementRouteOf(item)
   if (target) router.push(target)

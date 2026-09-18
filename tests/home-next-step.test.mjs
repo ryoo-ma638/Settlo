@@ -30,7 +30,7 @@ test('自分の未払いが無く、相手待ちだけなら催促を促す', ()
 test('本当に何も無いときだけ「全部片付いています」', () => {
   const r = nextStepOf(make());
   assert.equal(r.todo, false);
-  assert.equal(r.title, '確認が必要な精算はありません');
+  assert.equal(r.title, '確認待ちの精算はありません');
   assert.equal(r.desc, 'いまは全部片付いています');
 });
 
@@ -40,6 +40,12 @@ test('未払いとイベントの両方があるときは、先に未払いを�
 });
 
 test('壊れた入力でも落ちない', () => {
-  assert.equal(nextStepOf(undefined).title, '確認が必要な精算はありません');
-  assert.equal(nextStepOf({}).title, '確認が必要な精算はありません');
+  assert.equal(nextStepOf(undefined).title, '確認待ちの精算はありません');
+  assert.equal(nextStepOf({}).title, '確認待ちの精算はありません');
+});
+
+test('送金状況の確認が残っていたら、イベントより先に出す', () => {
+  const r = nextStepOf(make({ pay: { review: g(2000, 1), event: g(3000, 1) } }));
+  assert.equal(r.todo, true);
+  assert.equal(r.title, '送金状況の確認が必要です');
 });

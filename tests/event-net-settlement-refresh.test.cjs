@@ -197,3 +197,35 @@ test("差し戻し後の追加反映は実際の保存処理でも拒否し、�
   assert.equal(db.store.get("transactions/bc-new").eventSettlementPlanId, null);
   assert.deepEqual(db.store.get("eventSettlementPlans/plan-1").legIds, ["review-ab"]);
 });
+
+test("追加分を反映したら、差し引きの控えを元の取引すべてへ書き直す", async () => {
+  const db = fakeFirestore({
+    "events/event-1": { activeEventSettlementPlanId: "plan-1", participants },
+    "eventSettlementPlans/plan-1": {
+      eventId: "event-1", participantIds: participants, status: "open", version: 1,
+      legIds: ["paid-ab", "open-dc"],
+      sourceTransactionIds: ["ab", "dc"],
+      sourceTransactions: [tx("ab", "A", "B", 1000, "plan-1"), tx("dc", "D", "C", 800, "plan-1")],
+    },
+    "eventSettlementPlans/plan-1/legs/paid-ab": {
+      fromId: "A", toId: "B", amount: 1000, status: "completed", sourceTransactionIds: ["ab", "dc"],
+    },
+    "eventSettlementPlans/plan-1/legs/open-dc": {
+      fromId: "D", toId: "C", amount: 800, status: "unpaid", sourceTransactionIds: ["ab", "dc"],
+    },
+    // 古い差し引きが残っている状態から始める
+    "transactions/ab": { ...tx("ab", "A", "B", 1000, "plan-1"), eventId: "event-1", eventSettlementNet: { D: -800, C: 800 } },
+    "transactions/dc": { ...tx("dc", "D", "C", 800, "plan-1"), eventId: "event-1", eventSettlementNet: { D: -800, C: 800 } },
+    "transactions/bc-new": { ...tx("bc-new", "B", "C", 1000), eventId: "event-1" },
+  });
+  const service = createEventNetSettlementService({
+    db,
+    FieldValue: { serverTimestamp: () => "now", increment: (amount) => ({ increment: amount }) },
+  });
+  await service.refresh("C", { planId: "plan-1", requestId: "refresh-net" });
+  // これから動くのは B→C 1000 と D→C 800。A の分は確定済みなので入らない。
+  const expected = { B: -1000, C: 1800, D: -800 };
+  for (const id of ["ab", "dc", "bc-new"]) {
+    assert.deepEqual(db.store.get(`transactions/${id}`).eventSettlementNet, expected, id);
+  }
+});

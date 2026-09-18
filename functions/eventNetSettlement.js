@@ -188,6 +188,20 @@ function calculateRefreshedPlan({ transactions, participants, planId, legs }) {
   return { sources, fixedLegs, transfers };
 }
 
+// 🌟 参加者ごとの「これから実際に動く額」。受け取る人は +、払う人は −。
+//    取引の額面（1件ずつの金額）とは別物で、双方向の精算では必ずズレる。
+//    ホームと支払い画面の大きい数字はこちらを出す。
+//    settlementBatch（相手ごとのまとめ精算）と同じ考え方に合わせている。
+function netOfTransfers(transfers) {
+  const net = {};
+  for (const row of transfers || []) {
+    const value = Number(row.amount) || 0;
+    net[row.toId] = (net[row.toId] || 0) + value;
+    net[row.fromId] = (net[row.fromId] || 0) - value;
+  }
+  return net;
+}
+
 const stableId = (...parts) => crypto.createHash("sha256").update(parts.join("\u0000")).digest("hex").slice(0, 40);
 
 const assertText = (value, name) => {
@@ -336,9 +350,11 @@ function createEventNetSettlementService({ db, FieldValue }) {
           updatedAt: now(),
         });
       });
+      const net = netOfTransfers(calculation.transfers);
       calculation.sources.forEach((source) => {
         transaction.update(db.collection("transactions").doc(source.id), {
           eventSettlementPlanId: planId,
+          eventSettlementNet: net,
         });
       });
       transaction.update(eventRef, { activeEventSettlementPlanId: planId });
@@ -434,8 +450,14 @@ function createEventNetSettlementService({ db, FieldValue }) {
           updatedAt: now(),
         });
       });
-      newSources.forEach((source) => {
-        transaction.update(db.collection("transactions").doc(source.id), { eventSettlementPlanId: planId });
+      // 追加分を入れると差し引きが変わる。控えは元の取引すべてへ書き直す。
+      // 新しい分だけ更新すると、前の差し引きが残って画面の金額が古いままになる。
+      const refreshedNet = netOfTransfers(calculated.transfers);
+      calculated.sources.forEach((source) => {
+        transaction.update(db.collection("transactions").doc(source.id), {
+          eventSettlementPlanId: planId,
+          eventSettlementNet: refreshedNet,
+        });
       });
       transaction.update(planRef, {
         sourceTransactions: calculated.sources,
