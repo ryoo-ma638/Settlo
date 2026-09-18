@@ -54,7 +54,7 @@ export const GUEST_TRAIL = [
     check: 'action',
     minutes: '1分',
     title: '相談して、AIに文案を作ってもらう',
-    desc: 'デモ太郎さんから相談が届いています。「返信を考える」→「AIに相談する」で、会話を読んだ文案が3つ出ます。',
+    desc: 'デモ太郎さんから相談が届いています。「AIと返信を考える」→「AIに相談する」で、会話を読んだ文案が3つ出ます。',
     action: 'route',
     to: '/chats',
     star: true,

@@ -314,7 +314,9 @@
 .blue-mode { background: var(--c-receive); }
 .orange-mode { background: var(--c-pay); }
 .summary-label { font-size: 14px; margin-bottom: 5px; opacity: 0.92; font-weight: var(--fw-medium); }
-.total-amount { font-size: 40px; font-weight: var(--fw-black); margin: 0 0 10px 0; }
+/* base.css が見出しに色を指定しているので、そのままだと黒くなる。
+   カードの文字色（白）を引き継がせる。 */
+.total-amount { font-size: 40px; font-weight: var(--fw-black); margin: 0 0 10px 0; color: inherit; }
 .hint-badge { background: rgba(255,255,255,0.22); display: inline-block; padding: 4px 12px; border-radius: var(--r-pill); font-size: 11px; font-weight: var(--fw-bold); }
 .hint-detail { margin: 10px 0 0; font-size: 12px; line-height: 1.5; font-weight: var(--fw-medium); opacity: 0.95; }
 

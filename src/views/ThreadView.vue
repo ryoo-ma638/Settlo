@@ -52,7 +52,7 @@
     <!-- 返信の下書き。条件を選ぶと文案が出る。入力欄に入れるだけで、送信は本人が行う -->
     <div v-if="replyTx" class="rh">
       <button class="rh__toggle" @click="replyOpen = !replyOpen">
-        {{ replyOpen ? '返信の下書きを閉じる' : '返信を考える' }}
+        {{ replyOpen ? '返信の下書きを閉じる' : 'AIと返信を考える' }}
       </button>
       <div v-if="replyOpen" class="rh__body">
         <p class="rh__note">条件を選ぶと文案が出ます。入力欄に入るだけで、送信はご自身で行います。</p>

@@ -57,3 +57,14 @@ test('やってみる手順には、済みの付き方が書いてある', () =>
   const card = strip('src/components/GuestTrailCard.vue');
   assert.match(card, /やると✓/, '済みの付き方が画面に出ていない');
 });
+
+test('案内の説明が、画面のボタン名と合っている', () => {
+  // 画面の名前を変えたのに案内が古いままだと、探しても見つからない
+  const thread = readFileSync('src/views/ThreadView.vue', 'utf8');
+  const labels = [...thread.matchAll(/'([^']*返信を考える)'/g)].map((m) => m[1]);
+  assert.ok(labels.length > 0, 'ボタン名が見つからない');
+  const trail = readFileSync('src/lib/guestTrail.js', 'utf8');
+  for (const label of labels) {
+    assert.ok(trail.includes(label), `案内に「${label}」が出てこない`);
+  }
+});
