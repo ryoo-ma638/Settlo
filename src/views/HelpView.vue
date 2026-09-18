@@ -75,12 +75,23 @@
       <!-- ============ ガイド再生 ============ -->
       <button class="btn-brand help__tour" @click="replayTour">はじめてガイドをもう一度見る</button>
       <button class="btn-outline help__tour" @click="startButtonTour">使い方ツアーを始める（ボタンを順番にご案内）</button>
+      <!-- お試しの人向け。「閉じる」を押すと戻せなかったので入口を置く -->
+      <button v-if="isGuest" class="btn-outline help__tour" @click="showTrail">ホームのお試し案内をもう一度出す</button>
     </main>
   </div>
 </template>
 
 <script setup>
+import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { auth } from '@/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { ONBOARDING_KEY, clearKeys, showTrailAgain } from '@/lib/guestGuide.js';
 import PageHeader from '../components/PageHeader.vue';
+
+const router = useRouter();
+const isGuest = ref(auth.currentUser?.isAnonymous === true);
+onMounted(() => onAuthStateChanged(auth, (user) => { isGuest.value = user?.isAnonymous === true; }));
 
 // 使い方ツアー：ホームに戻ってから起動。スポットライトでボタンを1つずつ順番に案内する
 const startButtonTour = () => {
@@ -89,8 +100,13 @@ const startButtonTour = () => {
 };
 // 初回オンボーディングをもう一度表示する
 const replayTour = () => {
-  localStorage.removeItem('settlo_onboarding_done');
+  clearKeys([ONBOARDING_KEY]);
   window.dispatchEvent(new CustomEvent('settlo:show-onboarding'));
+};
+// ホームのお試し案内を出し直す。「閉じる」を押すと戻せなかったため。
+const showTrail = () => {
+  showTrailAgain();
+  router.push('/');
 };
 const tutorialImage = (imageName) => `${import.meta.env.BASE_URL}tutorial/${imageName}.jpg`;
 

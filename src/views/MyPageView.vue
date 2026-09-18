@@ -77,6 +77,15 @@
         </button>
           </div>
         </section>
+        <!-- お試しの人向け。展示で同じ端末を次の人へ渡すときに使う -->
+        <div v-if="isGuest" class="menu menu-logout">
+        <button class="menu__item" @click="restartDemo">
+          <svg class="menu__icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+          <span class="menu__label">デモを最初からやり直す</span>
+          <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <p class="menu-note">新しいお試し用のデータで始めます。いま入っている記録は残りません。次の人に渡すときにお使いください。</p>
+        </div>
         <div class="menu menu-logout">
         <button class="menu__item menu__item--danger" @click="logout">
           <svg class="menu__icon" viewBox="0 0 24 24"><path d="M15 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3"/><path d="M10 8l-4 4 4 4"/><path d="M6 12h10"/></svg>
@@ -85,6 +94,19 @@
         </button>
         </div>
       </div>
+
+      <BaseModal
+        :show="confirmState.show"
+        type="warning"
+        :title="confirmState.title"
+        :message="confirmState.message"
+        :showCancel="true"
+        :confirmText="confirmState.confirmText"
+        cancelText="やめる"
+        @confirm="runConfirm"
+        @cancel="confirmState.show = false"
+        @close="confirmState.show = false"
+      />
     </main>
   </div>
 </template>
@@ -96,11 +118,20 @@ import { useRouter } from "vue-router";
 import { ref, onMounted } from "vue";
 import { doc, getDoc } from "firebase/firestore";
 import PageHeader from "../components/PageHeader.vue";
+import BaseModal from "@/components/BaseModal.vue";
+import { resetGuestGuide } from "@/lib/guestGuide.js";
 import UserAvatar from "../components/UserAvatar.vue";
 import { showToast } from "../lib/toast";
 import { unregisterPushForCurrentDevice } from '../lib/notificationSettings';
 
 const router = useRouter();
+const isGuest = ref(auth.currentUser?.isAnonymous === true);
+const confirmState = ref({ show: false, title: '', message: '', confirmText: 'OK', onConfirm: null });
+const runConfirm = () => {
+  const action = confirmState.value.onConfirm;
+  confirmState.value = { ...confirmState.value, show: false };
+  if (action) action();
+};
 const userName = ref("読み込み中...");
 const userPhoto = ref("");
 const userUid = ref("");
@@ -126,6 +157,25 @@ const copyMyId = async () => {
   }
 };
 
+// 🌟 お試しを最初からやり直す。
+//    展示で同じ端末を次の人へ渡すとき、前の人が動かしたデータと
+//    案内の進み具合が残っていると、次の人が途中から始めることになる。
+//    案内の記録を消してからサインアウトすると、次に「ゲストとして試す」を押した人が
+//    新しいお試し用のデータと、最初からの案内で始められる。
+const restartDemo = () => {
+  confirmState.value = {
+    show: true,
+    title: 'デモを最初からやり直しますか？',
+    message: '新しいお試し用のデータで始めます。いま入っている記録は残りません。',
+    confirmText: 'やり直す',
+    onConfirm: async () => {
+      resetGuestGuide();
+      try { await signOut(auth); } catch (e) { console.error('やり直しに失敗しました', e); }
+      router.push('/login');
+    },
+  };
+};
+
 const logout = async () => {
   try {
     try { await unregisterPushForCurrentDevice(auth.currentUser?.uid); } catch (e) { console.error('端末通知の解除に失敗しました', e); }
@@ -141,6 +191,7 @@ onMounted(async () => {
   if (user) {
     userUid.value = user.uid;
     accountType.value = labelOfAccount(user);
+    isGuest.value = user.isAnonymous === true;
     try {
       const userDocRef = doc(db, "users", user.uid);
       // プロフィールの用意は App.vue（ログイン直後）に一本化した。
@@ -227,6 +278,8 @@ onMounted(async () => {
   fill: none; stroke: var(--c-brand); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
 }
 .menu__label { flex: 1; text-align: left; font-size: 15px; font-weight: var(--fw-bold); }
+/* やり直しの説明。押す前に何が起きるか分かるように */
+.menu-note { margin: 8px 4px 0; font-size: 11px; line-height: 1.6; color: var(--c-text-sub); }
 .menu__chevron {
   width: 20px; height: 20px; flex-shrink: 0;
   fill: none; stroke: var(--c-text-faint); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;

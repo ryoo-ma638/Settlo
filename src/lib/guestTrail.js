@@ -6,7 +6,7 @@
 //
 // 画面に出す文言と行き先はここにまとめる。画面側は並べるだけ。
 
-export const TRAIL_KEY = 'settlo_guest_trail';
+// 保存する場所の名前は src/lib/guestGuide.js にまとめてある。
 
 // action: 'route' … その画面へ移動する ／ 'event' … 画面の部品を開く合図を出す
 export const GUEST_TRAIL = [

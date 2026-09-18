@@ -43,9 +43,8 @@
   import { useRouter } from 'vue-router';
   import { auth } from '@/firebase';
   import { onAuthStateChanged } from 'firebase/auth';
-  import { GUEST_TRAIL, TRAIL_KEY, trailProgress, nextTrailStep, markDone, normalizeDone } from '@/lib/guestTrail.js';
-
-  const HIDE_KEY = 'settlo_guest_trail_hidden';
+  import { GUEST_TRAIL, trailProgress, nextTrailStep, markDone, normalizeDone } from '@/lib/guestTrail.js';
+  import { TRAIL_KEY, TRAIL_HIDDEN_KEY as HIDE_KEY } from '@/lib/guestGuide.js';
   const router = useRouter();
   const steps = GUEST_TRAIL;
   const isGuest = ref(false);
