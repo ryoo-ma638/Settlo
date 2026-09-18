@@ -57,7 +57,7 @@
         <div class="map__row"><span class="map__from">支払い</span><span class="map__to">→ 支払い/催促の詳細（→ この支払いについて相談する） ／ 相手ごとのトータル精算 ／ お支払い履歴</span></div>
         <div class="map__row"><span class="map__from">イベント詳細</span><span class="map__to">→ 支払いを追加 ／ 招待 ／ 精算サマリー ／ 立て替え履歴 ／ 終了・削除</span></div>
         <div class="map__row"><span class="map__from">フレンド</span><span class="map__to">→ フレンド詳細 → トータル精算 → まとめて精算の実行 ／ この人と割り勘を記録する ／ この人との会話</span></div>
-        <div class="map__row"><span class="map__from">マイページ</span><span class="map__to">→ プロフィールを変更 ／ 通知設定 ／ フレンド ／ お支払い履歴 ／ 承認待ち ／ 相談 ／ 取引を元に戻す ／ このヘルプ</span></div>
+        <div class="map__row"><span class="map__from">マイページ</span><span class="map__to">→ プロフィールを変更 ／ 通知設定 ／ フレンド ／ お支払い履歴 ／ 承認待ち ／ 相談 ／ 元に戻す ／ このヘルプ</span></div>
         <div class="map__row"><span class="map__from">相談</span><span class="map__to">→ 会話 → その件の支払い画面（行き来できます）</span></div>
       </div>
 
@@ -227,7 +227,7 @@ const screenGroups = [
           { b: '承認待ち', act: '→ 承認待ち' },
           { b: '相談', act: '→ 相談の一覧' },
           { b: 'ヘルプ・使い方', act: '→ このヘルプ' },
-          { b: '取引を元に戻す', act: '→ 取引を元に戻す' },
+          { b: '元に戻す', act: '→ 元に戻す' },
           { b: 'ログアウト', act: '→ ログイン画面へ' },
         ] },
     ],
@@ -327,7 +327,7 @@ const screenGroups = [
   {
     title: '安心・その他',
     screens: [
-      { name: '取引を元に戻す', route: '', icon: 'trash',
+      { name: '元に戻す', route: '', icon: 'trash',
         purpose: '削除した立て替えの復元と、精算済みを未精算へ戻す依頼を行います。',
         items: [
           { b: 'タブ（復元できる取引／確認中）', act: '自分が操作できる分と、相手の確認待ちで切替' },

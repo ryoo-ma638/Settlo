@@ -1,6 +1,6 @@
 <template>
   <div class="trash">
-    <PageHeader title="取引を元に戻す" fallback="/mypage" />
+    <PageHeader title="元に戻す" fallback="/mypage" />
 
     <div class="trash__body">
       <div class="ttabs">

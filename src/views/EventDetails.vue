@@ -910,7 +910,7 @@ const notifyParticipants = async (uids, notifData) => {
 const deletePayment = (h) => {
   if (historyUsesNetSettlement(h)) { explainLockedHistory(); return; }
   modals.value.historyDetail = false; // 詳細シートを先に閉じて、確認を1つだけにする
-  showConfirm('支払いを削除', `「${h.itemName}」（¥${(Number(h.amount) || 0).toLocaleString()}）を削除しますか？\nマイページの「取引を元に戻す」から、7日以内なら元に戻せます。`, async (reason) => {
+  showConfirm('支払いを削除', `「${h.itemName}」（¥${(Number(h.amount) || 0).toLocaleString()}）を削除しますか？\nマイページの「元に戻す」から、7日以内なら元に戻せます。`, async (reason) => {
     try {
       const eventId = route.params.id;
       const myUid = auth.currentUser?.uid;
@@ -957,7 +957,7 @@ const deletePayment = (h) => {
       await updateDoc(doc(db, "events", eventId), { totalAmount: increment(-(Number(h.amount) || 0)) });
       await notifyParticipants(involved, { type: 'payment_deleted', itemName: h.itemName, amount: Number(h.amount) || 0, eventName: eventData.value.name || '', trashId: trashDocId, userMessage: reason || null });
       modals.value.historyDetail = false;
-      showToast('支払いを削除しました（「取引を元に戻す」から戻せます）');
+      showToast('支払いを削除しました（「元に戻す」から戻せます）');
     } catch (e) {
       console.error('支払い削除エラー:', e);
       showAlert('error', 'エラー', '支払いの削除に失敗しました。');
