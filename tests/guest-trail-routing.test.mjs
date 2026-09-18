@@ -18,3 +18,13 @@ test('イベント詳細は、案内から来たらまとめて精算まで送�
   assert.match(code, /showUnpaidSummary\(\)/, 'まとめて精算まで送っていない');
   assert.match(code, /const \{ focus: _focus, \.\.\.query \} = route\.query/, '合図を消していない（読み直しで毎回飛ぶ）');
 });
+
+test('監視は、見ている値を作ったあとに書く（読み込み順で落ちないように）', () => {
+  // watch は最初に一度その値を読む。作る前に書くと、画面そのものが動かなくなる。
+  // 同じ間違いを2回やったので、並び順をテストで固定する。
+  const code = strip('src/views/EventViews.vue');
+  const made = code.indexOf('const visibleEvents = computed(');
+  const watched = code.indexOf('watch(visibleEvents');
+  assert.ok(made !== -1 && watched !== -1, '目印が見つからない');
+  assert.ok(made < watched, 'visibleEvents を作る前に監視している');
+});

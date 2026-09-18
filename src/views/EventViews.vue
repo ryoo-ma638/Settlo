@@ -124,16 +124,6 @@ const openEvent = (id) => {
 };
 const goJoin = () => router.push('/make-event?join=1');
 
-// 🌟 お試しの案内（?open=settlement）から来たときは、
-//    進行中のイベントを1件そのまま開いて、まとめて精算のところまで送る。
-//    一覧で止まると「押したのに何も起きない」ように見えるため。
-const openFirstForSettlement = () => {
-  if (route.query.open !== 'settlement') return;
-  const first = visibleEvents.value[0];
-  if (!first) return;
-  router.replace(`/event/${first.id}?focus=settlement`);
-};
-watch(visibleEvents, openFirstForSettlement);
 
 const events = ref([]);
 const showEnded = ref(false);
@@ -148,6 +138,16 @@ const restoringId = ref('');
 const isEndedForMe = (event) => eventEndState(event, viewerUid.value).endedForMe;
 const visibleEvents = computed(() => eventSplit.value.visible
   .filter(event => (pickPayment.value || !showEnded.value ? !isEndedForMe(event) : isEndedForMe(event))));
+// 🌟 お試しの案内（?open=settlement）から来たときは、
+//    進行中のイベントを1件そのまま開いて、まとめて精算のところまで送る。
+//    一覧で止まると「押したのに何も起きない」ように見えるため。
+const openFirstForSettlement = () => {
+  if (route.query.open !== 'settlement') return;
+  const first = visibleEvents.value[0];
+  if (!first) return;
+  router.replace(`/event/${first.id}?focus=settlement`);
+};
+watch(visibleEvents, openFirstForSettlement);
 
 // 隠したイベントを一覧へ戻す。参加者のままなので、いつでも戻せるようにしておく。
 const unhideEvent = async (event) => {
