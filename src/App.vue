@@ -33,7 +33,9 @@
 import { ref, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { onAuthStateChanged } from "firebase/auth"
-import { auth } from "./firebase"
+import { auth, db } from "./firebase"
+import { doc, getDoc, setDoc } from "firebase/firestore"
+import { buildNewUserProfile, shouldCreateUserProfile } from './lib/userProfile'
 
 import AppHeader from './components/AppHeader.vue'
 import AppFooter from './components/AppFooter.vue'
@@ -56,6 +58,21 @@ const appMain = ref(null)
 watch(() => route.path, () => { appMain.value?.scrollTo({ top: 0 }) })
 
 const authChecked = ref(false)
+
+// 🌟 users/{uid} が無いまま使い始めると、名前が「読み込み中...」のまま止まり、
+//    フレンド検索でも見つけてもらえない。以前は MyPage から /api/users/sync を
+//    呼んでいたが、本番（Firebase Hosting）に /api は無く、書き換え設定で
+//    index.html が返るだけで何も作られていなかった。
+const ensureUserProfile = async (user) => {
+  try {
+    const ref = doc(db, 'users', user.uid)
+    const snap = await getDoc(ref)
+    if (!shouldCreateUserProfile(user, snap.exists())) return
+    await setDoc(ref, buildNewUserProfile(user), { merge: true })
+  } catch (e) {
+    console.error('プロフィールの用意に失敗:', e)
+  }
+}
 // ゲストのデモデータ準備中は、ホームの代わりに読込画面を出す
 const { preparingGuestDemo } = useGuestSetup()
 
@@ -64,6 +81,7 @@ onMounted(() => {
     authChecked.value = true
     if (user) {
       console.log("Settlo ログイン中:", user.uid)
+      ensureUserProfile(user)
       // 許可画面は通知設定のボタン操作時だけ出す。既に許可済みの端末は登録を更新する。
       refreshPushRegistration(user.uid).then(() => listenForForegroundPush()).catch((err) => {
         console.error("プッシュ通知の登録更新に失敗:", err)

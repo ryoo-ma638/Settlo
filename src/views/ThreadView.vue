@@ -24,7 +24,7 @@
           </div>
         </section>
 
-        <p v-else class="thread__hint">この「{{ label }}」についてのやりとりです。</p>
+        <p v-else class="thread__hint">{{ label }}のやりとりです。</p>
         <button v-if="!isGroup && txId" class="thread__paylink" @click="goToPayScreen">この件の支払い画面へ ›</button>
 
         <template v-for="m in messages" :key="m.id">

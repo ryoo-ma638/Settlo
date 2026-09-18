@@ -95,7 +95,6 @@ import { signOut } from "firebase/auth";
 import { useRouter } from "vue-router";
 import { ref, onMounted } from "vue";
 import { doc, getDoc } from "firebase/firestore";
-import api from "../services/api";
 import PageHeader from "../components/PageHeader.vue";
 import UserAvatar from "../components/UserAvatar.vue";
 import { showToast } from "../lib/toast";
@@ -144,11 +143,10 @@ onMounted(async () => {
     accountType.value = labelOfAccount(user);
     try {
       const userDocRef = doc(db, "users", user.uid);
-      let userSnap = await getDoc(userDocRef);
-      if (!userSnap.exists()) {
-        await api.post('/users/sync');
-        userSnap = await getDoc(userDocRef);
-      }
+      // プロフィールの用意は App.vue（ログイン直後）に一本化した。
+      // ここから呼んでいた /api/users/sync は本番に存在せず、書き換え設定で
+      // index.html が返るだけだったため、いつまでも作られなかった。
+      const userSnap = await getDoc(userDocRef);
       if (userSnap.exists()) {
         const data = userSnap.data();
         userName.value = data.name || user.displayName || "名無し";
