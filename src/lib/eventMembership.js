@@ -77,3 +77,22 @@ export function eventExitState({ event = {}, myUid = '', outstanding } = {}) {
     message: '退出後は、新しい立て替えとグループ相談の対象から外れます。過去の記録は残ります。',
   };
 }
+
+// ========== 一覧から隠したイベント ==========
+//
+// 非表示は「退出」とは別のもの。参加者のままなので、いつでも戻せるようにする。
+// ゴミ箱の控えは7日で自動整理されるが、`hiddenBy` はそのまま残るため、
+// 控えが消えた後も戻せる場所がここに要る。
+
+/** 自分の一覧から隠しているイベントか */
+export const isHiddenFor = (event, myUid = '') => !!myUid
+  && (Array.isArray(event?.hiddenBy) ? event.hiddenBy : []).includes(myUid);
+
+/** 一覧に出すものと、隠しているものに分ける */
+export function splitHiddenEvents(events = [], myUid = '') {
+  const list = (Array.isArray(events) ? events : []).filter(Boolean);
+  return {
+    visible: list.filter((event) => !isHiddenFor(event, myUid)),
+    hidden: list.filter((event) => isHiddenFor(event, myUid)),
+  };
+}

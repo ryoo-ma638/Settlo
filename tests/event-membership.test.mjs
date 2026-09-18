@@ -10,7 +10,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { eventExitState, myOutstanding } from '../src/lib/eventMembership.js';
+import { eventExitState, myOutstanding, isHiddenFor, splitHiddenEvents } from '../src/lib/eventMembership.js';
 
 const ME = 'me', A = 'a', B = 'b';
 const ev = (extra = {}) => ({ participants: [ME, A, B], leaderUid: A, ...extra });
@@ -90,4 +90,32 @@ test('こわれた入力でも落ちない', () => {
   assert.equal(eventExitState().blockedBy, 'not-member');
   assert.equal(myOutstanding(null, ME).count, 0);
   assert.equal(myOutstanding([null, { shares: null }], ME).count, 0);
+});
+
+// ---- 一覧から隠したイベント ----
+
+test('隠したイベントを、一覧に出すものと分けて取り出せる', () => {
+  const events = [
+    { id: 'a' },
+    { id: 'b', hiddenBy: [ME] },
+    { id: 'c', hiddenBy: [A] },
+    { id: 'd', hiddenBy: [A, ME] },
+  ];
+  const split = splitHiddenEvents(events, ME);
+  assert.deepEqual(split.visible.map((e) => e.id), ['a', 'c']);
+  assert.deepEqual(split.hidden.map((e) => e.id), ['b', 'd']);
+});
+
+test('ログインしていなければ、隠しているものは無いものとして扱う', () => {
+  const split = splitHiddenEvents([{ id: 'a', hiddenBy: [ME] }], '');
+  assert.deepEqual(split.visible.map((e) => e.id), ['a']);
+  assert.deepEqual(split.hidden, []);
+});
+
+test('hiddenBy が無い・こわれていても落ちない', () => {
+  assert.equal(isHiddenFor(null, ME), false);
+  assert.equal(isHiddenFor({ id: 'a' }, ME), false);
+  assert.equal(isHiddenFor({ id: 'a', hiddenBy: 'x' }, ME), false);
+  const split = splitHiddenEvents(null, ME);
+  assert.deepEqual(split.visible, []);
 });
