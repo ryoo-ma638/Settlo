@@ -57,34 +57,63 @@ const PAD = 8;
 
 // ツアーの手順。sel は data-tour 属性。type = explain（説明のみ）/ action（実際に押して進む）/ final（締め）。
 const STEPS = [
+  // --- ホーム ---
   { type: 'explain', sel: '[data-tour="home-status"]', title: '現在の精算状況', desc: '大きい数字は「いま受け取る額」と「いま払う額」。すぐ下に残りの件数が出ます。灰色の枠は相手の返事を待っている分で、上の金額には入っていません。矢印で3枚のカードを切り替えられます。' },
   { type: 'explain', sel: '[data-tour="home-events"]', title: '進行中のイベント', desc: '旅行や飲み会ごとに立て替えをまとめる「箱」です。タップで詳細が開きます。' },
-  { type: 'explain', sel: '[data-tour="avatar"]', title: 'マイページ', desc: 'プロフィールを変更・お支払い履歴・元に戻す・ヘルプ・使い方など、全機能の入口です。' },
-  { type: 'explain', sel: '[data-tour="pending"]', title: '承認待ち', desc: 'あなたが承認する分・相手の承認待ち・承認/拒否の履歴。催促されている支払いは一番上に赤く出ます。' },
+
+  // --- 画面の上（どの画面からでも使える） ---
+  { type: 'explain', sel: '[data-tour="avatar"]', title: 'マイページ', desc: '左上の自分のアイコン。全機能の入口です。あとでここも見て回ります。' },
+  { type: 'explain', sel: '[data-tour="pending"]', title: '承認待ち', desc: 'あなたが承認する分・相手の承認待ち・承認や拒否の履歴。催促されている支払いは一番上に赤く出ます。' },
   { type: 'explain', sel: '[data-tour="chat"]', title: '相談', desc: '支払いの件ごとに相談できます。返信に困ったら、AIが会話を読んで文案を3つ出します。未読はバッジで表示、解決すると自動で片付きます。' },
   { type: 'explain', sel: '[data-tour="bell"]', title: 'お知らせ', desc: '承認依頼・催促・「これは正しいですか？」の確認がここに届きます。読み終わった分は「過去のお知らせ」へ移り、そこから片付けられます。答えるものは答えるまで残ります。' },
   { type: 'explain', sel: '[data-tour="assist"]', title: 'お支払いアシスタント', desc: 'いま支払う・催促する・承認する相手を金額つきで教えてくれます。どの画面からでも開けます。' },
+
+  // --- 下のナビと「＋」 ---
   { type: 'explain', sel: '[data-tour="nav-home"]', title: 'ホーム', desc: '貸し借りの全体がひと目でわかる起点です。' },
   { type: 'explain', sel: '[data-tour="nav-event"]', title: 'イベント', desc: '旅行・飲み会ごとの立て替えとメンバーを管理します。' },
   { type: 'action', sel: '[data-tour="nav-add"]', title: '＋（追加）', desc: '新しい記録はぜんぶここから。実際に押してみましょう。' },
   { type: 'explain', sel: '[data-tour="sheet-event"]', title: 'イベントを作成', desc: '旅行や飲み会の箱を作って、招待コードで仲間を集めます。' },
-  { type: 'explain', sel: '[data-tour="sheet-payment"]', title: 'お支払いを追加', desc: 'イベントを選んで立て替えを記録。レシートを撮るとAIが金額や店名を自動入力します。1回に5枚までまとめて読み取れます。' },
+  { type: 'explain', sel: '[data-tour="sheet-payment"]', title: 'お支払いを追加', desc: 'イベントを選んで立て替えを記録。レシートを撮るとAIが店名・金額・消費税まで自動入力します。1回に5枚までまとめて読み取れます。' },
   { type: 'explain', sel: '[data-tour="sheet-friend-split"]', title: 'フレンドと割り勘', desc: 'いつものメンバーで軽く出し合うときは、イベントを作らずに1件だけ記録できます。相手を選んで、品名・金額・立て替えた人・割り方を入れるだけです。' },
   { type: 'action', sel: '[data-tour="sheet-cancel"]', title: 'いったん閉じる', desc: '今回は「キャンセル」を押して閉じましょう。' },
+
+  // --- 支払い画面 ---
   { type: 'action', sel: '[data-tour="nav-money"]', title: '支払い', desc: '次はお金の管理です。「支払い」を押してみましょう。' },
-  { type: 'explain', sel: '[data-tour="pay-tabs"]', title: '3つのタブ', desc: '「お支払い待ち」＝受け取る分、「未払い」＝支払う分、「まとめて」＝相手ごとに相殺して最小回数で精算します。イベントの中で全員分をまとめる精算もあり、そちらはイベント画面から始めます。' },
+  { type: 'explain', sel: '[data-tour="pay-tabs"]', title: '3つのタブ', desc: '「お支払い待ち」＝受け取る分、「未払い」＝支払う分、「まとめて」＝相殺してまとめる分。上の大きい数字はホームのカードと同じ作り方です。' },
+  { type: 'explain', sel: '[data-tour="pay-settle"]', title: '「まとめて」タブ', desc: '相手ごとに、全部のイベントをまたいで貸し借りを相殺します。実際にやり取りする金額と回数がここで決まります。イベントの中で全員分をまとめる精算は、イベント画面から始めます。' },
   { type: 'explain', sel: '[data-tour="pay-history"]', title: 'お支払い履歴', desc: '過去の支払い・受け取り・精算済みを時系列で確認できます。' },
+
+  // --- イベント ---
   { type: 'action', sel: '[data-tour="nav-event"]', title: 'イベントへ', desc: '「イベント」を押してみましょう。' },
   { type: 'explain', sel: '[data-tour="event-check"]', title: '精算を確認', desc: '右上のここから、いつでも支払い画面に戻れます。' },
   { type: 'action', sel: '[data-tour="event-card"]', title: 'イベント詳細へ', desc: 'イベントカードを押すと詳細が開きます。押してみましょう。' },
+  { type: 'explain', sel: '[data-tour="ev-summary"]', title: 'まとめて精算', desc: '参加者全員の貸し借りを一度にまとめて、誰が誰へいくら送ればいいかを出します。送金の回数がいちばん少なくなる組み合わせを選びます。カードをタップで精算へ。' },
+  { type: 'explain', sel: '[data-tour="ev-addpay"]', title: '支払いを追加', desc: '立て替えたらすぐ記録。割り勘は「全員で均等・金額を指定・商品ごと」の3通りです。' },
   { type: 'explain', sel: '[data-tour="ev-invite"]', title: 'メンバー招待', desc: '「＋ 招待」と招待コードで仲間を追加します。はじめはコードを知っていれば誰でも入れます。「承認制にする」を選ぶと、リーダーが承認するまで参加できません。' },
-  { type: 'explain', sel: '[data-tour="ev-addpay"]', title: '支払いを追加', desc: '立て替えたらすぐ記録。割り勘は「均等・金額指定・商品ごと」の3方式です。' },
-  { type: 'explain', sel: '[data-tour="ev-summary"]', title: '精算サマリー', desc: '参加者全員の貸し借りを一度にまとめて、誰が誰へいくら送ればいいかを出します。送金の回数がいちばん少なくなる組み合わせを選びます。カードをタップで精算へ。' },
+  { type: 'explain', sel: '[data-tour="ev-exit"]', optional: true, title: 'イベントから退出', desc: '未精算が残っていても抜けられます。お金の記録は支払い画面に残り、抜けたあとに新しい支払いを追加されることはありません。' },
+  { type: 'explain', sel: '[data-tour="ev-end"]', optional: true, title: 'イベントを終了する', desc: '精算が全部済んだら終了できます。1人が終えても、ほかの人の画面はそのままです。「あなたも終了しますか？」のお知らせが届き、全員が終えたときにイベント全体が終わります。' },
+  { type: 'explain', sel: '[data-tour="ev-delete"]', optional: true, title: 'イベントを削除する', desc: '自分の画面から見えなくするだけで、記録は消えません。イベント一覧の「非表示にしたイベント」からいつでも戻せます。' },
+
+  // --- フレンド ---
   { type: 'action', sel: '[data-tour="nav-friend"]', title: 'フレンドへ', desc: '「フレンド」を押してみましょう。' },
-  { type: 'explain', sel: '[data-tour="friend-add"]', title: '友達を追加', desc: '名前かIDで検索して申請、相手が承認したらフレンドに。相手ごとの貸し借りが見られて、そこから1件だけの割り勘も記録できます。' },
+  { type: 'explain', sel: '[data-tour="friend-add"]', title: 'フレンドを追加', desc: '名前かIDで検索して申請、相手が承認したらフレンドに。届いた申請は「確認」から承認します。' },
+  { type: 'action', sel: '[data-tour="friend-row"]', optional: true, title: 'フレンド詳細へ', desc: 'フレンドの行を押すと、その人との貸し借りだけをまとめて見られます。押してみましょう。' },
+  { type: 'explain', sel: '[data-tour="fd-combined"]', optional: true, title: 'その人とまとめて精算', desc: '受け取る分と支払う分を選んで、差し引いた金額で一度に精算できます。' },
+  { type: 'explain', sel: '[data-tour="fd-split"]', optional: true, title: 'この人と割り勘を記録する', desc: 'イベントを作らずに、この人との立て替えを1件だけ記録できます。' },
+  { type: 'explain', sel: '[data-tour="fd-chats"]', optional: true, title: 'この人との会話を見る', desc: 'その相手とのやり取りだけを集めて見られます。' },
+
+  // --- マイページ（全機能の入口） ---
   { type: 'action', sel: '[data-tour="avatar"]', title: 'マイページへ', desc: '最後に、左上の自分のアイコンを押してみましょう。' },
-  { type: 'explain', sel: '[data-tour="mypage-menu"]', title: '全機能の入口', desc: 'ここから全機能へ。「ヘルプ・使い方」で図解ガイドとこのツアーをいつでも見直せます。' },
-  { type: 'final', sel: null, title: 'ツアー完了！', desc: 'これで一通りの説明はおしまいです。細かい画面ごとの説明は、マイページ→「ヘルプ・使い方」にまとまっています。' },
+  { type: 'explain', sel: '[data-tour="mp-profile"]', title: 'プロフィールを変更', desc: '表示名とアイコンを変えられます。あなたのIDは、フレンド申請を受けるときに使います。' },
+  { type: 'explain', sel: '[data-tour="mp-notify"]', title: '通知設定', desc: 'スマホへの通知を受け取るかどうかを切り替えます。' },
+  { type: 'explain', sel: '[data-tour="mp-friend"]', title: 'フレンド', desc: '下のナビと同じフレンド一覧へ。ここからでも開けます。' },
+  { type: 'explain', sel: '[data-tour="mp-history"]', title: 'お支払い履歴', desc: '精算が終わったものも含めて、全部の記録を時系列で見返せます。' },
+  { type: 'explain', sel: '[data-tour="mp-approvals"]', title: '承認待ち', desc: '画面の上のアイコンと同じ場所です。承認する分・待っている分がまとまっています。' },
+  { type: 'explain', sel: '[data-tour="mp-chats"]', title: '相談', desc: '支払いごとの会話の一覧です。相手ごとにまとめて見ることもできます。' },
+  { type: 'explain', sel: '[data-tour="mp-trash"]', title: '元に戻す', desc: '消した立て替えや、非表示にしたイベント、片付けたお知らせを戻せます。7日たつと自動で消えます。' },
+  { type: 'explain', sel: '[data-tour="mp-help"]', title: 'ヘルプ・使い方', desc: '図解の使い方ガイドと、このツアーをいつでも見直せます。画面ごとの説明もここにあります。' },
+
+  { type: 'final', sel: null, title: 'ツアー完了！', desc: 'これで全部の画面をひと通り見ました。細かい説明は、マイページ→「ヘルプ・使い方」にまとまっています。' },
 ];
 
 const currentStep = computed(() => STEPS[stepIndex.value]);
@@ -211,8 +240,10 @@ const locate = (attempt = 0) => {
 
   const el = document.querySelector(step.sel);
   if (!el) {
-    // イベント詳細は Firestore 読込で遅れるので長めに待つ（25回×150ms）
-    if (attempt < 25) {
+    // イベント詳細は Firestore 読込で遅れるので長めに待つ（25回×150ms）。
+    // optional は「無いこともある」場所なので、待たずに飛ばす（5回×150ms）。
+    const limit = step.optional ? 5 : 25;
+    if (attempt < limit) {
       retryTimer = setTimeout(() => locate(attempt + 1), 150);
     } else {
       advance(); // 見つからないステップは飛ばす

@@ -22,18 +22,18 @@
           <div class="receive-breakdown"><dt>受け取る分</dt><dd class="blue-text tnum">¥{{ waitingTotal.toLocaleString() }}</dd></div>
           <div class="pay-breakdown"><dt>支払う分</dt><dd class="orange-text tnum">¥{{ unpaidTotal.toLocaleString() }}</dd></div>
         </dl>
-        <button v-if="hasOpenItems" class="balance-cta" @click="openCombined">
+        <button v-if="hasOpenItems" class="balance-cta" data-tour="fd-combined" @click="openCombined">
           {{ historyItems.some(t => t.status === 'unpaid') ? '支払う分・受け取る分を選ぶ' : '確認待ちの明細を見る' }}
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
         </button>
         <p v-if="netBalance === 0" class="balance-note">{{ hasOpenItems ? '支払う分と受け取る分は同じ金額ですが、未精算の明細が残っています。' : '未精算の取引はありません' }}</p>
         <!-- イベントを作らずに、この人との立て替えを1件だけ記録する -->
-        <button class="balance-sub balance-sub--add" @click="splitOpen = true">
+        <button class="balance-sub balance-sub--add" data-tour="fd-split" @click="splitOpen = true">
           この人と割り勘を記録する
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         </button>
         <!-- 相手ごとの会話一覧。これまでどこからも開けなかった -->
-        <button class="balance-sub" @click="openChats">
+        <button class="balance-sub" data-tour="fd-chats" @click="openChats">
           この人との会話を見る
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
         </button>
