@@ -96,7 +96,6 @@
   
   <script setup>
   import { ref, computed, onMounted } from 'vue';
-import { markTrailDone } from '@/lib/trailProgressSignal.js';
   import { useRoute, useRouter } from 'vue-router';
   import { auth, db } from '@/firebase'; // firebase のインポートを追加
   import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore'; // Firestore 用
@@ -119,8 +118,7 @@ const myName = ref("");
 const friendName = ref(String(route.params.name || ""));
 
 onMounted(async () => {
-  // お試しの案内に「相手ごとの精算をやってみた」と伝える
-  markTrailDone('offset');
+
   const myUid = auth.currentUser?.uid;
   // 🌟 route.params.uid が正しいかチェック
   const friendUid = route.query.uid;

@@ -8,13 +8,16 @@
 
 // はじめてガイド（3枚）を見たか
 export const ONBOARDING_KEY = 'settlo_onboarding_done';
-// 道案内のどの手順まで済んだか
-export const TRAIL_KEY = 'settlo_guest_trail';
+// 道案内のどの手順まで済んだか。
+// ⚠️ 名前に版をつけている。「押したら済み」だった頃の記録を持ち越すと、
+//    実際にやっていない手順に印が付いたままになるため。
+export const TRAIL_KEY = 'settlo_guest_trail_v2';
+const OLD_TRAIL_KEYS = ['settlo_guest_trail'];
 // 道案内を閉じたか
 export const TRAIL_HIDDEN_KEY = 'settlo_guest_trail_hidden';
 
 // 案内だけを出し直す（データはそのまま）。閉じてしまった人がもう一度見るとき。
-export const TRAIL_KEYS = [TRAIL_KEY, TRAIL_HIDDEN_KEY];
+export const TRAIL_KEYS = [TRAIL_KEY, ...OLD_TRAIL_KEYS, TRAIL_HIDDEN_KEY];
 // お試しを最初から。はじめてガイドも含めて全部。
 export const ALL_GUIDE_KEYS = [ONBOARDING_KEY, ...TRAIL_KEYS];
 

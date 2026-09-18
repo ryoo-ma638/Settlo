@@ -23,3 +23,14 @@ test('相談が1件届いた状態にする', () => {
   assert.match(seed, /threads/, 'チャットを作っていない');
   assert.match(seed, /collection\("messages"\)\.add/, '最初の一言が無い');
 });
+
+test('イベントの外にも貸し借りを置く（まとめてが空にならないように）', () => {
+  // 全部がイベントの中だと、イベント側の精算を始めたとたん
+  // 「まとめて」が「精算できる相手はいません」になって試せなくなる
+  const rows = [...seed.matchAll(/collection\("transactions"\)\.add\(\{([\s\S]*?)\}\)/g)].map((m) => m[1]);
+  assert.ok(rows.length >= 6, `立て替えが少ない: ${rows.length}`);
+  const outside = rows.filter((row) => !/eventId/.test(row));
+  assert.equal(outside.length, 2, `イベント外の立て替えが ${outside.length} 件`);
+  assert.ok(outside.some((row) => /paidToId: uid/.test(row)), '受け取る分が無い');
+  assert.ok(outside.some((row) => /paidById: uid/.test(row)), '支払う分が無い（差し引きが見えない）');
+});
