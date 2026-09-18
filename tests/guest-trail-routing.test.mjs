@@ -6,7 +6,7 @@ const strip = (path) => readFileSync(path, 'utf8').split('\n').filter((l) => !l.
 
 test('イベント一覧は、案内から来たら進行中の1件を開く', () => {
   const code = strip('src/views/EventViews.vue');
-  assert.match(code, /route\.query\.open !== 'settlement'/, '合図を見ていない');
+  assert.match(code, /mode !== 'first' && mode !== 'settlement'/, '合図を見ていない');
   assert.match(code, /focus=settlement/, 'イベント詳細へ合図を渡していない');
   assert.match(code, /router\.replace/, '戻るで一覧へ戻れなくなる（push している）');
   assert.match(code, /watch\(visibleEvents/, '読み込み前に判定していて、空振りする');

@@ -138,16 +138,17 @@ const restoringId = ref('');
 const isEndedForMe = (event) => eventEndState(event, viewerUid.value).endedForMe;
 const visibleEvents = computed(() => eventSplit.value.visible
   .filter(event => (pickPayment.value || !showEnded.value ? !isEndedForMe(event) : isEndedForMe(event))));
-// 🌟 お試しの案内（?open=settlement）から来たときは、
-//    進行中のイベントを1件そのまま開いて、まとめて精算のところまで送る。
+// 🌟 お試しの案内から来たときは、進行中のイベントを1件そのまま開く。
 //    一覧で止まると「押したのに何も起きない」ように見えるため。
-const openFirstForSettlement = () => {
-  if (route.query.open !== 'settlement') return;
+//    ?open=first … 開くだけ ／ ?open=settlement … まとめて精算のところまで送る
+const openFirstForGuide = () => {
+  const mode = route.query.open;
+  if (mode !== 'first' && mode !== 'settlement') return;
   const first = visibleEvents.value[0];
   if (!first) return;
-  router.replace(`/event/${first.id}?focus=settlement`);
+  router.replace(mode === 'settlement' ? `/event/${first.id}?focus=settlement` : `/event/${first.id}`);
 };
-watch(visibleEvents, openFirstForSettlement);
+watch(visibleEvents, openFirstForGuide);
 
 // 隠したイベントを一覧へ戻す。参加者のままなので、いつでも戻せるようにしておく。
 const unhideEvent = async (event) => {

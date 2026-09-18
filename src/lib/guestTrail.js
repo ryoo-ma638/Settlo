@@ -24,7 +24,7 @@ export const GUEST_TRAIL = [
     title: 'イベントの中身を見る',
     desc: '「札幌旅行（デモ）」に3人ぶんの立て替えが入っています。誰がいくら負担したかまで出ます。',
     action: 'route',
-    to: '/event',
+    to: '/event?open=first',
   },
   {
     id: 'settle',
@@ -48,7 +48,7 @@ export const GUEST_TRAIL = [
     id: 'split',
     minutes: '30秒',
     title: 'イベントを作らずに1件だけ割り勘',
-    desc: '下の「＋」→「フレンドと割り勘」。品名と金額を入れるだけで、誰がいくら払う形になるか先に出ます。',
+    desc: '手順1でデモ花子さんのフレンド申請を承認してからどうぞ。品名と金額を入れるだけで、誰がいくら払う形になるか先に出ます。',
     action: 'route',
     to: '/friend?pick=split',
   },
