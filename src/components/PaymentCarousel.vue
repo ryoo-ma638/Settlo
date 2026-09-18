@@ -30,10 +30,12 @@
               <span class="detail-label"><span class="dir-arrow" aria-hidden="true">↙</span>受け取る</span>
               <div class="price-large">¥{{ summary.receivableTotal.toLocaleString() }}</div>
               <p v-if="overview.receive.review.items.length" class="review-summary">確認が必要 ¥{{ overview.receive.review.amount.toLocaleString() }}・{{ overview.receive.review.items.length }}件</p>
+              <p v-if="overview.receive.event.items.length" class="review-summary">イベントで精算中 ¥{{ overview.receive.event.amount.toLocaleString() }}・{{ overview.receive.event.items.length }}件</p>
             </div>
             <div class="recent-list">
               <p v-if="overview.receive.pending.items.length" class="detail-state">あなたの受取確認待ち <strong>¥{{ overview.receive.pending.amount.toLocaleString() }}</strong></p>
               <p v-if="overview.receive.review.items.length" class="detail-state">送金状況の確認が必要 <strong>¥{{ overview.receive.review.amount.toLocaleString() }}</strong></p>
+              <p v-if="overview.receive.event.items.length" class="detail-state">イベントでまとめて精算中 <strong>¥{{ overview.receive.event.amount.toLocaleString() }}</strong></p>
               <p class="recent-title">相手の支払い待ち</p>
               <div
                 class="recent-item"
@@ -70,9 +72,9 @@
                 <thead><tr><th scope="col"><span class="sr-only">状態</span></th><th scope="col" class="summary-ledger__receive">↙ 受け取る</th><th scope="col" class="summary-ledger__pay">↗ 支払う</th></tr></thead>
                 <tbody>
                   <tr v-for="state in statusRows" :key="state">
-                    <th scope="row"><span v-if="state === 'review'" class="review-symbol" aria-hidden="true">!</span>{{ state === 'pending' ? '確認待ち' : '要確認' }}</th>
+                    <th scope="row"><span v-if="state === 'review'" class="review-symbol" aria-hidden="true">!</span>{{ STATE_LABEL[state] }}</th>
                     <td v-for="side in sides" :key="side.key">
-                      <button v-if="overview[side.key][state].items.length" class="summary-ledger__value" :class="`summary-ledger__${side.key}`" :aria-label="`${side.title}・${state === 'review' ? '送金状況の確認が必要' : side.key === 'receive' ? 'あなたの受取確認待ち' : '相手の受取確認待ち'}・${overview[side.key][state].amount.toLocaleString()}円・${overview[side.key][state].items.length}件`" @click.stop="navigateIfActive(1, side.path)">
+                      <button v-if="overview[side.key][state].items.length" class="summary-ledger__value" :class="`summary-ledger__${side.key}`" :aria-label="`${side.title}・${stateAria(state, side.key)}・${overview[side.key][state].amount.toLocaleString()}円・${overview[side.key][state].items.length}件`" @click.stop="navigateIfActive(1, side.path)">
                         <strong>¥{{ overview[side.key][state].amount.toLocaleString() }}</strong>
                         <small>{{ overview[side.key][state].items.length }}件<span v-if="state === 'pending' && overview[side.key][state].amount === 0">・送金なし</span></small>
                       </button>
@@ -92,10 +94,12 @@
               <span class="detail-label"><span class="dir-arrow" aria-hidden="true">↗</span>支払う</span>
               <div class="price-large">¥{{ summary.payableTotal.toLocaleString() }}</div>
               <p v-if="overview.pay.review.items.length" class="review-summary">確認が必要 ¥{{ overview.pay.review.amount.toLocaleString() }}・{{ overview.pay.review.items.length }}件</p>
+              <p v-if="overview.pay.event.items.length" class="review-summary">イベントで精算中 ¥{{ overview.pay.event.amount.toLocaleString() }}・{{ overview.pay.event.items.length }}件</p>
             </div>
             <div class="recent-list">
               <p v-if="overview.pay.pending.items.length" class="detail-state">相手の受取確認待ち <strong>¥{{ overview.pay.pending.amount.toLocaleString() }}</strong></p>
               <p v-if="overview.pay.review.items.length" class="detail-state">送金状況の確認が必要 <strong>¥{{ overview.pay.review.amount.toLocaleString() }}</strong></p>
+              <p v-if="overview.pay.event.items.length" class="detail-state">イベントでまとめて精算中 <strong>¥{{ overview.pay.event.amount.toLocaleString() }}</strong></p>
               <p class="recent-title">未払いのお支払い</p>
               <div
                 class="recent-item"
@@ -163,7 +167,14 @@ const props = defineProps({
     { key: 'receive', title: '受け取る', path: '/payment?tab=waiting' },
     { key: 'pay', title: '支払う', path: '/payment?tab=unpaid' },
   ];
-  const statusRows = computed(() => ['pending', 'review'].filter(state =>
+  // 表に出す区分。イベント側で精算中の分も、金額が消えないよう1行足す。
+  const STATE_LABEL = { pending: '確認待ち', review: '要確認', event: 'イベント' };
+  const stateAria = (state, sideKey) => (
+    state === 'review' ? '送金状況の確認が必要'
+      : state === 'event' ? 'イベントでまとめて精算中'
+        : sideKey === 'receive' ? 'あなたの受取確認待ち' : '相手の受取確認待ち'
+  );
+  const statusRows = computed(() => ['pending', 'review', 'event'].filter(state =>
     sides.some(side => props.overview[side.key][state].items.length)));
   // ------------------------------
   // スクロール計算系のロジック

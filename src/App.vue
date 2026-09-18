@@ -121,5 +121,9 @@ onMounted(() => {
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  /* 🌟 誤ってダブルタップしたときに画面が拡大されるのを止める。
+     manipulation は「指でのスクロールとピンチでの拡大は残し、ダブルタップの拡大だけ切る」指定。
+     見えにくい人が2本指で広げる操作は残るので、拡大手段は失われない。 */
+  touch-action: manipulation;
 }
 </style>

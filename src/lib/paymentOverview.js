@@ -1,9 +1,10 @@
 import { isEventSettlementReserved } from './eventSettlementGuard.js';
 
 const emptyGroup = () => ({ amount: 0, items: [] });
-const emptySide = () => ({ unpaid: emptyGroup(), pending: emptyGroup(), review: emptyGroup() });
+const emptySide = () => ({ unpaid: emptyGroup(), pending: emptyGroup(), review: emptyGroup(), event: emptyGroup() });
 
-// 新しく精算できる取引だけを返す。送金状況を確認中の取引は再送金へ混ぜない。
+// 新しく精算できる取引だけを返す。
+// 送金状況を確認中(review)と、イベント側で精算中(event)の分は再送金へ混ぜない。
 export function actionablePaymentItems(overview, side) {
   const groups = overview?.[side];
   if (!groups) return [];
@@ -46,6 +47,7 @@ export function buildPaymentOverview(transactions = [], myUid) {
 
   const rows = [];
   const seenIds = new Set();
+  const reserved = new Set(); // イベント全体のまとめて精算に予約された取引のID
   for (const row of Array.isArray(transactions) ? transactions : []) {
     if (!row || typeof row !== 'object' || typeof row.id !== 'string' || !row.id) {
       issue(issues, 'transaction_id_missing', row);
@@ -54,14 +56,17 @@ export function buildPaymentOverview(transactions = [], myUid) {
     if (seenIds.has(row.id)) continue;
     seenIds.add(row.id);
     // イベント全体のまとめて精算に予約された取引は、イベント側だけで操作する。
-    // 相手ごとの画面にも出すと、同じ分を二重に精算できてしまう。
-    if (isEventSettlementReserved(row)) continue;
+    // ただし画面から消してしまうと、未払いが0円になって「お金が消えた」ように見える。
+    // 消さずに別区分へ入れ、金額を出したうえで操作だけイベント側へ寄せる。
+    if (isEventSettlementReserved(row)) reserved.add(row.id);
     rows.push(row);
   }
 
   const batchGroups = new Map();
   const malformedBatchRows = new Set();
   for (const row of rows) {
+    // イベント側が先に予約しているので、相手ごとのまとめ精算の束には入れない
+    if (reserved.has(row.id)) continue;
     if (!row.settlementBatch) continue;
     const batchId = row.settlementBatch.id;
     if (typeof batchId !== 'string' || !batchId) {
@@ -149,7 +154,9 @@ export function buildPaymentOverview(transactions = [], myUid) {
     }
     const side = paidToId === myUid ? 'receive' : 'pay';
     const opponentUid = side === 'receive' ? paidById : paidToId;
-    const state = status === 'awaiting_approval' ? 'pending' : row.approvalReviewRequired ? 'review' : 'unpaid';
+    const state = reserved.has(row.id) ? 'event'
+      : status === 'awaiting_approval' ? 'pending'
+        : row.approvalReviewRequired ? 'review' : 'unpaid';
     add(overview, side, state, { ...row, amount, opponentUid }, issues);
   }
 
