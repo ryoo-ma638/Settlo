@@ -513,6 +513,8 @@ const executeRequest = async () => {
 .confirm__actions { display: flex; flex-direction: column; gap: 8px; }
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+/* 消えかけの覆いは押さえない（アニメが止まっても画面が押せなくならないように） */
+.fade-leave-active, .fade-leave-to { pointer-events: none; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 .search-label { display: block; margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--c-text); }
 .search__input { font-size: 16px; }

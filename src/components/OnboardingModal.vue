@@ -235,6 +235,8 @@ onUnmounted(() => window.removeEventListener('settlo:show-onboarding', forceShow
 }
 
 .ob-fade-enter-active, .ob-fade-leave-active { transition: opacity 0.25s ease; }
+/* 消えかけの覆いは押さえない（アニメが止まっても画面が押せなくならないように） */
+.ob-fade-leave-active, .ob-fade-leave-to { pointer-events: none; }
 .ob-fade-enter-from, .ob-fade-leave-to { opacity: 0; }
 
 .ob-shot { max-width: 100%; }
