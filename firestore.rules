@@ -46,8 +46,19 @@ service cloud.firestore {
 
     // ---- ユーザープロフィール ----
     match /users/{uid} {
-      allow read: if isSignedIn();          // 名前/写真/PayPayリンクは他人も参照する
+      // 1件ずつの読取りは許す（名前・写真を他の人の画面に出すため）
+      allow get: if isSignedIn();
+      // ⚠️ 2026-09-18 追加。
+      //   まとめ取り（一覧）を無制限に許すと、ログインしていれば誰でも
+      //   users を丸ごと引けてしまう。フレンド検索と招待の検索はどちらも
+      //   limit(10) なので、上限のある問い合わせだけ通す。
+      allow list: if isSignedIn() && request.query.limit <= 20;
       allow write: if isUser(uid);          // 自分のドキュメントのみ作成/更新/削除
+
+      // 本人しか読めない置き場（通知トークンなど、他人に見せないもの）
+      match /private/{docId} {
+        allow read, write: if isUser(uid);
+      }
 
       // フレンド一覧（承認時に相手側にも書くので、当事者2人なら可）
       match /friends/{friendUid} {
@@ -141,7 +152,12 @@ service cloud.firestore {
     // ---- 通知 ----
     match /notifications/{notifId} {
       allow read:           if isSignedIn() && resource.data.toUserId == request.auth.uid;
-      allow create:         if isSignedIn();   // 承認/催促/拒否を相手へ送るため
+      // ⚠️ 2026-09-18 修正。
+      //   以前はログインしていれば誰でも、送信者を偽った通知を作れた。
+      //   アプリ側は33か所すべて自分のUIDを入れているので、それを条件にする。
+      //   Cloud Functions からの作成は管理者権限なのでこの条件を通る。
+      allow create:         if isSignedIn()
+                              && request.resource.data.fromUserId == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.toUserId == request.auth.uid;
     }
 

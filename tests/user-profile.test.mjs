@@ -34,7 +34,12 @@ test('画像は photo と photoURL の両方に入れる（読むキーが画面
 
 test('名前が無い人でも空にはしない', () => {
   assert.equal(buildNewUserProfile({ uid: 'u2' }).name, '名前なし');
-  assert.equal(buildNewUserProfile({ uid: 'u2' }).email, '');
+});
+
+test('連絡先（email）は users に入れない', () => {
+  // users は他の人からも1件ずつ読める。アプリも保存済みの email を使っていない。
+  const d = buildNewUserProfile(user);
+  assert.equal('email' in d, false, 'email を入れてはいけない');
 });
 
 test('ログイン直後に用意し、届かない /api は呼ばない', () => {

@@ -587,7 +587,6 @@ exports.setupGuestDemo = onCall(
     await userRef.set({
       uid,
       name: guestName,
-      email: "",
       photo: "",
       isGuest: true,
       demoSetupDone: true,
@@ -597,8 +596,8 @@ exports.setupGuestDemo = onCall(
     // 2) デモメンバー（全ゲスト共通の相手役・無ければ作る）
     const TARO = "demo-user-taro";
     const HANAKO = "demo-user-hanako";
-    await db.collection("users").doc(TARO).set({ uid: TARO, name: "デモ太郎", email: "", photo: "", isDemo: true }, { merge: true });
-    await db.collection("users").doc(HANAKO).set({ uid: HANAKO, name: "デモ花子", email: "", photo: "", isDemo: true }, { merge: true });
+    await db.collection("users").doc(TARO).set({ uid: TARO, name: "デモ太郎", photo: "", isDemo: true }, { merge: true });
+    await db.collection("users").doc(HANAKO).set({ uid: HANAKO, name: "デモ花子", photo: "", isDemo: true }, { merge: true });
 
     // 3) デモイベント（ゲストごとに独立）
     const code = "DEMO" + Math.floor(1000 + Math.random() * 9000);

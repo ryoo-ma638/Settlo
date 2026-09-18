@@ -2,13 +2,14 @@
 // Firebase を読み込まないので、テストからそのまま呼べる。
 
 // 新しく作るときの中身。
+// ⚠️ email は入れない。users は他の人からも1件ずつ読めるので、
+//    連絡先をそこに置かない（アプリ側でも保存済みの email は使っていない）。
 // photo と photoURL の両方を書くのは、画面によって読むキーが違うため
 // （EditProfileView も同じ理由で両方に入れている）。
 export function buildNewUserProfile(user) {
   return {
     uid: user.uid,
     name: user.displayName || '名前なし',
-    email: user.email || '',
     photo: user.photoURL || '',
     photoURL: user.photoURL || '',
   };
