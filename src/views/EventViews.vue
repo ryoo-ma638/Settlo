@@ -43,7 +43,7 @@
             <span class="tag tag--icon">
               <GenreIcon :type="event.tag" class="tag__icon" />{{ event.tag }}
             </span>
-            <span v-if="event.ended" class="ended-tag">終了済み</span>
+            <span v-if="isEndedForMe(event)" class="ended-tag">終了済み</span>
             <span class="evcard__date">{{ event.createdAtDate }}</span>
           </div>
 
@@ -107,6 +107,7 @@ import { db, auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, collection, query, where, getDocs, updateDoc, arrayRemove } from 'firebase/firestore';
 import { splitHiddenEvents } from '@/lib/eventMembership';
+import { eventEndState } from '@/lib/eventEnd';
 import GenreIcon from '@/components/GenreIcon.vue';
 import InviteCard from '@/components/InviteCard.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
@@ -132,7 +133,10 @@ const eventSplit = computed(() => splitHiddenEvents(events.value, viewerUid.valu
 const hiddenEvents = computed(() => (pickPayment.value ? [] : eventSplit.value.hidden));
 const showHidden = ref(false);
 const restoringId = ref('');
-const visibleEvents = computed(() => eventSplit.value.visible.filter(event => pickPayment.value || !showEnded.value ? !event.ended : !!event.ended));
+// 終了は人ごと。自分が終えていないイベントは、他の人が終えても一覧に残る。
+const isEndedForMe = (event) => eventEndState(event, viewerUid.value).endedForMe;
+const visibleEvents = computed(() => eventSplit.value.visible
+  .filter(event => (pickPayment.value || !showEnded.value ? !isEndedForMe(event) : isEndedForMe(event))));
 
 // 隠したイベントを一覧へ戻す。参加者のままなので、いつでも戻せるようにしておく。
 const unhideEvent = async (event) => {

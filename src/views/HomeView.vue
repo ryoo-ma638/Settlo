@@ -255,7 +255,7 @@ const subscribeEvents = (myUid) => {
 
       if (seq !== eventsSeq) return; // 追い越された古い結果は捨てる
       // 終了したイベントは「進行中」に出さない。並びはイベント一覧と同じ新しい順。
-      ongoingEvents.value = ongoingEventsOf(formattedEvents);
+      ongoingEvents.value = ongoingEventsOf(formattedEvents, myUid);
     } catch (error) {
       console.error("イベントの整形に失敗:", error);
     } finally {

@@ -10,7 +10,7 @@
 // ボタンで答える種類
 const ACTION_TYPES = [
   'approval_request', 'event_invite', 'event_join_request', 'event_rejoin_request',
-  'event_settlement_approval_request', 'settlement_restore_request',
+  'event_settlement_approval_request', 'settlement_restore_request', 'event_end_request',
   'payment_added', 'thread_reply',
 ];
 
