@@ -656,7 +656,7 @@ exports.setupGuestDemo = onCall(
       paidById: HANAKO, paidToId: uid, paidByName: "デモ花子", amount: 2000,
       itemName: "ジンギスカン夕食", status: "unpaid", eventId, createdAt: now,
     });
-    await db.collection("events").doc(eventId).collection("history").add({
+    const dinnerHistory = await db.collection("events").doc(eventId).collection("history").add({
       payer: guestName, payerUid: uid, itemName: "ジンギスカン夕食", category: "食事",
       splitType: "all", amount: 6000, date: dateStr, time: "19:30", status: "unpaid",
       timestamp: now, taxMode: "included", registrationNumber: null, remainder: null,
@@ -667,6 +667,10 @@ exports.setupGuestDemo = onCall(
       ],
       items: [], transactionIds: [tx1.id, tx2.id],
     });
+    await Promise.all([
+      tx1.update({ historyId: dinnerHistory.id, eventName: "札幌旅行（デモ）" }),
+      tx2.update({ historyId: dinnerHistory.id, eventName: "札幌旅行（デモ）" }),
+    ]);
 
     // 5) 立替2：太郎がレンタカー9,000円を立て替え（ゲストは3,000円支払う側）
     const tx3 = await db.collection("transactions").add({
@@ -677,7 +681,7 @@ exports.setupGuestDemo = onCall(
       paidById: HANAKO, paidToId: TARO, paidByName: "デモ花子", amount: 3000,
       itemName: "レンタカー", status: "unpaid", eventId, createdAt: now,
     });
-    await db.collection("events").doc(eventId).collection("history").add({
+    const rentalHistory = await db.collection("events").doc(eventId).collection("history").add({
       payer: "デモ太郎", payerUid: TARO, itemName: "レンタカー", category: "交通",
       splitType: "all", amount: 9000, date: dateStr, time: "13:00", status: "unpaid",
       timestamp: now, taxMode: "included", registrationNumber: null, remainder: null,
@@ -687,6 +691,40 @@ exports.setupGuestDemo = onCall(
         { uid: HANAKO, name: "デモ花子", amount: 3000 },
       ],
       items: [], transactionIds: [tx3.id, tx4.id],
+    });
+    // 本物の立て替えと同じように、取引から履歴を引けるようにしておく。
+    // これが無いと、明細から相談を開いたときに別の会話が作られてしまう。
+    await Promise.all([
+      tx3.update({ historyId: rentalHistory.id, eventName: "札幌旅行（デモ）" }),
+      tx4.update({ historyId: rentalHistory.id, eventName: "札幌旅行（デモ）" }),
+    ]);
+
+    // 5-2) 相談の体験用：デモ太郎から一言だけ届いた状態にする。
+    //      空の会話だと、返信案もAIも何を出せばいいか分からず試せないため。
+    const threadRef = db.collection("threads").doc(`pay-${rentalHistory.id}`);
+    const firstMessage = "レンタカー代、いつごろ払えそうですか？ 現金でもPayPayでも大丈夫です。";
+    await threadRef.set({
+      type: "payment",
+      participants: [uid, TARO, HANAKO],
+      participantNames: { [uid]: guestName, [TARO]: "デモ太郎", [HANAKO]: "デモ花子" },
+      creditorUid: TARO,
+      eventId,
+      eventName: "札幌旅行（デモ）",
+      itemName: "レンタカー",
+      amount: 9000,
+      transactionIds: [tx3.id, tx4.id],
+      activeTransactionIds: [tx3.id, tx4.id],
+      subjectLabel: "札幌旅行（デモ）・レンタカー（¥9,000）のお支払いの件",
+      lastMessage: firstMessage,
+      hiddenBy: [],
+      resolved: false,
+      unread: { [uid]: 1 },
+      createdAt: now,
+      updatedAt: now,
+    });
+    await threadRef.collection("messages").add({
+      fromUid: TARO, fromName: "デモ太郎", text: firstMessage,
+      createdAt: now, readBy: [TARO],
     });
 
     // 6) お知らせ体験：太郎から支払いの催促＋花子からフレンド申請
