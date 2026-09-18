@@ -2,7 +2,7 @@
   <div class="chats">
     <PageHeader title="相談" fallback="/" />
 
-    <p class="chats__intro">イベントや立て替えについて、最近の相談を新しい順に表示します。</p>
+    <p class="chats__intro">イベントや立て替えについて、最近の相談を新しい順に表示します。相談を押すと内容を確認できます。</p>
 
     <main class="chats__body">
       <div v-if="loading" class="chats__empty">読み込み中…</div>
