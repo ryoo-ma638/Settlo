@@ -206,6 +206,48 @@ const assertParticipant = (eventData, uid) => {
 function createEventNetSettlementService({ db, FieldValue }) {
   const now = () => FieldValue.serverTimestamp();
 
+  // 🌟 まとめて精算が始まったことを、参加者全員へ知らせる。
+  //    これが無いと、自分の未払い・受け取りが支払い画面から急に消えたように見える。
+  //    お金の確定（runTransaction）とは分け、失敗しても精算は止めない。
+  async function notifyStarted({ eventId, planId, participants, transfers, actorUid, eventName }) {
+    try {
+      const actorSnap = await db.collection("users").doc(actorUid).get();
+      const actorName = actorSnap.exists ? (actorSnap.data().name || "メンバー") : "メンバー";
+      const nameOf = async (id) => {
+        if (id === actorUid) return actorName;
+        const snap = await db.collection("users").doc(id).get();
+        return snap.exists ? (snap.data().name || "メンバー") : "メンバー";
+      };
+      const batch = db.batch();
+      for (const to of participants) {
+        if (to === actorUid) continue; // 始めた本人には出さない
+        const pay = transfers.filter((t) => t.fromId === to);
+        const receive = transfers.filter((t) => t.toId === to);
+        const parts = [];
+        for (const t of pay) parts.push(`${await nameOf(t.toId)}さんへ ¥${Number(t.amount).toLocaleString()} 支払います`);
+        for (const t of receive) parts.push(`${await nameOf(t.fromId)}さんから ¥${Number(t.amount).toLocaleString()} 受け取ります`);
+        const yourPart = parts.length
+          ? parts.join("／")
+          : "あなたの貸し借りは他の人の送金にまとめられました。支払う・受け取るものはありません";
+        batch.set(db.collection("notifications").doc(`event-net-started-${stableId(planId, to)}`), {
+          toUserId: to,
+          fromUserId: actorUid,
+          fromUserName: actorName,
+          type: "event_settlement_started",
+          eventId,
+          eventName: eventName || "イベント",
+          planId,
+          message: yourPart,
+          isRead: false,
+          createdAt: now(),
+        });
+      }
+      await batch.commit();
+    } catch (e) {
+      console.error("まとめて精算の開始をお知らせできませんでした:", e);
+    }
+  }
+
   async function start(uid, input) {
     const eventId = assertText(input.eventId, "イベントID");
     const requestId = assertText(input.requestId, "操作ID");
@@ -214,7 +256,7 @@ function createEventNetSettlementService({ db, FieldValue }) {
     const planRef = db.collection("eventSettlementPlans").doc(planId);
     const txQuery = db.collection("transactions").where("eventId", "==", eventId);
 
-    return db.runTransaction(async (transaction) => {
+    const outcome = await db.runTransaction(async (transaction) => {
       const eventSnap = await transaction.get(eventRef);
       if (!eventSnap.exists) fail("not-found", "イベントが見つかりません。");
       const participants = assertParticipant(eventSnap.data(), uid);
@@ -272,8 +314,19 @@ function createEventNetSettlementService({ db, FieldValue }) {
         });
       });
       transaction.update(eventRef, { activeEventSettlementPlanId: planId });
-      return { planId, status: "open", legCount: legIds.length, replay: false };
+      return {
+        planId, status: "open", legCount: legIds.length, replay: false,
+        _notify: { participants, transfers: calculation.transfers, eventName: eventSnap.data().name },
+      };
     });
+
+    // 確定の外でお知らせを出す（初回に作れたときだけ）
+    if (outcome && outcome._notify) {
+      const { _notify, ...result } = outcome;
+      await notifyStarted({ eventId, planId, actorUid: uid, ...(_notify) });
+      return result;
+    }
+    return outcome;
   }
 
   async function refresh(uid, input) {

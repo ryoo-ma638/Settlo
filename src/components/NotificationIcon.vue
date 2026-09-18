@@ -312,6 +312,7 @@ const pastNotifs = computed(() => notifSplit.value.archived);
 const pastTotal = computed(() => notifSplit.value.archivedTotal);
 const showPast = ref(false);
 const EVENT_SETTLEMENT_TYPES = [
+  'event_settlement_started',
   'event_settlement_approval_request',
   'event_settlement_rejected',
   'event_settlement_approved',
@@ -347,6 +348,7 @@ const notifBatch = (req) => {
 // 通知タイプごとの表示文言・ボタン
 const notifText = (req) => {
   if (req.type === 'payment_added') return `さんが「${req.itemName || '支払い'}」（¥${Number(req.amount || 0).toLocaleString()}）を追加しました`;
+  if (req.type === 'event_settlement_started') return `さんがイベント「${req.eventName || ''}」のまとめて精算を始めました。これまでの未払い・受け取りはこの精算にまとめられ、支払い画面からは外れています。${req.message || ''}`;
   if (req.type === 'event_settlement_approval_request') return `さんからまとめて精算の受取確認が届いています（¥${(req.amount || 0).toLocaleString()}）`;
   if (req.type === 'event_settlement_rejected') return `さんがまとめて精算の入金を確認できませんでした（¥${(req.amount || 0).toLocaleString()}）`;
   if (req.type === 'event_settlement_approved') return `さんがまとめて精算の受取を確認しました（¥${(req.amount || 0).toLocaleString()}）`;
