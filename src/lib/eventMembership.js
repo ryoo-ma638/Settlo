@@ -1,3 +1,5 @@
+import { eventEndState } from './eventEnd.js';
+
 // イベントからの退出を判断し、画面に出す文言を決める。
 //
 // 決まりごと
@@ -103,8 +105,11 @@ export function splitHiddenEvents(events = [], myUid = '') {
  * 終了したイベントは「進行中」に出さない。並びは新しい順で、イベント一覧とそろえる。
  * 画面の中に書くと確かめられないので、ここへ出している。
  */
-export function ongoingEventsOf(events = []) {
+export function ongoingEventsOf(events = [], uid = '') {
+  // uid を渡すと「その人にとって終了済みか」で見る。
+  // 1人が終了を押しただけで、他の人の一覧から消さないため。
+  const done = (event) => (uid ? eventEndState(event, uid).endedForMe : !!event.ended);
   return (Array.isArray(events) ? events : [])
-    .filter((event) => event && !event.ended)
+    .filter((event) => event && !done(event))
     .sort((a, b) => (b?.createdAt?.seconds || 0) - (a?.createdAt?.seconds || 0));
 }

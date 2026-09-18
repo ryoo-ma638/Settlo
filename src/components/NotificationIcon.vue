@@ -29,6 +29,10 @@
                     <template v-else-if="isEventSettlementType(req.type)">
                       <button class="mini-btn" @click="openEventSettlement(req)">{{ req.type === 'event_settlement_approval_request' ? '受取確認へ' : 'まとめて精算を見る' }}</button>
                     </template>
+                    <template v-else-if="req.type === 'event_end_request'">
+                      <button class="mini-btn" @click="acceptEventEnd(req)">終了する</button>
+                      <button class="mini-btn mini-btn--ghost" @click="declineEventEnd(req)">まだ続ける</button>
+                    </template>
                     <template v-else-if="req.type === 'settlement_restore_request'">
                       <button class="mini-btn" @click="approveRestore(req)">承認する</button>
                       <button class="mini-btn mini-btn--ghost" @click="rejectRestore(req)">拒否する</button>
@@ -154,7 +158,11 @@
               <template v-else-if="isEventSettlementType(req.type)">
                 <button class="mini-btn" @click="openEventSettlement(req)">{{ req.type === 'event_settlement_approval_request' ? '受取確認へ' : 'まとめて精算を見る' }}</button>
               </template>
-              <template v-else-if="req.type === 'settlement_restore_request'">
+              <template v-else-if="req.type === 'event_end_request'">
+                      <button class="mini-btn" @click="acceptEventEnd(req)">終了する</button>
+                      <button class="mini-btn mini-btn--ghost" @click="declineEventEnd(req)">まだ続ける</button>
+                    </template>
+                    <template v-else-if="req.type === 'settlement_restore_request'">
                 <button class="mini-btn" @click="approveRestore(req)">承認する</button>
                 <button class="mini-btn mini-btn--ghost" @click="rejectRestore(req)">拒否する</button>
               </template>
@@ -288,6 +296,7 @@ import BaseModal from './BaseModal.vue';
 import NotifBadge from './NotifBadge.vue';
 import { splitNotifications } from '@/lib/notificationPolicy';
 import { notificationDetail } from '@/lib/notificationDetail';
+import { endByMe } from '@/lib/eventEnd';
 import { db, auth } from '@/firebase';
 import {
   collection, query, where, onSnapshot, getDocs,
@@ -362,6 +371,39 @@ const detailOf = (req) => notificationDetail(req);
 //    消さずに印を付けるだけなので、あとから中身を確かめられる。
 //    そこから7日で自動的に消える（定期処理）。
 const trashingId = ref('');
+// 🌟「〇〇さんがイベントを終了しました。あなたも終了しますか？」への返事。
+//    お金は動かない。自分の分を終えるか、まだ続けるかだけ。
+const acceptEventEnd = async (req) => {
+  if (!req?.eventId) return;
+  try {
+    const me = auth.currentUser?.uid;
+    const snap = await getDoc(doc(db, 'events', req.eventId));
+    if (!snap.exists()) {
+      notice('error', '終了できませんでした', 'このイベントは見つかりませんでした。');
+      return;
+    }
+    const { endedBy, endsEvent } = endByMe({ id: snap.id, ...snap.data() }, me);
+    const patch = { endedBy };
+    if (endsEvent) { patch.ended = true; patch.endedAt = serverTimestamp(); }
+    await updateDoc(doc(db, 'events', req.eventId), patch);
+    await updateDoc(doc(db, 'notifications', req.id), { isRead: true, readAt: serverTimestamp() });
+    notice('success', '終了しました', endsEvent
+      ? '全員が終えたので、イベントが終了しました。記録は残ります。'
+      : 'あなたの画面では終了済みになりました。');
+  } catch (e) {
+    console.error('イベント終了の返事に失敗:', e);
+    notice('error', '終了できませんでした', '通信状況を確認して、もう一度お試しください。');
+  }
+};
+const declineEventEnd = async (req) => {
+  try {
+    await updateDoc(doc(db, 'notifications', req.id), { isRead: true, readAt: serverTimestamp() });
+    notice('info', 'そのままにしました', 'このイベントはあなたの画面では続いたままです。あとから終了できます。');
+  } catch (e) {
+    console.error('イベント終了の返事に失敗:', e);
+  }
+};
+
 const moveToTrash = async (req) => {
   if (!req?.id || trashingId.value) return;
   trashingId.value = req.id;
@@ -416,6 +458,7 @@ const notifBatch = (req) => {
 // 通知タイプごとの表示文言・ボタン
 const notifText = (req) => {
   if (req.type === 'payment_added') return `さんが「${req.itemName || '支払い'}」（¥${Number(req.amount || 0).toLocaleString()}）を追加しました`;
+  if (req.type === 'event_end_request') return `さんがイベント「${req.eventName || ''}」を終了しました。精算は残っていません。あなたも終了しますか？`;
   if (req.type === 'event_settlement_started') return `さんがイベント「${req.eventName || ''}」のまとめて精算を始めました。これまでの未払い・受け取りはこの精算にまとめられ、支払い画面からは外れています。${req.message || ''}`;
   if (req.type === 'event_settlement_approval_request') return `さんからまとめて精算の受取確認が届いています（¥${(req.amount || 0).toLocaleString()}）`;
   if (req.type === 'event_settlement_rejected') return `さんがまとめて精算の入金を確認できませんでした（¥${(req.amount || 0).toLocaleString()}）`;

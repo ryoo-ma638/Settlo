@@ -85,8 +85,8 @@
       <div class="history-section" ref="timelineSection">
         <div class="section-header">
           <h3 class="section-title">立て替え履歴</h3>
-          <button class="add-payment-btn" data-tour="ev-addpay" :disabled="eventData.ended !== false" @click="openNewPayment">
-            {{ eventData.ended === true ? '終了済み（追加不可）' : '＋ 支払いを追加' }}
+          <button class="add-payment-btn" data-tour="ev-addpay" :disabled="endedForMe !== false" @click="openNewPayment">
+            {{ endedForMe === true ? '終了済み（追加不可）' : '＋ 支払いを追加' }}
           </button>
         </div>
 
@@ -197,7 +197,7 @@
       </div>
 
       <div class="event-actions">
-        <template v-if="eventData.ended">
+        <template v-if="endedForMe">
           <p class="ended-chip">終了済み・記録は保存されています</p>
           <button class="end-event-btn" :disabled="reopening" @click="handleReopenEvent">{{ reopening ? '再開しています…' : 'イベントを再開する' }}</button>
           <p class="end-hint">支払いの追加を再開します。精算済みの記録は変わりません。</p>
@@ -380,7 +380,7 @@
         :isOpen="modals.addPayment"
         :eventId="route.params.id || ''"
         :eventName="eventData.name || ''"
-        :eventEnded="!!eventData.ended"
+        :eventEnded="endedForMe === true"
         :participants="eventData.participants"
         :myName="myName"
         :myUid="auth.currentUser?.uid || ''"
@@ -427,6 +427,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { formatDate } from '@/lib/format';
 import { ensurePaymentThread, postPaymentEvent, postPaymentEventByTx, resolvePaymentThreadByTx, retirePaymentThread } from '@/lib/thread';
 import { getMyName } from '@/lib/userName';
+import { eventEndState, endByMe } from '@/lib/eventEnd';
 import { UNPAID_PATCH, COMPLETED_PATCH } from '@/lib/transactionPatch';
 import PayPayAction from '@/components/PayPayAction.vue';
 import { useEventActionContext } from '@/composables/useEventActionContext';
@@ -668,11 +669,19 @@ const eventData = ref({
   lastEventSettlementPlanId: null,
   leaderUid: null, // 🌟 リーダー（作った人）。古いイベントには無いので null
   locked: false,   // 🌟 鍵付き＝参加にリーダーの承認が必要
+  endedBy: [],     // 🌟 自分の分を終了した人。全員そろうと ended が true になる
   participants: [],
   history: []
 });
+
+// 🌟 誰の画面で終了済みとして扱うか。
+//    1人が押しただけで全員の画面を締めない（endedForMe と endedForAll を分ける）。
+const myUid = computed(() => auth.currentUser?.uid || '');
+const endState = computed(() => eventEndState(eventData.value, myUid.value));
+// 読み込み前は null のままにする（true/false を早合点しない既存の作りを守る）
+const endedForMe = computed(() => (eventData.value.ended == null ? null : endState.value.endedForMe));
 const { setPaymentAvailability } = useEventActionContext();
-watch(() => eventData.value.ended, (ended) => {
+watch(endedForMe, (ended) => {
   setPaymentAvailability(ended == null ? null : !ended);
 }, { immediate: true });
 
@@ -827,8 +836,8 @@ const roleLabelOf = (s) => {
 // 🌟 支払いの編集：詳細を閉じて、編集モードで支払いモーダルを開く
 const editingHistory = ref(null);
 const openNewPayment = () => {
-  if (eventData.value.ended !== false) {
-    if (eventData.value.ended == null) {
+  if (endedForMe.value !== false) {
+    if (endedForMe.value == null) {
       showToast('イベントを読み込んでいます');
       return;
     }
@@ -844,7 +853,7 @@ let autoAddOpened = false;
 watch([
   () => route.query.addPayment,
   () => (eventData.value.participants || []).length,
-  () => eventData.value.ended,
+  endedForMe,
 ], async ([request, count, ended]) => {
   if (request !== '1') { autoAddOpened = false; return; }
   if (count === 0 || autoAddOpened) return;
@@ -1062,7 +1071,7 @@ const doRevertSettlement = async (hist) => {
 const addHistory = async (newPayment) => {
   console.log("🚀 受信したデータ:", newPayment);
   // 🌟 終了済みイベントには新しい支払いを追加できない（記録の改変防止）
-  if (eventData.value.ended) {
+  if (endedForMe.value) {
     showAlert('info', '終了済みのイベントです', 'このイベントは終了しています。新しい支払いの追加や編集はできません。');
     return;
   }
@@ -1353,12 +1362,12 @@ const netSettlementError = computed(() => {
   if (eventData.value.activeEventSettlementPlanId || settlementPlan.value?.status === 'completed') return '';
   return localNetSettlement.value.error;
 });
-const canStartNetSettlement = computed(() => eventData.value.ended === false
+const canStartNetSettlement = computed(() => endedForMe.value === false
   && !eventData.value.activeEventSettlementPlanId
   && !!localNetSettlement.value.result?.transfers?.length);
 const hasUnresolvedSettlementReview = computed(() => settlementLegs.value
   .some((row) => row.status === 'unpaid' && row.reviewRequired === true));
-const canRefreshNetSettlement = computed(() => eventData.value.ended === false
+const canRefreshNetSettlement = computed(() => endedForMe.value === false
   && !!eventData.value.activeEventSettlementPlanId
   && !hasUnresolvedSettlementReview.value
   && !!localNetSettlement.value.result?.sourceTransactions?.length);
@@ -1607,7 +1616,8 @@ onMounted(async () => {
       const data = docSnap.data();
       eventData.value.name = data.name;
       eventData.value.tag = data.tag || 'その他';
-      eventData.value.ended = !!data.ended; // 🌟 終了済みフラグ
+      eventData.value.ended = !!data.ended; // 🌟 終了済みフラグ（全員が終えた状態）
+      eventData.value.endedBy = Array.isArray(data.endedBy) ? data.endedBy : []; // 🌟 自分の分を終えた人
       eventData.value.activeEventSettlementPlanId = data.activeEventSettlementPlanId || null;
       eventData.value.lastEventSettlementPlanId = data.lastEventSettlementPlanId || null;
       subscribeSettlementPlan(eventData.value.activeEventSettlementPlanId || eventData.value.lastEventSettlementPlanId);
@@ -1778,20 +1788,40 @@ const deleteEventCompletely = async (reason) => {
 
 // 🌟 イベントの「終了」＝全員の精算を締める（削除はしない・記録として残る）
 const handleEndEvent = () => {
-  if (eventData.value.ended !== false) return;
+  if (endedForMe.value !== false) return;
   // 未精算が残っていたら、まず精算へ誘導（終了は精算完了が条件）
   if (unpaidItems.value.length > 0 || hasUnpaidTransactions.value || eventData.value.activeEventSettlementPlanId) {
     modals.value.unpaidWarning = true;
     return;
   }
+  const others = endState.value.waiting.filter((id) => id !== myUid.value).length;
   showConfirm(
     'イベントを終了しますか？',
-    '精算はすべて完了しています。終了すると記録として残り、参加者全員の画面で「終了済み」になります。',
+    others > 0
+      ? `精算はすべて完了しています。終了すると、あなたの画面では「終了済み」になります。ほかの${others}人には「あなたも終了しますか？」のお知らせが届き、全員が終えたときにイベント全体が終了します。`
+      : '精算はすべて完了しています。あなたで最後なので、イベント全体が終了になります。記録は残ります。',
     async () => {
       try {
-        await updateDoc(doc(db, 'events', route.params.id), { ended: true, endedAt: serverTimestamp() });
-        eventData.value.ended = true;
-        showToast('イベントを終了しました');
+        const me = myUid.value;
+        const { endedBy, endsEvent, notify } = endByMe(eventData.value, me);
+        const patch = { endedBy };
+        if (endsEvent) { patch.ended = true; patch.endedAt = serverTimestamp(); }
+        await updateDoc(doc(db, 'events', route.params.id), patch);
+        eventData.value.endedBy = endedBy;
+        if (endsEvent) eventData.value.ended = true;
+        // お金は動かないので、知らせは確定のあとで出す（失敗しても終了は取り消さない）
+        try {
+          const myName = await getMyName();
+          for (const to of notify) {
+            await addDoc(collection(db, 'notifications'), {
+              toUserId: to, type: 'event_end_request',
+              eventId: route.params.id, eventName: eventData.value.name || 'イベント',
+              fromUserId: me, fromUserName: myName,
+              isRead: false, createdAt: serverTimestamp(),
+            });
+          }
+        } catch (e) { console.error('終了のお知らせに失敗:', e); }
+        showToast(endsEvent ? 'イベントを終了しました' : '終了しました。ほかの参加者には確認が届きます');
       } catch (e) {
         console.error('イベント終了エラー:', e);
         showAlert('error', 'エラー', 'イベントの終了に失敗しました。');

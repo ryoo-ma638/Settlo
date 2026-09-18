@@ -5,6 +5,7 @@ import { parse, compileScript } from '@vue/compiler-sfc';
 import * as Vue from 'vue';
 import * as eventStatus from '../src/lib/eventStatus.js';
 import { buildEventNetSettlement } from '../src/lib/eventNetSettlement.js';
+import { eventEndState, endByMe } from '../src/lib/eventEnd.js';
 
 // 実際の画面の選択欄と computed を検証する。通信・保存・精算計算は対象外。
 const { descriptor } = parse(readFileSync(new URL('../src/views/EventDetails.vue', import.meta.url), 'utf8'));
@@ -35,6 +36,8 @@ Object.assign(bindings, eventStatus, Object.fromEntries([...importNames].filter(
   } }),
   useEventActionContext: () => ({ setPaymentAvailability() {} }),
   buildEventNetSettlement,
+  // 終了の判断は本物を使う（計算だけなので差し替える必要が無い）
+  eventEndState, endByMe,
 });
 const Component = new Function(...Object.keys(bindings), compiled)(...Object.values(bindings));
 Component.render = () => null;
