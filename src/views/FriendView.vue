@@ -51,9 +51,10 @@
         <SkeletonRows v-if="loading" :rows="5" :amount="false" />
         <template v-else>
           <FriendCard
-            v-for="user in processedList"
+            v-for="(user, index) in processedList"
             :key="user.id"
             :user="user"
+            :data-tour="index === 0 ? 'friend-row' : null"
             @click="navigateToDetail(user)"
           />
           <div v-if="processedList.length === 0" class="empty-box">

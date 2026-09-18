@@ -47,3 +47,33 @@ test('もう使われていない言葉が残っていない', () => {
     assert.ok(!tour.includes(word), `古い説明が残っている: ${word}`);
   }
 });
+
+test('全部の画面を説明する（主要な入口が手順に入っている）', () => {
+  // 画面を足したのにツアーへ入れ忘れると、そこだけ説明が抜ける
+  const must = [
+    'home-status', 'home-events',                                   // ホーム
+    'avatar', 'pending', 'chat', 'bell', 'assist',                  // 画面の上
+    'nav-home', 'nav-event', 'nav-add', 'nav-money', 'nav-friend',  // 下のナビ
+    'sheet-event', 'sheet-payment', 'sheet-friend-split',           // ＋の3つ
+    'pay-tabs', 'pay-settle', 'pay-history',                        // 支払い
+    'event-check', 'event-card', 'ev-summary', 'ev-addpay',
+    'ev-invite', 'ev-exit', 'ev-end', 'ev-delete',                  // イベント
+    'friend-add', 'friend-row', 'fd-combined', 'fd-split', 'fd-chats', // フレンド
+    'mp-profile', 'mp-notify', 'mp-friend', 'mp-history',
+    'mp-approvals', 'mp-chats', 'mp-trash', 'mp-help',              // マイページ
+  ];
+  const missing = must.filter((name) => !steps.includes(name));
+  assert.deepEqual(missing, [], '説明が抜けている画面がある');
+});
+
+test('無いこともある場所は、待たずに飛ばす', () => {
+  // フレンドが0人のときなど、対象が無い手順で何秒も止まると使えない
+  assert.match(tour, /optional\s*\?\s*5\s*:\s*25/, 'optional の待ち時間を短くしていない');
+  const optionalCount = (tour.match(/optional:\s*true/g) || []).length;
+  assert.ok(optionalCount >= 6, `optional の指定が少ない: ${optionalCount}`);
+});
+
+test('最後の手順は締めで、ホームへ戻せる', () => {
+  assert.match(tour, /type:\s*'final'/);
+  assert.match(tour, /ホームへ戻る/);
+});

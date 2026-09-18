@@ -8,7 +8,7 @@
       <div class="seg seg--3" data-tour="pay-tabs">
         <button class="seg__item" :class="{ 'is-active': currentTab === 'waiting' }" @click="currentTab = 'waiting'">お支払い待ち</button>
         <button class="seg__item" :class="{ 'is-active': currentTab === 'unpaid' }" @click="currentTab = 'unpaid'">未払い</button>
-        <button class="seg__item" :class="{ 'is-active': currentTab === 'settle' }" @click="currentTab = 'settle'">まとめて</button>
+        <button class="seg__item" data-tour="pay-settle" :class="{ 'is-active': currentTab === 'settle' }" @click="currentTab = 'settle'">まとめて</button>
       </div>
 
       <!-- 入金待ち -->
