@@ -88,6 +88,42 @@
             <span class="rh__sug-text">{{ r.text }}</span>
           </button>
         </template>
+
+        <!-- ここから先はAIに相談する分。会話の流れを読んだうえで文案を作る。
+             送るのは匿名にした会話と、上で選んだ条件だけ。名前は送らない。 -->
+        <div class="rh__ai">
+          <button class="rh__ai-btn" :disabled="aiLoading" @click="askAi">
+            {{ aiLoading ? 'AIが会話を読んでいます…' : 'AIに相談する' }}
+          </button>
+          <p class="rh__ai-note">やりとりの内容から文案を作ります。名前は送らず、相手は「参加者1」のように置き換えます。</p>
+          <p v-if="aiError" class="rh__warn">{{ aiError }}</p>
+
+          <template v-if="aiResult">
+            <p v-if="aiResult.summary" class="rh__ai-summary">{{ aiResult.summary }}</p>
+
+            <template v-if="aiResult.issues.length">
+              <p class="rh__label">気をつける点</p>
+              <div v-for="(issue, i) in aiResult.issues" :key="'i'+i" class="rh__ai-issue">
+                <span class="rh__ai-issue-title">{{ issue.title }}</span>
+                <span v-if="issue.confidence !== 'high'" class="rh__ai-guess">推測</span>
+                <span v-if="issue.detail" class="rh__ai-issue-detail">{{ issue.detail }}</span>
+              </div>
+            </template>
+
+            <template v-if="aiResult.missingInformation.length">
+              <p class="rh__label">分からなかったこと</p>
+              <p v-for="(m, i) in aiResult.missingInformation" :key="'m'+i" class="rh__ai-missing">{{ m }}</p>
+            </template>
+
+            <template v-if="aiResult.replySuggestions.length">
+              <p class="rh__label">AIの返信案</p>
+              <button v-for="(r, i) in aiResult.replySuggestions" :key="'s'+i" class="rh__sug rh__sug--ai" @click="useSuggestion(r.text)">
+                <span class="rh__sug-label">{{ r.label }}</span>
+                <span class="rh__sug-text">{{ r.text }}</span>
+              </button>
+            </template>
+          </template>
+        </div>
       </div>
     </div>
 
@@ -116,7 +152,7 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { db, auth } from '@/firebase';
+import { db, auth, functions } from '@/firebase';
 import {
   collection, query, where, orderBy, onSnapshot, addDoc, getDocs, doc, getDoc, setDoc, updateDoc, serverTimestamp, arrayUnion, increment,
 } from 'firebase/firestore';
@@ -129,6 +165,7 @@ import { logApprovalBoth } from '@/lib/approvalLog';
 import { buildConditionalReplySuggestions, normalizeReplyConditions } from '@/lib/aiConsultation';
 import { findBatchApprovalRequests, revertCounterTransactions, COUNTER_REVERT_TEXT } from '@/lib/settlement';
 import { REJECTED_PATCH, COMPLETED_PATCH } from '@/lib/transactionPatch';
+import { httpsCallable } from 'firebase/functions';
 
 // クイック返信の定型文
 const QUICK_REPLIES = ['ありがとう！', '確認しました', 'もう少し待って', 'OKです'];
@@ -164,6 +201,35 @@ const replyConditions = () => ({
   allowedMethods: replyAllowed.value, blockedMethods: replyBlocked.value,
   dueDate: replyDueDate.value,
 });
+// AIに相談する分。会話の本文は送らず、取引IDと条件だけを渡す。
+// 会話を読んで匿名化するのはサーバー側（当事者かどうかもそこで確かめる）。
+const aiLoading = ref(false);
+const aiError = ref('');
+const aiResult = ref(null);
+
+const askAi = async () => {
+  if (!txId || aiLoading.value) return;
+  aiLoading.value = true;
+  aiError.value = '';
+  try {
+    const call = httpsCallable(functions, 'consultPaymentReply');
+    const res = await call({
+      transactionId: txId,
+      subject: label.value || '',
+      replyConditions: replyConditions(),
+    });
+    aiResult.value = res.data;
+  } catch (error) {
+    console.error('AI相談エラー:', error);
+    aiError.value = error?.message || '返信案を作れませんでした。時間をおいて、もう一度お試しください。';
+  } finally {
+    aiLoading.value = false;
+  }
+};
+
+// 条件を変えたら、前の結果は消す（古い条件の文案が残らないように）
+watch([replyMethodMode, replyAllowed, replyBlocked, replyDueDate], () => { aiResult.value = null; }, { deep: true });
+
 const replySuggestions = computed(() => buildConditionalReplySuggestions({
   conditions: replyConditions(), amount: Number(txData.value?.amount) || 0,
 }));

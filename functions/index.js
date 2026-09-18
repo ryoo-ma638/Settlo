@@ -662,3 +662,119 @@ exports.eventNetSettlement = onCall(
   },
   async (request) => eventNetSettlementService.handle(request.auth && request.auth.uid, request.data)
 );
+
+// =================================================================
+// 相談の返信案をAIへ相談する（Gemini）
+// =================================================================
+// 画面から会話の本文は受け取らない。取引IDだけを受け取り、ここで当事者かを確かめ、
+// サーバー側で会話を読んで匿名化してから渡す。画面を信用すると、当事者でない人が
+// 好きな文章を送れてしまい、料金にも直結する。
+const aiConsult = require("./aiConsultationCore");
+
+// 同じ人が続けて呼ぶのを抑える（料金と負荷のため）
+const AI_CONSULT_COOLDOWN_MS = 8000;
+
+exports.consultPaymentReply = onCall(
+  {
+    region: "asia-northeast1",
+    cors: ['http://localhost:5173', 'https://pairpay-4c17a.web.app', 'https://settlo-app.web.app', 'https://settlo-app.firebaseapp.com'],
+    secrets: ["GEMINI_API_KEY"],
+    timeoutSeconds: 60,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "ログインが必要です。");
+    }
+    const myUid = request.auth.uid;
+    const transactionId = typeof request.data?.transactionId === 'string' ? request.data.transactionId.trim() : '';
+    if (!transactionId) {
+      throw new HttpsError("invalid-argument", "対象の支払いが指定されていません。");
+    }
+
+    // 1. 当事者かどうかを、こちらで確かめる
+    const txSnap = await db.collection("transactions").doc(transactionId).get();
+    if (!txSnap.exists) {
+      throw new HttpsError("not-found", "対象の支払いが見つかりません。");
+    }
+    const tx = txSnap.data();
+    if (tx.paidById !== myUid && tx.paidToId !== myUid) {
+      throw new HttpsError("permission-denied", "この支払いの当事者だけが使えます。");
+    }
+    const otherUid = tx.paidById === myUid ? tx.paidToId : tx.paidById;
+
+    // 2. 連続呼び出しを抑える
+    const userRef = db.collection("users").doc(myUid);
+    const userSnap = await userRef.get();
+    const last = userSnap.exists ? userSnap.data().aiConsultAt : null;
+    const lastMs = last && typeof last.toMillis === 'function' ? last.toMillis() : 0;
+    if (lastMs && Date.now() - lastMs < AI_CONSULT_COOLDOWN_MS) {
+      throw new HttpsError("resource-exhausted", "少し時間をおいて、もう一度お試しください。");
+    }
+
+    // 3. 会話を読む（当事者2人のスレッドは、UIDを並べ替えたIDで決まる）
+    const threadId = `${[myUid, otherUid].sort().join('-')}__t-${transactionId}`;
+    const msgSnap = await db.collection("threads").doc(threadId).collection("messages")
+      .orderBy("createdAt", "asc").limitToLast(aiConsult.LIMITS.messages).get();
+    const messages = msgSnap.docs.map((d) => {
+      const m = d.data();
+      return { id: d.id, text: m.text, fromUid: m.fromUid, system: !!m.system };
+    });
+    if (messages.length === 0) {
+      throw new HttpsError("failed-precondition", "まだやりとりがないため、相談できません。");
+    }
+
+    // 4. 匿名化して組み立てる（名前もUIDも渡さない）
+    const payload = aiConsult.buildRequest({
+      facts: {
+        subject: request.data?.subject,
+        eventName: tx.eventName,
+        itemName: tx.itemName,
+        amount: tx.amount,
+        transactionStatus: tx.status || 'unpaid',
+        myRole: tx.paidById === myUid ? 'payer' : 'receiver',
+      },
+      messages,
+      myUid,
+      replyConditions: request.data?.replyConditions,
+    });
+
+    try {
+      const { GoogleGenerativeAI } = require("@google/generative-ai");
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      const callModel = async (useSchema) => {
+        const model = genAI.getGenerativeModel({
+          model: "gemini-2.5-flash",
+          generationConfig: {
+            temperature: 0.4, // 文案なので少しだけ揺らぎを許す
+            responseMimeType: "application/json",
+            ...(useSchema ? { responseSchema: aiConsult.SCHEMA } : {}),
+          },
+        });
+        const result = await model.generateContent([aiConsult.PROMPT, JSON.stringify(payload)]);
+        return result.response.text();
+      };
+
+      let responseText;
+      try {
+        responseText = await callModel(true);
+      } catch (schemaError) {
+        console.error("構造化出力に失敗したのでスキーマなしで再試行:", schemaError);
+        responseText = await callModel(false);
+      }
+      const jsonString = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+      const normalized = aiConsult.normalizeResult(JSON.parse(jsonString), payload.messages.map((m) => m.id));
+      if (normalized.replySuggestions.length === 0) {
+        throw new HttpsError("internal", "返信案を作れませんでした。時間をおいて、もう一度お試しください。");
+      }
+
+      // 成功したときだけ、次の呼び出しまでの間隔を記録する
+      await userRef.set({ aiConsultAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      return normalized;
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      // 内部の事情（APIキー・モデル名・スタック）は利用者に見せない
+      console.error("相談の返信案エラー詳細:", error);
+      throw new HttpsError("internal", "返信案を作れませんでした。時間をおいて、もう一度お試しください。");
+    }
+  }
+);
