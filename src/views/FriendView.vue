@@ -100,6 +100,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, reactive } from 'vue';
 import { countFriendTransactions, summarizeFriendTransactions } from '../lib/friendTransactionCounts.js';
+import { friendNetFromTransactions } from '../lib/friendBalance.js';
 import { useRoute, useRouter } from 'vue-router';
 
 import { auth, db } from '@/firebase';
@@ -180,13 +181,13 @@ const stopSubscriptions = () => {
 };
 onUnmounted(() => { stopAuth?.(); stopSubscriptions(); });
 const balanceByUid = ref({}); // 相手UID → net（>0=受け取る / <0=支払う。全イベント横断）
-// 相手ごとの受取/支払を集計して net を更新
-const recvByUid = {}; const payByUid = {};
+// 🌟 数え方はフレンド詳細と同じものを使う（src/lib/friendBalance.js）。
+//    ここで独自に足し算していたときは、イベントでまとめて精算中の分まで足してしまい、
+//    一覧が「支払う ¥6,200」・詳細が「支払う ¥1,200」と食い違っていた。
 const rebuildBalance = () => {
-  const out = {};
-  const uids = new Set([...Object.keys(recvByUid), ...Object.keys(payByUid)]);
-  uids.forEach(uid => { out[uid] = (recvByUid[uid] || 0) - (payByUid[uid] || 0); });
-  balanceByUid.value = out;
+  balanceByUid.value = friendNetFromTransactions(
+    [...countRows.received, ...countRows.paid], countUid.value,
+  );
 };
 
 onMounted(() => {
@@ -202,8 +203,6 @@ onMounted(() => {
     countRows.received = []; countRows.paid = [];
     countState.received = 'loading'; countState.paid = 'loading';
     friendData.value = []; pendingRequests.value = [];
-    for (const uid in recvByUid) delete recvByUid[uid];
-    for (const uid in payByUid) delete payByUid[uid];
     rebuildBalance();
     loading.value = Boolean(user);
     if (user) {
@@ -232,15 +231,11 @@ onMounted(() => {
       listen(query(collection(db, "transactions"), where("paidToId", "==", user.uid)), (snap) => {
         countRows.received = snap.docs.map(d => ({ ...d.data(), id: d.id }));
         countState.received = 'ready';
-        for (const k in recvByUid) delete recvByUid[k];
-        snap.docs.forEach(d => { const t = d.data(); if (t.paidById && (t.status || 'unpaid') !== 'completed') recvByUid[t.paidById] = (recvByUid[t.paidById] || 0) + (t.amount || 0); });
         rebuildBalance();
       }, () => { countRows.received = []; countState.received = 'error'; });
       listen(query(collection(db, "transactions"), where("paidById", "==", user.uid)), (snap) => {
         countRows.paid = snap.docs.map(d => ({ ...d.data(), id: d.id }));
         countState.paid = 'ready';
-        for (const k in payByUid) delete payByUid[k];
-        snap.docs.forEach(d => { const t = d.data(); if (t.paidToId && (t.status || 'unpaid') !== 'completed') payByUid[t.paidToId] = (payByUid[t.paidToId] || 0) + (t.amount || 0); });
         rebuildBalance();
       }, () => { countRows.paid = []; countState.paid = 'error'; });
 

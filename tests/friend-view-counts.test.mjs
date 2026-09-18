@@ -23,7 +23,11 @@ export default {};
 const io = await import(mockUrl);
 const { descriptor } = parse(readFileSync(new URL('../src/views/FriendView.vue', import.meta.url), 'utf8'));
 const source = compileScript(descriptor, {id:'friend-count-test'}).content.replace(/from ['"]([^'"]+)['"]/g, (_all,name) => 'from ' + JSON.stringify(
-  name==='vue' ? import.meta.resolve('vue') : name==='../lib/friendTransactionCounts.js' ? new URL('../src/lib/friendTransactionCounts.js',import.meta.url).href : mockUrl));
+  name==='vue' ? import.meta.resolve('vue')
+  : name==='../lib/friendTransactionCounts.js' ? new URL('../src/lib/friendTransactionCounts.js',import.meta.url).href
+  // 残高の数え方は本物を通す。差し替えると、一覧と詳細の食い違いを見逃す
+  : name==='../lib/friendBalance.js' ? new URL('../src/lib/friendBalance.js',import.meta.url).href
+  : mockUrl));
 const Component=(await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'))).default;
 Component.render=()=>null;
 const renderer=createRenderer({createComment:()=>({}),insert(){},remove(){},parentNode(){},nextSibling(){}});
@@ -103,4 +107,16 @@ test('申請状態を確認できなかった後も、確認ボタンから再�
   await state.openApproveModal(request);
   assert.equal(state.approvalStateFor(request),'ready');
   assert.equal(state.isApproveModalOpen,true);
+});
+
+test('一覧の金額は、イベントでまとめて精算中の分を足さない', () => {
+  // 足してしまうと、同じ相手でフレンド一覧と詳細に別の金額が並ぶ
+  emit('users/me/friends',[{id:'friend',uid:'friend',name:'相手',tradeCount:0,isFriend:true,addedAt:{seconds:10}}]);
+  emit('transactions',[
+    tx('a'),                                             // 受け取る 100
+    tx('b','unpaid',{amount:5000,eventSettlementPlanId:'p1'}), // イベントで精算中
+  ],'paidToId');
+  emit('transactions',[],'paidById');
+  const row = state.processedList.find(u => u.uid === 'friend');
+  assert.equal(row.net, 100);
 });
