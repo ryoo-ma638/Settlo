@@ -3,6 +3,22 @@
 /* =========================================================
    アプリの器：スマホ幅を基準に、PCでは中央へ寄せて「実機」風に
    ========================================================= */
+/* 🌟 指で触ったときに、画面ごと縦横に動いてしまうのを止める。
+   ・html/body を画面に固定し、跳ね返り（ラバーバンド）を起こさせない
+   ・スクロールするのは .app-main だけ。端まで来ても外へ伝えない
+   ・二本指の拡大と、ダブルタップの拡大を止める */
+html, body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: pan-x pan-y;
+}
+body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+
 #app {
   width: 100%;
   max-width: var(--app-max);
@@ -11,6 +27,7 @@
   background-color: var(--c-bg);
   position: relative;
   overflow: hidden;
+  touch-action: manipulation;
 }
 
 /* PCなど広い画面：淡いニュートラルの台紙に、角丸の"端末"を中央表示 */
