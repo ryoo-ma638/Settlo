@@ -23,7 +23,6 @@ const routes = [
     { path: '/event', name: 'event', component: EventViews },
     
     // チームメンバーが追加したルート
-    { path: '/event-detail', name: 'event-detail', component: EventDetails },
     
     // 大崎さんが追加した決済・精算関連のルート
     { path: '/payment-detail/:id', name: 'PaymentDetail', component: () => import('../views/PaymentDetailView.vue') },

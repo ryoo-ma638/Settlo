@@ -43,6 +43,15 @@
                 <small>イベントを選んで立て替えを記録</small>
               </span>
             </button>
+            <button class="addsheet__item" data-tour="sheet-friend-split" @click="pick('/friend')">
+              <span class="addsheet__ic addsheet__ic--friend">
+                <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19v-1a4 4 0 0 1 4-4h3a4 4 0 0 1 4 4v1"/><path d="M17.5 8.5v5M15 11h5"/></svg>
+              </span>
+              <span class="addsheet__txt">
+                <b>フレンドと割り勘</b>
+                <small>イベントを作らずに1件だけ記録</small>
+              </span>
+            </button>
             <button class="addsheet__cancel" data-tour="sheet-cancel" @click="showAddSheet = false">キャンセル</button>
           </div>
         </div>
@@ -274,6 +283,7 @@ const isActive = (path) => {
 .addsheet__ic--brand { background: var(--c-brand-weak); }
 .addsheet__ic--brand svg { stroke: var(--c-brand); }
 .addsheet__ic--pay { background: var(--c-pay-weak, #fff7ed); }
+.addsheet__ic--friend { background: var(--c-pay-weak, #fff7ed); }
 .addsheet__ic--pay svg { stroke: var(--c-pay-strong); }
 .addsheet__txt { display: flex; flex-direction: column; gap: 2px; }
 .addsheet__txt b { font-size: 15px; font-weight: var(--fw-black); color: var(--c-ink); }
