@@ -77,7 +77,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import NotifBadge from './NotifBadge.vue';
 import { useNotificationCounts } from '../composables/useNotificationCounts';
@@ -131,7 +131,10 @@ const openAdd = () => {
 // フレンド/支払い/イベントの未読件数（リアルタイム）を下ナビのバッジに出す
 const { counts } = useNotificationCounts();
 
-const go = (path) => { if (route.path !== path) router.push(path); };
+// 画面が変わったら選択シートは閉じる。閉じる途中で移動すると覆いが残ることがある。
+watch(() => route.fullPath, () => { showAddSheet.value = false; });
+
+const go = (path) => { showAddSheet.value = false; if (route.path !== path) router.push(path); };
 // 選択シートから遷移（クエリ付きも確実に飛べるよう router.push を使う）
 const pick = (path) => { showAddSheet.value = false; router.push(path); };
 
@@ -297,5 +300,6 @@ const isActive = (path) => {
 .addsheet__cancel:active { background: var(--c-surface-2); }
 
 .sheet-fade-enter-active, .sheet-fade-leave-active { transition: opacity 0.2s ease; }
+.sheet-fade-leave-active, .sheet-fade-leave-to { pointer-events: none; }
 .sheet-fade-enter-from, .sheet-fade-leave-to { opacity: 0; }
 </style>

@@ -61,6 +61,23 @@ test('支払いの明細と相談は、行き来できる', () => {
   assert.match(paymentDetail, /!isBatch\.value && !isSettleBatch\.value && items\.value\.length === 1/);
 });
 
+test('消えかけの覆いが画面を塞がない', () => {
+  // ＋のシートを閉じた直後に画面を移動すると、透明のまま body に取り残されて
+  // 画面全体を塞ぐことがあった（見た目は普通なのに何も押せない）。
+  // 押させない指定と、画面が変わったら閉じる指定の両方を残す。
+  assert.match(footer, /\.sheet-fade-leave-active[^}]*pointer-events:\s*none/);
+  assert.match(footer, /watch\(\(\) => route\.fullPath[\s\S]{0,80}showAddSheet\.value = false/);
+  assert.match(header, /\.assist-leave-active[^}]*pointer-events:\s*none/);
+});
+
+test('はじめてガイドは前にも戻れる', () => {
+  const tour = read('components/ButtonTour.vue');
+  assert.match(tour, /class="tour__back"/);
+  // 戻った先の画面まで帰さないと、対象が見つからず勝手に先へ進んでしまう
+  assert.match(tour, /stepPaths\[stepIndex\.value\] = router\.currentRoute\.value\.path/);
+  assert.match(tour, /data-tour="sheet-/);
+});
+
 test('作成と参加のタブは、URLと合っている', () => {
   const makeEvent = read('views/MakeEventView.vue');
   assert.match(makeEvent, /watch\(\(\) => route\.query\.join/, '戻る・進むでタブとURLがずれる');

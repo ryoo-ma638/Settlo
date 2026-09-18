@@ -299,7 +299,8 @@ const props = defineProps({
   .recent-list { border-top: 1px solid rgba(255,255,255,0.2); padding-top: 15px; }
   .recent-title { font-size: 10px; opacity: 0.8; margin: 0 0 8px 0; text-align: left; }
   .recent-item { 
-    display: flex; justify-content: space-between; align-items: center; 
+    /* 320pxで名前と金額がくっつくので、間を必ず空けて金額は縮ませない */
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
     background: rgba(255,255,255,0.15); 
     padding: 8px 12px; border-radius: 10px; margin-bottom: 6px; 
     font-size: 12px; font-weight: bold;
@@ -309,6 +310,7 @@ const props = defineProps({
   .recent-item:active { background: rgba(255,255,255,0.3); transform: scale(0.98); }
   .recent-item:last-child { margin-bottom: 0; }
   .recent-name { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .recent-amount { flex-shrink: 0; }
   .recent-badge { flex-shrink: 0; background: rgba(255,255,255,0.30); padding: 1px 7px; border-radius: 8px; font-size: 9px; font-weight: bold; }
   .recent-empty { font-size: 11px; opacity: 0.85; text-align: center; padding: 8px 0 2px; margin: 0; }
   .recent-more {
