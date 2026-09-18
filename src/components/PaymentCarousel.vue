@@ -66,8 +66,8 @@
                 <strong class="summary-total__amount" :class="{ 'summary-total__amount--long': overview[side.key].unpaid.amount >= 1000000 }">¥{{ overview[side.key].unpaid.amount.toLocaleString() }}</strong>
               </button>
             </div>
-            <div v-if="statusRows.length" class="summary-ledger">
-              <table>
+            <div class="summary-ledger">
+              <table v-if="statusRows.length">
                 <caption class="sr-only">未払いとは別に確認が必要な精算</caption>
                 <thead><tr><th scope="col"><span class="sr-only">状態</span></th><th scope="col" class="summary-ledger__receive">↙ 受け取る</th><th scope="col" class="summary-ledger__pay">↗ 支払う</th></tr></thead>
                 <tbody>
@@ -83,6 +83,16 @@
                   </tr>
                 </tbody>
               </table>
+              <!-- 確認が要るものが1件も無いときも枠は残す。
+                   枠ごと消すとカードが急に縮んで落ち着かないうえ、
+                   ¥0 だけが並んで悪い知らせのように見えてしまう。 -->
+              <p v-else class="ledger-clear">
+                <span class="ledger-clear__check" aria-hidden="true">✓</span>
+                <span class="ledger-clear__text">
+                  確認が必要な精算はありません
+                  <small>いまは全部片付いています</small>
+                </span>
+              </p>
             </div>
           </div>
   
@@ -247,11 +257,22 @@ const props = defineProps({
   .payment-status-carousel { margin-bottom: 16px; }
   .section-title { font-size: 16px; margin: 10px 16px 10px; font-weight: var(--fw-bold); color: var(--c-ink); }
   
-  .carousel-outer { position: relative; display: flex; align-items: center; }
-  .carousel-wrapper { display: flex; align-items: stretch; overflow-y: hidden; overflow-x: auto; scroll-snap-type: x mandatory; padding: 0 5% 8px; gap: 4vw; scrollbar-width: none; -webkit-overflow-scrolling: touch; width: 100%; box-sizing: border-box; }
+  /* 隣のカードをのぞかせる幅と左右ボタンの大きさは、ここで一括で決める。
+     以前は のぞき幅=5%(親基準) と すき間=4vw(画面基準) が混ざっていたため、
+     画面サイズごとに青とオレンジの帯の太さとボタンの位置関係がずれていた。 */
+  .carousel-outer { position: relative; display: flex; align-items: center; --peek: 16px; --arrow: 36px; }
+  .carousel-wrapper {
+    display: flex; align-items: stretch; overflow-y: hidden; overflow-x: auto;
+    scroll-snap-type: x mandatory; padding: 0 var(--peek) 8px;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch; width: 100%; box-sizing: border-box;
+    /* すき間を左右の余白と同じ幅にすると、隣のカードの端がちょうど画面外に収まる。
+       青とオレンジの帯が出ないのはこのため。カードが何枚あるかは下の点で分かる。 */
+    gap: var(--peek);
+  }
   .carousel-wrapper::-webkit-scrollbar { display: none; }
   
-  .status-card { flex: 0 0 90%; border-radius: var(--r-lg); padding: 20px; box-shadow: var(--shadow-card); scroll-snap-align: center; display: flex; flex-direction: column; justify-content: center; box-sizing: border-box; transition: transform 0.3s ease; min-height: 156px; }
+  /* 100% は左右の余白を除いた幅。ここから更に引くとカードが二重に細くなる */
+  .status-card { flex: 0 0 100%; border-radius: var(--r-lg); padding: 20px; box-shadow: var(--shadow-card); scroll-snap-align: center; display: flex; flex-direction: column; justify-content: center; box-sizing: border-box; transition: transform 0.3s ease; min-height: 156px; }
   
   /* 🌟 追加：タップできることを示すカーソルとエフェクト */
   .clickable-card { cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -295,13 +316,18 @@ const props = defineProps({
   .summary-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
   .summary-total { min-width: 0; padding: 0 5px; border: 0; background: transparent; display: flex; flex-direction: column; align-items: center; cursor: pointer; color: var(--c-receive); }
   .summary-total--pay { color: var(--c-pay-strong); position: relative; }
-  .summary-total--pay::before { content: ''; position: absolute; left: 0; top: 2px; height: 54px; border-left: 1px solid var(--c-line); }
+  /* 区切り線は列の高さに合わせて伸ばす。高さを決め打ちすると金額の途中で切れる */
+  .summary-total--pay::before { content: ''; position: absolute; left: 0; top: 2px; bottom: 2px; border-left: 1px solid var(--c-line); }
   .summary-total__caption { color: var(--c-text-sub); font-size: 10px; line-height: 1.5; white-space: nowrap; }
   .summary-total__badge { display: inline-flex; align-items: center; gap: 3px; margin-top: 6px; padding: 5px 10px; border-radius: 999px; background: var(--c-receive); color: #fff; font-size: 12px; line-height: 1.3; font-weight: var(--fw-bold); white-space: nowrap; }
   .summary-total--pay .summary-total__badge { background: var(--c-pay-strong); }
   .summary-total__amount { margin-top: 12px; font-size: clamp(24px, 7vw, 32px); line-height: 1.25; font-weight: var(--fw-black); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .summary-total__amount--long { font-size: clamp(15px, 4vw, 22px); letter-spacing: -0.04em; }
-  .summary-ledger { margin-top: 20px; padding: 5px 10px; background: var(--c-surface-2); border-radius: 12px; }
+  .summary-ledger { margin-top: 20px; padding: 5px 10px; background: var(--c-surface-2); border-radius: 12px; min-height: 58px; display: flex; align-items: center; }
+  .ledger-clear { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; margin: 0; padding: 4px 2px; text-align: left; }
+  .ledger-clear__check { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex-shrink: 0; border-radius: 50%; background: #e3f3ea; color: #0f7a4d; font-size: 12px; font-weight: var(--fw-bold); }
+  .ledger-clear__text { font-size: 12px; color: var(--c-text-sub); line-height: 1.45; }
+  .ledger-clear__text small { display: block; font-size: 11px; opacity: 0.75; }
   .summary-ledger table { border-collapse: collapse; width: 100%; table-layout: fixed; }
   .summary-ledger th { color: var(--c-text-sub); font-weight: 500; font-size: 10px; line-height: 1.4; text-align: left; }
   .summary-ledger thead th { padding: 6px 0; text-align: right; font-size: 9px; }
@@ -320,10 +346,10 @@ const props = defineProps({
   .summary-total:focus-visible, .summary-ledger__value:focus-visible { outline: 2px solid var(--c-brand); outline-offset: 2px; border-radius: 6px; }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 
-  .nav-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; background-color: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); border-radius: 50%; border: 1px solid rgba(0,0,0,0.05); box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; z-index: 20; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); padding: 0; }
+  .nav-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: var(--arrow); height: var(--arrow); background-color: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); border-radius: 50%; border: 1px solid rgba(0,0,0,0.05); box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; z-index: 20; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); padding: 0; }
   .nav-arrow:active { transform: translateY(-50%) scale(0.85); background-color: #fff; }
-  .left-arrow { left: 8px; }
-  .right-arrow { right: 8px; }
+  .left-arrow { left: calc(var(--peek) / 2); }
+  .right-arrow { right: calc(var(--peek) / 2); }
   .chevron { display: inline-block; border-right: 3px solid var(--c-text); border-bottom: 3px solid var(--c-text); width: 10px; height: 10px; }
   .left { transform: rotate(135deg); margin-left: 4px; }
   .right { transform: rotate(-45deg); margin-right: 4px; }
