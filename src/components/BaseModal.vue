@@ -131,6 +131,8 @@ const cancel = () => { emit('cancel'); close(); };
 
 /* アニメーション */
 .modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.25s ease; }
+/* 消えかけの覆いは押さえない（アニメが止まっても画面が押せなくならないように） */
+.modal-fade-leave-active, .modal-fade-leave-to { pointer-events: none; }
 .modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
 .modal-fade-enter-active .modal-container { animation: slide-in 0.25s ease; }
 

@@ -1653,6 +1653,9 @@ defineExpose({ open });
 .close-modal-btn:active { transform: scale(0.97); }
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+/* 消えかけの覆いは押さえない。アプリを裏に回すなどでアニメが止まっても、
+   画面全体が押せなくならないようにする（＋のシートと同じ考え方）。 */
+.fade-leave-active, .fade-leave-to { pointer-events: none; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 
 .past-detail-toggle {
