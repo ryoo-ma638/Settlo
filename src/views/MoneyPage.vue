@@ -34,7 +34,10 @@
         <template v-if="!loading && receivableAwaiting.length">
           <h2 class="money__section money__section--action">承認待ち・あなたの承認が必要（{{ receivableAwaiting.length }}件）</h2>
           <div class="stack">
-            <div v-for="item in receivableAwaiting" :key="item.id" class="trow trow--action" @click="openRow(item, 'waiting')">
+            <div v-for="item in receivableAwaiting" :key="item.id" class="trow trow--action" role="button" tabindex="0"
+            @click="openRow(item, 'waiting')"
+            @keydown.enter="openRow(item, 'waiting')"
+            @keydown.space.prevent="openRow(item, 'waiting')">
               <UserAvatar class="trow__avatar" :name="item.name" :photo="item.photo" :size="40" />
               <div class="trow__info">
                 <p class="trow__name">{{ item.name }}</p>
@@ -52,7 +55,10 @@
           <h2 class="money__section money__section--review">送金状況の確認が必要（{{ receivableReview.length }}件）</h2>
           <p class="review-note">追加で送金せず、相手と送金済みか確認してください。</p>
           <div class="stack">
-            <div v-for="item in receivableReview" :key="item.id" class="trow trow--review" @click="openRow(item, 'waiting')">
+            <div v-for="item in receivableReview" :key="item.id" class="trow trow--review" role="button" tabindex="0"
+            @click="openRow(item, 'waiting')"
+            @keydown.enter="openRow(item, 'waiting')"
+            @keydown.space.prevent="openRow(item, 'waiting')">
               <UserAvatar class="trow__avatar" :name="item.name" :photo="item.photo" :size="40" />
               <div class="trow__info">
                 <p class="trow__name">{{ item.name }}</p>
@@ -69,7 +75,10 @@
           <h2 class="money__section money__section--event">イベントでまとめて精算中（{{ receivableEvent.length }}件）</h2>
           <p class="review-note">この分はイベントの「まとめて精算」でやり取りします。押すとイベントの精算画面が開きます。</p>
           <div class="stack">
-            <div v-for="item in receivableEvent" :key="item.id" class="trow trow--event" @click="openEventSettlement(item)">
+            <div v-for="item in receivableEvent" :key="item.id" class="trow trow--event" role="button" tabindex="0"
+            @click="openEventSettlement(item)"
+            @keydown.enter="openEventSettlement(item)"
+            @keydown.space.prevent="openEventSettlement(item)">
               <UserAvatar class="trow__avatar" :name="item.name" :photo="item.photo" :size="40" />
               <div class="trow__info">
                 <p class="trow__name">{{ item.name }}</p>
@@ -84,7 +93,10 @@
         <div class="stack">
           <SkeletonRows v-if="loading" :rows="4" />
           <div v-else-if="receivableUnpaid.length === 0" class="empty-box">お支払い待ちはありません</div>
-          <div v-for="item in receivableUnpaid" :key="item.id" class="trow" @click="$router.push('/payment-detail/waiting-' + item.id)">
+          <div v-for="item in receivableUnpaid" :key="item.id" class="trow" role="button" tabindex="0"
+            @click="$router.push('/payment-detail/waiting-' + item.id)"
+            @keydown.enter="$router.push('/payment-detail/waiting-' + item.id)"
+            @keydown.space.prevent="$router.push('/payment-detail/waiting-' + item.id)">
             <UserAvatar class="trow__avatar" :name="item.name" :photo="item.photo" :size="40" />
             <div class="trow__info">
               <p class="trow__name">{{ item.name }}</p>
@@ -121,7 +133,10 @@
         <template v-if="!loading && payableAwaiting.length">
           <h2 class="money__section">リクエスト済み・相手の承認待ち（{{ payableAwaiting.length }}件）</h2>
           <div class="stack">
-            <div v-for="item in payableAwaiting" :key="item.id" class="trow trow--muted" @click="openRow(item, 'unpaid')">
+            <div v-for="item in payableAwaiting" :key="item.id" class="trow trow--muted" role="button" tabindex="0"
+            @click="openRow(item, 'unpaid')"
+            @keydown.enter="openRow(item, 'unpaid')"
+            @keydown.space.prevent="openRow(item, 'unpaid')">
               <UserAvatar class="trow__avatar" :name="item.name" :photo="item.photo" :size="40" />
               <div class="trow__info">
                 <p class="trow__name">{{ item.name }}</p>
@@ -139,7 +154,10 @@
           <h2 class="money__section money__section--review">送金状況の確認が必要（{{ payableReview.length }}件）</h2>
           <p class="review-note">追加で送金せず、相手と送金済みか確認してください。</p>
           <div class="stack">
-            <div v-for="item in payableReview" :key="item.id" class="trow trow--review" @click="openRow(item, 'unpaid')">
+            <div v-for="item in payableReview" :key="item.id" class="trow trow--review" role="button" tabindex="0"
+            @click="openRow(item, 'unpaid')"
+            @keydown.enter="openRow(item, 'unpaid')"
+            @keydown.space.prevent="openRow(item, 'unpaid')">
               <UserAvatar class="trow__avatar" :name="item.name" :photo="item.photo" :size="40" />
               <div class="trow__info">
                 <p class="trow__name">{{ item.name }}</p>
@@ -156,7 +174,10 @@
           <h2 class="money__section money__section--event">イベントでまとめて精算中（{{ payableEvent.length }}件）</h2>
           <p class="review-note">この分はイベントの「まとめて精算」でやり取りします。押すとイベントの精算画面が開きます。</p>
           <div class="stack">
-            <div v-for="item in payableEvent" :key="item.id" class="trow trow--event" @click="openEventSettlement(item)">
+            <div v-for="item in payableEvent" :key="item.id" class="trow trow--event" role="button" tabindex="0"
+            @click="openEventSettlement(item)"
+            @keydown.enter="openEventSettlement(item)"
+            @keydown.space.prevent="openEventSettlement(item)">
               <UserAvatar class="trow__avatar" :name="item.name" :photo="item.photo" :size="40" />
               <div class="trow__info">
                 <p class="trow__name">{{ item.name }}</p>
@@ -171,7 +192,10 @@
         <div class="stack">
           <SkeletonRows v-if="loading" :rows="4" />
           <div v-else-if="payableUnpaid.length === 0" class="empty-box">未払いはありません</div>
-          <div v-for="item in payableUnpaid" :key="item.id" class="trow" @click="$router.push('/payment-detail/unpaid-' + item.id)">
+          <div v-for="item in payableUnpaid" :key="item.id" class="trow" role="button" tabindex="0"
+            @click="$router.push('/payment-detail/unpaid-' + item.id)"
+            @keydown.enter="$router.push('/payment-detail/unpaid-' + item.id)"
+            @keydown.space.prevent="$router.push('/payment-detail/unpaid-' + item.id)">
             <UserAvatar class="trow__avatar" :name="item.name" :photo="item.photo" :size="40" />
             <div class="trow__info">
               <p class="trow__name">{{ item.name }}</p>
