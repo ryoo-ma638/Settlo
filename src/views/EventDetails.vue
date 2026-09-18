@@ -770,6 +770,16 @@ const showUnpaidSummary = async () => {
     heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 };
+// 🌟 お試しの案内（?focus=settlement）から来たときは、
+//    まとめて精算のところまで送る。イベントを開いただけだと
+//    下の方にあって見つけてもらえないため。
+watch([() => route.query.focus, summaryHeading], async ([focus, heading]) => {
+  if (focus !== 'settlement' || !heading) return;
+  await showUnpaidSummary();
+  const { focus: _focus, ...query } = route.query;
+  router.replace({ query });  // 一度きり。読み直しで毎回飛ばない
+}, { immediate: true });
+
 // 🌟 立替履歴の役割判定は「UID」で行う（名前一致のブレを避ける）
 const isMyPayment = (h) => {
   const myUid = auth.currentUser?.uid;

@@ -32,7 +32,7 @@ export const GUEST_TRAIL = [
     title: 'まとめて精算してみる',
     desc: 'イベントの「精算を始める」で、3人の貸し借りが送金2回にまとまります。金額を押すと、その額になった元の立て替えも見られます。',
     action: 'route',
-    to: '/event',
+    to: '/event?open=settlement',
     star: true,
   },
   {

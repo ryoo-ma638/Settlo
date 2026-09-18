@@ -54,3 +54,12 @@ test('保存が壊れていても落ちない', () => {
   }
   assert.deepEqual(normalizeDone(['知らないid', 'event']), ['event']);
 });
+
+test('「まとめて精算してみる」は、一覧で止まらず中まで開く', () => {
+  // 一覧に飛ぶだけだと、押しても何も起きないように見える
+  const settle = GUEST_TRAIL.find((s) => s.id === 'settle');
+  assert.ok(settle, '手順が無い');
+  assert.match(settle.to, /open=settlement/, 'イベント一覧で止まっている');
+  const list = GUEST_TRAIL.find((s) => s.id === 'event');
+  assert.notEqual(settle.to, list.to, '「中身を見る」と同じ行き先になっている');
+});

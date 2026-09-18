@@ -101,7 +101,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -123,6 +123,17 @@ const openEvent = (id) => {
   router.push(pickPayment.value ? `/event/${id}?addPayment=1` : `/event/${id}`);
 };
 const goJoin = () => router.push('/make-event?join=1');
+
+// 🌟 お試しの案内（?open=settlement）から来たときは、
+//    進行中のイベントを1件そのまま開いて、まとめて精算のところまで送る。
+//    一覧で止まると「押したのに何も起きない」ように見えるため。
+const openFirstForSettlement = () => {
+  if (route.query.open !== 'settlement') return;
+  const first = visibleEvents.value[0];
+  if (!first) return;
+  router.replace(`/event/${first.id}?focus=settlement`);
+};
+watch(visibleEvents, openFirstForSettlement);
 
 const events = ref([]);
 const showEnded = ref(false);
