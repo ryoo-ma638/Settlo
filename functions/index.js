@@ -366,15 +366,19 @@ exports.purgeTrash = onSchedule(
     region: "asia-northeast1",
   },
   async () => {
-    const cutoff = admin.firestore.Timestamp.fromMillis(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    // 全ユーザーの控えを横断（collectionGroup）
-    const snap = await db.collectionGroup("trash").where("trashedAt", "<", cutoff).get();
+    const cutoffMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    // ⚠️ 以前は collectionGroup("trash").where("trashedAt","<",cutoff) で引いていたが、
+    //    これは trashedAt の COLLECTION_GROUP インデックスを要求する。
+    //    そのインデックスが無く、毎日 FAILED_PRECONDITION で落ちていた＝1件も消えていなかった。
+    //    このリポジトリの決まりどおり、絞り込みは JavaScript 側で行う（インデックスを増やさない）。
+    const snap = await db.collectionGroup("trash").get();
     if (snap.empty) {
-      console.log("復元用の控え: 削除対象なし");
+      console.log("復元用の控え: 1件も無し");
       return;
     }
     let count = 0;
     let kept = 0;
+    let young = 0;
     // 500件ごとにバッチコミット
     let batch = db.batch();
     for (const d of snap.docs) {
@@ -382,7 +386,13 @@ exports.purgeTrash = onSchedule(
       //    以前は「削除した日」から7日で一律に消していたため、6日目に復元を依頼して
       //    相手が2日返事をしないと、待っている途中で控えごと消えていた。
       //    返事が来て pending が外れれば、次回以降の対象に戻る。
-      const status = (d.data() || {}).status;
+      const data = d.data() || {};
+      // 7日を過ぎたものだけが対象（絞り込みはここで行う）
+      const trashedMs = data.trashedAt && typeof data.trashedAt.toMillis === "function"
+        ? data.trashedAt.toMillis()
+        : null;
+      if (trashedMs === null || trashedMs >= cutoffMs) { young++; continue; }
+      const status = data.status;
       if (status === "pending" || status === "restored") { kept++; continue; }
       batch.delete(d.ref);
       count++;
@@ -391,8 +401,8 @@ exports.purgeTrash = onSchedule(
         batch = db.batch();
       }
     }
-    await batch.commit();
-    console.log(`復元用の控え: ${count}件を自動削除／${kept}件は相手の確認待ちのため残しました`);
+    if (count % 400 !== 0) await batch.commit();
+    console.log(`復元用の控え: 全${snap.size}件を確認／${count}件を自動削除／${kept}件は相手の確認待ちのため残す／${young}件はまだ7日以内`);
   }
 );
 

@@ -162,3 +162,27 @@ export function buildPaymentOverview(transactions = [], myUid) {
 
   return overview;
 }
+
+// 🌟 ホームの真ん中の枠に何を出すか。
+//    承認待ち・要確認・イベントで精算中が1件も無いときに使う。
+//    「片付いています」とだけ出すと、未払いが残っているのに終わったように読めるので、
+//    まだやることがあるならそれを書く。
+export function nextStepOf(overview) {
+  const side = (key) => (overview && overview[key]) || {};
+  const group = (key, state) => (side(key)[state]) || { amount: 0, items: [] };
+  const yen = (n) => `¥${Number(n || 0).toLocaleString()}`;
+  const payAmount = group('pay', 'unpaid').amount || 0;
+  const receiveAmount = group('receive', 'unpaid').amount || 0;
+  const inEvent = (group('pay', 'event').items || []).length + (group('receive', 'event').items || []).length;
+
+  if (payAmount > 0) {
+    return { todo: true, title: `未払いが ${yen(payAmount)} 残っています`, desc: '上の「支払う」から手続きできます' };
+  }
+  if (inEvent > 0) {
+    return { todo: true, title: 'イベントでまとめて精算中です', desc: 'イベントの「まとめて精算」から手続きできます' };
+  }
+  if (receiveAmount > 0) {
+    return { todo: false, title: '相手の支払いを待っています', desc: `受け取る ${yen(receiveAmount)}。上の「受け取る」から催促できます` };
+  }
+  return { todo: false, title: '確認が必要な精算はありません', desc: 'いまは全部片付いています' };
+}
