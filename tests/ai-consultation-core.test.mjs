@@ -141,3 +141,22 @@ test('仮の名前は、返ってきた文から読める言い方へ直す', ()
   assert.equal(out.summary, '相手から支払い時期の確認が来ています。');
   assert.equal(out.replySuggestions[0].text, '相手、来週払います。');
 });
+
+test('自分を指す self も、読める言い方へ直す', () => {
+  // 自分の発言は self として渡している。participant だけ直していたため、
+  // 「selfがいつ支払うことができるか」のまま画面に出ていた（2026-09-19）。
+  const out = core.normalizeResult({
+    summary: 'selfの支払い時期が決まっていません。',
+    issues: [{ title: 'selfの希望', detail: 'selfさんが未回答', confidence: 'low' }],
+    missingInformation: ['selfがいつ支払うことができるか', 'selfがどの支払い方法を希望するか'],
+    replySuggestions: [{ label: 'selfから返す', text: 'self、来週払います。' }],
+  });
+  assert.ok(!/\bself\b/i.test(JSON.stringify(out)), `self が残っている: ${JSON.stringify(out)}`);
+  assert.equal(out.missingInformation[0], 'あなたがいつ支払うことができるか');
+  assert.equal(out.issues[0].detail, 'あなたが未回答');
+});
+
+test('英語の単語の中にある self は壊さない', () => {
+  const out = core.normalizeResult({ summary: 'yourself と myself はそのまま。' });
+  assert.equal(out.summary, 'yourself と myself はそのまま。');
+});
