@@ -78,6 +78,23 @@
             <button class="btn-outline" @click="goJoin">コードで参加する</button>
           </div>
         </div>
+
+        <!-- 一覧から隠したイベント。退出とは違い参加者のままなので、いつでも戻せるようにする。 -->
+        <div v-if="hiddenEvents.length" class="hidden-block">
+          <button class="hidden-toggle" type="button" :aria-expanded="showHidden" @click="showHidden = !showHidden">
+            <span>非表示にしたイベント（{{ hiddenEvents.length }}件）</span>
+            <span class="hidden-chevron" :class="{ open: showHidden }" aria-hidden="true">⌄</span>
+          </button>
+          <p v-if="showHidden" class="hidden-note">一覧から消しているだけで、参加者のままです。戻すといつでも開けます。</p>
+          <div v-if="showHidden" class="hidden-list">
+            <div v-for="event in hiddenEvents" :key="event.id" class="hidden-row">
+              <span class="hidden-row__name">{{ event.name || 'イベント' }}</span>
+              <button class="hidden-row__btn" :disabled="restoringId === event.id" @click="unhideEvent(event)">
+                {{ restoringId === event.id ? '戻しています…' : '一覧に戻す' }}
+              </button>
+            </div>
+          </div>
+        </div>
       </template>
     </main>
   </div>
@@ -88,7 +105,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, updateDoc, arrayRemove } from 'firebase/firestore';
+import { splitHiddenEvents } from '@/lib/eventMembership';
 import GenreIcon from '@/components/GenreIcon.vue';
 import InviteCard from '@/components/InviteCard.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
@@ -107,7 +125,31 @@ const goJoin = () => router.push('/make-event?join=1');
 
 const events = ref([]);
 const showEnded = ref(false);
-const visibleEvents = computed(() => events.value.filter(event => pickPayment.value || !showEnded.value ? !event.ended : !!event.ended));
+// 取得処理の中にも同名の myUid があるので、別の名前にしておく
+const viewerUid = ref(auth.currentUser?.uid || '');
+// 隠したイベントは一覧に出さないが、下の「非表示にしたイベント」から戻せる
+const eventSplit = computed(() => splitHiddenEvents(events.value, viewerUid.value));
+const hiddenEvents = computed(() => (pickPayment.value ? [] : eventSplit.value.hidden));
+const showHidden = ref(false);
+const restoringId = ref('');
+const visibleEvents = computed(() => eventSplit.value.visible.filter(event => pickPayment.value || !showEnded.value ? !event.ended : !!event.ended));
+
+// 隠したイベントを一覧へ戻す。参加者のままなので、いつでも戻せるようにしておく。
+const unhideEvent = async (event) => {
+  const uid = viewerUid.value;
+  if (!uid || restoringId.value) return;
+  restoringId.value = event.id;
+  try {
+    await updateDoc(doc(db, 'events', event.id), { hiddenBy: arrayRemove(uid) });
+    events.value = events.value.map(e => (e.id === event.id
+      ? { ...e, hiddenBy: (e.hiddenBy || []).filter(id => id !== uid) }
+      : e));
+  } catch (error) {
+    console.error('イベントを一覧へ戻せませんでした:', error);
+  } finally {
+    restoringId.value = '';
+  }
+};
 const loading = ref(true);
 
 // 届いている招待（未読の event_invite）
@@ -157,9 +199,9 @@ const fetchEvents = async () => {
     const q = query(eventsRef, where("participants", "array-contains", myUid));
     const snapshot = await getDocs(q);
 
-    const rawEvents = snapshot.docs
-      .map(doc => ({ id: doc.id, ...doc.data() }))
-      .filter(event => !(event.hiddenBy || []).includes(myUid)); // 自分がゴミ箱に入れたイベントは非表示
+    // 隠したイベントもここでは捨てない。捨てると戻す場所が無くなる。
+    // 一覧に出すかどうかは splitHiddenEvents で分ける。
+    const rawEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     const formattedEvents = await Promise.all(rawEvents.map(async (event) => {
       const formattedDate = formatDate(event.createdAt) || formatDate(new Date());
@@ -174,6 +216,7 @@ const fetchEvents = async () => {
       };
     }));
 
+    viewerUid.value = myUid;
     events.value = formattedEvents.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
   } catch (error) {
     console.error("イベント一覧の取得に失敗:", error);
@@ -201,6 +244,18 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 一覧から隠したイベント */
+.hidden-block { margin: 18px 2px 4px; padding-top: 10px; border-top: 1px solid var(--c-line); }
+.hidden-toggle { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 8px 2px; border: 0; background: none; cursor: pointer; font-size: 12.5px; color: var(--c-text-sub); }
+.hidden-chevron { transition: transform 0.2s ease; }
+.hidden-chevron.open { transform: rotate(180deg); }
+.hidden-note { margin: 0 2px 8px; font-size: 11.5px; line-height: 1.6; color: var(--c-text-sub); }
+.hidden-list { display: flex; flex-direction: column; gap: 8px; padding-bottom: 6px; }
+.hidden-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--c-line); border-radius: 12px; background: var(--c-surface); }
+.hidden-row__name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hidden-row__btn { flex-shrink: 0; padding: 7px 12px; border: 1px solid var(--c-line); border-radius: var(--r-pill, 999px); background: #fff; font-size: 12px; cursor: pointer; }
+.hidden-row__btn:disabled { opacity: 0.5; cursor: default; }
+
 .events__list {
   padding: 4px var(--pad) 24px;
   display: flex;

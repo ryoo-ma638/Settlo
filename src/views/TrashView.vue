@@ -3,9 +3,7 @@
     <PageHeader title="取引を元に戻す" fallback="/mypage" />
 
     <div class="ttabs">
-      <!-- 非表示にしたイベントと、削除した取引を1つにまとめる。
-           カードごとに「非表示 / 削除した立替 / 精算済み」の札が付くので、
-           1つの一覧でも何を戻すのかは分かる。 -->
+      <!-- 取引だけを扱う。隠したイベントはイベント一覧から戻す。 -->
       <button class="ttab" :class="{ 'is-on': tab === 'restore' }" @click="tab = 'restore'">
         <svg class="ttab__icon" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4.5V10h5.5"/></svg>
         <span>復元できる取引</span>
@@ -43,7 +41,7 @@
             <path d="M10 11v6" /><path d="M14 11v6" />
           </svg>
         </span>
-        <p>元に戻せるものはありません</p>
+        <p>復元できる取引はありません</p>
       </div>
 
       <div v-for="item in currentItems" :key="item._loc + item.id" class="tcard">
@@ -153,11 +151,12 @@ const items = computed(() => {
 // 保留＝相手の承認待ち(pending) or 復元後の相手確認待ち(restored)
 const trashedItems = computed(() => items.value.filter(i => i.status !== 'pending' && i.status !== 'restored'));
 const pendingItems = computed(() => items.value.filter(i => i.status === 'pending' || i.status === 'restored'));
-// 非表示のイベントと削除した取引をまとめて1つの一覧にする
-const restoreItems = computed(() => trashedItems.value);
+// 一覧から隠したイベントは、イベント一覧の「非表示にしたイベント」から戻す。
+// ここは名前のとおり取引だけを扱う。
+const restoreItems = computed(() => trashedItems.value.filter(i => i.type !== 'event'));
 const currentItems = computed(() => restoreItems.value);
 const tabHint = computed(() => {
-  if (tab.value === 'restore') return '非表示にしたイベントと、削除した立て替えを戻します。精算済みを未精算へ戻す依頼もここから行います。共有する記録は手動で消せません。';
+  if (tab.value === 'restore') return '削除した立て替えの復元と、精算済みを未精算へ戻す依頼を行います。共有する記録は手動で消せません。';
   return '相手の確認を待っている操作です。ここから同じ操作を繰り返すことはできません。元の削除日から7日で自動的に整理されます。';
 });
 
