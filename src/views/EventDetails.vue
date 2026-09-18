@@ -253,6 +253,16 @@
               </button>
             </div>
           </div>
+          <!-- イベントから抜ける。お金の記録は消さず、関わりだけをやめられるようにする。 -->
+          <div class="exit-block">
+            <h4 class="exit-title">イベントから退出</h4>
+            <p class="exit-note">{{ exitState.message }}</p>
+            <button
+              class="exit-btn"
+              :disabled="!exitState.canLeave || leaving"
+              @click="leaveEvent"
+            >{{ leaving ? '退出中…' : 'イベントから退出' }}</button>
+          </div>
         </div>
       </div>
 
@@ -421,6 +431,7 @@ import { UNPAID_PATCH, COMPLETED_PATCH } from '@/lib/transactionPatch';
 import PayPayAction from '@/components/PayPayAction.vue';
 import { useEventActionContext } from '@/composables/useEventActionContext';
 import { buildEventNetSettlement } from '@/lib/eventNetSettlement';
+import { eventExitState, myOutstanding } from '@/lib/eventMembership';
 
 import AddPaymentModal from '@/components/AddPaymentModal.vue';
 import ReceiptPaymentModal from '@/components/ReceiptPaymentModal.vue';
@@ -574,6 +585,51 @@ const sendFriendRequestTo = async (p) => {
     console.error('フレンド申請エラー:', e);
     showAlert('error', 'エラー', 'フレンド申請の送信に失敗しました。');
   }
+};
+
+// 自分がこのイベントから抜けられるかを判断する。
+// 未精算の数え方と、できない理由の文言は src/lib/eventMembership.js に集約している。
+const leaving = ref(false);
+const exitState = computed(() => eventExitState({
+  event: eventData.value,
+  myUid: auth.currentUser?.uid || '',
+  outstanding: myOutstanding(eventData.value.history, auth.currentUser?.uid || ''),
+}));
+
+const leaveEvent = () => {
+  const myUid = auth.currentUser?.uid;
+  const state = exitState.value;
+  if (!myUid || !state.canLeave || leaving.value) return;
+  showConfirm(
+    'イベントから退出しますか？',
+    `${state.message}\n\n入り直すには、もう一度招待を受ける必要があります。`,
+    async () => {
+      leaving.value = true;
+      try {
+        const eventId = route.params.id;
+        await updateDoc(doc(db, 'events', eventId), { participants: arrayRemove(myUid) });
+        // 残る人へ知らせる。黙って消えると、立て替えの相手が分からなくなるため。
+        const others = (eventData.value.participants || [])
+          .map((p) => p.id).filter((id) => id && id !== myUid);
+        if (others.length) {
+          await notifyParticipants(others, {
+            type: 'event_edited',
+            eventName: eventData.value.name || '',
+            message: `${myName.value || 'メンバー'}さんがイベントから退出しました。未精算がある場合は、お支払い画面から精算できます。`,
+          });
+        }
+        modals.value.participants = false;
+        showToast('イベントから退出しました');
+        router.push('/event');
+      } catch (error) {
+        console.error('イベント退出エラー:', error);
+        showAlert('error', '退出できませんでした', '電波状況を確認して、もう一度お試しください。');
+      } finally {
+        leaving.value = false;
+      }
+    },
+    { confirmText: '退出する', cancelText: 'やめる' }
+  );
 };
 
 const removeParticipant = (p) => {
@@ -1782,6 +1838,13 @@ const handleDeleteEvent = () => {
 </script>
 
 <style scoped>
+/* イベントから退出 */
+.exit-block { margin: 6px 4px 2px; padding: 14px 2px 4px; border-top: 1px solid var(--c-line); }
+.exit-title { margin: 0 0 6px; font-size: 13px; color: var(--c-text); }
+.exit-note { margin: 0 0 10px; font-size: 12px; line-height: 1.6; color: var(--c-text-sub); }
+.exit-btn { width: 100%; padding: 11px; border-radius: var(--r-md, 10px); border: 1px solid #d9b3b3; background: #fff; color: #a33a3a; font-size: 13px; font-weight: var(--fw-bold); cursor: pointer; }
+.exit-btn:disabled { opacity: 0.45; cursor: default; }
+
 .event-detail-container { 
   background-color: var(--c-bg);
   display: flex;
