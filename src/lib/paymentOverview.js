@@ -226,7 +226,7 @@ export function headlineOf(overview, sideKey) {
   const eventOnly = event > 0 && unpaid === 0 && review === 0;
   const notes = [];
   // text は大きいカード用、short は真ん中の狭い2列用。
-  if (review > 0) notes.push({ kind: 'review', text: `送金状況の確認が必要 ${yen(review)}`, short: `確認 ${yen(review)}` });
+  if (review > 0) notes.push({ kind: 'review', text: `送金状況の確認が必要 ${yen(review)}・${len('review')}件`, short: `確認 ${yen(review)}` });
   if (event > 0 && !eventOnly) notes.push({ kind: 'event', text: `うち ${yen(event)} はイベントでまとめて精算中`, short: `イベント ${yen(event)}` });
   return {
     amount,
