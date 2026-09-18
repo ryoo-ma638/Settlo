@@ -8,10 +8,12 @@
 // 既読にするだけで、お知らせそのものは消さない＝あとから必ず見返せる。
 
 // ボタンで答える種類
+// payment_added（支払いが追加された）は、答えることが無い連絡なので入れない。
+// 入れていた頃は「確認」が出ず、イベントを見るまでベルから消せなかった。
 const ACTION_TYPES = [
   'approval_request', 'event_invite', 'event_join_request', 'event_rejoin_request',
   'event_settlement_approval_request', 'settlement_restore_request', 'event_end_request',
-  'payment_added', 'thread_reply',
+  'thread_reply',
 ];
 
 // 「正しい／正しくない」で答える種類

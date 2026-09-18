@@ -428,6 +428,7 @@ import { formatDate } from '@/lib/format';
 import { ensurePaymentThread, postPaymentEvent, postPaymentEventByTx, resolvePaymentThreadByTx, retirePaymentThread } from '@/lib/thread';
 import { getMyName } from '@/lib/userName';
 import { eventEndState, endByMe } from '@/lib/eventEnd';
+import { publishPaymentAddedNotifications } from '@/lib/paymentAddedNotifications.js';
 import { UNPAID_PATCH, COMPLETED_PATCH } from '@/lib/transactionPatch';
 import PayPayAction from '@/components/PayPayAction.vue';
 import { useEventActionContext } from '@/composables/useEventActionContext';
@@ -1211,6 +1212,16 @@ const addHistory = async (newPayment) => {
           });
         }
       } catch (e) { markFailed('チャット', e); }
+
+      // 🌟 ベルのお知らせも出す。
+      //    これまで複数レシートの経路だけがこれを呼んでいたため、1件ずつ入力したときは
+      //    チャットにしか流れず、相手はベルで気づけなかった。
+      //    operationId は historyId にしておく（同じ支払いで二重に作らない）。
+      try {
+        await publishPaymentAddedNotifications({
+          eventId, operationId: historyId, historyIds: [historyId],
+        });
+      } catch (e) { markFailed('お知らせ', e); }
     } else if (reuseHistoryId) {
       // 編集で割り勘の相手がいなくなった＝この件のチャットはもう用が無いので片付ける
       try { await retirePaymentThread(reuseHistoryId); } catch (e) { markFailed('チャット', e); }
