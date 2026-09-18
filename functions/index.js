@@ -737,11 +737,26 @@ exports.setupGuestDemo = onCall(
       fromUserId: TARO, fromUserName: "デモ太郎",
       isRead: false, createdAt: now,
     });
+    // 申請の体験はデモ太郎から。承認するとフレンドが増える
     await db.collection("friendRequests").add({
       toId: uid, toName: guestName,
-      formId: HANAKO, formName: "デモ花子", formPhoto: "",
+      formId: TARO, formName: "デモ太郎", formPhoto: "",
       status: "pending", createdAt: now,
     });
+
+    // 🌟 デモ花子とは、はじめからフレンドにしておく。
+    //    「フレンドと割り勘」は相手を選ぶところから始まるので、
+    //    フレンドが0人だと、押しても空の画面で行き止まりになる。
+    await Promise.all([
+      userRef.collection("friends").doc(HANAKO).set({
+        uid: HANAKO, name: "デモ花子", photo: "",
+        isFriend: true, isTrading: false, tradeCount: 0, addedAt: now,
+      }),
+      db.collection("users").doc(HANAKO).collection("friends").doc(uid).set({
+        uid, name: guestName, photo: "",
+        isFriend: true, isTrading: false, tradeCount: 0, addedAt: now,
+      }),
+    ]);
 
     return { ok: true, eventId, guestName };
   }
