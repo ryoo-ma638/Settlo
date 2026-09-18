@@ -283,7 +283,8 @@ const isActive = (path) => {
 .addsheet__ic--brand { background: var(--c-brand-weak); }
 .addsheet__ic--brand svg { stroke: var(--c-brand); }
 .addsheet__ic--pay { background: var(--c-pay-weak, #fff7ed); }
-.addsheet__ic--friend { background: var(--c-pay-weak, #fff7ed); }
+.addsheet__ic--friend { background: var(--c-receive-weak, #eef4ff); }
+.addsheet__ic--friend svg { stroke: var(--c-receive-strong, #2f6bd8); }
 .addsheet__ic--pay svg { stroke: var(--c-pay-strong); }
 .addsheet__txt { display: flex; flex-direction: column; gap: 2px; }
 .addsheet__txt b { font-size: 15px; font-weight: var(--fw-black); color: var(--c-ink); }
