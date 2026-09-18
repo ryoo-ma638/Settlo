@@ -17,7 +17,7 @@
       </template>
 
       <!-- ふきだし（ポップ） -->
-      <div class="tour__pop" :style="popStyle">
+      <div ref="popEl" class="tour__pop" :style="popStyle">
         <p class="tour__pop-title">{{ currentStep.title }}</p>
         <p class="tour__pop-desc">{{ currentStep.desc }}</p>
 
@@ -57,30 +57,31 @@ const PAD = 8;
 
 // ツアーの手順。sel は data-tour 属性。type = explain（説明のみ）/ action（実際に押して進む）/ final（締め）。
 const STEPS = [
-  { type: 'explain', sel: '[data-tour="home-status"]', title: 'お支払い状況', desc: '左＝受け取る額、右＝支払う額、下＝今月の収支。カードをタップすると支払い一覧へ移動、矢印で切り替えできます。' },
+  { type: 'explain', sel: '[data-tour="home-status"]', title: '現在の精算状況', desc: '大きい数字は「いま受け取る額」と「いま払う額」。すぐ下に残りの件数が出ます。灰色の枠は相手の返事を待っている分で、上の金額には入っていません。矢印で3枚のカードを切り替えられます。' },
   { type: 'explain', sel: '[data-tour="home-events"]', title: '進行中のイベント', desc: '旅行や飲み会ごとに立て替えをまとめる「箱」です。タップで詳細が開きます。' },
   { type: 'explain', sel: '[data-tour="avatar"]', title: 'マイページ', desc: 'プロフィールを変更・お支払い履歴・元に戻す・ヘルプ・使い方など、全機能の入口です。' },
   { type: 'explain', sel: '[data-tour="pending"]', title: '承認待ち', desc: 'あなたが承認する分・相手の承認待ち・承認/拒否の履歴。催促されている支払いは一番上に赤く出ます。' },
-  { type: 'explain', sel: '[data-tour="chat"]', title: '相談', desc: '支払いの件ごとに相談できます。未読はバッジで表示、解決すると自動で片付きます。' },
-  { type: 'explain', sel: '[data-tour="bell"]', title: 'お知らせ', desc: '承認依頼・催促・「これは正しいですか？」の確認がここに届きます。' },
+  { type: 'explain', sel: '[data-tour="chat"]', title: '相談', desc: '支払いの件ごとに相談できます。返信に困ったら、AIが会話を読んで文案を3つ出します。未読はバッジで表示、解決すると自動で片付きます。' },
+  { type: 'explain', sel: '[data-tour="bell"]', title: 'お知らせ', desc: '承認依頼・催促・「これは正しいですか？」の確認がここに届きます。読み終わった分は「過去のお知らせ」へ移り、そこから片付けられます。答えるものは答えるまで残ります。' },
   { type: 'explain', sel: '[data-tour="assist"]', title: 'お支払いアシスタント', desc: 'いま支払う・催促する・承認する相手を金額つきで教えてくれます。どの画面からでも開けます。' },
   { type: 'explain', sel: '[data-tour="nav-home"]', title: 'ホーム', desc: '貸し借りの全体がひと目でわかる起点です。' },
   { type: 'explain', sel: '[data-tour="nav-event"]', title: 'イベント', desc: '旅行・飲み会ごとの立て替えとメンバーを管理します。' },
   { type: 'action', sel: '[data-tour="nav-add"]', title: '＋（追加）', desc: '新しい記録はぜんぶここから。実際に押してみましょう。' },
   { type: 'explain', sel: '[data-tour="sheet-event"]', title: 'イベントを作成', desc: '旅行や飲み会の箱を作って、招待コードで仲間を集めます。' },
-  { type: 'explain', sel: '[data-tour="sheet-payment"]', title: 'お支払いを追加', desc: 'イベントを選んで立て替えを記録。レシートを撮るとAIが金額や店名を自動入力します。' },
+  { type: 'explain', sel: '[data-tour="sheet-payment"]', title: 'お支払いを追加', desc: 'イベントを選んで立て替えを記録。レシートを撮るとAIが金額や店名を自動入力します。1回に5枚までまとめて読み取れます。' },
+  { type: 'explain', sel: '[data-tour="sheet-friend-split"]', title: 'フレンドと割り勘', desc: 'いつものメンバーで軽く出し合うときは、イベントを作らずに1件だけ記録できます。相手を選んで、品名・金額・立て替えた人・割り方を入れるだけです。' },
   { type: 'action', sel: '[data-tour="sheet-cancel"]', title: 'いったん閉じる', desc: '今回は「キャンセル」を押して閉じましょう。' },
   { type: 'action', sel: '[data-tour="nav-money"]', title: '支払い', desc: '次はお金の管理です。「支払い」を押してみましょう。' },
-  { type: 'explain', sel: '[data-tour="pay-tabs"]', title: '3つのタブ', desc: '「お支払い待ち」＝受け取る分、「未払い」＝支払う分、「まとめて」＝相手ごとに相殺して最小回数で精算できます。' },
+  { type: 'explain', sel: '[data-tour="pay-tabs"]', title: '3つのタブ', desc: '「お支払い待ち」＝受け取る分、「未払い」＝支払う分、「まとめて」＝相手ごとに相殺して最小回数で精算します。イベントの中で全員分をまとめる精算もあり、そちらはイベント画面から始めます。' },
   { type: 'explain', sel: '[data-tour="pay-history"]', title: 'お支払い履歴', desc: '過去の支払い・受け取り・精算済みを時系列で確認できます。' },
   { type: 'action', sel: '[data-tour="nav-event"]', title: 'イベントへ', desc: '「イベント」を押してみましょう。' },
   { type: 'explain', sel: '[data-tour="event-check"]', title: '精算を確認', desc: '右上のここから、いつでも支払い画面に戻れます。' },
   { type: 'action', sel: '[data-tour="event-card"]', title: 'イベント詳細へ', desc: 'イベントカードを押すと詳細が開きます。押してみましょう。' },
-  { type: 'explain', sel: '[data-tour="ev-invite"]', title: 'メンバー招待', desc: '「＋ 招待」と招待コードで仲間を追加します。承認制なので勝手に追加されません。' },
+  { type: 'explain', sel: '[data-tour="ev-invite"]', title: 'メンバー招待', desc: '「＋ 招待」と招待コードで仲間を追加します。はじめはコードを知っていれば誰でも入れます。「承認制にする」を選ぶと、リーダーが承認するまで参加できません。' },
   { type: 'explain', sel: '[data-tour="ev-addpay"]', title: '支払いを追加', desc: '立て替えたらすぐ記録。割り勘は「均等・金額指定・商品ごと」の3方式です。' },
-  { type: 'explain', sel: '[data-tour="ev-summary"]', title: '精算サマリー', desc: '貸し借りを自動で相殺して、最小回数の送金にまとめます。カードをタップで精算へ。' },
+  { type: 'explain', sel: '[data-tour="ev-summary"]', title: '精算サマリー', desc: '参加者全員の貸し借りを一度にまとめて、誰が誰へいくら送ればいいかを出します。送金の回数がいちばん少なくなる組み合わせを選びます。カードをタップで精算へ。' },
   { type: 'action', sel: '[data-tour="nav-friend"]', title: 'フレンドへ', desc: '「フレンド」を押してみましょう。' },
-  { type: 'explain', sel: '[data-tour="friend-add"]', title: '友達を追加', desc: '名前かIDで検索して申請、相手が承認したらフレンドに。相手ごとの貸し借りも見られます。' },
+  { type: 'explain', sel: '[data-tour="friend-add"]', title: '友達を追加', desc: '名前かIDで検索して申請、相手が承認したらフレンドに。相手ごとの貸し借りが見られて、そこから1件だけの割り勘も記録できます。' },
   { type: 'action', sel: '[data-tour="avatar"]', title: 'マイページへ', desc: '最後に、左上の自分のアイコンを押してみましょう。' },
   { type: 'explain', sel: '[data-tour="mypage-menu"]', title: '全機能の入口', desc: 'ここから全機能へ。「ヘルプ・使い方」で図解ガイドとこのツアーをいつでも見直せます。' },
   { type: 'final', sel: null, title: 'ツアー完了！', desc: 'これで一通りの説明はおしまいです。細かい画面ごとの説明は、マイページ→「ヘルプ・使い方」にまとまっています。' },
@@ -123,26 +124,43 @@ const ringStyle = computed(() => {
   return { top: h.top + 'px', left: h.left + 'px', width: h.width + 'px', height: h.height + 'px' };
 });
 
-// ふきだしの位置。対象が上半分なら下・下半分なら上に置き、必ず画面内に収める。
+// 🌟 ふきだしの位置。
+//    対象が縦に長いと、下に出したふきだしが画面の外へはみ出して
+//    「次へ」が押せなくなる。ふきだしの高さを実際に測ってから、
+//    入るほうへ置き、最後に必ず画面内へ収める。
+const popEl = ref(null);
+const popH = ref(0);
+const viewport = ref({ w: window.innerWidth, h: window.innerHeight });
+const MARGIN = 12; // 画面の端に残す余白
+
+const onResize = () => { measure(); measurePop(); };
+
+const measurePop = () => {
+  viewport.value = { w: window.innerWidth, h: window.innerHeight };
+  if (popEl.value) popH.value = popEl.value.offsetHeight;
+};
+
 const popStyle = computed(() => {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
+  const vw = viewport.value.w;
+  const vh = viewport.value.h;
   const w = Math.min(440, vw - 32);
   const left = Math.max(16, (vw - w) / 2);
+  const ph = popH.value || 220; // まだ測れていないときの目安
+  const base = { width: w + 'px', left: left + 'px', maxHeight: (vh - MARGIN * 2) + 'px' };
+  const clamp = (top) => Math.min(Math.max(MARGIN, top), Math.max(MARGIN, vh - ph - MARGIN));
 
   if (isFinal.value || !hole.value) {
-    return { width: w + 'px', left: left + 'px', top: '50%', transform: 'translateY(-50%)' };
+    return { ...base, top: clamp((vh - ph) / 2) + 'px' };
   }
 
   const h = hole.value;
-  const style = { width: w + 'px', left: left + 'px' };
-  const centerY = h.top + h.height / 2;
-  if (centerY < vh / 2) {
-    style.top = h.top + h.height + 14 + 'px'; // 対象は上半分 → 下に出す
-  } else {
-    style.bottom = vh - h.top + 14 + 'px'; // 対象は下半分 → 上に出す
-  }
-  return style;
+  const below = vh - (h.top + h.height) - 14; // 下に置ける高さ
+  const above = h.top - 14;                   // 上に置ける高さ
+  let top;
+  if (below >= ph) top = h.top + h.height + 14;
+  else if (above >= ph) top = h.top - 14 - ph;
+  else top = (vh - ph) / 2; // どちらにも入らない＝真ん中に出す
+  return { ...base, top: clamp(top) + 'px' };
 });
 
 // --- 対象探し・計測 ---
@@ -187,6 +205,7 @@ const locate = (attempt = 0) => {
   if (step.type === 'final' || !step.sel) {
     curEl = null;
     rect.value = null;
+    nextTick(() => requestAnimationFrame(measurePop));
     return;
   }
 
@@ -207,6 +226,8 @@ const locate = (attempt = 0) => {
   el.scrollIntoView({ block: 'center', inline: 'nearest' });
   requestAnimationFrame(() => {
     measure();
+    // ふきだしの中身が入れ替わったあとに測らないと、前のステップの高さで置いてしまう
+    nextTick(() => requestAnimationFrame(measurePop));
     if (currentStep.value?.type === 'action') attachAction();
   });
 };
@@ -268,7 +289,7 @@ const start = async () => {
   active.value = true;
   stepIndex.value = 0;
   stepPaths.length = 0;
-  window.addEventListener('resize', measure);
+  window.addEventListener('resize', onResize);
   await nextTick();
   setTimeout(() => locate(0), 100);
 };
@@ -276,7 +297,7 @@ const start = async () => {
 const end = () => {
   clearRetry();
   detachAction();
-  window.removeEventListener('resize', measure);
+  window.removeEventListener('resize', onResize);
   active.value = false;
   curEl = null;
   rect.value = null;
@@ -294,7 +315,7 @@ onUnmounted(() => {
   window.removeEventListener('settlo:show-button-tour', start);
   clearRetry();
   detachAction();
-  window.removeEventListener('resize', measure);
+  window.removeEventListener('resize', onResize);
 });
 </script>
 
@@ -342,6 +363,9 @@ onUnmounted(() => {
   padding: 16px 18px 14px;
   box-shadow: 0 18px 44px rgba(15, 23, 42, 0.32);
   pointer-events: auto;
+  /* それでも入りきらないときは中で送れるようにする（「次へ」を画面外に出さない） */
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .tour__pop-title { font-size: 15px; font-weight: 800; color: var(--c-ink, #0f172a); margin: 0 0 7px; }
 .tour__pop-desc { font-size: 13px; color: var(--c-text-sub, #475569); line-height: 1.7; margin: 0; }
