@@ -23,6 +23,16 @@ test('やってみる手順は、押しただけでは済みにならない', ()
   assert.match(card, /removeEventListener\(TRAIL_DONE_EVENT/, '合図の後片付けをしていない');
 });
 
+test('やり終えた印は端末に残す（別の画面で操作しても消えない）', () => {
+  // 案内はホームにあるので、別の画面で操作しているあいだは外れている。
+  // 合図を飛ばすだけでは誰も聞いておらず、印が付かない。
+  const signal = strip('src/lib/trailProgressSignal.js');
+  assert.match(signal, /localStorage\.setItem\(TRAIL_KEY/, '端末に書いていない');
+  const write = signal.indexOf('localStorage.setItem(TRAIL_KEY');
+  const fire = signal.indexOf('dispatchEvent');
+  assert.ok(write !== -1 && fire !== -1 && write < fire, '書く前に合図を出している');
+});
+
 test('やり終えたところから合図を出している', () => {
   const places = {
     'src/views/CombinedSettlementView.vue': "markTrailDone('offset')",
