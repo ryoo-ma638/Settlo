@@ -68,3 +68,13 @@ test('進み具合の保存は版をつけ、古いものも消す', () => {
   assert.equal(store.getItem(TRAIL_KEY), null);
   assert.equal(store.getItem('settlo_guest_trail'), null, '古い記録が残っている');
 });
+
+test('サインアウトの前に画面を移す（権限エラーを出さない）', () => {
+  // 先にサインアウトすると、開いたままの購読が一斉に権限エラーを出す。
+  // 読み込めなかった扱いになり、失敗の表示が一瞬出ることがある。
+  const code = readFileSync('src/views/MyPageView.vue', 'utf8')
+    .split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+  assert.match(code, /await router\.push\('\/login'\);\s*await nextTick\(\);\s*await signOut\(auth\)/, '移動より先に切っている');
+  const direct = [...code.matchAll(/await signOut\(auth\)/g)].length;
+  assert.equal(direct, 1, `signOut がまだ散らばっている: ${direct}か所`);
+});
