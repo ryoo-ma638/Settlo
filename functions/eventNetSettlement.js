@@ -209,6 +209,34 @@ function createEventNetSettlementService({ db, FieldValue }) {
   // 🌟 まとめて精算が始まったことを、参加者全員へ知らせる。
   //    これが無いと、自分の未払い・受け取りが支払い画面から急に消えたように見える。
   //    お金の確定（runTransaction）とは分け、失敗しても精算は止めない。
+  // 取り込まれた元取引についての古いお知らせ（催促・承認依頼）を既読にする。
+  // 押しても「個別には操作できません」で止まるが、「支払う」と書かれたまま残るのは紛らわしい。
+  // 消さずに既読にするので、過去のお知らせからは見返せる。
+  async function clearStaleNotices(sourceIds) {
+    const ids = (sourceIds || []).filter(Boolean);
+    if (ids.length === 0) return;
+    const STALE_TYPES = ["payment_reminder", "approval_request"];
+    try {
+      const batch = db.batch();
+      let hit = 0;
+      // transactionId の in 検索は10件までなので、分けて引く
+      for (let i = 0; i < ids.length; i += 10) {
+        const chunk = ids.slice(i, i + 10);
+        const snap = await db.collection("notifications").where("transactionId", "in", chunk).get();
+        snap.docs.forEach((d) => {
+          const data = d.data() || {};
+          if (!STALE_TYPES.includes(data.type)) return;
+          if (data.isRead === true) return;
+          batch.update(d.ref, { isRead: true, closedByEventSettlement: true });
+          hit += 1;
+        });
+      }
+      if (hit > 0) await batch.commit();
+    } catch (e) {
+      console.error("まとめて精算に取り込んだお知らせを片付けられませんでした:", e);
+    }
+  }
+
   async function notifyStarted({ eventId, planId, participants, transfers, actorUid, eventName }) {
     try {
       const actorSnap = await db.collection("users").doc(actorUid).get();
@@ -316,14 +344,21 @@ function createEventNetSettlementService({ db, FieldValue }) {
       transaction.update(eventRef, { activeEventSettlementPlanId: planId });
       return {
         planId, status: "open", legCount: legIds.length, replay: false,
-        _notify: { participants, transfers: calculation.transfers, eventName: eventSnap.data().name },
+        _notify: {
+          participants,
+          transfers: calculation.transfers,
+          eventName: eventSnap.data().name,
+          sourceIds: calculation.sources.map((row) => row.id),
+        },
       };
     });
 
     // 確定の外でお知らせを出す（初回に作れたときだけ）
     if (outcome && outcome._notify) {
       const { _notify, ...result } = outcome;
-      await notifyStarted({ eventId, planId, actorUid: uid, ...(_notify) });
+      const { sourceIds, ...notice } = _notify;
+      await notifyStarted({ eventId, planId, actorUid: uid, ...notice });
+      await clearStaleNotices(sourceIds);
       return result;
     }
     return outcome;

@@ -83,6 +83,21 @@ test('復元の控えは、相手の確認待ちなら7日を過ぎても消さ�
   assert.match(purge, /continue;/);
 });
 
+test('控えの自動削除が、無いインデックスを要求しない', () => {
+  // collectionGroup + where("trashedAt") は COLLECTION_GROUP インデックスが要る。
+  // 無いまま毎日 FAILED_PRECONDITION で落ちていて、1件も消えていなかった。
+  const fn = readFileSync(new URL('../functions/index.js', import.meta.url), 'utf8');
+  // コメントには昔の書き方が説明として残っているので、実行される行だけを見る
+  const purge = fn.match(/exports\.purgeTrash[\s\S]*?\n\);/)[0]
+    .split('\n').map((line) => line.replace(/\/\/.*$/, '')).join('\n');
+  assert.ok(!/collectionGroup\("trash"\)\s*\.where/.test(purge), 'where で絞るとインデックスが要る');
+  assert.match(purge, /collectionGroup\("trash"\)\.get\(\)/);
+  // 絞り込みは JavaScript 側
+  assert.match(purge, /trashedMs >= cutoffMs/);
+  // 最後の端数もコミットする（400件ちょうどでないと消えない、を防ぐ）
+  assert.match(purge, /if \(count % 400 !== 0\) await batch\.commit\(\);/);
+});
+
 test('ログインのたびに名前を上書きしない', () => {
   // 以前は毎回 Googleの表示名で上書きしていたので、ニックネームがログインのたびに戻っていた
   const user = read('user.js');
@@ -93,9 +108,10 @@ test('ログインのたびに名前を上書きしない', () => {
 test('未払いが残っているのに「全部片付いています」と言わない', () => {
   // ホームの枠が見ているのは承認待ち・要確認・イベントで精算中の3行だけで、
   // ふつうの未払いは入っていない。残っているのに終わったように読ませない。
+  // 何を出すかの判断は paymentOverview.js の nextStepOf にある（状態ごとの確認は
+  // tests/home-next-step.test.mjs）。ここでは画面がそれを使っていることだけ見る。
   const carousel = read('components/PaymentCarousel.vue');
-  assert.match(carousel, /hasOutstanding/);
-  assert.match(carousel, /hasOutstanding \? '承認待ちや差し戻しはありません/);
-  // 判定には unpaid も含める（3行だけ見ていたのが原因）
-  assert.match(carousel, /\['unpaid', 'pending', 'review', 'event'\]/);
+  assert.match(carousel, /nextStepOf\(props\.overview\)/);
+  assert.match(carousel, /\{\{ nextStep\.title \}\}/);
+  assert.ok(!/いまは全部片付いています/.test(carousel), '文面は nextStepOf 側に集約する');
 });

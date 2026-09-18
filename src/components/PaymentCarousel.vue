@@ -86,11 +86,11 @@
               <!-- 確認が要るものが1件も無いときも枠は残す。
                    枠ごと消すとカードが急に縮んで落ち着かないうえ、
                    ¥0 だけが並んで悪い知らせのように見えてしまう。 -->
-              <p v-else class="ledger-clear">
-                <span class="ledger-clear__check" aria-hidden="true">✓</span>
+              <p v-else class="ledger-clear" :class="{ 'ledger-clear--todo': nextStep.todo }">
+                <span class="ledger-clear__check" aria-hidden="true">{{ nextStep.todo ? '!' : '✓' }}</span>
                 <span class="ledger-clear__text">
-                  確認が必要な精算はありません
-                  <small>{{ hasOutstanding ? '承認待ちや差し戻しはありません。残りは上の金額のとおりです' : 'いまは全部片付いています' }}</small>
+                  {{ nextStep.title }}
+                  <small>{{ nextStep.desc }}</small>
                 </span>
               </p>
             </div>
@@ -151,6 +151,7 @@
   <script setup>
   import { ref, computed, onMounted, watch, nextTick } from 'vue';
   import { useRouter } from 'vue-router';
+  import { nextStepOf } from '@/lib/paymentOverview';
   
   const router = useRouter();
   const currentCard = ref(1);
@@ -191,8 +192,8 @@ const props = defineProps({
   //    ふつうの未払いは入っていない。それなのに「全部片付いています」と出すと、
   //    未払いが残っているのに終わったように読めてしまう。
   //    残っている金額があるときは、そう言い切らない。
-  const hasOutstanding = computed(() => ['receive', 'pay'].some((side) =>
-    ['unpaid', 'pending', 'review', 'event'].some((state) => (props.overview[side][state].items || []).length > 0)));
+  // 何を出すかの判断は paymentOverview.js にある（状態ごとにテストできるよう切り出した）
+  const nextStep = computed(() => nextStepOf(props.overview));
   // ------------------------------
   // スクロール計算系のロジック
   // ------------------------------
@@ -343,6 +344,8 @@ const props = defineProps({
   .ledger-clear__check { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex-shrink: 0; border-radius: 50%; background: #e3f3ea; color: #0f7a4d; font-size: 12px; font-weight: var(--fw-bold); }
   .ledger-clear__text { font-size: 12px; color: var(--c-text-sub); line-height: 1.45; }
   .ledger-clear__text small { display: block; font-size: 11px; opacity: 0.75; }
+  /* まだやることが残っているときは、片付いた印と見分けがつくようにする */
+  .ledger-clear--todo .ledger-clear__check { background: #ffedd5; color: #c2620a; }
   .summary-ledger table { border-collapse: collapse; width: 100%; table-layout: fixed; }
   .summary-ledger th { color: var(--c-text-sub); font-weight: 500; font-size: 10px; line-height: 1.4; text-align: left; }
   .summary-ledger thead th { padding: 6px 0; text-align: right; font-size: 9px; }
