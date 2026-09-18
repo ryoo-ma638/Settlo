@@ -16,7 +16,7 @@ const n = (id, type, isRead = false, sec = 0) => ({ id, type, isRead, createdAt:
 
 test('答える必要があるお知らせは、確認だけで過去へ送らない', () => {
   for (const type of ['approval_request', 'event_invite', 'event_settlement_approval_request',
-    'settlement_restore_request', 'payment_added', 'thread_reply',
+    'settlement_restore_request', 'thread_reply',
     'event_member_removed', 'restore_check', 'event_left_check']) {
     assert.equal(needsAction(n('x', type)), true, type);
     assert.equal(canDismiss(n('x', type)), false, type);
@@ -24,7 +24,8 @@ test('答える必要があるお知らせは、確認だけで過去へ送ら�
 });
 
 test('読むだけのお知らせは、確認で過去へ送れる', () => {
-  for (const type of ['payment_completed', 'payment_reminder', 'approval_rejected',
+  // payment_added（支払いが追加された）は答えることが無い連絡なので、確認で過去へ送れる
+  for (const type of ['payment_added', 'payment_completed', 'payment_reminder', 'approval_rejected',
     'payment_reverted', 'event_settlement_approved', 'profile_updated']) {
     assert.equal(needsAction(n('x', type)), false, type);
     assert.equal(canDismiss(n('x', type)), true, type);

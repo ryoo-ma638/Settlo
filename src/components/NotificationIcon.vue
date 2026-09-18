@@ -67,6 +67,7 @@
                     </template>
                     <template v-else-if="req.type === 'payment_added'">
                       <button class="mini-btn" @click="goToPaymentDetail(req)">イベントを見る</button>
+                      <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
                     </template>
                     <template v-else>
                       <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
@@ -196,6 +197,7 @@
               </template>
               <template v-else-if="req.type === 'payment_added'">
                 <button class="mini-btn" @click="goToPaymentDetail(req)">イベントを見る</button>
+                <button class="mini-btn mini-btn--ghost" @click="dismissNotif(req)">確認</button>
               </template>
               <template v-else>
                 <button class="mini-btn" @click="goToPaymentDetail(req)">{{ notifAction(req) }}</button>
