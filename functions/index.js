@@ -358,6 +358,7 @@ exports.calculateSettlement = onCall(
 //    - 承認待ち(pending)で7日たったものも失効させて掃除する。
 // =================================================================
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { purgeDecision } = require("./trashPurgeCore");
 
 exports.purgeTrash = onSchedule(
   {
@@ -386,14 +387,9 @@ exports.purgeTrash = onSchedule(
       //    以前は「削除した日」から7日で一律に消していたため、6日目に復元を依頼して
       //    相手が2日返事をしないと、待っている途中で控えごと消えていた。
       //    返事が来て pending が外れれば、次回以降の対象に戻る。
-      const data = d.data() || {};
-      // 7日を過ぎたものだけが対象（絞り込みはここで行う）
-      const trashedMs = data.trashedAt && typeof data.trashedAt.toMillis === "function"
-        ? data.trashedAt.toMillis()
-        : null;
-      if (trashedMs === null || trashedMs >= cutoffMs) { young++; continue; }
-      const status = data.status;
-      if (status === "pending" || status === "restored") { kept++; continue; }
+      const decision = purgeDecision(d.data(), cutoffMs);
+      if (decision === "keep-waiting") { kept++; continue; }
+      if (decision !== "delete") { young++; continue; }
       batch.delete(d.ref);
       count++;
       if (count % 400 === 0) {

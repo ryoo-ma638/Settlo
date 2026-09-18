@@ -77,25 +77,16 @@ test('同じ相手に受け取りと支払いの両方があるとき、額面�
 });
 
 test('復元の控えは、相手の確認待ちなら7日を過ぎても消さない', () => {
-  const fn = readFileSync(new URL('../functions/index.js', import.meta.url), 'utf8');
-  const purge = fn.match(/exports\.purgeTrash[\s\S]*?\n\);/)[0];
-  assert.match(purge, /status === "pending" \|\| status === "restored"/);
-  assert.match(purge, /continue;/);
+  // 判断そのものは functions/trashPurgeCore.js にあり、境界は tests/trash-purge.test.mjs で見る
+  const core = readFileSync(new URL('../functions/trashPurgeCore.js', import.meta.url), 'utf8');
+  assert.match(core, /WAITING = \["pending", "restored"\]/);
+  assert.match(core, /return "keep-waiting"/);
 });
 
-test('控えの自動削除が、無いインデックスを要求しない', () => {
-  // collectionGroup + where("trashedAt") は COLLECTION_GROUP インデックスが要る。
-  // 無いまま毎日 FAILED_PRECONDITION で落ちていて、1件も消えていなかった。
+test('控えの自動削除の判断は、切り出して確かめている', () => {
+  // 境界や壊れた値の確認は tests/trash-purge.test.mjs にある
   const fn = readFileSync(new URL('../functions/index.js', import.meta.url), 'utf8');
-  // コメントには昔の書き方が説明として残っているので、実行される行だけを見る
-  const purge = fn.match(/exports\.purgeTrash[\s\S]*?\n\);/)[0]
-    .split('\n').map((line) => line.replace(/\/\/.*$/, '')).join('\n');
-  assert.ok(!/collectionGroup\("trash"\)\s*\.where/.test(purge), 'where で絞るとインデックスが要る');
-  assert.match(purge, /collectionGroup\("trash"\)\.get\(\)/);
-  // 絞り込みは JavaScript 側
-  assert.match(purge, /trashedMs >= cutoffMs/);
-  // 最後の端数もコミットする（400件ちょうどでないと消えない、を防ぐ）
-  assert.match(purge, /if \(count % 400 !== 0\) await batch\.commit\(\);/);
+  assert.match(fn, /require\("\.\/trashPurgeCore"\)/);
 });
 
 test('ログインのたびに名前を上書きしない', () => {
