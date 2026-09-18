@@ -292,7 +292,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, reactive } from 'vue';
+import { ref, computed, onMounted, onUnmounted, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import BaseModal from './BaseModal.vue';
 import NotifBadge from './NotifBadge.vue';
@@ -1517,6 +1517,9 @@ const props = defineProps({ isStatic: { type: Boolean, default: false } });
 const showModal = ref(false);
 const open = () => { showModal.value = true; };
 defineExpose({ open });
+// ゲストのお試し案内から開けるようにする（ヘルプのツアーと同じ合図の作り）
+onMounted(() => window.addEventListener('settlo:open-notifications', open));
+onUnmounted(() => window.removeEventListener('settlo:open-notifications', open));
 </script>
 
 <style scoped>
