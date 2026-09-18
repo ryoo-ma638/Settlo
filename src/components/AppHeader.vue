@@ -221,6 +221,7 @@ onMounted(() => {
 .assist-panel__close:active { transform: scale(0.9); }
 
 .assist-enter-active, .assist-leave-active { transition: opacity 0.16s ease; }
+.assist-leave-active, .assist-leave-to { pointer-events: none; }
 .assist-enter-from, .assist-leave-to { opacity: 0; }
 .assist-enter-active .assist-panel, .assist-leave-active .assist-panel { transition: transform 0.16s ease; }
 .assist-enter-from .assist-panel, .assist-leave-to .assist-panel { transform: translateY(-8px); }

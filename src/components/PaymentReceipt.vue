@@ -23,12 +23,15 @@
   
   <style scoped>
   .receipt-card { background: white; border-radius: var(--r-lg); padding: 20px; box-shadow: var(--shadow-card); }
-  .receipt-amount-row { display: flex; justify-content: space-between; align-items: baseline; }
+  .receipt-amount-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
   .receipt-amount-label { font-size: 13px; color: var(--c-text-sub); font-weight: var(--fw-bold); }
   .receipt-amount { font-size: 28px; font-weight: var(--fw-black); color: var(--c-ink); }
-  .receipt-row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px; }
-  .receipt-row span { color: var(--c-text-sub); }
+  /* 320pxで長い名前が入ると、見出しと中身がくっついて「イベン/ト」のように割れていた。
+     見出しは縮めず折り返さない。中身だけを折り返して、間は必ず空ける。 */
+  .receipt-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; font-size: 14px; }
+  .receipt-row span { color: var(--c-text-sub); flex: 0 0 auto; white-space: nowrap; }
+  .receipt-row strong { min-width: 0; text-align: right; overflow-wrap: anywhere; }
   .divider { border: none; border-top: 1px dashed var(--c-line-bold); margin: 15px 0; }
   .items-label { font-size: 13px; font-weight: bold; color: var(--c-text-sub); margin-bottom: 8px; text-align: left; }
-  .items-list { padding-left: 20px; text-align: left; font-size: 14px; color: var(--c-text); list-style: disc; }
+  .items-list { padding-left: 20px; text-align: left; font-size: 14px; color: var(--c-text); list-style: disc; overflow-wrap: anywhere; }
   </style>

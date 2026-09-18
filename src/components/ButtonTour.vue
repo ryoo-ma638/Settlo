@@ -27,7 +27,10 @@
         </div>
 
         <div class="tour__pop-foot">
-          <button class="tour__skip" @click="end">スキップ</button>
+          <span class="tour__left">
+            <button class="tour__skip" @click="end">スキップ</button>
+            <button v-if="stepIndex > 0" class="tour__back" :disabled="goingBack" @click="back">戻る</button>
+          </span>
           <span class="tour__count">{{ stepIndex + 1 }} / {{ STEPS.length }}</span>
           <button v-if="isFinal" class="tour__next" @click="finishHome">ホームへ戻る</button>
           <button v-else-if="currentStep.type === 'action'" class="tour__force" @click="forceAction">押せないときは次へ</button>
@@ -45,6 +48,8 @@ import { useRouter } from 'vue-router';
 const router = useRouter();
 const active = ref(false);
 const stepIndex = ref(0);
+const goingBack = ref(false);
+const stepPaths = []; // ステップ番号 → そのとき見ていた画面のパス
 const rect = ref(null); // 対象要素の位置（{top,left,width,height}）。final は null。
 
 // 穴のまわりに付ける余白（px）
@@ -197,6 +202,8 @@ const locate = (attempt = 0) => {
   }
 
   curEl = el;
+  // 戻るときに同じ画面へ帰れるよう、そのステップを見た画面を控えておく
+  stepPaths[stepIndex.value] = router.currentRoute.value.path;
   el.scrollIntoView({ block: 'center', inline: 'nearest' });
   requestAnimationFrame(() => {
     measure();
@@ -215,6 +222,36 @@ const goTo = (i) => {
 const next = () => goTo(stepIndex.value + 1);
 const advance = () => goTo(stepIndex.value + 1);
 
+// 🌟 1つ前へ戻る。
+//    ツアーの途中には実際に画面を移動するステップがあるので、戻る前に
+//    そのステップを見ていた画面へ帰す。＋のシートの中のステップだけは
+//    シートが閉じているので開き直す（開いていないと対象が見つからず、
+//    locate の再試行のあと勝手に先へ進んでしまう）。
+const back = async () => {
+  const target = stepIndex.value - 1;
+  if (target < 0 || goingBack.value) return;
+  goingBack.value = true;
+  try {
+    clearRetry();
+    detachAction();
+    const step = STEPS[target];
+    const wantPath = stepPaths[target];
+    if (wantPath && router.currentRoute.value.path !== wantPath) {
+      await router.push(wantPath);
+      await nextTick();
+      await new Promise(r => setTimeout(r, 250));
+    }
+    if (step?.sel?.includes('data-tour="sheet-') && !document.querySelector('.addsheet')) {
+      document.querySelector('[data-tour="nav-add"]')?.click();
+      await new Promise(r => setTimeout(r, 350));
+    }
+    stepIndex.value = target;
+    locate(0);
+  } finally {
+    goingBack.value = false;
+  }
+};
+
 // action の「押せないときは次へ」：対象を実際に押してから進む
 const forceAction = () => {
   detachAction();
@@ -230,6 +267,7 @@ const start = async () => {
   }
   active.value = true;
   stepIndex.value = 0;
+  stepPaths.length = 0;
   window.addEventListener('resize', measure);
   await nextTick();
   setTimeout(() => locate(0), 100);
@@ -328,6 +366,15 @@ onUnmounted(() => {
   gap: 8px;
   margin-top: 14px;
 }
+.tour__left { display: flex; align-items: center; gap: 4px; }
+.tour__back {
+  background: none; border: none;
+  color: var(--c-text-sub, #6b7280);
+  font-size: 12px; font-weight: 700; cursor: pointer;
+  padding: 6px 8px; border-radius: 999px;
+}
+.tour__back:disabled { opacity: 0.5; cursor: default; }
+.tour__back:active { background: var(--c-line, #eef2f7); }
 .tour__skip {
   background: none; border: none;
   color: var(--c-text-faint, #94a3b8);
