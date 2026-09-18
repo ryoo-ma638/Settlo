@@ -52,6 +52,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ONBOARDING_KEY } from '@/lib/guestGuide.js';
 import { auth } from '../firebase';
 
 const show = ref(false);
@@ -115,7 +116,8 @@ const GUEST_SLIDES = GUEST_SLIDE_INDEXES.map((i) => ALL_SLIDES[i]);
 
 const slides = computed(() => (isGuest.value ? GUEST_SLIDES : ALL_SLIDES));
 
-const KEY = 'settlo_onboarding_done';
+// 保存する場所の名前は src/lib/guestGuide.js にまとめてある
+const KEY = ONBOARDING_KEY;
 
 const finish = () => {
   show.value = false;
