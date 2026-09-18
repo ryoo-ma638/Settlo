@@ -17,6 +17,14 @@ const integer = (value) => {
   return Number.isSafeInteger(amount) && amount >= 0 ? amount : null;
 };
 
+// 差し引きはマイナスになる（＝自分が払う側）。integer は0以上しか通さないので、
+// 符号つきの値はこちらで判定する。
+const signedInteger = (value) => {
+  if ((typeof value !== 'number' && typeof value !== 'string') || value === '' || !/^-?\d+$/.test(String(value))) return null;
+  const amount = Number(value);
+  return Number.isSafeInteger(amount) ? amount : null;
+};
+
 const sameIds = (expected, actual) => Array.isArray(expected)
   && expected.length === actual.length
   && [...expected].sort().every((id, index) => id === [...actual].sort()[index]);
@@ -126,6 +134,7 @@ export function buildPaymentOverview(transactions = [], myUid) {
     }, issues);
   }
 
+  const eventRows = [];
   for (const row of rows) {
     if (handled.has(row.id)) continue;
     const { paidById, paidToId } = row;
@@ -154,17 +163,82 @@ export function buildPaymentOverview(transactions = [], myUid) {
     }
     const side = paidToId === myUid ? 'receive' : 'pay';
     const opponentUid = side === 'receive' ? paidById : paidToId;
-    const state = reserved.has(row.id) ? 'event'
-      : status === 'awaiting_approval' ? 'pending'
-        : row.approvalReviewRequired ? 'review' : 'unpaid';
+    // 🌟 イベントのまとめて精算に取り込まれた分は、取引の額面ではなく
+    //    「実際に動く額（net）」を、精算1本につき1回だけ数える。
+    //    額面を足すと、双方向の精算で実際より多く見える。
+    if (reserved.has(row.id)) {
+      eventRows.push({ ...row, amount, opponentUid, side });
+      continue;
+    }
+    const state = status === 'awaiting_approval' ? 'pending'
+      : row.approvalReviewRequired ? 'review' : 'unpaid';
     add(overview, side, state, { ...row, amount, opponentUid }, issues);
   }
 
+  addEventSettlements(overview, eventRows, myUid, issues);
   return overview;
 }
 
-// 🌟 ホームの真ん中の枠に何を出すか。
-//    承認待ち・要確認・イベントで精算中が1件も無いときに使う。
+// イベントのまとめて精算ぶんを、精算1本につき1行だけ足す。
+// eventSettlementNet は精算を始めたときに全部の元取引へ同じ形で書き込まれる。
+// 古い精算にはこれが無いので、そのときだけ従来どおり額面を足す。
+function addEventSettlements(overview, eventRows, myUid, issues) {
+  const byPlan = new Map();
+  for (const row of eventRows) {
+    const planId = row.eventSettlementPlanId;
+    if (!byPlan.has(planId)) byPlan.set(planId, []);
+    byPlan.get(planId).push(row);
+  }
+  for (const [planId, members] of byPlan) {
+    const net = members.map((row) => row.eventSettlementNet).find((value) => value && typeof value === 'object');
+    const mine = net ? signedInteger(net[myUid]) : null;
+    if (mine === null) {
+      // 控えが無い（古い精算）＝これまでどおり1件ずつ額面で出す
+      members.forEach((row) => add(overview, row.side, 'event', row, issues));
+      continue;
+    }
+    if (mine === 0) continue; // 差し引き0＝この精算で動くお金は無い
+    const side = mine > 0 ? 'receive' : 'pay';
+    const base = members.find((row) => row.side === side) || members[0];
+    add(overview, side, 'event', {
+      ...base, amount: Math.abs(mine), planId, isEventNetRow: true, count: members.length,
+    }, issues);
+  }
+}
+
+// 🌟 ホームの大きい数字に出す金額。
+//    「いま自分が何円払う／受け取る必要があるのか」を1つの数字にしたいので、
+//    未払い・送金状況の確認が必要な分・イベントでまとめて精算中の分を足す。
+//    確認待ち（相手の返事待ち）はここに入れない。入れると、
+//    相手が確認した瞬間に数字が減って、払ってもいないのに減ったように見える。
+export function headlineOf(overview, sideKey) {
+  const groups = (overview && overview[sideKey]) || {};
+  const at = (state) => (groups[state] && Number(groups[state].amount)) || 0;
+  const len = (state) => ((groups[state] && groups[state].items) || []).length;
+  const yen = (n) => `¥${n.toLocaleString()}`;
+  const unpaid = at('unpaid');
+  const review = at('review');
+  const event = at('event');
+  const amount = unpaid + review + event;
+  const count = len('unpaid') + len('review') + len('event');
+  // 全部イベント側で精算中のときは、見出しそのものを「イベントで精算中」に変える。
+  // 「未払い」と出したまま金額だけイベントの差し引きにすると、何の金額か分からない。
+  const eventOnly = event > 0 && unpaid === 0 && review === 0;
+  const notes = [];
+  // text は大きいカード用、short は真ん中の狭い2列用。
+  if (review > 0) notes.push({ kind: 'review', text: `送金状況の確認が必要 ${yen(review)}`, short: `確認 ${yen(review)}` });
+  if (event > 0 && !eventOnly) notes.push({ kind: 'event', text: `うち ${yen(event)} はイベントでまとめて精算中`, short: `イベント ${yen(event)}` });
+  return {
+    amount,
+    count,
+    eventOnly,
+    caption: eventOnly ? 'イベントで精算中' : (sideKey === 'receive' ? '相手の支払い待ち' : '未払い'),
+    notes,
+  };
+}
+
+// 🌟 ホームの真ん中の枠（灰色）に何を出すか。
+//    確認待ちが1件も無いときに使う。
 //    「片付いています」とだけ出すと、未払いが残っているのに終わったように読めるので、
 //    まだやることがあるならそれを書く。
 export function nextStepOf(overview) {
@@ -174,9 +248,13 @@ export function nextStepOf(overview) {
   const payAmount = group('pay', 'unpaid').amount || 0;
   const receiveAmount = group('receive', 'unpaid').amount || 0;
   const inEvent = (group('pay', 'event').items || []).length + (group('receive', 'event').items || []).length;
+  const inReview = (group('pay', 'review').items || []).length + (group('receive', 'review').items || []).length;
 
   if (payAmount > 0) {
     return { todo: true, title: `未払いが ${yen(payAmount)} 残っています`, desc: '上の「支払う」から手続きできます' };
+  }
+  if (inReview > 0) {
+    return { todo: true, title: '送金状況の確認が必要です', desc: '上の「!」が付いた金額を確認してください' };
   }
   if (inEvent > 0) {
     return { todo: true, title: 'イベントでまとめて精算中です', desc: 'イベントの「まとめて精算」から手続きできます' };
@@ -184,5 +262,5 @@ export function nextStepOf(overview) {
   if (receiveAmount > 0) {
     return { todo: false, title: '相手の支払いを待っています', desc: `受け取る ${yen(receiveAmount)}。上の「受け取る」から催促できます` };
   }
-  return { todo: false, title: '確認が必要な精算はありません', desc: 'いまは全部片付いています' };
+  return { todo: false, title: '確認待ちの精算はありません', desc: 'いまは全部片付いています' };
 }

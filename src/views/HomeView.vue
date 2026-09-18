@@ -177,8 +177,6 @@ const paymentOverview = computed(() => buildPaymentOverview(
 const paymentSummary = computed(() => {
   const named = (items) => items.map(item => ({ ...item, name: userCache[item.opponentUid]?.name || '名前を確認中' }));
   return {
-    receivableTotal: paymentOverview.value.receive.unpaid.amount,
-    payableTotal: paymentOverview.value.pay.unpaid.amount,
     receivableList: named(paymentOverview.value.receive.unpaid.items),
     payableList: named(paymentOverview.value.pay.unpaid.items),
   };

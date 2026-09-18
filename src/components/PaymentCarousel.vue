@@ -26,16 +26,15 @@
             class="status-card detail-card blue-bg clickable-card"
             @click="handleCardClick(0, '/payment?tab=waiting')"
           > <div class="card-main">
-              <span class="detail-sub">相手の支払い待ち</span>
+              <span class="detail-sub">{{ headline.receive.caption }}</span>
               <span class="detail-label"><span class="dir-arrow" aria-hidden="true">↙</span>受け取る</span>
-              <div class="price-large">¥{{ summary.receivableTotal.toLocaleString() }}</div>
-              <p v-if="overview.receive.review.items.length" class="review-summary">確認が必要 ¥{{ overview.receive.review.amount.toLocaleString() }}・{{ overview.receive.review.items.length }}件</p>
-              <p v-if="overview.receive.event.items.length" class="review-summary">イベントで精算中 ¥{{ overview.receive.event.amount.toLocaleString() }}・{{ overview.receive.event.items.length }}件</p>
+              <div class="price-large">¥{{ headline.receive.amount.toLocaleString() }}</div>
+              <p v-for="note in headline.receive.notes" :key="note.kind" class="headline-note" :class="`headline-note--${note.kind}`">
+                <span v-if="note.kind === 'review'" class="review-symbol" aria-hidden="true">!</span>{{ note.text }}
+              </p>
             </div>
             <div class="recent-list">
-              <p v-if="overview.receive.pending.items.length" class="detail-state">あなたの受取確認待ち <strong>¥{{ overview.receive.pending.amount.toLocaleString() }}</strong></p>
-              <p v-if="overview.receive.review.items.length" class="detail-state">送金状況の確認が必要 <strong>¥{{ overview.receive.review.amount.toLocaleString() }}</strong></p>
-              <p v-if="overview.receive.event.items.length" class="detail-state">イベントでまとめて精算中 <strong>¥{{ overview.receive.event.amount.toLocaleString() }}</strong></p>
+              <p v-if="overview.receive.pending.items.length" class="detail-state">⏳ あなたが受け取りを確認 <strong>¥{{ overview.receive.pending.amount.toLocaleString() }}</strong><small>上の金額には入っていません</small></p>
               <p class="recent-title">相手の支払い待ち</p>
               <div
                 class="recent-item"
@@ -61,29 +60,38 @@
           <div class="status-card summary-card white-bg clickable-card" @click="handleCardClick(1, null)">
             <div class="summary-totals">
               <button v-for="side in sides" :key="side.key" class="summary-total" :class="`summary-total--${side.key}`" @click.stop="navigateIfActive(1, side.path)">
-                <span class="summary-total__caption">{{ side.key === 'receive' ? '相手の支払い待ち' : '未払い' }}</span>
+                <span class="summary-total__caption">{{ headline[side.key].caption }}</span>
                 <span class="summary-total__badge"><span aria-hidden="true">{{ side.key === 'receive' ? '↙' : '↗' }}</span> {{ side.title }}</span>
-                <strong class="summary-total__amount" :class="{ 'summary-total__amount--long': overview[side.key].unpaid.amount >= 1000000 }">¥{{ overview[side.key].unpaid.amount.toLocaleString() }}</strong>
+                <strong class="summary-total__amount" :class="{ 'summary-total__amount--long': headline[side.key].amount >= 1000000 }">¥{{ headline[side.key].amount.toLocaleString() }}</strong>
+                <span v-for="note in headline[side.key].notes" :key="note.kind" class="summary-total__note" :class="`summary-total__note--${note.kind}`">
+                  <span v-if="note.kind === 'review'" class="review-symbol" aria-hidden="true">!</span>{{ note.short }}
+                </span>
               </button>
             </div>
             <div class="summary-ledger">
-              <table v-if="statusRows.length">
-                <caption class="sr-only">未払いとは別に確認が必要な精算</caption>
-                <thead><tr><th scope="col"><span class="sr-only">状態</span></th><th scope="col" class="summary-ledger__receive">↙ 受け取る</th><th scope="col" class="summary-ledger__pay">↗ 支払う</th></tr></thead>
-                <tbody>
-                  <tr v-for="state in statusRows" :key="state">
-                    <th scope="row"><span v-if="state === 'review'" class="review-symbol" aria-hidden="true">!</span>{{ STATE_LABEL[state] }}</th>
-                    <td v-for="side in sides" :key="side.key">
-                      <button v-if="overview[side.key][state].items.length" class="summary-ledger__value" :class="`summary-ledger__${side.key}`" :aria-label="`${side.title}・${stateAria(state, side.key)}・${overview[side.key][state].amount.toLocaleString()}円・${overview[side.key][state].items.length}件`" @click.stop="navigateIfActive(1, side.path)">
-                        <strong>¥{{ overview[side.key][state].amount.toLocaleString() }}</strong>
-                        <small>{{ overview[side.key][state].items.length }}件<span v-if="state === 'pending' && overview[side.key][state].amount === 0">・送金なし</span></small>
-                      </button>
-                      <span v-else class="summary-ledger__none" aria-label="該当なし">—</span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-              <!-- 確認が要るものが1件も無いときも枠は残す。
+              <!-- ここは「確認待ち」だけ。上の大きい数字には入っていない分なので、
+                   混ぜると同じお金が二重に見える。だから枠の中でそう書く。 -->
+              <div v-if="pendingSides.length" class="ledger-pending">
+                <p class="ledger-pending__title">
+                  <span class="ledger-pending__icon" aria-hidden="true">⏳</span>確認待ちのお金があります
+                  <small>上の金額には入っていません</small>
+                </p>
+                <button
+                  v-for="side in pendingSides"
+                  :key="side.key"
+                  class="ledger-pending__row"
+                  :class="`ledger-pending__row--${side.key}`"
+                  :aria-label="`${side.pendingLabel}・${side.amount.toLocaleString()}円・${side.count}件`"
+                  @click.stop="navigateIfActive(1, side.path)"
+                >
+                  <span class="ledger-pending__label">{{ side.pendingLabel }}</span>
+                  <span class="ledger-pending__value">
+                    <strong>¥{{ side.amount.toLocaleString() }}</strong>
+                    <small>{{ side.count }}件<span v-if="side.amount === 0">・送金なし</span></small>
+                  </span>
+                </button>
+              </div>
+              <!-- 確認待ちが1件も無いときも枠は残す。
                    枠ごと消すとカードが急に縮んで落ち着かないうえ、
                    ¥0 だけが並んで悪い知らせのように見えてしまう。 -->
               <p v-else class="ledger-clear" :class="{ 'ledger-clear--todo': nextStep.todo }">
@@ -100,16 +108,15 @@
             class="status-card detail-card orange-bg clickable-card"
             @click="handleCardClick(2, '/payment?tab=unpaid')"
           > <div class="card-main">
-              <span class="detail-sub">未払い</span>
+              <span class="detail-sub">{{ headline.pay.caption }}</span>
               <span class="detail-label"><span class="dir-arrow" aria-hidden="true">↗</span>支払う</span>
-              <div class="price-large">¥{{ summary.payableTotal.toLocaleString() }}</div>
-              <p v-if="overview.pay.review.items.length" class="review-summary">確認が必要 ¥{{ overview.pay.review.amount.toLocaleString() }}・{{ overview.pay.review.items.length }}件</p>
-              <p v-if="overview.pay.event.items.length" class="review-summary">イベントで精算中 ¥{{ overview.pay.event.amount.toLocaleString() }}・{{ overview.pay.event.items.length }}件</p>
+              <div class="price-large">¥{{ headline.pay.amount.toLocaleString() }}</div>
+              <p v-for="note in headline.pay.notes" :key="note.kind" class="headline-note" :class="`headline-note--${note.kind}`">
+                <span v-if="note.kind === 'review'" class="review-symbol" aria-hidden="true">!</span>{{ note.text }}
+              </p>
             </div>
             <div class="recent-list">
-              <p v-if="overview.pay.pending.items.length" class="detail-state">相手の受取確認待ち <strong>¥{{ overview.pay.pending.amount.toLocaleString() }}</strong></p>
-              <p v-if="overview.pay.review.items.length" class="detail-state">送金状況の確認が必要 <strong>¥{{ overview.pay.review.amount.toLocaleString() }}</strong></p>
-              <p v-if="overview.pay.event.items.length" class="detail-state">イベントでまとめて精算中 <strong>¥{{ overview.pay.event.amount.toLocaleString() }}</strong></p>
+              <p v-if="overview.pay.pending.items.length" class="detail-state">⏳ 相手の確認待ち <strong>¥{{ overview.pay.pending.amount.toLocaleString() }}</strong><small>上の金額には入っていません</small></p>
               <p class="recent-title">未払いのお支払い</p>
               <div
                 class="recent-item"
@@ -151,7 +158,7 @@
   <script setup>
   import { ref, computed, onMounted, watch, nextTick } from 'vue';
   import { useRouter } from 'vue-router';
-  import { nextStepOf } from '@/lib/paymentOverview';
+  import { nextStepOf, headlineOf } from '@/lib/paymentOverview';
   
   const router = useRouter();
   const currentCard = ref(1);
@@ -165,8 +172,6 @@ const props = defineProps({
     required: true,
     // 🌟 初期値をしっかり入れることで、データが届く前の「真っ白」を防ぎます
     default: () => ({
-      receivableTotal: 0,
-      payableTotal: 0,
       receivableList: [],
       payableList: []
     })
@@ -178,18 +183,26 @@ const props = defineProps({
     { key: 'receive', title: '受け取る', path: '/payment?tab=waiting' },
     { key: 'pay', title: '支払う', path: '/payment?tab=unpaid' },
   ];
-  // 表に出す区分。イベント側で精算中の分も、金額が消えないよう1行足す。
-  const STATE_LABEL = { pending: '確認待ち', review: '要確認', event: 'イベント' };
-  const stateAria = (state, sideKey) => (
-    state === 'review' ? '送金状況の確認が必要'
-      : state === 'event' ? 'イベントでまとめて精算中'
-        : sideKey === 'receive' ? 'あなたの受取確認待ち' : '相手の受取確認待ち'
-  );
-  const statusRows = computed(() => ['pending', 'review', 'event'].filter(state =>
-    sides.some(side => props.overview[side.key][state].items.length)));
+  // 🌟 大きい数字＝いま自分が払う／受け取る必要がある額。
+  //    未払い＋送金状況の確認が必要な分＋イベントでまとめて精算中の分。
+  //    計算と文言は paymentOverview.js（テストできるよう切り出した）。
+  const headline = computed(() => ({
+    receive: headlineOf(props.overview, 'receive'),
+    pay: headlineOf(props.overview, 'pay'),
+  }));
 
-  // 🌟 この枠が見ているのは「承認待ち・要確認・イベントで精算中」の3行だけで、
-  //    ふつうの未払いは入っていない。それなのに「全部片付いています」と出すと、
+  // 灰色の枠は「確認待ち」だけ。上の大きい数字とは別のお金なので混ぜない。
+  const pendingSides = computed(() => sides
+    .map(side => ({
+      ...side,
+      amount: props.overview[side.key].pending.amount,
+      count: props.overview[side.key].pending.items.length,
+      pendingLabel: side.key === 'receive' ? 'あなたが受け取りを確認' : '相手の確認を待っています',
+    }))
+    .filter(side => side.count > 0));
+
+  // 🌟 この枠が見ているのは「確認待ち」だけで、ふつうの未払いは入っていない。
+  //    それなのに「全部片付いています」と出すと、
   //    未払いが残っているのに終わったように読めてしまう。
   //    残っている金額があるときは、そう言い切らない。
   // 何を出すかの判断は paymentOverview.js にある（状態ごとにテストできるよう切り出した）
@@ -302,7 +315,9 @@ const props = defineProps({
   .detail-label { display: block; font-size: 14px; opacity: 1; font-weight: bold; margin-top: 2px; }
   .dir-arrow { margin-right: 3px; }
   .price-large { font-size: 38px; font-weight: 900; letter-spacing: -1px; margin-top: 5px; }
-  .review-summary { margin: 10px auto 0; width: fit-content; padding: 5px 10px; border-radius: var(--r-pill); background: rgba(255,255,255,0.2); font-size: 11px; font-weight: var(--fw-bold); }
+  .headline-note { margin: 8px auto 0; width: fit-content; max-width: 100%; padding: 5px 10px; border-radius: var(--r-pill); background: rgba(255,255,255,0.2); font-size: 11px; font-weight: var(--fw-bold); line-height: 1.4; }
+  /* カードの背景が濃いので、ここでは丸印も白で描く */
+  .headline-note .review-symbol { color: inherit; }
   
   .recent-list { border-top: 1px solid rgba(255,255,255,0.2); padding-top: 15px; }
   .recent-title { font-size: 10px; opacity: 0.8; margin: 0 0 8px 0; text-align: left; }
@@ -346,23 +361,25 @@ const props = defineProps({
   .ledger-clear__text small { display: block; font-size: 11px; opacity: 0.75; }
   /* まだやることが残っているときは、片付いた印と見分けがつくようにする */
   .ledger-clear--todo .ledger-clear__check { background: #ffedd5; color: #c2620a; }
-  .summary-ledger table { border-collapse: collapse; width: 100%; table-layout: fixed; }
-  .summary-ledger th { color: var(--c-text-sub); font-weight: 500; font-size: 10px; line-height: 1.4; text-align: left; }
-  .summary-ledger thead th { padding: 6px 0; text-align: right; font-size: 9px; }
-  .summary-ledger th:first-child { width: 28%; }
-  .summary-ledger tbody tr + tr { border-top: 1px solid var(--c-line); }
-  .summary-ledger td { padding: 0; text-align: right; vertical-align: middle; }
-  .summary-ledger__value { width: 100%; min-height: 44px; padding: 6px 0 6px 3px; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; color: var(--c-ink); background: none; border: 0; cursor: pointer; font-variant-numeric: tabular-nums; }
-  .summary-ledger__value strong { font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
-  .summary-ledger .summary-ledger__receive { color: var(--c-receive-strong); }
-  .summary-ledger .summary-ledger__pay { color: var(--c-pay-strong); }
-  .summary-ledger thead .summary-ledger__receive,
-  .summary-ledger thead .summary-ledger__pay { font-weight: var(--fw-bold); }
-  .summary-ledger__value small { font-size: 9px; color: var(--c-text-sub); line-height: 1.4; }
-  .summary-ledger__none { color: var(--c-text-faint); font-size: 12px; }
+  /* 確認待ちの枠。上の大きい数字とは別のお金なので、見出しでそう書く */
+  .ledger-pending { width: 100%; padding: 6px 2px; }
+  .ledger-pending__title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; margin: 0 0 2px; font-size: 11px; font-weight: var(--fw-bold); color: var(--c-text-sub); line-height: 1.4; }
+  .ledger-pending__icon { font-size: 11px; }
+  .ledger-pending__title small { font-size: 10px; font-weight: 400; opacity: 0.85; }
+  .ledger-pending__row { width: 100%; min-height: 32px; padding: 4px 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; background: none; border: 0; cursor: pointer; text-align: left; color: var(--c-ink); }
+  .ledger-pending__row + .ledger-pending__row { border-top: 1px solid var(--c-line); }
+  .ledger-pending__label { font-size: 11px; color: var(--c-text-sub); line-height: 1.4; }
+  .ledger-pending__value { display: flex; align-items: baseline; gap: 5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ledger-pending__value strong { font-size: 14px; line-height: 1.3; }
+  .ledger-pending__value small { font-size: 9px; color: var(--c-text-sub); }
+  .ledger-pending__row--receive .ledger-pending__value strong { color: var(--c-receive-strong); }
+  .ledger-pending__row--pay .ledger-pending__value strong { color: var(--c-pay-strong); }
+  /* 大きい数字の下に足す注記。イベント分と要確認分の内訳 */
+  .summary-total__note { margin-top: 4px; font-size: 10px; line-height: 1.4; color: var(--c-text-sub); white-space: nowrap; }
+  .summary-total__note--review { color: #826035; }
   .review-symbol { display: inline-flex; align-items: center; justify-content: center; width: 11px; height: 11px; margin-right: 3px; border: 1px solid currentColor; border-radius: 50%; font-size: 8px; color: #826035; }
-  .summary-total:focus-visible, .summary-ledger__value:focus-visible { outline: 2px solid var(--c-brand); outline-offset: 2px; border-radius: 6px; }
-  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+  .summary-total:focus-visible, .ledger-pending__row:focus-visible { outline: 2px solid var(--c-brand); outline-offset: 2px; border-radius: 6px; }
+
 
   .nav-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: var(--arrow); height: var(--arrow); background-color: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); border-radius: 50%; border: 1px solid rgba(0,0,0,0.05); box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; z-index: 20; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); padding: 0; }
   .nav-arrow:active { transform: translateY(-50%) scale(0.85); background-color: #fff; }
@@ -384,5 +401,7 @@ const props = defineProps({
 <style scoped>
 .overview-warning { font-size: 12px; line-height: 1.6; color: var(--c-text-sub); margin: 12px 0 0; }
 .overview-warning { padding: 0 16px 12px; }
-.detail-state { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; padding-bottom: 8px; }
+.detail-state { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12px; padding-bottom: 8px; }
+.detail-state strong { margin-left: auto; }
+.detail-state small { flex-basis: 100%; font-size: 10px; opacity: 0.75; }
 </style>
