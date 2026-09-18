@@ -110,3 +110,12 @@ test('イベントの精算を始めても、相手ごとの精算は空にな�
   const net = friendNetFromTransactions(started, 'me');
   assert.deepEqual(net, { hanako: 500 }, 'イベントの精算を始めると誰も残らない');
 });
+
+test('どの手順にも、画面のどこを押すかが書いてある', () => {
+  // 一覧を押せば飛べるが、それだと自分の指でたどる道が分からないままになる。
+  // 展示では口頭で補うので、押す場所を文字でも残しておく。
+  for (const step of GUEST_TRAIL) {
+    assert.ok(typeof step.where === 'string' && step.where.length > 0, `押す場所が無い: ${step.id}`);
+    assert.ok(step.where.length <= 24, `押す場所が長すぎる（折り返して読みにくい）: ${step.id}`);
+  }
+});

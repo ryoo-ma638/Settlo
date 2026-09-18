@@ -68,3 +68,45 @@ test('案内の説明が、画面のボタン名と合っている', () => {
     assert.ok(trail.includes(label), `案内に「${label}」が出てこない`);
   }
 });
+
+test('押す場所の案内が、実際のボタン名と合っている', () => {
+  // 画面のボタン名を変えたのに案内が古いままだと、書いてある場所を探しても無い
+  const sources = {
+    'src/components/AppFooter.vue': ['イベント', '支払い', 'フレンドと割り勘', 'お支払いを追加'],
+    'src/views/MoneyPage.vue': ['まとめて'],
+    'src/views/EventDetails.vue': ['精算を始める'],
+  };
+  const all = Object.values(sources).flat();
+  const named = new Set();
+  for (const step of GUEST_TRAIL) {
+    for (const m of step.where.matchAll(/「([^」]+)」/g)) named.add(m[1]);
+  }
+  for (const label of named) {
+    if (label === '＋') continue; // ＋ボタンには文字が無い
+    assert.ok(all.includes(label), `案内の「${label}」が、どの画面のボタン名でもない`);
+  }
+  for (const [path, labels] of Object.entries(sources)) {
+    const src = readFileSync(path, 'utf8');
+    for (const label of labels) {
+      if (!named.has(label)) continue;
+      assert.ok(src.includes(label), `${path} に「${label}」というボタンが無い`);
+    }
+  }
+});
+
+test('押す場所を画面にも出している', () => {
+  const card = strip('src/components/GuestTrailCard.vue');
+  assert.match(card, /step\.where/, '押す場所が画面に出ていない');
+});
+
+test('閉じる・やり直しは、たずねてから実行する', () => {
+  // どちらも押し間違えると、試した印や案内そのものが消える
+  const card = strip('src/components/GuestTrailCard.vue');
+  assert.match(card, /@click="askReset"/, 'やり直しがその場で実行されている');
+  assert.match(card, /@click="askHide"/, '閉じるがその場で実行されている');
+  assert.match(card, /<BaseModal/, 'たずねる画面が無い');
+  assert.match(card, /最初からやり直しますか？/, 'やり直しの確認文が無い');
+  assert.match(card, /この案内を閉じますか？/, '閉じるときの確認文が無い');
+  // やめるを押したときに実行されないこと
+  assert.match(card, /@cancel="confirmState\.show = false"/, 'やめたときの動きが無い');
+});

@@ -25,3 +25,37 @@ test('同じ写真を別の説明に使い回していない', () => {
   const used = [...source.matchAll(/img:\s*'([^']+)'/g)].map((m) => m[1]);
   assert.deepEqual(used.length, new Set(used).size, `同じ写真が2か所で使われている: ${used.join(', ')}`);
 });
+
+// JPEG の先頭から縦横を読む（画像ライブラリを足さずに済ませる）
+function jpegSize(path) {
+  const buf = readFileSync(path);
+  let i = 2; // 先頭の FFD8 を飛ばす
+  while (i < buf.length) {
+    if (buf[i] !== 0xff) { i += 1; continue; }
+    const marker = buf[i + 1];
+    if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
+      return { height: buf.readUInt16BE(i + 5), width: buf.readUInt16BE(i + 7) };
+    }
+    i += 2 + buf.readUInt16BE(i + 2);
+  }
+  throw new Error(`縦横を読めない: ${path}`);
+}
+
+test('はじめてガイドの写真が、スマホの枠と同じ形になっている', () => {
+  // 枠は縦長で固定してある。形の違う写真を入れると下が白く空いて、
+  // 画面が崩れているように見える（2026-09-19 に実際に出た）。
+  const source = readFileSync('src/components/OnboardingModal.vue', 'utf8');
+  const frame = /aspect-ratio:\s*(\d+)\s*\/\s*(\d+)/.exec(source);
+  assert.ok(frame, '枠の形が決まっていない');
+  const want = Number(frame[2]) / Number(frame[1]);
+  const names = [...source.matchAll(/tutorialImage\('([^']+)'\)/g)].map((m) => m[1]);
+  assert.ok(names.length > 0, '写真を1枚も指していない');
+  for (const name of names) {
+    const { width, height } = jpegSize(`public/tutorial/${name}`);
+    const ratio = height / width;
+    assert.ok(
+      Math.abs(ratio - want) / want < 0.02,
+      `${name} は ${width}x${height}。枠は ${frame[1]}x${frame[2]} の形なので、余白が出る`
+    );
+  }
+});

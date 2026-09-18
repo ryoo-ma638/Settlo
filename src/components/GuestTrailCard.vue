@@ -26,16 +26,35 @@
                 <span v-if="step.check === 'action' && !isDone(step.id)" class="trail__todo">やると✓</span>
               </span>
               <span class="trail__desc">{{ step.desc }}</span>
+              <span v-if="step.where" class="trail__where">
+                <svg class="trail__where-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M4 6v5a4 4 0 0 0 4 4h11" /><path d="M15 11l4 4-4 4" />
+                </svg>
+                自分で押すなら {{ step.where }}
+              </span>
             </span>
             <span class="trail__go" aria-hidden="true">›</span>
           </button>
         </li>
       </ol>
       <div class="trail__foot">
-        <button class="trail__link" type="button" @click="reset">最初からやり直す</button>
-        <button class="trail__link" type="button" @click="hide">閉じる</button>
+        <button class="trail__link" type="button" @click="askReset">最初からやり直す</button>
+        <button class="trail__link" type="button" @click="askHide">閉じる</button>
       </div>
     </div>
+
+    <BaseModal
+      :show="confirmState.show"
+      type="warning"
+      :title="confirmState.title"
+      :message="confirmState.message"
+      :showCancel="true"
+      :confirmText="confirmState.confirmText"
+      cancelText="やめる"
+      @confirm="runConfirm"
+      @cancel="confirmState.show = false"
+      @close="confirmState.show = false"
+    />
   </section>
 </template>
 
@@ -47,6 +66,7 @@
   import { GUEST_TRAIL, trailProgress, nextTrailStep, markDone, normalizeDone } from '@/lib/guestTrail.js';
   import { TRAIL_KEY, TRAIL_HIDDEN_KEY as HIDE_KEY } from '@/lib/guestGuide.js';
   import { TRAIL_DONE_EVENT } from '@/lib/trailProgressSignal.js';
+  import BaseModal from '@/components/BaseModal.vue';
   const router = useRouter();
   const steps = GUEST_TRAIL;
   const isGuest = ref(false);
@@ -84,6 +104,34 @@
   const reset = () => { done.value = []; save(TRAIL_KEY, []); };
   const hide = () => { hidden.value = true; save(HIDE_KEY, true); };
 
+  // 「最初からやり直す」と「閉じる」は、押し間違えると
+  // それまで試した印が消えたり、案内そのものが見えなくなったりする。
+  // どちらも一度たずねてから実行する。
+  const confirmState = ref({ show: false, title: '', message: '', confirmText: 'OK', onConfirm: null });
+  const runConfirm = () => {
+    const run = confirmState.value.onConfirm;
+    confirmState.value = { ...confirmState.value, show: false };
+    if (run) run();
+  };
+  const askReset = () => {
+    confirmState.value = {
+      show: true,
+      title: '最初からやり直しますか？',
+      message: 'チェックを消して、1つめから案内し直します。\nいま入っているイベントや精算の記録は消えません。',
+      confirmText: 'やり直す',
+      onConfirm: reset,
+    };
+  };
+  const askHide = () => {
+    confirmState.value = {
+      show: true,
+      title: 'この案内を閉じますか？',
+      message: 'ホームからこの案内だけを消します。アプリの中身は変わりません。\nもう一度出すときは、マイページ →「ヘルプ・使い方」から。',
+      confirmText: '閉じる',
+      onConfirm: hide,
+    };
+  };
+
   onMounted(() => {
     window.addEventListener(TRAIL_DONE_EVENT, onTrailDone);
     done.value = normalizeDone(load(TRAIL_KEY, []));
@@ -118,6 +166,8 @@
 .trail__todo { margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--c-brand-weak, #ecfdf5); color: var(--c-brand-strong, #0f7a4d); font-size: 10px; font-weight: var(--fw-bold, 700); white-space: nowrap; }
 .trail__time { margin-left: 6px; font-size: 10px; font-weight: 400; color: var(--c-text-sub, #475569); white-space: nowrap; }
 .trail__desc { display: block; margin-top: 3px; font-size: 11px; line-height: 1.55; color: var(--c-text-sub, #475569); overflow-wrap: anywhere; }
+.trail__where { display: inline-flex; align-items: flex-start; gap: 4px; margin-top: 5px; padding: 3px 8px 3px 6px; border-radius: 999px; background: var(--c-brand-weak, #ecfdf5); color: var(--c-brand-strong, #0f7a4d); font-size: 10.5px; font-weight: var(--fw-bold, 700); line-height: 1.4; overflow-wrap: anywhere; }
+.trail__where-arrow { flex-shrink: 0; width: 13px; height: 13px; margin-top: 1px; }
 .trail__go { flex-shrink: 0; align-self: center; color: var(--c-text-faint, #94a3b8); font-size: 15px; }
 .trail__foot { display: flex; justify-content: flex-end; gap: 14px; padding: 6px 8px 2px; }
 .trail__link { background: none; border: 0; padding: 4px; font-size: 11px; color: var(--c-text-sub, #475569); cursor: pointer; text-decoration: underline; }
