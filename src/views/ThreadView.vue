@@ -50,7 +50,7 @@
     </div>
 
     <!-- 返信の下書き。条件を選ぶと文案が出る。入力欄に入れるだけで、送信は本人が行う -->
-    <div v-if="txData" class="rh">
+    <div v-if="replyTx" class="rh">
       <button class="rh__toggle" @click="replyOpen = !replyOpen">
         {{ replyOpen ? '返信の下書きを閉じる' : '返信を考える' }}
       </button>
@@ -208,13 +208,13 @@ const aiError = ref('');
 const aiResult = ref(null);
 
 const askAi = async () => {
-  if (!txId || aiLoading.value) return;
+  if (!replyTxId.value || aiLoading.value) return;
   aiLoading.value = true;
   aiError.value = '';
   try {
     const call = httpsCallable(functions, 'consultPaymentReply');
     const res = await call({
-      transactionId: txId,
+      transactionId: replyTxId.value,
       subject: label.value || '',
       replyConditions: replyConditions(),
     });
@@ -231,7 +231,7 @@ const askAi = async () => {
 watch([replyMethodMode, replyAllowed, replyBlocked, replyDueDate], () => { aiResult.value = null; }, { deep: true });
 
 const replySuggestions = computed(() => buildConditionalReplySuggestions({
-  conditions: replyConditions(), amount: Number(txData.value?.amount) || 0,
+  conditions: replyConditions(), amount: Number(replyTx.value?.amount) || 0,
 }));
 const replyConflicts = computed(() => normalizeReplyConditions(replyConditions()).conflicts);
 
@@ -267,10 +267,6 @@ const readLabel = (m) => {
 const txId = route.query.tx || '';
 const txData = ref(null);
 
-// 返信の下書きの「立場」は取引から自動で決める（自分が債務者なら払う側）
-watch(txData, (t) => {
-  if (t) replyRole.value = t.paidById === myUid ? 'payer' : 'receiver';
-}, { immediate: true });
 let unsubTx = null;
 const approving = ref(false);
 const canApprove = computed(() => !isGroup.value && txData.value && txData.value.status === 'awaiting_approval' && txData.value.paidToId === myUid);
@@ -283,6 +279,22 @@ const progressDone = ref(0);
 const progressTotal = ref(0);
 const payStatus = ref([]); // 誰が払ったか [{ uid, name, amount, done }]
 const payTxs = ref([]);    // この件の取引（支払い画面への遷移に使う）
+
+// 🌟 みんなの精算（グループ）のチャットでは、自分が当事者の取引を1件選ぶ。
+//    返信の下書きとAIは「自分の1件」について考えるので、これが無いと
+//    グループのチャットだけ下書きもAIも使えなかった。
+const myTx = computed(() => (payTxs.value || []).find(
+  (t) => t && (t.paidById === myUid || t.paidToId === myUid),
+) || null);
+// 下書きとAIが見る取引。1対1は URL の指定、グループは自分の1件。
+const replyTx = computed(() => txData.value || myTx.value);
+const replyTxId = computed(() => txId || myTx.value?.id || '');
+
+// 返信の下書きの「立場」は取引から自動で決める（自分が債務者なら払う側）
+watch(replyTx, (t) => {
+  if (t) replyRole.value = t.paidById === myUid ? 'payer' : 'receiver';
+}, { immediate: true });
+
 let unsubPay = null;
 
 const clearApprovalNotif = async () => {
