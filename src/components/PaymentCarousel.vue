@@ -35,7 +35,11 @@
               </p>
             </div>
             <div class="recent-list">
-              <p v-if="overview.receive.pending.items.length" class="detail-state">⏳ あなたが受け取りを確認 <strong>¥{{ overview.receive.pending.amount.toLocaleString() }}</strong><small>上の金額には入っていません</small></p>
+              <p v-if="overview.receive.pending.items.length" class="detail-state">
+                <span class="detail-state__label">⏳ あなたが受け取りを確認</span>
+                <strong>¥{{ overview.receive.pending.amount.toLocaleString() }}</strong>
+                <small>上の金額には入っていません</small>
+              </p>
               <p class="recent-title">相手の支払い待ち</p>
               <div
                 class="recent-item"
@@ -119,7 +123,11 @@
               </p>
             </div>
             <div class="recent-list">
-              <p v-if="overview.pay.pending.items.length" class="detail-state">⏳ 相手の確認待ち <strong>¥{{ overview.pay.pending.amount.toLocaleString() }}</strong><small>上の金額には入っていません</small></p>
+              <p v-if="overview.pay.pending.items.length" class="detail-state">
+                <span class="detail-state__label">⏳ 相手の確認待ち</span>
+                <strong>¥{{ overview.pay.pending.amount.toLocaleString() }}</strong>
+                <small>上の金額には入っていません</small>
+              </p>
               <p class="recent-title">未払いのお支払い</p>
               <div
                 class="recent-item"
@@ -406,7 +414,8 @@ const props = defineProps({
 <style scoped>
 .overview-warning { font-size: 12px; line-height: 1.6; color: var(--c-text-sub); margin: 12px 0 0; }
 .overview-warning { padding: 0 16px 12px; }
-.detail-state { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12px; padding-bottom: 8px; }
-.detail-state strong { margin-left: auto; }
+.detail-state { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font-size: 12px; padding-bottom: 8px; margin: 0; }
+.detail-state__label { flex: 1 1 auto; }
+.detail-state strong { margin-left: auto; white-space: nowrap; }
 .detail-state small { flex-basis: 100%; font-size: 10px; opacity: 0.75; }
 </style>
