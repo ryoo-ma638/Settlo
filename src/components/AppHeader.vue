@@ -10,7 +10,7 @@
         </svg>
         <span v-if="pendingCount > 0" class="topbar__pending-badge">{{ pendingCount > 99 ? '99+' : pendingCount }}</span>
       </button>
-      <button class="topbar__chat" data-tour="chat" @click="navigate('/chats')" aria-label="チャット">
+      <button class="topbar__chat" data-tour="chat" @click="navigate('/chats')" aria-label="相談">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 11.5a8.4 8.4 0 0 1-11.9 7.6L3 21l1.9-6.1A8.4 8.4 0 1 1 21 11.5z"/>
         </svg>

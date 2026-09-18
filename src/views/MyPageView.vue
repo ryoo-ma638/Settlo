@@ -56,13 +56,13 @@
 
         <button class="menu__item" @click="$router.push('/chats')">
           <svg class="menu__icon" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-11.9 7.6L3 21l1.9-6.1A8.4 8.4 0 1 1 21 11.5z"/></svg>
-          <span class="menu__label">チャット</span>
+          <span class="menu__label">相談</span>
           <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
         </button>
 
         <button class="menu__item" @click="$router.push('/trash')">
-          <svg class="menu__icon" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12"/></svg>
-          <span class="menu__label">ゴミ箱</span>
+          <svg class="menu__icon" viewBox="0 0 24 24"><path d="M3.5 9.5h6v-6"/><path d="M4.2 14.5a8 8 0 1 0 1.1-6"/></svg>
+          <span class="menu__label">取引を元に戻す</span>
           <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
         </button>
           </div>

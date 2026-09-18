@@ -1,16 +1,17 @@
 <template>
   <div class="friend">
     <header class="screen-head">
-      <h1 class="screen-head__title">フレンド</h1>
+      <h1 class="screen-head__title">{{ pickSplit ? '割り勘する相手' : 'フレンド' }}</h1>
     </header>
 
     <main class="friend__body">
+      <p v-if="pickSplit" class="friend__pickhint">割り勘を記録する相手を選んでください。</p>
       <button class="btn-brand friend__add" data-tour="friend-add" @click="isModalOpen = true">
         <svg class="friend__add-icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
         フレンドを追加
       </button>
 
-      <div class="reqs" v-if="pendingRequests.length > 0">
+      <div class="reqs" v-if="!pickSplit && pendingRequests.length > 0">
         <p class="reqs__alert">
           フレンド申請が届いています
           <span class="reqs__count">{{ pendingRequests.length }}</span>
@@ -26,9 +27,9 @@
         </div>
       </div>
 
-      <h2 class="friend__list-title">フレンド一覧</h2>
+      <h2 v-if="!pickSplit" class="friend__list-title">フレンド一覧</h2>
 
-      <div class="controls">
+      <div v-if="!pickSplit" class="controls">
         <div class="select">
           <select v-model="currentFilter" aria-label="フレンドの絞り込み">
             <option value="all">すべて表示</option>
@@ -98,7 +99,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, reactive } from 'vue';
 import { countFriendTransactions, summarizeFriendTransactions } from '../lib/friendTransactionCounts.js';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 import { auth, db } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -114,6 +115,7 @@ import SkeletonRows from '@/components/SkeletonRows.vue';
 import FriendApproveModal from '@/components/FriendApproveModal.vue';
 import BaseModal from '@/components/BaseModal.vue';
 
+const route = useRoute();
 const router = useRouter();
 const isModalOpen = ref(false);
 
@@ -443,6 +445,10 @@ const processedList = computed(() => {
     });
 });
 
+// 🌟 ＋の「フレンドと割り勘」から相手を選ぶモード（?pick=split）
+//    イベント側の ?pick=payment と同じ考え方で、一覧を選ぶだけの画面にする。
+const pickSplit = computed(() => route.query.pick === 'split');
+
 const navigateToDetail = (friend) => {
   const uid = friend.uid || friend.id;
 
@@ -453,13 +459,19 @@ const navigateToDetail = (friend) => {
 
   router.push({
     path: `/friend/${encodeURIComponent(friend.name)}/${uid}`,
-    query: { uid: uid }
+    query: pickSplit.value ? { uid, split: '1' } : { uid }
   });
 };
 </script>
 
 <style scoped>
 .friend__body { padding: 6px var(--pad) 28px; }
+
+.friend__pickhint {
+  margin: 2px 0 14px;
+  font-size: 13px;
+  color: var(--c-text-sub, #6b7280);
+}
 
 .friend__add { margin-bottom: 22px; }
 .friend__add-icon {

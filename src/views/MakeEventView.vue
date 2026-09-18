@@ -236,6 +236,14 @@ const joinEvent = async () => {
   }
 };
 
+// URL側が変わったときはタブを合わせる（戻る・進むで表示とURLがずれないように）。
+// 下の watch は「タブ→URL」の一方向だけだったので、こちらで逆向きを補う。
+// 値が一致したあとは下の watch が replace をしないので、行き来にはならない。
+watch(() => route.query.join, (value) => {
+  const active = value === '1';
+  if (isJoinMode.value !== active) isJoinMode.value = active;
+});
+
 watch(isJoinMode, async (active) => {
   const querySaysJoin = route.query.join === '1';
   if (active !== querySaysJoin) {
