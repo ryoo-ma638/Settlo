@@ -34,7 +34,7 @@
 
         <button class="menu__item" @click="$router.push('/friend')">
           <svg class="menu__icon" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19v-1a4 4 0 0 1 4-4h3a4 4 0 0 1 4 4v1"/><path d="M16.5 5.4a3.2 3.2 0 0 1 0 6.1M17.4 14.2A4 4 0 0 1 20.5 18v1"/></svg>
-          <span class="menu__label">フレンド管理</span>
+          <span class="menu__label">フレンド</span>
           <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
         </button>
           </div>
@@ -72,7 +72,7 @@
           <div class="menu">
         <button class="menu__item" @click="$router.push('/help')">
           <svg class="menu__icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 1 1 3.6 2.6c-.8.5-1.2 1-1.2 1.9"/><path d="M12 17h.01"/></svg>
-          <span class="menu__label">アプリの使い方</span>
+          <span class="menu__label">ヘルプ・使い方</span>
           <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
         </button>
           </div>

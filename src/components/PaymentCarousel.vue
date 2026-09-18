@@ -90,7 +90,7 @@
                 <span class="ledger-clear__check" aria-hidden="true">✓</span>
                 <span class="ledger-clear__text">
                   確認が必要な精算はありません
-                  <small>いまは全部片付いています</small>
+                  <small>{{ hasOutstanding ? '承認待ちや差し戻しはありません。残りは上の金額のとおりです' : 'いまは全部片付いています' }}</small>
                 </span>
               </p>
             </div>
@@ -186,6 +186,13 @@ const props = defineProps({
   );
   const statusRows = computed(() => ['pending', 'review', 'event'].filter(state =>
     sides.some(side => props.overview[side.key][state].items.length)));
+
+  // 🌟 この枠が見ているのは「承認待ち・要確認・イベントで精算中」の3行だけで、
+  //    ふつうの未払いは入っていない。それなのに「全部片付いています」と出すと、
+  //    未払いが残っているのに終わったように読めてしまう。
+  //    残っている金額があるときは、そう言い切らない。
+  const hasOutstanding = computed(() => ['receive', 'pay'].some((side) =>
+    ['unpaid', 'pending', 'review', 'event'].some((state) => (props.overview[side][state].items || []).length > 0)));
   // ------------------------------
   // スクロール計算系のロジック
   // ------------------------------

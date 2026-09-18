@@ -30,6 +30,18 @@
 
         <p v-if="!loading && (overviewIssues.length || loadFailed)" class="overview-warning" role="status">一部の取引を確認できないため、確認できた分を表示しています。</p>
 
+        <!-- 同じ相手に「受け取る」と「支払う」の両方があると、この一覧の額面と
+             「まとめて」の差し引きが違う数字になる。どちらが本当か分からなくなるので、
+             違いが出る相手がいるときだけ理由を出す。 -->
+        <button v-if="!loading && offsettablePeople.length" type="button" class="offset-hint" @click="currentTab = 'settle'">
+          <span class="offset-hint__title">この一覧は1件ずつの額面です</span>
+          <span class="offset-hint__text">
+            {{ offsetHintText }}
+            「まとめて」では受け取る分と差し引いた、実際にやり取りする金額が出ます。
+          </span>
+          <span class="offset-hint__go">まとめてを見る ›</span>
+        </button>
+
         <!-- 🌟 あなたの承認が必要（相手が支払い済みでリクエスト中） -->
         <template v-if="!loading && receivableAwaiting.length">
           <h2 class="money__section money__section--action">承認待ち・あなたの承認が必要（{{ receivableAwaiting.length }}件）</h2>
@@ -128,6 +140,15 @@
         </div>
 
         <p v-if="!loading && (overviewIssues.length || loadFailed)" class="overview-warning" role="status">一部の取引を確認できないため、確認できた分を表示しています。</p>
+
+        <button v-if="!loading && offsettablePeople.length" type="button" class="offset-hint" @click="currentTab = 'settle'">
+          <span class="offset-hint__title">この一覧は1件ずつの額面です</span>
+          <span class="offset-hint__text">
+            {{ offsetHintText }}
+            「まとめて」では受け取る分と差し引いた、実際にやり取りする金額が出ます。
+          </span>
+          <span class="offset-hint__go">まとめてを見る ›</span>
+        </button>
 
         <!-- 🌟 リクエスト済み（自分が支払い済み・相手の承認待ち） -->
         <template v-if="!loading && payableAwaiting.length">
@@ -309,6 +330,20 @@ const needsReview = (uid) => reviewOpponentUids.value.has(uid)
 //    計算は src/lib/balance.js に集約（承認待ちのまとめ精算は実質額で1件に数える）。
 //    精算を申請しただけで金額が動かないようにするため。
 const settleByPerson = computed(() => balancesByPerson(receivableList.value, payableList.value))
+
+// 🌟 受け取る分と支払う分の両方がある相手。
+//    この人たちは「1件ずつの額面」と「差し引き」で金額が変わるので、
+//    どちらが本当か分からなくなる。違いが出るときだけ理由を出す。
+const offsettablePeople = computed(() =>
+  settleByPerson.value.filter((m) => (m.receive || 0) > 0 && (m.pay || 0) > 0)
+)
+const offsetHintText = computed(() => {
+  const list = offsettablePeople.value
+  if (list.length === 0) return ''
+  const names = list.slice(0, 2).map((m) => m.name || '相手').join('・')
+  const more = list.length > 2 ? `ほか${list.length - 2}人` : ''
+  return `${names}${more}さんとは、受け取る分と支払う分の両方があります。`
+})
 
 // 承認待ちの内訳ラベル。申請中＝自分が出した精算／要承認＝自分が承認する側。
 const pendingLabel = (m) => {
@@ -514,6 +549,17 @@ watch(() => route.query.tab, (newTab) => {
 .trow__badge--event { background: #e7f2fa; color: #1f5f8b; }
 .trow__right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .trow__amount { font-size: 16px; font-weight: var(--fw-black); color: var(--c-ink); }
+.offset-hint {
+  display: block; width: 100%; text-align: left;
+  background: var(--c-surface-2, #f8fafc);
+  border: 1px solid var(--c-line, #e5e7eb); border-radius: var(--r-lg, 14px);
+  padding: 12px 14px; margin: 10px 0 4px; cursor: pointer;
+}
+.offset-hint:active { background: var(--c-line, #eef2f7); }
+.offset-hint__title { display: block; font-size: 13px; font-weight: 700; color: var(--c-text, #1f2937); }
+.offset-hint__text { display: block; margin-top: 4px; font-size: 12px; line-height: 1.6; color: var(--c-text-sub, #6b7280); }
+.offset-hint__go { display: block; margin-top: 6px; font-size: 12px; font-weight: 700; color: var(--c-brand, #16a34a); }
+
 .trow__chevron { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: var(--c-text-faint); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .trow__btn {
   background: var(--c-brand-weak);

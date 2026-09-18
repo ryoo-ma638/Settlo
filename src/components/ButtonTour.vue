@@ -59,7 +59,7 @@ const PAD = 8;
 const STEPS = [
   { type: 'explain', sel: '[data-tour="home-status"]', title: 'お支払い状況', desc: '左＝受け取る額、右＝支払う額、下＝今月の収支。カードをタップすると支払い一覧へ移動、矢印で切り替えできます。' },
   { type: 'explain', sel: '[data-tour="home-events"]', title: '進行中のイベント', desc: '旅行や飲み会ごとに立て替えをまとめる「箱」です。タップで詳細が開きます。' },
-  { type: 'explain', sel: '[data-tour="avatar"]', title: 'マイページ', desc: 'プロフィール変更・お支払い履歴・取引を元に戻す・アプリの使い方など、全機能の入口です。' },
+  { type: 'explain', sel: '[data-tour="avatar"]', title: 'マイページ', desc: 'プロフィールを変更・お支払い履歴・取引を元に戻す・ヘルプ・使い方など、全機能の入口です。' },
   { type: 'explain', sel: '[data-tour="pending"]', title: '承認待ち', desc: 'あなたが承認する分・相手の承認待ち・承認/拒否の履歴。催促されている支払いは一番上に赤く出ます。' },
   { type: 'explain', sel: '[data-tour="chat"]', title: '相談', desc: '支払いの件ごとに相談できます。未読はバッジで表示、解決すると自動で片付きます。' },
   { type: 'explain', sel: '[data-tour="bell"]', title: 'お知らせ', desc: '承認依頼・催促・「これは正しいですか？」の確認がここに届きます。' },
@@ -82,8 +82,8 @@ const STEPS = [
   { type: 'action', sel: '[data-tour="nav-friend"]', title: 'フレンドへ', desc: '「フレンド」を押してみましょう。' },
   { type: 'explain', sel: '[data-tour="friend-add"]', title: '友達を追加', desc: '名前かIDで検索して申請、相手が承認したらフレンドに。相手ごとの貸し借りも見られます。' },
   { type: 'action', sel: '[data-tour="avatar"]', title: 'マイページへ', desc: '最後に、左上の自分のアイコンを押してみましょう。' },
-  { type: 'explain', sel: '[data-tour="mypage-menu"]', title: '全機能の入口', desc: 'ここから全機能へ。「アプリの使い方」で図解ガイドとこのツアーをいつでも見直せます。' },
-  { type: 'final', sel: null, title: 'ツアー完了！', desc: 'これで一通りの説明はおしまいです。細かい画面ごとの説明は、マイページ→「アプリの使い方」にまとまっています。' },
+  { type: 'explain', sel: '[data-tour="mypage-menu"]', title: '全機能の入口', desc: 'ここから全機能へ。「ヘルプ・使い方」で図解ガイドとこのツアーをいつでも見直せます。' },
+  { type: 'final', sel: null, title: 'ツアー完了！', desc: 'これで一通りの説明はおしまいです。細かい画面ごとの説明は、マイページ→「ヘルプ・使い方」にまとまっています。' },
 ];
 
 const currentStep = computed(() => STEPS[stepIndex.value]);

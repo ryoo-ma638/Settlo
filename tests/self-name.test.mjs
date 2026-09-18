@@ -65,3 +65,37 @@ test('画面に出る文から「ゴミ箱」を無くす（画面名は「取�
     assert.deepEqual(hits, [], `${f} に画面へ出る「ゴミ箱」が残っている`);
   }
 });
+
+test('同じ相手に受け取りと支払いの両方があるとき、額面と差し引きの違いを説明する', () => {
+  // 未払い ¥3,000 なのに「まとめて」は ¥1,000。どちらが本当か分からなくなるので、
+  // 違いが出る相手がいるときだけ理由を出し、「まとめて」への入口を添える。
+  const money = read('views/MoneyPage.vue');
+  assert.match(money, /offsettablePeople/);
+  assert.match(money, /\(m\.receive \|\| 0\) > 0 && \(m\.pay \|\| 0\) > 0/);
+  // お支払い待ちと未払いの両方に出す（片方だけだと、もう片方で同じ疑問が残る）
+  assert.equal((money.match(/class="offset-hint"/g) || []).length, 2);
+});
+
+test('復元の控えは、相手の確認待ちなら7日を過ぎても消さない', () => {
+  const fn = readFileSync(new URL('../functions/index.js', import.meta.url), 'utf8');
+  const purge = fn.match(/exports\.purgeTrash[\s\S]*?\n\);/)[0];
+  assert.match(purge, /status === "pending" \|\| status === "restored"/);
+  assert.match(purge, /continue;/);
+});
+
+test('ログインのたびに名前を上書きしない', () => {
+  // 以前は毎回 Googleの表示名で上書きしていたので、ニックネームがログインのたびに戻っていた
+  const user = read('user.js');
+  assert.match(user, /if \(!data\.name\)/);
+  assert.ok(!/name: user\.displayName \|\| "名前なし",\s*\n\s*email/.test(user), '毎回 name を書いてはいけない');
+});
+
+test('未払いが残っているのに「全部片付いています」と言わない', () => {
+  // ホームの枠が見ているのは承認待ち・要確認・イベントで精算中の3行だけで、
+  // ふつうの未払いは入っていない。残っているのに終わったように読ませない。
+  const carousel = read('components/PaymentCarousel.vue');
+  assert.match(carousel, /hasOutstanding/);
+  assert.match(carousel, /hasOutstanding \? '承認待ちや差し戻しはありません/);
+  // 判定には unpaid も含める（3行だけ見ていたのが原因）
+  assert.match(carousel, /\['unpaid', 'pending', 'review', 'event'\]/);
+});
