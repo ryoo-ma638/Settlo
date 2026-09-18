@@ -30,7 +30,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { onAuthStateChanged } from "firebase/auth"
 import { auth, db } from "./firebase"
@@ -76,7 +76,24 @@ const ensureUserProfile = async (user) => {
 // ゲストのデモデータ準備中は、ホームの代わりに読込画面を出す
 const { preparingGuestDemo } = useGuestSetup()
 
+// 🌟 iOSのSafariは viewport の user-scalable=no を無視するので、
+//    二本指の拡大（gesture）とダブルタップの拡大を明示的に止める。
+//    ホーム画面に追加したPWAでは viewport の指定だけで効くが、
+//    ブラウザで開いた来場者の端末でも同じ見え方にするため両方入れる。
+const blockGesture = (e) => { e.preventDefault(); };
+let lastTouchEnd = 0;
+const blockDoubleTapZoom = (e) => {
+  const now = Date.now();
+  if (now - lastTouchEnd <= 300) e.preventDefault();
+  lastTouchEnd = now;
+};
+
 onMounted(() => {
+  for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+    document.addEventListener(type, blockGesture, { passive: false });
+  }
+  document.addEventListener('touchend', blockDoubleTapZoom, { passive: false });
+
   onAuthStateChanged(auth, (user) => {
     authChecked.value = true
     if (user) {
@@ -95,6 +112,13 @@ onMounted(() => {
       }
     }
   })
+})
+
+onUnmounted(() => {
+  for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+    document.removeEventListener(type, blockGesture)
+  }
+  document.removeEventListener('touchend', blockDoubleTapZoom)
 })
 </script>
 
@@ -138,6 +162,8 @@ onMounted(() => {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* 端まで来ても、後ろのページを引っぱらない */
+  overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
   /* 🌟 誤ってダブルタップしたときに画面が拡大されるのを止める。
      manipulation は「指でのスクロールとピンチでの拡大は残し、ダブルタップの拡大だけ切る」指定。
