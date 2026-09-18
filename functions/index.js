@@ -285,6 +285,13 @@ exports.calculateSettlement = onCall(
       const eventData = eventSnap.data();
       // 参加者のリスト（FirestoreにはUIDなどが配列で入っている想定）
       const participants = eventData.participants || [];
+
+      // 🔐 2026-09-18 追加。
+      //   以前はログインしているだけで、イベントIDさえ分かれば誰でも呼べた。
+      //   返すのは「誰が誰へいくら」なので、参加者以外には渡さない。
+      if (!participants.includes(request.auth.uid)) {
+        throw new HttpsError("permission-denied", "このイベントの参加者だけが確認できます。");
+      }
       const participantCount = participants.length;
 
       if (participantCount === 0) return { transfers: [] };
@@ -554,6 +561,15 @@ exports.setupGuestDemo = onCall(
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "ログインが必要です。");
+    }
+    // 🔐 2026-09-18 追加。
+    //   以前は匿名かどうかを見ていなかったため、Googleでログインしている人が呼ぶと
+    //   自分のプロフィールが「ゲストNNN」で上書きされ、デモデータが混ざった。
+    //   ゲストデモは匿名ログインのときだけ。
+    const provider = request.auth.token && request.auth.token.firebase
+      && request.auth.token.firebase.sign_in_provider;
+    if (provider !== "anonymous") {
+      throw new HttpsError("permission-denied", "ゲストのお試しは、ゲストとして入ったときだけ使えます。");
     }
     const uid = request.auth.uid;
     const userRef = db.collection("users").doc(uid);
