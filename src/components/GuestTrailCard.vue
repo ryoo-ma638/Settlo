@@ -23,7 +23,7 @@
               <span class="trail__step-title">
                 {{ step.title }}
                 <span class="trail__time">{{ step.minutes }}</span>
-                <span v-if="step.check === 'action' && !isDone(step.id)" class="trail__todo">やると✓</span>
+                <span v-if="step.check === 'action' && !isDone(step.id)" class="trail__todo">完了したらチェック</span>
               </span>
               <span class="trail__desc">{{ step.desc }}</span>
               <span v-if="step.where" class="trail__where">
