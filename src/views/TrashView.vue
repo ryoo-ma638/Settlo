@@ -1,17 +1,15 @@
 <template>
   <div class="screen">
-    <PageHeader title="元に戻す" fallback="/mypage" />
+    <PageHeader title="取引を元に戻す" fallback="/mypage" />
 
     <div class="ttabs">
-      <button class="ttab" :class="{ 'is-on': tab === 'event' }" @click="tab = 'event'">
-        <svg class="ttab__icon" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg>
-        <span>非表示</span>
-        <span v-if="eventItems.length" class="ttab__cnt">{{ eventItems.length }}</span>
-      </button>
-      <button class="ttab" :class="{ 'is-on': tab === 'tx' }" @click="tab = 'tx'">
-        <svg class="ttab__icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v8M9.2 9.8h4.2a1.8 1.8 0 1 1 0 3.6H10a1.9 1.9 0 1 0 0 3.8h4.6"/></svg>
-        <span>取引を戻す</span>
-        <span v-if="txItems.length" class="ttab__cnt">{{ txItems.length }}</span>
+      <!-- 非表示にしたイベントと、削除した取引を1つにまとめる。
+           カードごとに「非表示 / 削除した立替 / 精算済み」の札が付くので、
+           1つの一覧でも何を戻すのかは分かる。 -->
+      <button class="ttab" :class="{ 'is-on': tab === 'restore' }" @click="tab = 'restore'">
+        <svg class="ttab__icon" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4.5V10h5.5"/></svg>
+        <span>復元できる取引</span>
+        <span v-if="restoreItems.length" class="ttab__cnt">{{ restoreItems.length }}</span>
       </button>
       <button class="ttab" :class="{ 'is-on': tab === 'pending' }" @click="tab = 'pending'">
         <svg class="ttab__icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
@@ -25,7 +23,7 @@
     <p v-if="actionError" class="load-error" role="alert">{{ actionError }}</p>
 
     <!-- イベント / 取引 タブ（削除・完了したもの） -->
-    <div v-if="tab === 'event' || tab === 'tx'" class="list">
+    <div v-if="tab === 'restore'" class="list">
       <template v-if="loading">
         <div v-for="n in 3" :key="'sk' + n" class="tcard tcard--sk">
           <div class="tcard__head">
@@ -45,7 +43,7 @@
             <path d="M10 11v6" /><path d="M14 11v6" />
           </svg>
         </span>
-        <p>{{ tab === 'event' ? '非表示にしたイベントはありません' : '復元できる取引記録はありません' }}</p>
+        <p>元に戻せるものはありません</p>
       </div>
 
       <div v-for="item in currentItems" :key="item._loc + item.id" class="tcard">
@@ -132,7 +130,7 @@ import {
 import PageHeader from '@/components/PageHeader.vue';
 import BaseModal from '@/components/BaseModal.vue';
 
-const tab = ref('event');
+const tab = ref('restore');
 const userItems = ref([]);   // 自分専用（イベントの非表示など）
 const sharedItems = ref([]); // 共有ゴミ箱（取引・両当事者が見られる）
 const loading = ref(true);   // 初回読込中は true（スケルトン表示）
@@ -155,14 +153,12 @@ const items = computed(() => {
 // 保留＝相手の承認待ち(pending) or 復元後の相手確認待ち(restored)
 const trashedItems = computed(() => items.value.filter(i => i.status !== 'pending' && i.status !== 'restored'));
 const pendingItems = computed(() => items.value.filter(i => i.status === 'pending' || i.status === 'restored'));
-// イベントと取引を分ける
-const eventItems = computed(() => trashedItems.value.filter(i => i.type === 'event'));
-const txItems = computed(() => trashedItems.value.filter(i => i.type !== 'event'));
-const currentItems = computed(() => (tab.value === 'event' ? eventItems.value : txItems.value));
+// 非表示のイベントと削除した取引をまとめて1つの一覧にする
+const restoreItems = computed(() => trashedItems.value);
+const currentItems = computed(() => restoreItems.value);
 const tabHint = computed(() => {
-  if (tab.value === 'event') return '自分の一覧から非表示にしたイベントです。イベント本体や、ほかの参加者の一覧には影響しません。';
-  if (tab.value === 'tx') return '削除した立て替えと精算済みの記録を確認します。共有する記録は手動で消せません。安全な復元処理の接続中は操作できません。';
-  return '復元の確認、または未精算に戻す承認を待っています。判断中の記録は手動で消せません。現行では元の削除日から7日で自動整理されます。';
+  if (tab.value === 'restore') return '非表示にしたイベントと、削除した立て替えを戻します。精算済みを未精算へ戻す依頼もここから行います。共有する記録は手動で消せません。';
+  return '相手の確認を待っている操作です。ここから同じ操作を繰り返すことはできません。元の削除日から7日で自動的に整理されます。';
 });
 
 const itemUsesEventSettlement = (item) => (item?.transactionSnapshots || [])
