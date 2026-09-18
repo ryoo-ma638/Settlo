@@ -25,7 +25,7 @@ test('要確認があるときだけ、その注記を足す', () => {
   assert.equal(none.notes.length, 0);
   const some = headlineOf(make({ pay: { unpaid: g(500, 1), review: g(2000, 1) } }), 'pay');
   assert.deepEqual(some.notes.map(n => n.kind), ['review']);
-  assert.equal(some.notes[0].text, '送金状況の確認が必要 ¥2,000');
+  assert.equal(some.notes[0].text, '送金状況の確認が必要 ¥2,000・1件');
 });
 
 test('イベント分が混ざっているときは「うち◯円」と書く', () => {

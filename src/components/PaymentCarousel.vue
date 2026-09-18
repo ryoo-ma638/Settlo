@@ -29,6 +29,7 @@
               <span class="detail-sub">{{ headline.receive.caption }}</span>
               <span class="detail-label"><span class="dir-arrow" aria-hidden="true">↙</span>受け取る</span>
               <div class="price-large">¥{{ headline.receive.amount.toLocaleString() }}</div>
+              <p v-if="headline.receive.count" class="headline-count">あと{{ headline.receive.count }}件</p>
               <p v-for="note in headline.receive.notes" :key="note.kind" class="headline-note" :class="`headline-note--${note.kind}`">
                 <span v-if="note.kind === 'review'" class="review-symbol" aria-hidden="true">!</span>{{ note.text }}
               </p>
@@ -63,6 +64,7 @@
                 <span class="summary-total__caption">{{ headline[side.key].caption }}</span>
                 <span class="summary-total__badge"><span aria-hidden="true">{{ side.key === 'receive' ? '↙' : '↗' }}</span> {{ side.title }}</span>
                 <strong class="summary-total__amount" :class="{ 'summary-total__amount--long': headline[side.key].amount >= 1000000 }">¥{{ headline[side.key].amount.toLocaleString() }}</strong>
+                <span class="summary-total__count">{{ headline[side.key].count ? `あと${headline[side.key].count}件` : '0件' }}</span>
                 <span v-for="note in headline[side.key].notes" :key="note.kind" class="summary-total__note" :class="`summary-total__note--${note.kind}`">
                   <span v-if="note.kind === 'review'" class="review-symbol" aria-hidden="true">!</span>{{ note.short }}
                 </span>
@@ -111,6 +113,7 @@
               <span class="detail-sub">{{ headline.pay.caption }}</span>
               <span class="detail-label"><span class="dir-arrow" aria-hidden="true">↗</span>支払う</span>
               <div class="price-large">¥{{ headline.pay.amount.toLocaleString() }}</div>
+              <p v-if="headline.pay.count" class="headline-count">あと{{ headline.pay.count }}件</p>
               <p v-for="note in headline.pay.notes" :key="note.kind" class="headline-note" :class="`headline-note--${note.kind}`">
                 <span v-if="note.kind === 'review'" class="review-symbol" aria-hidden="true">!</span>{{ note.text }}
               </p>
@@ -315,6 +318,7 @@ const props = defineProps({
   .detail-label { display: block; font-size: 14px; opacity: 1; font-weight: bold; margin-top: 2px; }
   .dir-arrow { margin-right: 3px; }
   .price-large { font-size: 38px; font-weight: 900; letter-spacing: -1px; margin-top: 5px; }
+  .headline-count { margin: 4px 0 0; font-size: 12px; font-weight: var(--fw-bold); opacity: 0.85; }
   .headline-note { margin: 8px auto 0; width: fit-content; max-width: 100%; padding: 5px 10px; border-radius: var(--r-pill); background: rgba(255,255,255,0.2); font-size: 11px; font-weight: var(--fw-bold); line-height: 1.4; }
   /* カードの背景が濃いので、ここでは丸印も白で描く */
   .headline-note .review-symbol { color: inherit; }
@@ -375,6 +379,7 @@ const props = defineProps({
   .ledger-pending__row--receive .ledger-pending__value strong { color: var(--c-receive-strong); }
   .ledger-pending__row--pay .ledger-pending__value strong { color: var(--c-pay-strong); }
   /* 大きい数字の下に足す注記。イベント分と要確認分の内訳 */
+  .summary-total__count { margin-top: 3px; font-size: 11px; font-weight: var(--fw-bold); color: var(--c-text-sub); white-space: nowrap; }
   .summary-total__note { margin-top: 4px; font-size: 10px; line-height: 1.4; color: var(--c-text-sub); white-space: nowrap; }
   .summary-total__note--review { color: #826035; }
   .review-symbol { display: inline-flex; align-items: center; justify-content: center; width: 11px; height: 11px; margin-right: 3px; border: 1px solid currentColor; border-radius: 50%; font-size: 8px; color: #826035; }
