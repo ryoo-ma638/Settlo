@@ -115,7 +115,7 @@
 import { auth, db } from "../firebase";
 import { signOut } from "firebase/auth";
 import { useRouter } from "vue-router";
-import { ref, onMounted } from "vue";
+import { ref, onMounted, nextTick } from "vue";
 import { doc, getDoc } from "firebase/firestore";
 import PageHeader from "../components/PageHeader.vue";
 import BaseModal from "@/components/BaseModal.vue";
@@ -157,6 +157,16 @@ const copyMyId = async () => {
   }
 };
 
+// 🌟 サインアウトの前に、必ずログイン画面へ移す。
+//    先にサインアウトすると、開いたままの購読が一斉に権限エラーを出す
+//    （読み込めなかった扱いになり、画面に失敗の表示が一瞬出ることがある）。
+//    画面を移せば各画面の後片付けで購読が止まるので、そのあとで切る。
+const leaveThenSignOut = async () => {
+  await router.push('/login');
+  await nextTick();
+  await signOut(auth);
+};
+
 // 🌟 お試しを最初からやり直す。
 //    展示で同じ端末を次の人へ渡すとき、前の人が動かしたデータと
 //    案内の進み具合が残っていると、次の人が途中から始めることになる。
@@ -170,8 +180,7 @@ const restartDemo = () => {
     confirmText: 'やり直す',
     onConfirm: async () => {
       resetGuestGuide();
-      try { await signOut(auth); } catch (e) { console.error('やり直しに失敗しました', e); }
-      router.push('/login');
+      try { await leaveThenSignOut(); } catch (e) { console.error('やり直しに失敗しました', e); }
     },
   };
 };
@@ -179,8 +188,7 @@ const restartDemo = () => {
 const logout = async () => {
   try {
     try { await unregisterPushForCurrentDevice(auth.currentUser?.uid); } catch (e) { console.error('端末通知の解除に失敗しました', e); }
-    await signOut(auth);
-    router.push("/login");
+    await leaveThenSignOut();
   } catch (error) {
     console.error("ログアウトエラー", error);
   }
