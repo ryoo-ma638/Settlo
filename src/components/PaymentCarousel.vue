@@ -257,21 +257,27 @@ const props = defineProps({
   .payment-status-carousel { margin-bottom: 16px; }
   .section-title { font-size: 16px; margin: 10px 16px 10px; font-weight: var(--fw-bold); color: var(--c-ink); }
   
-  /* 隣のカードをのぞかせる幅と左右ボタンの大きさは、ここで一括で決める。
-     以前は のぞき幅=5%(親基準) と すき間=4vw(画面基準) が混ざっていたため、
-     画面サイズごとに青とオレンジの帯の太さとボタンの位置関係がずれていた。 */
-  .carousel-outer { position: relative; display: flex; align-items: center; --peek: 16px; --arrow: 36px; }
+  /* 隣のカードの見え方は、ここの2つの値だけで決まる。
+     以前は カードの余白=5%(親基準) と すき間=4vw(画面基準) で単位が混ざっていたため、
+     画面サイズごとに隣のカードの太さとボタンの位置関係がずれていた。
+     --inset … 真ん中のカードの左右の余白
+     --gap   … カード同士のすき間。隣のカードが見える幅は --inset から --gap を引いた分になる
+     どちらも固定pxなので、画面幅が変わっても見え方は変わらない。 */
+  .carousel-outer {
+    position: relative; display: flex; align-items: center;
+    --inset: 28px; --gap: 8px; --arrow: 36px;
+    /* ホームの左右余白を打ち消して、隣のカードをアプリの左端・右端まで届かせる。
+       これをしないと、端との間にすき間が空いて色の帯が浮いて見える。 */
+    margin-inline: calc(var(--pad) * -1);
+  }
   .carousel-wrapper {
     display: flex; align-items: stretch; overflow-y: hidden; overflow-x: auto;
-    scroll-snap-type: x mandatory; padding: 0 var(--peek) 8px;
+    scroll-snap-type: x mandatory; padding: 0 var(--inset) 8px; gap: var(--gap);
     scrollbar-width: none; -webkit-overflow-scrolling: touch; width: 100%; box-sizing: border-box;
-    /* すき間を左右の余白と同じ幅にすると、隣のカードの端がちょうど画面外に収まる。
-       青とオレンジの帯が出ないのはこのため。カードが何枚あるかは下の点で分かる。 */
-    gap: var(--peek);
   }
   .carousel-wrapper::-webkit-scrollbar { display: none; }
   
-  /* 100% は左右の余白を除いた幅。ここから更に引くとカードが二重に細くなる */
+  /* 100% は左右の余白(--inset)を除いた幅。ここから更に引くとカードが二重に細くなる */
   .status-card { flex: 0 0 100%; border-radius: var(--r-lg); padding: 20px; box-shadow: var(--shadow-card); scroll-snap-align: center; display: flex; flex-direction: column; justify-content: center; box-sizing: border-box; transition: transform 0.3s ease; min-height: 156px; }
   
   /* 🌟 追加：タップできることを示すカーソルとエフェクト */
@@ -348,8 +354,8 @@ const props = defineProps({
 
   .nav-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: var(--arrow); height: var(--arrow); background-color: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); border-radius: 50%; border: 1px solid rgba(0,0,0,0.05); box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; z-index: 20; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); padding: 0; }
   .nav-arrow:active { transform: translateY(-50%) scale(0.85); background-color: #fff; }
-  .left-arrow { left: calc(var(--peek) / 2); }
-  .right-arrow { right: calc(var(--peek) / 2); }
+  .left-arrow { left: var(--gap); }
+  .right-arrow { right: var(--gap); }
   .chevron { display: inline-block; border-right: 3px solid var(--c-text); border-bottom: 3px solid var(--c-text); width: 10px; height: 10px; }
   .left { transform: rotate(135deg); margin-left: 4px; }
   .right { transform: rotate(-45deg); margin-right: 4px; }
