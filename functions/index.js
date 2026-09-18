@@ -661,6 +661,8 @@ exports.setupGuestDemo = onCall(
       toUserId: uid, type: "payment_reminder",
       message: "レンタカー代（¥3,000）をお願いします！",
       transactionId: tx3.id,
+      // 過去のお知らせから中身を確かめられるよう、実際の通知と同じ項目を入れておく
+      eventName: "札幌旅行（デモ）", itemName: "レンタカー", amount: 3000,
       fromUserId: TARO, fromUserName: "デモ太郎",
       isRead: false, createdAt: now,
     });

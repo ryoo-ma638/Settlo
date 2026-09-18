@@ -104,6 +104,22 @@
                     <div class="notif-body">
                       <p><strong>{{ senderName(req) }}</strong>{{ notifText(req) }}</p>
                       <p v-if="req.message && !isEventSettlementType(req.type)" class="notif-sub">{{ req.message }}</p>
+                      <!-- 何の知らせだったのかを開いて確かめられるようにする -->
+                      <button class="past-detail-toggle" @click="togglePast(req.id)">
+                        {{ openedPastId === req.id ? '閉じる' : '中身を見る' }}
+                      </button>
+                      <div v-if="openedPastId === req.id" class="past-detail">
+                        <dl v-if="detailOf(req).rows.length" class="past-detail__rows">
+                          <div v-for="row in detailOf(req).rows" :key="row.label">
+                            <dt>{{ row.label }}</dt><dd>{{ row.value }}</dd>
+                          </div>
+                        </dl>
+                        <p v-if="detailOf(req).note" class="past-detail__note">{{ detailOf(req).note }}</p>
+                        <p v-if="detailOf(req).when" class="past-detail__when">届いた日時：{{ detailOf(req).when }}</p>
+                        <p v-if="!detailOf(req).rows.length && !detailOf(req).note" class="past-detail__none">
+                          このお知らせには、これ以上の内訳が残っていません。
+                        </p>
+                      </div>
                     </div>
                   </div>
                   <p v-if="pastNotifs.length < pastTotal" class="past-more">新しい{{ pastNotifs.length }}件を表示しています</p>
@@ -206,6 +222,21 @@
               <div class="notif-body">
                 <p><strong>{{ senderName(req) }}</strong>{{ notifText(req) }}</p>
                 <p v-if="req.message && !isEventSettlementType(req.type)" class="notif-sub">{{ req.message }}</p>
+                <button class="past-detail-toggle" @click="togglePast(req.id)">
+                  {{ openedPastId === req.id ? '閉じる' : '中身を見る' }}
+                </button>
+                <div v-if="openedPastId === req.id" class="past-detail">
+                  <dl v-if="detailOf(req).rows.length" class="past-detail__rows">
+                    <div v-for="row in detailOf(req).rows" :key="row.label">
+                      <dt>{{ row.label }}</dt><dd>{{ row.value }}</dd>
+                    </div>
+                  </dl>
+                  <p v-if="detailOf(req).note" class="past-detail__note">{{ detailOf(req).note }}</p>
+                  <p v-if="detailOf(req).when" class="past-detail__when">届いた日時：{{ detailOf(req).when }}</p>
+                  <p v-if="!detailOf(req).rows.length && !detailOf(req).note" class="past-detail__none">
+                    このお知らせには、これ以上の内訳が残っていません。
+                  </p>
+                </div>
               </div>
             </div>
             <p v-if="pastNotifs.length < pastTotal" class="past-more">新しい{{ pastNotifs.length }}件を表示しています</p>
@@ -246,6 +277,7 @@ import { useRouter } from 'vue-router';
 import BaseModal from './BaseModal.vue';
 import NotifBadge from './NotifBadge.vue';
 import { splitNotifications } from '@/lib/notificationPolicy';
+import { notificationDetail } from '@/lib/notificationDetail';
 import { db, auth } from '@/firebase';
 import {
   collection, query, where, onSnapshot, getDocs,
@@ -311,6 +343,10 @@ const paymentReqs = computed(() => notifSplit.value.active);
 const pastNotifs = computed(() => notifSplit.value.archived);
 const pastTotal = computed(() => notifSplit.value.archivedTotal);
 const showPast = ref(false);
+// 過去のお知らせは、押した1件だけ中身を開く
+const openedPastId = ref('');
+const togglePast = (id) => { openedPastId.value = openedPastId.value === id ? '' : id; };
+const detailOf = (req) => notificationDetail(req);
 const EVENT_SETTLEMENT_TYPES = [
   'event_settlement_started',
   'event_settlement_approval_request',
@@ -807,7 +843,7 @@ const confirmRestoreNg = (req) => {
 
 // 🌟 「〇〇さんが抜けました」に「正しくない」＝削除した人へ再確認を促す通知
 const rejectEventLeft = (req) => {
-  askConfirm('「正しくない」を選びますか？', `${senderName(req)}さんに「削除が正しいか再確認してください」と通知します（「取引を元に戻す」から戻せます）。`, async (reason) => {
+  askConfirm('「正しくない」を選びますか？', `${senderName(req)}さんに「削除が正しいか再確認してください」と通知します（「元に戻す」から戻せます）。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;
       await addDoc(collection(db, "notifications"), {
@@ -966,7 +1002,7 @@ const acceptDeleteRejection = (req) => {
     try {
       const ok = await restorePaymentFromTrash(req);
       if (!ok) {
-        notice('error', '元に戻せませんでした', '控えが見つかりませんでした（自動で片付いた可能性があります）。マイページの「取引を元に戻す」を確認してください。');
+        notice('error', '元に戻せませんでした', '控えが見つかりませんでした（自動で片付いた可能性があります）。マイページの「元に戻す」を確認してください。');
         return; // 通知は残す
       }
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
@@ -1541,4 +1577,22 @@ defineExpose({ open });
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+.past-detail-toggle {
+  margin-top: 6px; padding: 4px 10px;
+  background: none; border: 1px solid var(--c-line, #e5e7eb); border-radius: 999px;
+  font-size: 11px; font-weight: 700; color: var(--c-text-sub, #6b7280); cursor: pointer;
+}
+.past-detail-toggle:active { background: var(--c-line, #eef2f7); }
+.past-detail {
+  margin-top: 8px; padding: 10px 12px;
+  background: var(--c-surface-2, #f8fafc); border-radius: 10px;
+}
+.past-detail__rows { margin: 0; }
+.past-detail__rows > div { display: flex; gap: 10px; font-size: 12px; line-height: 1.7; }
+.past-detail__rows dt { flex: 0 0 auto; width: 4.5em; color: var(--c-text-sub, #6b7280); margin: 0; }
+.past-detail__rows dd { margin: 0; min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
+.past-detail__note { margin: 8px 0 0; font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.past-detail__when { margin: 8px 0 0; font-size: 11px; color: var(--c-text-faint, #94a3b8); }
+.past-detail__none { margin: 0; font-size: 12px; color: var(--c-text-sub, #6b7280); }
 </style>

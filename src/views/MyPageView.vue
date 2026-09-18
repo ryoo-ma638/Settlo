@@ -62,7 +62,7 @@
 
         <button class="menu__item" @click="$router.push('/trash')">
           <svg class="menu__icon" viewBox="0 0 24 24"><path d="M3.5 9.5h6v-6"/><path d="M4.2 14.5a8 8 0 1 0 1.1-6"/></svg>
-          <span class="menu__label">取引を元に戻す</span>
+          <span class="menu__label">元に戻す</span>
           <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
         </button>
           </div>

@@ -38,7 +38,7 @@ test('「お支払いを追加」も同じ作りのまま（片方だけ直し�
 
 test('押したラベルと、開く画面の名前が同じ', () => {
   const pairs = [
-    ['取引を元に戻す', trash],
+    ['元に戻す', trash],
     ['相談', chatList],
   ];
   for (const [label, view] of pairs) {
