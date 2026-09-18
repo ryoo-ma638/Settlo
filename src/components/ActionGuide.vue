@@ -15,7 +15,7 @@
     </div>
 
     <div v-if="actions.length" class="guide__list">
-      <div v-for="(a, i) in actions.slice(0, 3)" :key="i" class="gact">
+      <div v-for="(a, i) in shownActions" :key="i" class="gact">
         <span class="gact__ic" :class="'gact__ic--' + a.kind">
           <svg v-if="a.kind === 'approve'" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" /></svg>
           <svg v-else-if="a.kind === 'pay'" viewBox="0 0 24 24"><rect x="2.5" y="5.5" width="19" height="13" rx="3"/><path d="M2.5 10h19"/></svg>
@@ -24,16 +24,24 @@
         <span class="gact__text">{{ a.text }}</span>
         <button class="gact__btn" @click="$emit('navigate'); $router.push(a.to)">{{ a.cta }}</button>
       </div>
-      <p v-if="actions.length > 3" class="guide__more">ほか {{ actions.length - 3 }} 件あります</p>
+      <!-- 押せない残数の文章だけ出していたので、開いて操作できるようにした -->
+      <button v-if="actions.length > 3" type="button" class="guide__more" @click="expanded = !expanded">
+        {{ expanded ? '最初の3件だけ表示' : `ほか ${actions.length - 3} 件を表示` }}
+      </button>
     </div>
     <p v-else class="guide__done">すべて精算できています。いい感じです。</p>
   </section>
 </template>
 
 <script setup>
+import { ref, computed } from 'vue';
 // actions: [{ kind: 'approve'|'pay'|'remind', text, cta, to }]
-defineProps({ actions: { type: Array, default: () => [] } });
+const props = defineProps({ actions: { type: Array, default: () => [] } });
 defineEmits(['navigate']); // アクションを押して遷移したら親（パネル）を閉じる
+
+// 最初は3件だけ。押すと残りも開いて、そのまま操作できる。
+const expanded = ref(false);
+const shownActions = computed(() => (expanded.value ? props.actions : props.actions.slice(0, 3)));
 </script>
 
 <style scoped>
@@ -71,6 +79,6 @@ defineEmits(['navigate']); // アクションを押して遷移したら親（�
   background: var(--c-brand); color: #fff; font-size: 12.5px; font-weight: var(--fw-black);
 }
 .gact__btn:active { transform: scale(0.96); background: var(--c-brand-strong); }
-.guide__more { font-size: 12px; color: var(--c-text-faint); font-weight: var(--fw-bold); margin-top: 2px; }
+.guide__more { display: block; width: 100%; padding: 8px 2px; border: 0; background: none; text-align: left; cursor: pointer; font-size: 12px; color: var(--c-text-faint); font-weight: var(--fw-bold); margin-top: 2px; }
 .guide__done { margin-top: 10px; font-size: 13px; color: var(--c-text-sub); font-weight: var(--fw-medium); }
 </style>

@@ -10,7 +10,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { eventExitState, myOutstanding, isHiddenFor, splitHiddenEvents } from '../src/lib/eventMembership.js';
+import { eventExitState, myOutstanding, isHiddenFor, splitHiddenEvents, ongoingEventsOf } from '../src/lib/eventMembership.js';
 
 const ME = 'me', A = 'a', B = 'b';
 const ev = (extra = {}) => ({ participants: [ME, A, B], leaderUid: A, ...extra });
@@ -118,4 +118,33 @@ test('hiddenBy が無い・こわれていても落ちない', () => {
   assert.equal(isHiddenFor({ id: 'a', hiddenBy: 'x' }, ME), false);
   const split = splitHiddenEvents(null, ME);
   assert.deepEqual(split.visible, []);
+});
+
+// ---- ホームの「進行中のイベント」 ----
+
+test('終了したイベントは進行中に出さない', () => {
+  const ev = (id, ended, sec) => ({ id, ended, createdAt: { seconds: sec } });
+  const result = ongoingEventsOf([ev('a', false, 1), ev('b', true, 9), ev('c', false, 5)]);
+  assert.deepEqual(result.map((e) => e.id), ['c', 'a']);
+});
+
+test('新しい順に並べる。作成日時が無いものは最後へ', () => {
+  const result = ongoingEventsOf([
+    { id: 'old', createdAt: { seconds: 100 } },
+    { id: 'none' },
+    { id: 'new', createdAt: { seconds: 900 } },
+  ]);
+  assert.deepEqual(result.map((e) => e.id), ['new', 'old', 'none']);
+});
+
+test('終了したかどうかが未設定なら、進行中として扱う', () => {
+  assert.deepEqual(ongoingEventsOf([{ id: 'a' }]).map((e) => e.id), ['a']);
+  assert.deepEqual(ongoingEventsOf([{ id: 'a', ended: false }]).map((e) => e.id), ['a']);
+  assert.deepEqual(ongoingEventsOf([{ id: 'a', ended: true }]), []);
+});
+
+test('空・こわれた入力でも落ちない', () => {
+  assert.deepEqual(ongoingEventsOf(), []);
+  assert.deepEqual(ongoingEventsOf(null), []);
+  assert.deepEqual(ongoingEventsOf([null, undefined]), []);
 });

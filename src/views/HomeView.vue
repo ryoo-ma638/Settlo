@@ -122,12 +122,12 @@ import { db, auth } from '@/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, onSnapshot, getDoc, doc, deleteDoc, updateDoc, addDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { buildPaymentOverview } from '@/lib/paymentOverview.js';
+import { ongoingEventsOf } from '@/lib/eventMembership';
 import PaymentCarousel from '@/components/PaymentCarousel.vue';
 import BaseModal from '@/components/BaseModal.vue'; // 🌟 Eventブランチの統一モーダル
 import InviteCard from '@/components/InviteCard.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import { subscribePendingInvites } from '@/lib/invite';
-import api from '@/services/api';
 import { getMyName } from '@/lib/userName';
 
 const router = useRouter();
@@ -254,7 +254,8 @@ const subscribeEvents = (myUid) => {
       }));
 
       if (seq !== eventsSeq) return; // 追い越された古い結果は捨てる
-      ongoingEvents.value = formattedEvents;
+      // 終了したイベントは「進行中」に出さない。並びはイベント一覧と同じ新しい順。
+      ongoingEvents.value = ongoingEventsOf(formattedEvents);
     } catch (error) {
       console.error("イベントの整形に失敗:", error);
     } finally {
