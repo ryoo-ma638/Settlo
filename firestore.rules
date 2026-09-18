@@ -181,7 +181,13 @@ service cloud.firestore {
 
     // ---- 会話スレッド（件ごとのメッセージ・その件の当事者のみ） ----
     match /threads/{threadId} {
-      allow read:   if isSignedIn() && request.auth.uid in resource.data.participants;
+      // ⚠️ 2026-09-18 修正。
+      //   まだ無いスレッドを読むと resource が null になり、参加者の判定でエラーになって
+      //   拒否されていた。立て替えのグループチャットは「読んでから書く」作りなので、
+      //   この読み取りで止まり、**チャットが一度も作られていなかった**。
+      //   無い文書の読み取りだけ通す（中身は何も返らない）。一覧の取得には影響しない。
+      allow read:   if isSignedIn()
+                      && (resource == null || request.auth.uid in resource.data.participants);
       allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants;
       // ⚠️ 2026-09-18 修正。
       //   以前は「自分を participants に入れて更新すれば通る」ため、スレッドIDを知っていれば

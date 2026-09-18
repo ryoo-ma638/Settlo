@@ -139,3 +139,21 @@ test('S6 自分の名前で送る通知は、これまでどおり作れる', as
   await set(doc(stranger, 'notifications', id), { toUserId: 'u-owner', fromUserId: 'u-stranger', type: 'payment_reminder' });
   assert.ok((await getDoc(doc(owner, 'notifications', id))).exists() === false || true);
 });
+
+test('立て替えのグループチャットを、立替者が新規に作れる', async () => {
+  // ensurePaymentThread は「読んでから書く」。まだ無いスレッドの読み取りが拒否されると
+  // ここで止まり、チャットが一度も作られない（実際に本番でそうなっていた）。
+  const { runTransaction } = sdk;
+  const ref = doc(owner, 'threads', `pay-${Date.now().toString(36)}`);
+  await runTransaction(owner, async (tx) => {
+    await tx.get(ref);
+    tx.set(ref, { participants: ['u-owner', 'u-member'], creditorUid: 'u-owner' }, { merge: true });
+  });
+  assert.ok((await getDoc(doc(owner, 'threads', ref.id))).exists());
+});
+
+test('無い文書が読めても、他人のスレッドは読めないまま', async () => {
+  const id = `s2c-${Date.now().toString(36)}`;
+  await setDoc(doc(owner, 'threads', `th-${id}`), { participants: ['u-owner', 'u-member'] });
+  await assert.rejects(getDoc(doc(stranger, 'threads', `th-${id}`)), denied);
+});
