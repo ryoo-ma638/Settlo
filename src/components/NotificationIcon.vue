@@ -91,6 +91,24 @@
               </div>
 
               <div v-if="totalNotifs === 0" class="empty-msg">新しいお知らせはありません</div>
+
+              <!-- 一度確認したお知らせも消さずに残す。あとから必ず見返せるようにするため。
+                   答える必要があるお知らせは、答えるまで上の一覧に残るのでここには出ない。 -->
+              <div v-if="pastTotal" class="past-block">
+                <button class="past-toggle" type="button" :aria-expanded="showPast" @click="showPast = !showPast">
+                  <span>過去のお知らせ（{{ pastTotal }}件）</span>
+                  <span class="past-chevron" :class="{ open: showPast }" aria-hidden="true">⌄</span>
+                </button>
+                <div v-if="showPast" class="past-list">
+                  <div v-for="req in pastNotifs" :key="req.id" class="notif-item notif-item--past">
+                    <div class="notif-body">
+                      <p><strong>{{ senderName(req) }}</strong>{{ notifText(req) }}</p>
+                      <p v-if="req.message && !isEventSettlementType(req.type)" class="notif-sub">{{ req.message }}</p>
+                    </div>
+                  </div>
+                  <p v-if="pastNotifs.length < pastTotal" class="past-more">新しい{{ pastNotifs.length }}件を表示しています</p>
+                </div>
+              </div>
             </div>
             <button class="close-modal-btn" @click="showModal = false">閉じる</button>
           </div>
@@ -175,6 +193,24 @@
           </div>
         </div>
         <div v-if="totalNotifs === 0" class="empty-msg">新しいお知らせはありません</div>
+
+        <!-- 一度確認したお知らせも消さずに残す。あとから必ず見返せるようにするため。
+             答える必要があるお知らせは、答えるまで上の一覧に残るのでここには出ない。 -->
+        <div v-if="pastTotal" class="past-block">
+          <button class="past-toggle" type="button" :aria-expanded="showPast" @click="showPast = !showPast">
+            <span>過去のお知らせ（{{ pastTotal }}件）</span>
+            <span class="past-chevron" :class="{ open: showPast }" aria-hidden="true">⌄</span>
+          </button>
+          <div v-if="showPast" class="past-list">
+            <div v-for="req in pastNotifs" :key="req.id" class="notif-item notif-item--past">
+              <div class="notif-body">
+                <p><strong>{{ senderName(req) }}</strong>{{ notifText(req) }}</p>
+                <p v-if="req.message && !isEventSettlementType(req.type)" class="notif-sub">{{ req.message }}</p>
+              </div>
+            </div>
+            <p v-if="pastNotifs.length < pastTotal" class="past-more">新しい{{ pastNotifs.length }}件を表示しています</p>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -209,6 +245,7 @@ import { ref, computed, onMounted, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import BaseModal from './BaseModal.vue';
 import NotifBadge from './NotifBadge.vue';
+import { splitNotifications } from '@/lib/notificationPolicy';
 import { db, auth } from '@/firebase';
 import {
   collection, query, where, onSnapshot, getDocs,
@@ -265,7 +302,15 @@ const openThreadFromReply = async (req) => {
   }});
 };
 const friendReqs = ref([]);
-const paymentReqs = ref([]);
+// 受け取ったお知らせ全部（既読も含む）。ここから「いま出す分」と「過去」に分ける。
+const allPaymentNotifs = ref([]);
+const notifSplit = computed(() => splitNotifications(allPaymentNotifs.value));
+// いま出す分＝未読。答える必要があるものは、答えるまで既読にならないので残り続ける。
+const paymentReqs = computed(() => notifSplit.value.active);
+// 過去＝確認済み・答え終わったもの。消さずに残す。
+const pastNotifs = computed(() => notifSplit.value.archived);
+const pastTotal = computed(() => notifSplit.value.archivedTotal);
+const showPast = ref(false);
 const EVENT_SETTLEMENT_TYPES = [
   'event_settlement_approval_request',
   'event_settlement_rejected',
@@ -367,13 +412,14 @@ const notifClass = (req) => {
   return 'notif-item--pay';
 };
 
-const totalNotifs = computed(() => friendReqs.value.length + paymentReqs.value.length);
+// ベルの数字は未読だけ。過去のお知らせは数えない。
+const totalNotifs = computed(() => friendReqs.value.length + notifSplit.value.unreadCount);
 
 onMounted(() => {
   auth.onAuthStateChanged((user) => {
     if (!user) {
       friendReqs.value = [];
-      paymentReqs.value = [];
+      allPaymentNotifs.value = [];
       return;
     }
 
@@ -386,15 +432,14 @@ onMounted(() => {
       friendReqs.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     });
 
+    // 既読も含めて読む。未読だけを読むと、一度確認したお知らせを二度と見返せない。
+    // 条件が1つだけなので、複合インデックスは増えない。
     const qPayment = query(
       collection(db, "notifications"),
-      where("toUserId", "==", user.uid),
-      where("isRead", "==", false)
+      where("toUserId", "==", user.uid)
     );
     onSnapshot(qPayment, (snapshot) => {
-      paymentReqs.value = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)); // 新しい順
+      allPaymentNotifs.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       repairSenderNames(paymentReqs.value); // 名前が壊れているお知らせを補正
     });
   });
@@ -1468,6 +1513,13 @@ defineExpose({ open });
   border: 1px solid var(--c-line-bold);
 }
 
+.past-block { margin-top: 10px; border-top: 1px solid var(--c-line); padding-top: 8px; }
+.past-toggle { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 8px 4px; border: 0; background: none; cursor: pointer; font-size: 12.5px; color: var(--c-text-sub); }
+.past-chevron { transition: transform 0.2s ease; }
+.past-chevron.open { transform: rotate(180deg); }
+.past-list { display: flex; flex-direction: column; gap: 6px; padding-bottom: 4px; }
+.notif-item--past { opacity: 0.72; }
+.past-more { margin: 2px 4px 0; font-size: 11px; color: var(--c-text-sub); }
 .empty-msg {
   text-align: center; color: var(--c-text-faint); font-size: 14px;
   font-weight: var(--fw-medium); padding: 40px 0;
