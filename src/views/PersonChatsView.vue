@@ -44,6 +44,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { db, auth } from '@/firebase';
 import { collection, query, where, onSnapshot, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import PageHeader from '../components/PageHeader.vue';
+import { isSelfName } from '@/lib/selfName';
 
 const route = useRoute();
 const router = useRouter();
@@ -111,7 +112,8 @@ const subscribe = () => {
       if ((t.hiddenBy || []).includes(myUid)) return; // 削除（非表示）した会話は出さない
       if ((t.participants || []).includes(otherUidParam)) {
         list.push(t);
-        if (t.participantNames && t.participantNames[otherUidParam]) otherName.value = t.participantNames[otherUidParam];
+        const stored = t.participantNames && t.participantNames[otherUidParam];
+        if (!isSelfName(stored)) otherName.value = stored;
       }
     });
     // 新しい順（複合インデックス不要にするためクライアント側で並べ替え）

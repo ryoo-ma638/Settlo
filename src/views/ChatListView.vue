@@ -53,6 +53,7 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import PageHeader from '../components/PageHeader.vue';
 import { formatDate } from '../lib/format';
 import { avatarColor, avatarInitial } from '@/lib/avatar';
+import { displayName } from '@/lib/selfName';
 
 const myUid = auth.currentUser?.uid || '';
 const matters = ref([]);   // 表示対象のスレッド（件）一覧
@@ -95,7 +96,9 @@ const subscribe = () => {
       if ((t.hiddenBy || []).includes(myUid)) return; // 片付けた（非表示）件は出さない
       const others = (t.participants || [])
         .filter((u) => u !== myUid)
-        .map((u) => ({ uid: u, name: (t.participantNames && t.participantNames[u]) || '相手' }));
+        // 古いデータには「あなた」「自分」が名前として保存されている。
+        // そのまま出すと、相手の欄に「相手：あなた」と出てしまう。
+        .map((u) => ({ uid: u, name: displayName(t.participantNames && t.participantNames[u]) }));
       const isGroup = (t.participants || []).length > 2;
       // 相談の起点を先に示す。イベント外の1対1だけ相手名を使う。
       const title = t.eventName || (isGroup ? (t.itemName || 'みんなの精算') : (others[0]?.name || '相手'));

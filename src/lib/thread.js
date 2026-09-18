@@ -34,9 +34,10 @@ export function subjectLabel(notif) {
   switch (notif.type) {
     case 'payment_reminder':
     case 'approval_request':
-      return `${ev}${item}${amt}のお支払いの件`;
+      // 品名もイベント名も金額も無いと「のお支払いの件」だけになってしまう
+      return `${ev}${item}${amt}` ? `${ev}${item}${amt}のお支払いの件` : 'お支払いの件';
     case 'payment_completed':
-      return `${ev}${item}${amt}の精算の件`;
+      return `${ev}${item}${amt}` ? `${ev}${item}${amt}の精算の件` : '精算の件';
     case 'payment_deleted':
     case 'payment_delete_rejected':
       return `${ev}${item || '支払い'}の削除の件`;

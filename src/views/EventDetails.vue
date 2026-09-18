@@ -207,7 +207,7 @@
           <p class="end-hint">全員の精算が済んだら終了します。記録は残ります。</p>
         </template>
         <button class="delete-event-btn" @click="handleDeleteEvent">イベントを削除する</button>
-        <p class="end-hint">自分の画面から非表示にします。7日以内ならゴミ箱から復元できます。</p>
+        <p class="end-hint">自分の画面から非表示にします。イベント一覧の「非表示にしたイベント」からいつでも戻せます。</p>
       </div>
     </main>
 
@@ -910,7 +910,7 @@ const notifyParticipants = async (uids, notifData) => {
 const deletePayment = (h) => {
   if (historyUsesNetSettlement(h)) { explainLockedHistory(); return; }
   modals.value.historyDetail = false; // 詳細シートを先に閉じて、確認を1つだけにする
-  showConfirm('支払いを削除', `「${h.itemName}」（¥${(Number(h.amount) || 0).toLocaleString()}）を削除しますか？\nゴミ箱に入り、7日以内なら元に戻せます。`, async (reason) => {
+  showConfirm('支払いを削除', `「${h.itemName}」（¥${(Number(h.amount) || 0).toLocaleString()}）を削除しますか？\nマイページの「取引を元に戻す」から、7日以内なら元に戻せます。`, async (reason) => {
     try {
       const eventId = route.params.id;
       const myUid = auth.currentUser?.uid;
@@ -957,7 +957,7 @@ const deletePayment = (h) => {
       await updateDoc(doc(db, "events", eventId), { totalAmount: increment(-(Number(h.amount) || 0)) });
       await notifyParticipants(involved, { type: 'payment_deleted', itemName: h.itemName, amount: Number(h.amount) || 0, eventName: eventData.value.name || '', trashId: trashDocId, userMessage: reason || null });
       modals.value.historyDetail = false;
-      showToast('支払いをゴミ箱に移動しました');
+      showToast('支払いを削除しました（「取引を元に戻す」から戻せます）');
     } catch (e) {
       console.error('支払い削除エラー:', e);
       showAlert('error', 'エラー', '支払いの削除に失敗しました。');
@@ -1829,7 +1829,7 @@ const handleReopenEvent = () => {
 const handleDeleteEvent = () => {
   showConfirm(
     'イベントを削除しますか？',
-    'このイベントを自分の画面から削除します。ゴミ箱に入り、7日以内なら復元できます（相手の画面には残ります）。',
+    'このイベントを自分の画面から非表示にします。イベント一覧の「非表示にしたイベント」から戻せます（相手の画面には残ります）。',
     (reason) => deleteEventCompletely(reason),
     { type: 'error', confirmText: '削除する', cancelText: 'やめる', withReason: true, reasonPlaceholder: '削除の理由を書けます（任意・参加者に届きます）' }
   );
@@ -2097,7 +2097,7 @@ const handleDeleteEvent = () => {
 .end-event-btn:disabled { opacity: 0.6; cursor: wait; }
 .end-hint { font-size: 11px; color: var(--c-text-faint); text-align: center; margin: 0 0 18px; font-weight: 700; }
 
-/* 🌟 削除（ゴミ箱行き）は終了と明確に区別 */
+/* 🌟 削除（自分の一覧から非表示）は、イベント終了と見た目で区別する */
 .delete-event-btn { width: 100%; background: #fff; color: var(--c-danger-strong); border: 1.5px solid #fecaca; padding: 12px; border-radius: 12px; font-size: 14px; font-weight: 800; cursor: pointer; transition: 0.2s; }
 .delete-event-btn:active { transform: scale(0.96); background: var(--c-danger-weak); }
 

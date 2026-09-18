@@ -359,7 +359,7 @@ const notifText = (req) => {
   if (req.type === 'event_invite') return `さんがイベント「${req.eventName || ''}」に招待しています。心当たりはありますか？`;
   if (req.type === 'invite_rejected') return `さんがイベント「${req.eventName || ''}」への招待を拒否しました。内容が正しいか再確認してください`;
   if (req.type === 'event_joined') return `さんがイベント「${req.eventName || ''}」に参加しました`;
-  if (req.type === 'event_restored') return `さんがイベント「${req.eventName || ''}」に戻ってきました（ゴミ箱から復元）。これは正しいですか？`;
+  if (req.type === 'event_restored') return `さんがイベント「${req.eventName || ''}」に戻ってきました（非表示から復元）。これは正しいですか？`;
   if (req.type === 'settlement_restore_request') return `さんが決済「${req.itemName || ''}」（¥${(req.amount || 0).toLocaleString()}）を未精算に戻したいそうです。承認しますか？`;
   if (req.type === 'settlement_restore_approved') return `さんが「${req.itemName || ''}」を未精算に戻すことを承認しました`;
   if (req.type === 'settlement_restore_rejected') return `さんが「${req.itemName || ''}」を未精算に戻すことを拒否しました。これは正しいですか？（正しくない＝もう一度依頼します）`;
@@ -374,12 +374,12 @@ const notifText = (req) => {
   if (req.type === 'event_join_rejected') return `さんがイベント「${req.eventName || ''}」への参加リクエストを拒否しました`;
   if (req.type === 'payment_reverted') return `さんが「${req.itemName || ''}」を未精算に戻しました（未払いに戻りました）`;
   if (req.type === 'profile_updated') return 'さんがプロフィールを更新しました';
-  if (req.type === 'restore_check') return `さんが「${req.itemName || ''}」（¥${(req.amount || 0).toLocaleString()}）をゴミ箱から元に戻しました。こちらで正しいですか？`;
-  if (req.type === 'restore_reverted') return `さんが「正しくない」を選び、「${req.itemName || ''}」をゴミ箱に戻しました。これは正しいですか？（正しくない＝もう一度元に戻します）`;
-  if (req.type === 'payment_delete_rejected') return `さんは「${req.itemName || ''}」の削除は正しくないと考えています。これは正しいですか？（正しい＝ゴミ箱から元に戻します／正しくない＝削除を続けます）`;
+  if (req.type === 'restore_check') return `さんが「${req.itemName || ''}」（¥${(req.amount || 0).toLocaleString()}）の削除を取り消して元に戻しました。こちらで正しいですか？`;
+  if (req.type === 'restore_reverted') return `さんが「正しくない」を選び、「${req.itemName || ''}」を削除した状態に戻しました。これは正しいですか？（正しくない＝もう一度元に戻します）`;
+  if (req.type === 'payment_delete_rejected') return `さんは「${req.itemName || ''}」の削除は正しくないと考えています。これは正しいですか？（正しい＝元に戻します／正しくない＝削除を続けます）`;
   if (req.type === 'event_left_check') return `さんがイベント「${req.eventName || ''}」から抜けました（自分の画面から削除）。これは正しいですか？`;
   if (req.type === 'event_left_rejected') return `さんは、あなたがイベント「${req.eventName || ''}」から抜けたのは正しくないと考えています。これは正しいですか？（正しい＝イベントに戻ります／正しくない＝削除を続けます）`;
-  if (req.type === 'event_restore_rejected') return `さんが「正しくない」を選び、イベント「${req.eventName || ''}」をゴミ箱に戻しました。これは正しいですか？（正しくない＝もう一度復帰します）`;
+  if (req.type === 'event_restore_rejected') return `さんが「正しくない」を選び、イベント「${req.eventName || ''}」を再び非表示にしました。これは正しいですか？（正しくない＝もう一度復帰します）`;
   if (req.type === 'approval_request' && (req.batch || (Array.isArray(req.transactionIds) && req.transactionIds.length > 1))) {
     // 双方向のまとめ精算は、あなたの未払いと相殺されている（拒否すると両方向が未払いに戻る）。
     // 承認待ち一覧・決済の詳細と同じ言い回しで「対象／相殺／実質」を出す。
@@ -767,7 +767,7 @@ const confirmRestoreOk = async (req) => {
 
 // 🌟 復元の確認「正しくない」＝復元された取引・履歴を消してゴミ箱に差し戻し、復元した人へ通知
 const confirmRestoreNg = (req) => {
-  askConfirm('「正しくない」を選びますか？', `「${req.itemName || ''}」を削除リスト（ゴミ箱）に戻します。相手に通知が届きます。`, async (reason) => {
+  askConfirm('「正しくない」を選びますか？', `「${req.itemName || ''}」を削除した状態に戻します。相手に通知が届きます。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;
       if (!req.trashId) { await updateDoc(doc(db, "notifications", req.id), { isRead: true }); return; }
@@ -805,7 +805,7 @@ const confirmRestoreNg = (req) => {
 
 // 🌟 「〇〇さんが抜けました」に「正しくない」＝削除した人へ再確認を促す通知
 const rejectEventLeft = (req) => {
-  askConfirm('「正しくない」を選びますか？', `${senderName(req)}さんに「削除が正しいか再確認してください」と通知します（ゴミ箱から戻せます）。`, async (reason) => {
+  askConfirm('「正しくない」を選びますか？', `${senderName(req)}さんに「削除が正しいか再確認してください」と通知します（「取引を元に戻す」から戻せます）。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;
       await addDoc(collection(db, "notifications"), {
@@ -823,7 +823,7 @@ const rejectEventLeft = (req) => {
 
 // 🌟 「〇〇さんが復元しました（戻ってきました）」に「正しくない」＝イベントを実際にゴミ箱へ戻す
 const rejectEventRestore = (req) => {
-  askConfirm('「正しくない」を選びますか？', `イベント「${req.eventName || ''}」を${senderName(req)}さんの画面から再び非表示にし、ゴミ箱に戻します。相手に通知が届きます。`, async (reason) => {
+  askConfirm('「正しくない」を選びますか？', `イベント「${req.eventName || ''}」を${senderName(req)}さんの画面から再び非表示にします。相手に通知が届きます。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;
       // 復元した人の画面から再び非表示に（本人のゴミ箱側は自己修復で trashed に戻る）
@@ -937,7 +937,7 @@ const restoreEventAgain = async (req) => {
 // --- 支払い削除の判断ループ ---
 // 「削除は正しくない」と返す（削除された側）
 const rejectPaymentDelete = (req) => {
-  askConfirm('「正しくない」を選びますか？', `${senderName(req)}さんに「この削除は正しくない」と伝えます。相手が認めるとゴミ箱から元に戻ります。`, async (reason) => {
+  askConfirm('「正しくない」を選びますか？', `${senderName(req)}さんに「この削除は正しくない」と伝えます。相手が認めると元に戻ります。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;
       await addDoc(collection(db, "notifications"), {
@@ -960,15 +960,15 @@ const rejectPaymentDelete = (req) => {
 
 // 相手の「削除は正しくない」を認める＝ゴミ箱から元に戻す（削除した側）
 const acceptDeleteRejection = (req) => {
-  askConfirm('削除をやめて元に戻しますか？', `「${req.itemName || ''}」をゴミ箱から元に戻し、相手に「正しいですか？」の確認を送ります。`, async () => {
+  askConfirm('削除をやめて元に戻しますか？', `「${req.itemName || ''}」を元に戻し、相手に「正しいですか？」の確認を送ります。`, async () => {
     try {
       const ok = await restorePaymentFromTrash(req);
       if (!ok) {
-        notice('error', '元に戻せませんでした', 'ゴミ箱に控えが見つかりませんでした（自動削除された可能性があります）。ゴミ箱を確認してください。');
+        notice('error', '元に戻せませんでした', '控えが見つかりませんでした（自動で片付いた可能性があります）。マイページの「取引を元に戻す」を確認してください。');
         return; // 通知は残す
       }
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
-      notice('success', '元に戻しました', 'ゴミ箱から復元し、相手に「正しいですか？」の確認を送りました。');
+      notice('success', '元に戻しました', '元に戻し、相手に「正しいですか？」の確認を送りました。');
     } catch (e) {
       console.error("削除取り消しエラー:", e);
       notice('error', 'エラー', '元に戻す処理に失敗しました。電波状況を確認してもう一度お試しください。');
@@ -1001,7 +1001,7 @@ const reRestorePayment = (req) => {
     try {
       const ok = await restorePaymentFromTrash(req);
       if (!ok) {
-        notice('error', '復元できませんでした', 'ゴミ箱に控えが見つかりませんでした。ゴミ箱を確認してください。');
+        notice('error', '復元できませんでした', '控えが見つかりませんでした。イベント一覧の「非表示にしたイベント」を確認してください。');
         return; // 通知は残す
       }
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
@@ -1016,7 +1016,7 @@ const reRestorePayment = (req) => {
 // --- イベントの判断ループ ---
 // 相手の「退出は正しくない」を認める＝イベントに戻る（削除した側）
 const acceptLeftRejection = (req) => {
-  askConfirm('イベントに戻りますか？', `イベント「${req.eventName || ''}」をゴミ箱から戻し、参加者に「正しいですか？」の確認を送ります。`, async () => {
+  askConfirm('イベントに戻りますか？', `イベント「${req.eventName || ''}」を一覧に戻し、参加者に「正しいですか？」の確認を送ります。`, async () => {
     try {
       await restoreEventAgain(req);
       await updateDoc(doc(db, "notifications", req.id), { isRead: true });
