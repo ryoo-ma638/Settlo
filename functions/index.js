@@ -367,16 +367,23 @@ exports.purgeTrash = onSchedule(
   },
   async () => {
     const cutoff = admin.firestore.Timestamp.fromMillis(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    // 全ユーザーのゴミ箱を横断（collectionGroup）
+    // 全ユーザーの控えを横断（collectionGroup）
     const snap = await db.collectionGroup("trash").where("trashedAt", "<", cutoff).get();
     if (snap.empty) {
-      console.log("ゴミ箱: 削除対象なし");
+      console.log("復元用の控え: 削除対象なし");
       return;
     }
     let count = 0;
+    let kept = 0;
     // 500件ごとにバッチコミット
     let batch = db.batch();
     for (const d of snap.docs) {
+      // 🌟 相手の確認を待っているものは、7日を過ぎても消さない。
+      //    以前は「削除した日」から7日で一律に消していたため、6日目に復元を依頼して
+      //    相手が2日返事をしないと、待っている途中で控えごと消えていた。
+      //    返事が来て pending が外れれば、次回以降の対象に戻る。
+      const status = (d.data() || {}).status;
+      if (status === "pending" || status === "restored") { kept++; continue; }
       batch.delete(d.ref);
       count++;
       if (count % 400 === 0) {
@@ -385,7 +392,7 @@ exports.purgeTrash = onSchedule(
       }
     }
     await batch.commit();
-    console.log(`ゴミ箱: ${count}件を自動削除しました`);
+    console.log(`復元用の控え: ${count}件を自動削除／${kept}件は相手の確認待ちのため残しました`);
   }
 );
 

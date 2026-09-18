@@ -1,6 +1,6 @@
 <template>
   <div class="edit">
-    <PageHeader title="プロフィール編集" fallback="/mypage" />
+    <PageHeader title="プロフィールを変更" fallback="/mypage" />
 
     <main class="edit__body">
       <div class="edit__avatar-area">
