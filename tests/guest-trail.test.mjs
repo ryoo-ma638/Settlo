@@ -63,3 +63,20 @@ test('「まとめて精算してみる」は、一覧で止まらず中まで�
   const list = GUEST_TRAIL.find((s) => s.id === 'event');
   assert.notEqual(settle.to, list.to, '「中身を見る」と同じ行き先になっている');
 });
+
+test('どの手順も、一覧で止まらず目的の場所まで行く', () => {
+  // 押した先が一覧だと「何も起きない」ように見える。
+  // 相談とレシートは、どれを選ぶかを本人に決めてもらうので一覧でよい。
+  const deep = { event: /open=first/, settle: /open=settlement/, split: /pick=split/, receipt: /pick=payment/ };
+  for (const [id, pattern] of Object.entries(deep)) {
+    const step = GUEST_TRAIL.find((s) => s.id === id);
+    assert.ok(step, `${id} の手順が無い`);
+    assert.match(step.to, pattern, `${id} の行き先が浅い`);
+  }
+});
+
+test('フレンドと割り勘は、先にフレンドが要ることを書く', () => {
+  // 申請を承認していないと、相手を選ぶ画面が空で行き止まりになる
+  const split = GUEST_TRAIL.find((s) => s.id === 'split');
+  assert.match(split.desc, /承認/, '承認が要ることが書かれていない');
+});
