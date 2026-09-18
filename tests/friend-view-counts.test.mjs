@@ -10,6 +10,7 @@ export const streams=[],writes=[];
 export const auth={currentUser:{uid:'me'}}, db={};
 export const onAuthStateChanged=(_auth,next)=>{authNext=next;authStopped=false;next(auth.currentUser);return()=>{authStopped=true;};};
 export const useRouter=()=>({push(){}});
+export const useRoute=()=>({path:'/friend',params:{},query:{}});
 export const collection=(_db,...path)=>({path:path.join('/')});
 export const where=(field,op,value)=>({field,op,value});
 export const query=(ref,...filters)=>({...ref,filters});

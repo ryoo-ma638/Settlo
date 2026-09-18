@@ -1,6 +1,6 @@
 <template>
   <div class="pchats">
-    <PageHeader :title="otherName || 'チャット'" fallback="/chats" />
+    <PageHeader :title="otherName || '相談'" fallback="/chats" />
 
     <main class="pchats__body">
       <p class="pchats__note">この相手が参加する取引の会話です。複数人の会話も含みます。</p>
@@ -32,7 +32,7 @@
           </button>
         </div>
 
-        <div v-if="threads.length === 0" class="pchats__empty">この相手とのチャットはまだありません</div>
+        <div v-if="threads.length === 0" class="pchats__empty">この相手との相談はまだありません</div>
       </template>
     </main>
   </div>

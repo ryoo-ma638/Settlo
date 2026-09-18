@@ -43,7 +43,7 @@
                 <small>イベントを選んで立て替えを記録</small>
               </span>
             </button>
-            <button class="addsheet__item" data-tour="sheet-friend-split" @click="pick('/friend')">
+            <button class="addsheet__item" data-tour="sheet-friend-split" @click="pick('/friend?pick=split')">
               <span class="addsheet__ic addsheet__ic--friend">
                 <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19v-1a4 4 0 0 1 4-4h3a4 4 0 0 1 4 4v1"/><path d="M17.5 8.5v5M15 11h5"/></svg>
               </span>

@@ -96,6 +96,15 @@
               {{ mode === 'remind' ? '受け取った (完了にする)' : '支払った (承認リクエスト)' }}
             </button>
           </footer>
+
+          <!-- 相談からこの画面へは来られるのに、この画面から相談へは行けなかった -->
+          <section v-if="canConsult" class="consult-section">
+            <button class="method-btn consult-btn" @click="openConsult">
+              この支払いについて相談する
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-11.9 7.6L3 21l1.9-6.1A8.4 8.4 0 1 1 21 11.5z"/></svg>
+            </button>
+            <p class="consult-note">{{ opponentName }}さんと、この1件についてだけやり取りできます。</p>
+          </section>
         </template>
         
         <section v-else class="completed-section">
@@ -155,7 +164,7 @@ import BaseModal from '../components/BaseModal.vue';
 import RemindModal from '../components/RemindModal.vue';
 import PageHeader from '../components/PageHeader.vue';
 import { logApprovalBoth } from '@/lib/approvalLog';
-import { resolveThreadForTx, postPaymentEventByTx, resolvePaymentThreadByTx } from '@/lib/thread';
+import { resolveThreadForTx, postPaymentEventByTx, resolvePaymentThreadByTx, threadIdFor, subjectLabel } from '@/lib/thread';
 import { getMyName } from '@/lib/userName';
 import { formatDate, batchBreakdownText, hasOffset } from '@/lib/format';
 import {
@@ -224,6 +233,28 @@ const headlineAmount = computed(() =>
 // この1件が「相殺に使われた側」か（対象そのものではない）
 const isOffsetItem = computed(() => (settlementBatch.value?.role || 'main') === 'offset');
 const opponentName = computed(() => items.value[0]?.name || '相手');
+
+// 🌟 この取引についての相談（会話）へ。
+//    会話は「2人＋取引1件」で決まるので、まとめて精算のように複数件を束ねた画面では出さない
+//    （どの取引の会話か決められず、相手と別のスレッドを開いてしまうため）。
+const canConsult = computed(() =>
+  !isBatch.value && !isSettleBatch.value && items.value.length === 1 &&
+  !!(items.value[0]?.opponentUid || targetUid.value)
+);
+const openConsult = () => {
+  const it = items.value[0];
+  const myUid = auth.currentUser?.uid;
+  const otherUid = it?.opponentUid || targetUid.value;
+  if (!myUid || !otherUid || !it) return;
+  // 件名は通知から開いたときと同じ作り方にする。ここだけ別の文言にすると、
+  // 相手の一覧に出る件名を上書きしてしまう。
+  const label = subjectLabel({ type: 'payment_reminder', eventName: it.eventName, itemName: it.itemName, amount: it.amount });
+  router.push({
+    name: 'Thread',
+    params: { id: threadIdFor(myUid, otherUid, `t-${it.id}`) },
+    query: { label, other: otherUid, otherName: it.name || '相手', eventId: it.eventId || '', tx: it.id },
+  });
+};
 // 催促の送信回数（再送の確認や表示に使う）
 const remindCount = computed(() => Math.max(0, ...items.value.map(i => i.remindCount || 0), 0));
 const alreadyReminded = computed(() => remindCount.value > 0);
@@ -401,6 +432,7 @@ onMounted(async () => {
           id: docSnap.id,
           opponentUid,
           eventName: data.eventName || data.itemName || '個別精算',
+          eventId: data.eventId || '',
           date: fmtDate(data.createdAt),
           name: opponentName,
           itemName: data.itemName,
@@ -770,6 +802,15 @@ const confirmCash = () => {
 .await-banner__body { min-width: 0; }
 .await-banner__title { font-size: 14px; font-weight: var(--fw-bold); margin: 0 0 3px; }
 .await-banner__text { font-size: 12px; line-height: 1.5; opacity: 0.92; margin: 0; }
+
+.consult-section { margin-top: 18px; }
+.consult-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: #fff; color: var(--c-text, #1f2937);
+  border: 1px solid var(--c-border, #e5e7eb);
+}
+.consult-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.consult-note { margin: 8px 2px 0; font-size: 12px; color: var(--c-text-sub, #6b7280); text-align: center; }
 
 .completed-section { margin-top: 30px; }
 .completed-card { background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 16px; padding: 25px; text-align: center; color: #166534; box-shadow: 0 4px 10px rgba(0,0,0,0.02); }

@@ -88,15 +88,15 @@
       </section>
     </main>
     <BaseModal :show="modalState.show" :type="modalState.type" :title="modalState.title" :message="modalState.message" :showCancel="modalState.showCancel" :confirmText="modalState.confirmText" :cancelText="modalState.cancelText" @confirm="handleConfirmModal" @cancel="modalState.show = false" @close="modalState.show = false" />
-  </div>
 
     <FriendPaymentModal
       :isOpen="splitOpen"
       :friendName="friend?.name || '相手'"
       :friendUid="route.query.uid || route.params.uid || ''"
-      @close="splitOpen = false"
+      @close="closeSplit"
       @saved="loadFriend"
     />
+  </div>
 </template>
 
 <script setup>
@@ -178,7 +178,17 @@ const filteredHistoryGroups = computed(() => {
   return [...groups.values()];
 });
 // 相手ごとの会話一覧へ。取引に紐づく会話が複数あるときにまとめて見られる。
-const splitOpen = ref(false);
+// ＋の「フレンドと割り勘」→相手を選ぶ、で着いたときは入力をそのまま開く（?split=1）
+const splitOpen = ref(route.query.split === '1');
+
+// 閉じたら ?split=1 を消す。戻る・再読み込みで勝手に開き直さないようにする。
+const closeSplit = () => {
+  splitOpen.value = false;
+  if (route.query.split !== '1') return;
+  const query = { ...route.query };
+  delete query.split;
+  router.replace({ path: route.path, query });
+};
 
 const openChats = () => router.push('/chats/' + encodeURIComponent(route.query.uid || route.params.uid || ''));
 
