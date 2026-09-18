@@ -78,6 +78,20 @@ test('はじめてガイドは前にも戻れる', () => {
   assert.match(tour, /data-tour="sheet-/);
 });
 
+test('押せる行は、キーボードでも選べる', () => {
+  // 支払い画面の行は div で、タブキーで選べず Enter でも開けなかった。
+  // イベントのカードは role と tabindex を持っているので、そこに合わせる。
+  const money = read('views/MoneyPage.vue');
+  // 行そのものだけ数える（trow__avatar のような中の部品は除く）
+  const rows = money.match(/class="trow(?:\s[^"]*)?"/g) || [];
+  const marked = money.match(/role="button" tabindex="0"/g) || [];
+  assert.ok(rows.length > 0, '行が見つからない');
+  assert.equal(marked.length, rows.length, '押せる行の数だけ role と tabindex が要る');
+  assert.match(money, /@keydown\.enter=/);
+  assert.match(money, /@keydown\.space\.prevent=/);
+  assert.match(eventViews, /role="button" tabindex="0"/);
+});
+
 test('作成と参加のタブは、URLと合っている', () => {
   const makeEvent = read('views/MakeEventView.vue');
   assert.match(makeEvent, /watch\(\(\) => route\.query\.join/, '戻る・進むでタブとURLがずれる');
