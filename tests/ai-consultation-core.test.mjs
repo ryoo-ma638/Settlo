@@ -127,3 +127,17 @@ test('AIへの指示に、事実を作らせない約束が入っている', () 
   assert.match(core.PROMPT, /下書き/);
   assert.match(core.PROMPT, /blockedMethods/);
 });
+
+test('仮の名前は、返ってきた文から読める言い方へ直す', () => {
+  // AIへは名前を渡さず participant_1 のような仮名にしている。
+  // そのまま画面へ出すと、読む人には意味の分からない文字列になる。
+  const out = core.normalizeResult({
+    summary: 'participant_1さんから支払い時期の確認が来ています。',
+    issues: [{ title: 'participant_1 の希望', detail: 'participant_2 が未回答', confidence: 'low' }],
+    missingInformation: ['participant_1さんの希望する支払い方法'],
+    replySuggestions: [{ label: 'participant_1へ返す', text: 'participant_1さん、来週払います。' }],
+  });
+  assert.ok(!JSON.stringify(out).includes('participant'), `仮の名前が残っている: ${JSON.stringify(out)}`);
+  assert.equal(out.summary, '相手から支払い時期の確認が来ています。');
+  assert.equal(out.replySuggestions[0].text, '相手、来週払います。');
+});

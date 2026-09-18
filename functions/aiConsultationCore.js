@@ -76,13 +76,20 @@ const uniqueText = (values, limit, max) => [...new Set((Array.isArray(values) ? 
   .filter(Boolean))].slice(0, limit);
 
 /** AIの返答を、画面が扱える小さな形へ必ず切り詰める */
+// 🌟 AIへ渡すとき、相手は participant_1 のような仮の名前に置き換えている。
+//    返ってきた文にそのまま残ると、読む人には意味が分からない文字列になる。
+//    名前は渡していないので本名には戻せない。読める言い方へ直す。
+const humanize = (value) => (typeof value === 'string'
+  ? value.replace(/participant[_ ]?(\d+)/gi, '相手').replace(/相手さん/g, '相手')
+  : value);
+
 function normalizeResult(raw, validMessageIds = []) {
   const src = raw && typeof raw === 'object' ? raw : {};
   const valid = new Set(validMessageIds.map((id) => String(id)));
 
   const issues = (Array.isArray(src.issues) ? src.issues : []).slice(0, 5).map((issue) => ({
-    title: text(issue?.title, 80),
-    detail: text(issue?.detail, 240),
+    title: humanize(text(issue?.title, 80)),
+    detail: humanize(text(issue?.detail, 240)),
     confidence: CONFIDENCE.includes(issue?.confidence) ? issue.confidence : 'low',
     evidenceMessageIds: uniqueText(issue?.evidenceMessageIds, 5, 128).filter((id) => valid.has(id)),
   })).filter((issue) => issue.title || issue.detail);
@@ -90,15 +97,15 @@ function normalizeResult(raw, validMessageIds = []) {
   const replySuggestions = (Array.isArray(src.replySuggestions) ? src.replySuggestions : [])
     .slice(0, MAX_SUGGESTIONS)
     .map((reply) => ({
-      label: text(reply?.label, 40) || '返信案',
-      text: text(reply?.text, 300),
+      label: humanize(text(reply?.label, 40)) || '返信案',
+      text: humanize(text(reply?.text, 300)),
     }))
     .filter((reply) => reply.text);
 
   return {
-    summary: text(src.summary, 400),
+    summary: humanize(text(src.summary, 400)),
     issues,
-    missingInformation: uniqueText(src.missingInformation, 5, 160),
+    missingInformation: uniqueText(src.missingInformation, 5, 160).map(humanize),
     replySuggestions,
   };
 }
