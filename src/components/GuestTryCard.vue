@@ -1,39 +1,32 @@
 <template>
   <section v-if="show" class="try">
-    <p class="try__eyebrow">
-      <span class="try__badge">お試し</span>
-      ここから触り始められます
-    </p>
-
     <template v-if="current">
       <div class="try__head">
         <span class="try__no">{{ index + 1 }}</span>
-        <span class="try__titles">
-          <span class="try__title">{{ current.title }}</span>
-          <span class="try__meta">{{ current.minutes }}・{{ current.where }}</span>
-        </span>
+        <span class="try__title">{{ current.title }}</span>
         <span class="try__count">{{ progress.done }}/{{ progress.total }}</span>
       </div>
-
-      <p class="try__desc">{{ current.desc }}</p>
 
       <button type="button" class="try__go" @click="run(current)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none" />
           <path d="M6 12a6 6 0 0 1 12 0" /><path d="M3.5 12a8.5 8.5 0 0 1 17 0" />
         </svg>
-        押すボタンを光らせて案内する
+        ここから触ってみる
       </button>
-      <p class="try__note">光ったボタンを押していくだけです。最後まで押し切ると ✓ が付きます。</p>
+      <p class="try__note">光ったボタンを押すだけ</p>
     </template>
 
     <template v-else>
-      <p class="try__done">ひと通り試せました。ほかの画面はマイページ →「ヘルプ・使い方」から見られます。</p>
+      <p class="try__done">ひと通り試せました</p>
     </template>
 
-    <button type="button" class="try__toggle" @click="open = !open">
-      {{ open ? '一覧を閉じる' : `ほかの手順を見る（残り ${progress.total - progress.done} 件）` }}
-    </button>
+    <div class="try__links">
+      <button type="button" class="try__toggle" @click="open = !open">
+        {{ open ? '閉じる' : `ぜんぶ見る（残り ${progress.total - progress.done}）` }}
+      </button>
+      <button v-if="current" type="button" class="try__toggle" @click="askSkip">お試しをスキップ</button>
+    </div>
 
     <ol v-if="open" class="try__list">
       <li v-for="(step, i) in steps" :key="step.id">
@@ -49,6 +42,20 @@
         </button>
       </li>
     </ol>
+
+    <BaseModal
+      :show="confirmSkip"
+      type="warning"
+      title="お試しをスキップしますか？"
+      message="案内を閉じて、ふつうに触れる状態にします。
+上の「触ってみる」からいつでも戻せます。"
+      :showCancel="true"
+      confirmText="スキップ"
+      cancelText="やめる"
+      @confirm="doSkip"
+      @cancel="confirmSkip = false"
+      @close="confirmSkip = false"
+    />
   </section>
 </template>
 
@@ -64,8 +71,10 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { GUEST_TRAIL, trailProgress, nextTrailStep, normalizeDone } from '@/lib/guestTrail.js';
 import { TRAIL_KEY } from '@/lib/guestGuide.js';
 import { TRAIL_DONE_EVENT, startGuidedTask } from '@/lib/trailProgressSignal.js';
+import { TRAIL_HIDDEN_KEY } from '@/lib/guestGuide.js';
+import BaseModal from './BaseModal.vue';
 
-const emit = defineEmits(['start']); // 案内を始めたらパネルを閉じてもらう
+const emit = defineEmits(['start', 'skip']); // start=案内を始めた／skip=お試しをやめた
 
 const steps = GUEST_TRAIL;
 const isGuest = ref(false);
@@ -92,6 +101,15 @@ const run = (step) => {
 
 const onDone = () => load();
 
+// 🌟 お試しをやめる。押し間違いで案内が消えると戻し方が分からなくなるので、一度たずねる。
+const confirmSkip = ref(false);
+const askSkip = () => { confirmSkip.value = true; };
+const doSkip = () => {
+  confirmSkip.value = false;
+  try { localStorage.setItem(TRAIL_HIDDEN_KEY, JSON.stringify(true)); } catch (e) {}
+  emit('skip');
+};
+
 onMounted(() => {
   load();
   window.addEventListener(TRAIL_DONE_EVENT, onDone);
@@ -106,27 +124,21 @@ onUnmounted(() => window.removeEventListener(TRAIL_DONE_EVENT, onDone));
   background: var(--c-surface, #fff);
   border: 2px solid var(--c-brand, #16a34a);
   border-radius: var(--r-lg, 16px);
-  padding: 14px 16px 12px;
+  padding: 12px 14px 8px;
   margin: 12px var(--pad, 16px) 0;
   box-shadow: var(--shadow-card);
 }
-.try__eyebrow { display: flex; align-items: center; gap: 7px; margin: 0 0 10px; font-size: 11.5px; font-weight: var(--fw-bold, 700); color: var(--c-brand-strong, #0f7a4d); }
-.try__badge { padding: 2px 8px; border-radius: 999px; background: var(--c-brand, #16a34a); color: #fff; font-size: 10.5px; }
-
-.try__head { display: flex; align-items: flex-start; gap: 9px; }
+.try__head { display: flex; align-items: center; gap: 9px; }
 .try__no {
   flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
   width: 24px; height: 24px; border-radius: 50%;
   background: var(--c-brand, #16a34a); color: #fff; font-size: 12.5px; font-weight: var(--fw-bold, 700);
 }
-.try__titles { flex: 1; min-width: 0; }
-.try__title { display: block; font-size: 14.5px; font-weight: var(--fw-bold, 700); color: var(--c-ink, #0f172a); line-height: 1.4; }
-.try__meta { display: block; margin-top: 2px; font-size: 11px; color: var(--c-text-sub, #475569); overflow-wrap: anywhere; }
+.try__title { flex: 1; min-width: 0; font-size: 15px; font-weight: var(--fw-bold, 700); color: var(--c-ink, #0f172a); line-height: 1.4; }
 .try__count { flex-shrink: 0; font-size: 12px; font-weight: var(--fw-bold, 700); color: var(--c-brand-strong, #0f7a4d); font-variant-numeric: tabular-nums; }
 
-.try__desc { margin: 8px 0 12px; font-size: 12px; line-height: 1.65; color: var(--c-text-sub, #475569); overflow-wrap: anywhere; }
-
 .try__go {
+  margin-top: 12px;
   display: flex; align-items: center; justify-content: center; gap: 7px;
   width: 100%; min-height: 46px; padding: 11px;
   border: 0; border-radius: var(--r-pill, 999px);
@@ -135,10 +147,11 @@ onUnmounted(() => window.removeEventListener(TRAIL_DONE_EVENT, onDone));
 }
 .try__go svg { width: 17px; height: 17px; flex-shrink: 0; }
 .try__go:active { transform: scale(0.98); }
-.try__note { margin: 7px 0 0; font-size: 11px; line-height: 1.55; color: var(--c-text-faint, #94a3b8); text-align: center; }
-.try__done { margin: 0 0 6px; font-size: 12.5px; line-height: 1.65; color: var(--c-text-sub, #475569); }
+.try__note { margin: 6px 0 0; font-size: 11px; color: var(--c-text-faint, #94a3b8); text-align: center; }
+.try__done { margin: 0; font-size: 14px; font-weight: var(--fw-bold, 700); color: var(--c-brand-strong, #0f7a4d); text-align: center; }
 
-.try__toggle { display: block; width: 100%; margin-top: 10px; padding: 6px; background: none; border: 0; font-size: 11.5px; color: var(--c-text-sub, #475569); text-decoration: underline; cursor: pointer; }
+.try__links { display: flex; gap: 8px; margin-top: 8px; }
+.try__toggle { flex: 1; min-height: 40px; padding: 8px 6px; background: none; border: 0; font-size: 11.5px; color: var(--c-text-sub, #475569); text-decoration: underline; cursor: pointer; }
 
 .try__list { list-style: none; margin: 4px 0 0; padding: 0; border-top: 1px solid var(--c-line, #e2e8f0); }
 .try__row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 2px; background: none; border: 0; text-align: left; cursor: pointer; }

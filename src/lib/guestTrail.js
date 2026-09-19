@@ -18,8 +18,8 @@ export const GUEST_TRAIL = [
   {
     id: 'notice',
     guide: [
-      { type: 'action', sel: '[data-tour="bell"]', title: 'ここを押します', desc: '右上のベルです。届いているお知らせが開きます。' },
-      { type: 'explain', sel: '[data-tour="notif-panel"]', title: '届いているお知らせ', desc: '催促とフレンド申請が来ています。デモ太郎さんの申請を「承認する」と、フレンドが増えます。答えるものは、答えるまで残ります。' },
+      { type: 'action', sel: '[data-tour="bell"]', title: 'ベルを押す', desc: '' },
+      { type: 'explain', sel: '[data-tour="notif-panel"]', title: 'お知らせが届いています', desc: '承認するとフレンドが増えます' },
     ],
     where: '右上のベル',
     check: 'tap',
@@ -32,9 +32,9 @@ export const GUEST_TRAIL = [
   {
     id: 'event',
     guide: [
-      { type: 'action', sel: '[data-tour="nav-event"]', title: 'ここを押します', desc: '画面の下にある「イベント」です。' },
-      { type: 'action', sel: '[data-tour="event-card"]', title: 'このイベントを開きます', desc: '「札幌旅行（デモ）」を押してください。' },
-      { type: 'explain', sel: '[data-tour="ev-summary"]', title: '3人ぶんの貸し借り', desc: '誰がいくら立て替えて、誰がいくら負担したかがまとまっています。このカードから、全員ぶんをまとめて精算できます。' },
+      { type: 'action', sel: '[data-tour="nav-event"]', title: 'イベントを押す', desc: '' },
+      { type: 'action', sel: '[data-tour="event-card"]', title: '札幌旅行（デモ）を押す', desc: '' },
+      { type: 'explain', sel: '[data-tour="ev-summary"]', title: '3人ぶんの貸し借り', desc: '誰がいくら負担したかまで出ます' },
     ],
     where: '下の「イベント」',
     check: 'tap',
@@ -47,10 +47,10 @@ export const GUEST_TRAIL = [
   {
     id: 'offset',
     guide: [
-      { type: 'action', sel: '[data-tour="nav-money"]', title: 'ここを押します', desc: '画面の下にある「支払い」です。' },
-      { type: 'action', sel: '[data-tour="pay-settle"]', title: '「まとめて」を押します', desc: '上に並んだタブの3つめです。' },
-      { type: 'action', sel: '[data-tour="settle-person"]', title: 'この相手を押します', desc: '全部のイベントをまたいで差し引いた金額が出ています。押すと中身が見られます。' },
-      { type: 'action', sel: '[data-tour="settle-go"]', title: 'ここまで押し切ります', desc: '差し引きの結果です。この青（または橙）のボタンを押すと手続きの画面へ進み、この手順は完了になります。' },
+      { type: 'action', sel: '[data-tour="nav-money"]', title: '支払いを押す', desc: '' },
+      { type: 'action', sel: '[data-tour="pay-settle"]', title: 'まとめてを押す', desc: '' },
+      { type: 'action', sel: '[data-tour="settle-person"]', title: '相手を押す', desc: '全イベントを差し引いた額です' },
+      { type: 'action', sel: '[data-tour="settle-go"]', title: 'このボタンまで押す', desc: '押し切ると完了です' },
     ],
     where: '下の「支払い」→「まとめて」',
     check: 'action',
@@ -64,10 +64,11 @@ export const GUEST_TRAIL = [
   {
     id: 'settle',
     guide: [
-      { type: 'action', sel: '[data-tour="nav-event"]', title: 'ここを押します', desc: '画面の下にある「イベント」です。' },
-      { type: 'action', sel: '[data-tour="event-card"]', title: 'このイベントを開きます', desc: '「札幌旅行（デモ）」を押してください。' },
-      { type: 'action', sel: '[data-tour="ev-summary"]', title: 'このカードを押します', desc: '参加者全員の貸し借りをまとめた結果が開きます。' },
-      { type: 'action', sel: '[data-tour="ev-settle-confirm"]', title: 'ここまで押し切ります', desc: '「この内容でまとめて精算を始める」を押すと、3人の貸し借りが送金2回にまとまり、この手順は完了になります。デモなので、押しても実際のお金は動きません。' },
+      { type: 'action', sel: '[data-tour="nav-event"]', title: 'イベントを押す', desc: '' },
+      { type: 'action', sel: '[data-tour="event-card"]', title: '札幌旅行（デモ）を押す', desc: '' },
+      { type: 'action', sel: '[data-tour="ev-summary"]', title: 'このカードを押す', desc: '' },
+      { type: 'action', sel: '[data-tour="ev-settle-confirm"]', title: 'この内容で始めるを押す', desc: '送金2回にまとまります' },
+      { type: 'action', sel: '[data-tour="confirm-ok"]', title: '開始するを押す', desc: 'デモなのでお金は動きません' },
     ],
     where: '「イベント」→「精算を始める」',
     check: 'action',
@@ -81,10 +82,10 @@ export const GUEST_TRAIL = [
   {
     id: 'chat',
     guide: [
-      { type: 'action', sel: '[data-tour="chat"]', title: 'ここを押します', desc: '左上のふきだしです。相談の一覧が開きます。' },
-      { type: 'action', sel: '[data-tour="chat-thread"]', title: 'この相談を開きます', desc: 'デモ太郎さんから「いつごろ払えそうですか？」と来ています。' },
-      { type: 'action', sel: '[data-tour="rh-toggle"]', title: '「AIと返信を考える」を押します', desc: '会話の下にあります。' },
-      { type: 'action', sel: '[data-tour="rh-ai"]', title: 'ここまで押し切ります', desc: '「AIに相談する」を押すと、AIが会話を読んで文案を3つ出します。名前は送らず「参加者1」に置き換えてから渡しています。' },
+      { type: 'action', sel: '[data-tour="chat"]', title: 'ふきだしを押す', desc: '' },
+      { type: 'action', sel: '[data-tour="chat-thread"]', title: 'この相談を押す', desc: '' },
+      { type: 'action', sel: '[data-tour="rh-toggle"]', title: 'AIと返信を考えるを押す', desc: '' },
+      { type: 'action', sel: '[data-tour="rh-ai"]', title: 'AIに相談するを押す', desc: '会話を読んだ文案が3つ出ます' },
     ],
     where: '左上のふきだし',
     check: 'action',
@@ -98,10 +99,10 @@ export const GUEST_TRAIL = [
   {
     id: 'split',
     guide: [
-      { type: 'action', sel: '[data-tour="nav-add"]', title: 'ここを押します', desc: '画面の下、まん中の緑の「＋」です。' },
-      { type: 'action', sel: '[data-tour="sheet-friend-split"]', title: '「フレンドと割り勘」を押します', desc: 'イベントを作らずに、1件だけ記録する入口です。' },
-      { type: 'action', sel: '[data-tour="friend-row"]', title: 'この相手を選びます', desc: 'デモ花子さんははじめからフレンドです。' },
-      { type: 'action', sel: '[data-tour="fp-save"]', title: '入れてから、ここまで押し切ります', desc: '品名と金額を入れると、誰が誰へいくら払う形になるかが先に出ます。「この内容で記録する」を押すと、この手順は完了になります。デモなので実際のお金は動きません。' },
+      { type: 'action', sel: '[data-tour="nav-add"]', title: '＋を押す', desc: '' },
+      { type: 'action', sel: '[data-tour="sheet-friend-split"]', title: 'フレンドと割り勘を押す', desc: '' },
+      { type: 'action', sel: '[data-tour="friend-row"]', title: '相手を選ぶ', desc: '' },
+      { type: 'action', sel: '[data-tour="fp-save"]', title: '品名と金額を入れて押す', desc: 'デモなのでお金は動きません' },
     ],
     where: '「＋」→「フレンドと割り勘」',
     check: 'action',
@@ -114,10 +115,10 @@ export const GUEST_TRAIL = [
   {
     id: 'receipt',
     guide: [
-      { type: 'action', sel: '[data-tour="nav-add"]', title: 'ここを押します', desc: '画面の下、まん中の緑の「＋」です。' },
-      { type: 'action', sel: '[data-tour="sheet-payment"]', title: '「お支払いを追加」を押します', desc: 'どのイベントに足すかを選ぶ画面になります。' },
-      { type: 'action', sel: '[data-tour="event-card"]', title: 'このイベントを選びます', desc: '「札幌旅行（デモ）」を押すと、支払いを追加する画面が開きます。' },
-      { type: 'explain', sel: '[data-tour="receipt-drop"]', title: 'ここからレシートを撮ります', desc: '撮ると店名・金額・消費税をAIが入れます。1回に5枚まで。レシートが無ければ、見るだけで大丈夫です。' },
+      { type: 'action', sel: '[data-tour="nav-add"]', title: '＋を押す', desc: '' },
+      { type: 'action', sel: '[data-tour="sheet-payment"]', title: 'お支払いを追加を押す', desc: '' },
+      { type: 'action', sel: '[data-tour="event-card"]', title: 'イベントを選ぶ', desc: '' },
+      { type: 'explain', sel: '[data-tour="receipt-drop"]', title: 'ここでレシートを撮ります', desc: '店名・金額・税をAIが入れます' },
     ],
     where: '「＋」→「お支払いを追加」',
     check: 'tap',

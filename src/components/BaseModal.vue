@@ -28,7 +28,7 @@
 
           <div class="button-area">
             <button v-if="showCancel" class="btn-cancel" @click="cancel">{{ cancelText }}</button>
-            <button class="btn-confirm" :class="type" @click="confirm">{{ confirmText }}</button>
+            <button class="btn-confirm" data-tour="confirm-ok" :class="type" @click="confirm">{{ confirmText }}</button>
           </div>
         </div>
       </div>

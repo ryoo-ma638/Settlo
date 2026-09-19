@@ -294,6 +294,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, reactive } from 'vue';
 import { useRouter } from 'vue-router';
+import { CLOSE_OVERLAYS_EVENT } from '@/lib/trailProgressSignal.js';
 import BaseModal from './BaseModal.vue';
 import NotifBadge from './NotifBadge.vue';
 import { splitNotifications } from '@/lib/notificationPolicy';
@@ -1518,8 +1519,16 @@ const showModal = ref(false);
 const open = () => { showModal.value = true; };
 defineExpose({ open });
 // ゲストのお試し案内から開けるようにする（ヘルプのツアーと同じ合図の作り）
-onMounted(() => window.addEventListener('settlo:open-notifications', open));
-onUnmounted(() => window.removeEventListener('settlo:open-notifications', open));
+// 案内が終わったら、開いたままのお知らせを閉じる（次の手順へ戻れるように）
+const closeByGuide = () => { showModal.value = false; };
+onMounted(() => {
+  window.addEventListener('settlo:open-notifications', open);
+  window.addEventListener(CLOSE_OVERLAYS_EVENT, closeByGuide);
+});
+onUnmounted(() => {
+  window.removeEventListener('settlo:open-notifications', open);
+  window.removeEventListener(CLOSE_OVERLAYS_EVENT, closeByGuide);
+});
 </script>
 
 <style scoped>

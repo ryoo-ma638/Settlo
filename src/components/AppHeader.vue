@@ -40,9 +40,21 @@
       <div v-if="showAssistant" class="assist-layer" @click.self="showAssistant = false">
         <div class="assist-panel">
           <button class="assist-panel__close" @click="showAssistant = false" aria-label="閉じる">×</button>
-          <!-- お試しの人は、まずここから触ってもらう -->
-          <GuestTryCard @start="showAssistant = false" />
-          <ActionGuide :actions="guideActions" @navigate="showAssistant = false" />
+
+          <!-- お試しの人は「触ってみる」と「アシスタント」を行き来できる -->
+          <div v-if="isGuest" class="assist-tabs" role="tablist">
+            <button type="button" class="assist-tab" :class="{ 'is-on': panelTab === 'try' }" role="tab" :aria-selected="panelTab === 'try'" @click="panelTab = 'try'">
+              触ってみる
+              <span v-if="trailLeft > 0" class="assist-tab__count">{{ GUEST_TRAIL.length - trailLeft }}/{{ GUEST_TRAIL.length }}</span>
+            </button>
+            <button type="button" class="assist-tab" :class="{ 'is-on': panelTab === 'guide' }" role="tab" :aria-selected="panelTab === 'guide'" @click="panelTab = 'guide'">
+              アシスタント
+              <span v-if="guideActions.length" class="assist-tab__count">{{ guideActions.length }}</span>
+            </button>
+          </div>
+
+          <GuestTryCard v-show="!isGuest || panelTab === 'try'" @start="showAssistant = false" @skip="onSkipTrail" />
+          <ActionGuide v-show="!isGuest || panelTab === 'guide'" :actions="guideActions" @navigate="showAssistant = false" />
         </div>
       </div>
     </transition>
@@ -61,8 +73,8 @@ import { auth, db } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot, collection, query, where } from "firebase/firestore";
 import { GUEST_TRAIL, normalizeDone } from '@/lib/guestTrail.js';
-import { TRAIL_KEY } from '@/lib/guestGuide.js';
-import { TRAIL_DONE_EVENT } from '@/lib/trailProgressSignal.js';
+import { TRAIL_KEY, TRAIL_HIDDEN_KEY } from '@/lib/guestGuide.js';
+import { TRAIL_DONE_EVENT, OPEN_ASSISTANT_EVENT } from '@/lib/trailProgressSignal.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -87,18 +99,36 @@ const readTrail = () => {
     trailLeft.value = GUEST_TRAIL.length - normalizeDone(raw ? JSON.parse(raw) : []).length;
   } catch (e) { trailLeft.value = GUEST_TRAIL.length; }
 };
-const callAttention = computed(() => isGuest.value && trailLeft.value > 0 && !showAssistant.value);
+const trailSkipped = ref(false);
+const readSkipped = () => {
+  try { trailSkipped.value = JSON.parse(localStorage.getItem(TRAIL_HIDDEN_KEY) || 'false') === true; } catch (e) { trailSkipped.value = false; }
+};
+const callAttention = computed(() => isGuest.value && trailLeft.value > 0 && !trailSkipped.value && !showAssistant.value);
+
+// パネルの中でどちらを見せるか。お試しが残っていれば「触ってみる」から。
+const panelTab = ref('try');
+const onSkipTrail = () => { trailSkipped.value = true; panelTab.value = 'guide'; };
 // ページを移動したらパネルは自動で閉じる
 watch(() => route.fullPath, () => { showAssistant.value = false; });
-watch(showAssistant, (open) => { if (open) readTrail(); });
+watch(showAssistant, (open) => {
+  if (!open) return;
+  readTrail();
+  readSkipped();
+  // 残っていて、まだやめていないなら「触ってみる」を開く
+  panelTab.value = (trailLeft.value > 0 && !trailSkipped.value) ? 'try' : 'guide';
+});
 
 const navigate = (path) => { router.push(path); };
 
 const onTrailDone = () => readTrail();
+// 案内をやり切ったあと、次の手順を出すために開き直す
+const onOpenAssistant = () => { readTrail(); showAssistant.value = true; };
 
 onMounted(() => {
   readTrail();
+  readSkipped();
   window.addEventListener(TRAIL_DONE_EVENT, onTrailDone);
+  window.addEventListener(OPEN_ASSISTANT_EVENT, onOpenAssistant);
   onAuthStateChanged(auth, (user) => {
     isGuest.value = user?.isAnonymous === true;
     if (user) {
@@ -130,7 +160,10 @@ onMounted(() => {
   });
 });
 
-onUnmounted(() => window.removeEventListener(TRAIL_DONE_EVENT, onTrailDone));
+onUnmounted(() => {
+  window.removeEventListener(TRAIL_DONE_EVENT, onTrailDone);
+  window.removeEventListener(OPEN_ASSISTANT_EVENT, onOpenAssistant);
+});
 </script>
 
 <style scoped>
@@ -288,4 +321,28 @@ onUnmounted(() => window.removeEventListener(TRAIL_DONE_EVENT, onTrailDone));
   border-bottom: 4px solid var(--c-brand, #16a34a);
 }
 @media (prefers-reduced-motion: reduce) { .topbar__assist.is-calling { animation: none; box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.35); } }
+
+/* パネルの中の切り替え。指で押せる大きさ（44px）を確保する。 */
+.assist-tabs {
+  display: flex; gap: 6px;
+  margin: 10px var(--pad, 16px) 0;
+  padding: 4px;
+  background: var(--c-surface-2, #f1f5f9);
+  border-radius: var(--r-pill, 999px);
+}
+.assist-tab {
+  flex: 1; min-height: 44px; padding: 8px 10px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: 0; border-radius: var(--r-pill, 999px);
+  background: none; color: var(--c-text-sub, #475569);
+  font-size: 13px; font-weight: var(--fw-bold, 700); cursor: pointer;
+}
+.assist-tab.is-on { background: var(--c-surface, #fff); color: var(--c-brand-strong, #0f7a4d); box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12); }
+.assist-tab__count {
+  padding: 1px 7px; border-radius: 999px;
+  background: var(--c-brand-weak, #ecfdf5); color: var(--c-brand-strong, #0f7a4d);
+  font-size: 10.5px; font-variant-numeric: tabular-nums;
+}
+.assist-tab.is-on .assist-tab__count { background: var(--c-brand, #16a34a); color: #fff; }
+.assist-tab:focus-visible { outline: 2px solid var(--c-brand, #16a34a); outline-offset: 2px; }
 </style>

@@ -1,6 +1,17 @@
 <template>
   <Teleport to="body">
-    <div v-if="active && currentStep" class="tour">
+    <!-- 🌟 お試しの手順をやり切ったとき。次の手順へ戻す。 -->
+    <div v-if="active && doneView" class="tour">
+      <div class="tour__backdrop"></div>
+      <div class="tour__pop tour__pop--done">
+        <p class="tour__done-mark" aria-hidden="true">✓</p>
+        <p class="tour__pop-title">{{ doneView.title }}</p>
+        <p class="tour__pop-desc">{{ doneView.desc }}</p>
+        <button class="tour__done-btn" @click="finishTask">{{ doneView.cta }}</button>
+      </div>
+    </div>
+
+    <div v-else-if="active && currentStep" class="tour">
       <!-- 最終ステップ：スポットライト無し・画面中央にふきだし -->
       <div v-if="isFinal" class="tour__backdrop"></div>
 
@@ -18,22 +29,20 @@
 
       <!-- ふきだし（ポップ） -->
       <div ref="popEl" class="tour__pop" :style="popStyle">
-        <p class="tour__pop-title">{{ currentStep.title }}</p>
-        <p class="tour__pop-desc">{{ currentStep.desc }}</p>
-
-        <!-- action のときは「押すと進む」案内バッジ -->
-        <div v-if="currentStep.type === 'action'" class="tour__badge">
-          👆 光っている場所を押すと進みます
-        </div>
+        <p class="tour__pop-title">
+          <span v-if="currentStep.type === 'action'" class="tour__hand" aria-hidden="true">👆</span>
+          {{ currentStep.title }}
+        </p>
+        <p v-if="currentStep.desc" class="tour__pop-desc">{{ currentStep.desc }}</p>
 
         <div class="tour__pop-foot">
           <span class="tour__left">
-            <button class="tour__skip" @click="end">スキップ</button>
+            <button class="tour__skip" @click="end">やめる</button>
             <button v-if="stepIndex > 0" class="tour__back" :disabled="goingBack" @click="back">戻る</button>
           </span>
           <span class="tour__count">{{ stepIndex + 1 }} / {{ STEPS.length }}</span>
           <button v-if="isFinal" class="tour__next" @click="finishHome">ホームへ戻る</button>
-          <button v-else-if="currentStep.type === 'action'" class="tour__force" @click="forceAction">押せないときは次へ</button>
+          <button v-else-if="currentStep.type === 'action'" class="tour__force" @click="forceAction">次へ</button>
           <button v-else class="tour__next" @click="next">次へ</button>
         </div>
       </div>
@@ -44,7 +53,14 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
-import { markTrailDone, GUIDED_TASK_EVENT } from '@/lib/trailProgressSignal.js';
+import { markTrailDone, GUIDED_TASK_EVENT, CLOSE_OVERLAYS_EVENT, OPEN_ASSISTANT_EVENT } from '@/lib/trailProgressSignal.js';
+import { GUEST_TRAIL, nextTrailStep, trailProgress, normalizeDone } from '@/lib/guestTrail.js';
+import { TRAIL_KEY } from '@/lib/guestGuide.js';
+
+// 端末に残っている「済み」を読む
+const readDone = () => {
+  try { return normalizeDone(JSON.parse(localStorage.getItem(TRAIL_KEY) || '[]')); } catch (e) { return []; }
+};
 
 const router = useRouter();
 const active = ref(false);
@@ -125,18 +141,30 @@ const STEPS = ref(FULL_TOUR);
 const taskId = ref(null);   // お試しの手順のときだけ入る
 const completed = ref(false); // 最後まで行ったか（途中でやめたのと区別する）
 const skipped = ref(0);       // 対象が見つからず飛ばした数
+const doneView = ref(null);   // やり切ったときに出す画面
 const currentStep = computed(() => STEPS.value[stepIndex.value]);
 const isFinal = computed(() => currentStep.value?.type === 'final');
 
-// 対象の矩形に余白を足した「穴」
+const popEl = ref(null);
+const popH = ref(0);
+const viewport = ref({ w: window.innerWidth, h: window.innerHeight });
+const MARGIN = 12; // 画面の端に残す余白
+
+// 対象の矩形に余白を足した「穴」。
+// 🌟 画面の外へはみ出さないよう端で止める（リングが切れて見えないため）。
+// 🌟 対象が画面の半分より高いときは、上のほうだけ開ける。
+//    全部開けるとふきだしの置き場所が無くなり、光るボタンの上に重なって押せなくなる。
 const hole = computed(() => {
   if (!rect.value) return null;
-  return {
-    top: rect.value.top - PAD,
-    left: rect.value.left - PAD,
-    width: rect.value.width + PAD * 2,
-    height: rect.value.height + PAD * 2,
-  };
+  const vw = viewport.value.w;
+  const vh = viewport.value.h;
+  const top = Math.max(MARGIN / 2, rect.value.top - PAD);
+  const left = Math.max(MARGIN / 2, rect.value.left - PAD);
+  const right = Math.min(vw - MARGIN / 2, rect.value.left + rect.value.width + PAD);
+  const bottomRaw = Math.min(vh - MARGIN / 2, rect.value.top + rect.value.height + PAD);
+  const tall = Math.round(vh * 0.5);
+  const height = Math.min(bottomRaw - top, tall);
+  return { top, left, width: Math.max(0, right - left), height: Math.max(0, height) };
 });
 
 // 穴の周囲を覆う4枚のシールド（上下左右）
@@ -166,10 +194,6 @@ const ringStyle = computed(() => {
 //    対象が縦に長いと、下に出したふきだしが画面の外へはみ出して
 //    「次へ」が押せなくなる。ふきだしの高さを実際に測ってから、
 //    入るほうへ置き、最後に必ず画面内へ収める。
-const popEl = ref(null);
-const popH = ref(0);
-const viewport = ref({ w: window.innerWidth, h: window.innerHeight });
-const MARGIN = 12; // 画面の端に残す余白
 
 const onResize = () => { measure(); measurePop(); };
 
@@ -181,7 +205,7 @@ const measurePop = () => {
 const popStyle = computed(() => {
   const vw = viewport.value.w;
   const vh = viewport.value.h;
-  const w = Math.min(440, vw - 32);
+  const w = Math.min(340, vw - 32); // 画面をふさがないよう細めにする
   const left = Math.max(16, (vw - w) / 2);
   const ph = popH.value || 220; // まだ測れていないときの目安
   const base = { width: w + 'px', left: left + 'px', maxHeight: (vh - MARGIN * 2) + 'px' };
@@ -191,14 +215,21 @@ const popStyle = computed(() => {
     return { ...base, top: clamp((vh - ph) / 2) + 'px' };
   }
 
+  // 🌟 光るボタンの上に重ねない。
+  //    入り切らないときは、広いほうへ寄せてふきだし自体を縮める（中はスクロール）。
+  //    真ん中に出すと、押したい場所をふきだしが塞いで先へ進めなくなる。
   const h = hole.value;
-  const below = vh - (h.top + h.height) - 14; // 下に置ける高さ
-  const above = h.top - 14;                   // 上に置ける高さ
+  const GAP = 14;
+  const below = vh - (h.top + h.height) - GAP - MARGIN; // 下に使える高さ
+  const above = h.top - GAP - MARGIN;                   // 上に使える高さ
+  const MIN = 132;
   let top;
-  if (below >= ph) top = h.top + h.height + 14;
-  else if (above >= ph) top = h.top - 14 - ph;
-  else top = (vh - ph) / 2; // どちらにも入らない＝真ん中に出す
-  return { ...base, top: clamp(top) + 'px' };
+  let maxH = vh - MARGIN * 2;
+  if (below >= ph) top = h.top + h.height + GAP;
+  else if (above >= ph) top = h.top - GAP - ph;
+  else if (below >= above) { maxH = Math.max(MIN, below); top = h.top + h.height + GAP; }
+  else { maxH = Math.max(MIN, above); top = h.top - GAP - maxH; }
+  return { ...base, top: clamp(top) + 'px', maxHeight: Math.min(maxH, vh - MARGIN * 2) + 'px' };
 });
 
 // --- 対象探し・計測 ---
@@ -265,7 +296,10 @@ const locate = (attempt = 0) => {
   curEl = el;
   // 戻るときに同じ画面へ帰れるよう、そのステップを見た画面を控えておく
   stepPaths[stepIndex.value] = router.currentRoute.value.path;
-  el.scrollIntoView({ block: 'center', inline: 'nearest' });
+  // 画面の半分より高いものは上寄せ。中央寄せだと上下に場所が残らず、
+  // ふきだしを置けなくなる。
+  const tall = el.getBoundingClientRect().height > window.innerHeight * 0.45;
+  el.scrollIntoView({ block: tall ? 'start' : 'center', inline: 'nearest' });
   requestAnimationFrame(() => {
     measure();
     // ふきだしの中身が入れ替わったあとに測らないと、前のステップの高さで置いてしまう
@@ -278,7 +312,13 @@ const locate = (attempt = 0) => {
 const goTo = (i) => {
   clearRetry();
   detachAction();
-  if (i >= STEPS.value.length) { completed.value = true; end(); return; }
+  if (i >= STEPS.value.length) {
+    completed.value = true;
+    // お試しの手順を、飛ばさずにやり切ったときは「できました」を出して次へ戻す
+    if (taskId.value && skipped.value === 0) { showDone(); return; }
+    end();
+    return;
+  }
   stepIndex.value = i;
   locate(0);
 };
@@ -322,6 +362,45 @@ const forceAction = () => {
   setTimeout(next, 350);
 };
 
+// 🌟 やり切ったところで印を付け、「次の手順へ」を出す。
+//    ここで戻してあげないと、開いたままの覆いや今いる画面から
+//    自分でアシスタントまで帰らないといけない。
+const showDone = () => {
+  clearRetry();
+  detachAction();
+  const id = taskId.value;
+  markTrailDone(id);
+  const step = GUEST_TRAIL.find((t) => t.id === id);
+  const next = nextTrailStep(readDone());
+  const p = trailProgress(readDone());
+  doneView.value = next
+    ? {
+        title: `${step ? step.title : ''} ができました`,
+        desc: `${p.done}/${p.total} 済み。次は「${next.title}」です。`,
+        cta: '次の手順へ',
+      }
+    : {
+        title: 'ひと通り試せました',
+        desc: `${p.total}件ぜんぶ済みです。ほかの画面はマイページ →「ヘルプ・使い方」から見られます。`,
+        cta: 'ホームへ戻る',
+      };
+  rect.value = null;
+  curEl = null;
+};
+
+const finishTask = async () => {
+  const もう無い = !nextTrailStep(readDone());
+  doneView.value = null;
+  // 開いたままの覆い（お知らせなど）を閉じて、ホームへ戻す
+  try { window.dispatchEvent(new CustomEvent(CLOSE_OVERLAYS_EVENT)); } catch (e) {}
+  end();
+  if (router.currentRoute.value.path !== '/') await router.push('/');
+  if (!もう無い) {
+    await nextTick();
+    setTimeout(() => { try { window.dispatchEvent(new CustomEvent(OPEN_ASSISTANT_EVENT)); } catch (e) {} }, 250);
+  }
+};
+
 // --- 開始・終了 ---
 const begin = async ({ steps, id, fromHome }) => {
   if (fromHome && router.currentRoute.value.path !== '/') {
@@ -331,6 +410,7 @@ const begin = async ({ steps, id, fromHome }) => {
   taskId.value = id || null;
   completed.value = false;
   skipped.value = 0;
+  doneView.value = null;
   active.value = true;
   stepIndex.value = 0;
   stepPaths.length = 0;
@@ -356,8 +436,9 @@ const end = () => {
   detachAction();
   window.removeEventListener('resize', onResize);
   const wasTask = taskId.value;
-  // 飛ばしたステップがあるなら、最後まで行っても「やった」ことにしない
-  const wasDone = completed.value && skipped.value === 0;
+  // 飛ばしたステップがあるなら、最後まで行っても「やった」ことにしない。
+  // やり切った分は showDone() で先に印を付けてある。
+  const wasDone = completed.value && skipped.value === 0 && !doneView.value;
   active.value = false;
   curEl = null;
   rect.value = null;
@@ -369,6 +450,7 @@ const end = () => {
   taskId.value = null;
   completed.value = false;
   skipped.value = 0;
+  doneView.value = null;
 };
 
 const finishHome = () => {
@@ -394,9 +476,9 @@ onUnmounted(() => {
 .tour {
   position: fixed;
   inset: 0;
-  /* お知らせのモーダル（9000）より上に置く。上に置かないとふきだしが隠れる。
-     はじめてガイド（90000）と確認のモーダル（99999）よりは下のまま。 */
-  z-index: 9500;
+  /* いちばん前に出す。お知らせ（9000）・確認（99999）より下に置くと、
+     光らせたいボタンがモーダルの中にあるとき、ふきだしが後ろへ回って押せなくなる。 */
+  z-index: 100002;
   pointer-events: none;
 }
 
@@ -404,19 +486,27 @@ onUnmounted(() => {
 .tour__shield,
 .tour__backdrop {
   position: fixed;
-  background: rgba(15, 23, 42, 0.62);
+  /* 画面を真っ暗にすると、どんなアプリなのかが見えない。
+     うっすら掛けて、光る場所だけ明るく残す。 */
+  background: rgba(15, 23, 42, 0.34);
   pointer-events: auto;
 }
-.tour__backdrop { inset: 0; }
+.tour__backdrop { inset: 0; background: rgba(15, 23, 42, 0.5); }
 
 /* 穴の縁の白枠リング */
 .tour__ring {
   position: fixed;
-  border: 2px solid #fff;
+  border: 3px solid var(--c-brand, #16a34a);
   border-radius: 14px;
   pointer-events: none;
-  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.15);
+  box-shadow: 0 0 0 2px #fff, 0 0 0 6px rgba(22, 163, 74, 0.35), 0 6px 20px rgba(15, 23, 42, 0.25);
+  animation: tour-ring 1.6s ease-out infinite;
 }
+@keyframes tour-ring {
+  0%, 100% { box-shadow: 0 0 0 2px #fff, 0 0 0 5px rgba(22, 163, 74, 0.3), 0 6px 20px rgba(15, 23, 42, 0.25); }
+  50% { box-shadow: 0 0 0 2px #fff, 0 0 0 10px rgba(22, 163, 74, 0.16), 0 6px 20px rgba(15, 23, 42, 0.25); }
+}
+@media (prefers-reduced-motion: reduce) { .tour__ring { animation: none; } }
 
 /* explain のとき、対象を押せなくする透明ブロッカー */
 .tour__blocker {
@@ -428,19 +518,22 @@ onUnmounted(() => {
 /* ふきだし */
 .tour__pop {
   position: fixed;
-  z-index: 9502;
+  z-index: 100004;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   box-sizing: border-box;
   background: var(--c-surface, #fff);
-  border-radius: 18px;
-  padding: 16px 18px 14px;
-  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.32);
+  border-radius: 16px;
+  padding: 11px 14px 9px;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.3);
   pointer-events: auto;
   /* それでも入りきらないときは中で送れるようにする（「次へ」を画面外に出さない） */
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.tour__pop-title { font-size: 15px; font-weight: 800; color: var(--c-ink, #0f172a); margin: 0 0 7px; }
-.tour__pop-desc { font-size: 13px; color: var(--c-text-sub, #475569); line-height: 1.7; margin: 0; }
+.tour__pop-title { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 800; color: var(--c-ink, #0f172a); margin: 0; line-height: 1.45; }
+.tour__hand { flex-shrink: 0; font-size: 15px; }
+.tour__pop-desc { font-size: 12px; color: var(--c-text-sub, #475569); line-height: 1.55; margin: 5px 0 0; }
 
 .tour__badge {
   margin-top: 12px;
@@ -490,4 +583,21 @@ onUnmounted(() => {
   font-size: 12px; font-weight: 700; cursor: pointer;
   text-decoration: underline; padding: 6px 2px;
 }
+
+/* やり切ったときの画面 */
+.tour__pop--done { text-align: center; }
+.tour__done-mark {
+  width: 46px; height: 46px; margin: 0 auto 10px;
+  border-radius: 50%; background: var(--c-brand-weak, #ecfdf5); color: var(--c-brand, #16a34a);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; font-weight: 900; line-height: 1;
+}
+.tour__done-btn {
+  width: 100%; min-height: 48px; margin-top: 14px; padding: 12px;
+  border: 0; border-radius: var(--r-pill, 999px);
+  background: var(--c-brand, #16a34a); color: #fff;
+  font-size: 15px; font-weight: var(--fw-bold, 700); cursor: pointer;
+}
+.tour__done-btn:active { transform: scale(0.98); }
+.tour__done-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 </style>

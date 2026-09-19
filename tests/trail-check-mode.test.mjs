@@ -41,7 +41,10 @@ test('どの手順にも、実際のボタンを光らせる案内が付いて�
     assert.ok(Array.isArray(step.guide) && step.guide.length > 0, `${step.id} に案内が無い`);
     for (const g of step.guide) {
       assert.ok(['action', 'explain'].includes(g.type), `${step.id}: 案内の種類が不明`);
-      assert.ok(g.title && g.desc, `${step.id}: 案内の文が足りない`);
+      assert.ok(g.title, `${step.id}: 何をするのか書かれていない`);
+      // 展示では読ませない。画面が見えたまま触ってもらうため、文は短く保つ
+      assert.ok(g.title.length <= 16, `${step.id}: 題が長い（${g.title}）`);
+      assert.ok(typeof g.desc === 'string' && g.desc.length <= 20, `${step.id}: 説明が長い（${g.desc}）`);
       assert.match(g.sel, /^\[data-tour="[\w-]+"\]$/, `${step.id}: 指す先の書き方が違う（${g.sel}）`);
     }
   }
@@ -62,7 +65,7 @@ test('やってみる手順は、最後に本当のボタンを押させて終�
   for (const step of GUEST_TRAIL.filter((s) => s.check === 'action')) {
     const last = step.guide[step.guide.length - 1];
     assert.equal(last.type, 'action', `${step.id}: 最後が押すところで終わっていない`);
-    assert.match(last.desc, /押/, `${step.id}: 最後に何を押すのか書かれていない`);
+    assert.match(last.title, /押|選/, `${step.id}: 最後に何をするのか題に無い`);
   }
 });
 
@@ -140,4 +143,43 @@ test('見つからなかった手順は、飛ばしても済みにしない', ()
   const tour = strip('src/components/ButtonTour.vue');
   assert.match(tour, /skipped\.value \+= 1/, '飛ばした数を数えていない');
   assert.match(tour, /completed\.value && skipped\.value === 0/, '飛ばしても済みになる');
+});
+
+test('確認モーダルで止まる操作は、そこまで案内する', () => {
+  // 「まとめて精算」は押したあとに確認が出る。そこで案内を終えると
+  // 開始されないまま済みになってしまう（2026-09-19）。
+  const settle = GUEST_TRAIL.find((s) => s.id === 'settle');
+  const last = settle.guide[settle.guide.length - 1];
+  assert.equal(last.sel, '[data-tour="confirm-ok"]', '確認まで案内していない');
+  assert.ok(anchors.has('confirm-ok'), '共通の確認モーダルに目印が無い');
+});
+
+test('ふきだしは、光らせたボタンに重ねない', () => {
+  // 重なると、押したい場所をふきだしが塞いで先へ進めなくなる
+  const tour = strip('src/components/ButtonTour.vue');
+  assert.ok(!/top = \(vh - ph\) \/ 2; \/\/ どちらにも入らない/.test(tour), '入らないとき真ん中に重ねている');
+  assert.match(tour, /maxH = Math\.max\(MIN, below\)/, '入らないときに縮めていない');
+});
+
+test('画面を真っ暗にしない（どんなアプリか見えたまま触らせる）', () => {
+  const tour = strip('src/components/ButtonTour.vue');
+  const m = /\.tour__shield[\s\S]{0,240}?background: rgba\(15, 23, 42, ([\d.]+)\)/.exec(tour);
+  assert.ok(m, '暗幕の濃さが読めない');
+  assert.ok(Number(m[1]) <= 0.4, `暗幕が濃い（${m[1]}）。画面が見えなくなる`);
+});
+
+test('お試しは、たずねてからスキップできる', () => {
+  const card = strip('src/components/GuestTryCard.vue');
+  assert.match(card, /お試しをスキップ/, 'やめる道が無い');
+  assert.match(card, /<BaseModal/, 'たずねずに消える');
+  assert.match(card, /お試しをスキップしますか？/, '確認の文が無い');
+  assert.match(card, /TRAIL_HIDDEN_KEY/, 'やめたことを覚えていない');
+});
+
+test('アシスタントとお試しは、行き来できる', () => {
+  const header = strip('src/components/AppHeader.vue');
+  assert.match(header, /panelTab/, '切り替えが無い');
+  assert.match(header, /触ってみる/, 'お試し側のタブが無い');
+  assert.match(header, /assist-tab[\s\S]{0,400}アシスタント/, 'アシスタント側のタブが無い');
+  assert.match(header, /min-height: 44px/, 'タブが指で押せる大きさでない');
 });
