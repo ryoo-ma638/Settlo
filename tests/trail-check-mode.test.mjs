@@ -168,18 +168,62 @@ test('画面を真っ暗にしない（どんなアプリか見えたまま触�
   assert.ok(Number(m[1]) <= 0.4, `暗幕が濃い（${m[1]}）。画面が見えなくなる`);
 });
 
-test('お試しは、たずねてからスキップできる', () => {
+test('案内は、たずねてからスキップできる', () => {
   const card = strip('src/components/GuestTryCard.vue');
-  assert.match(card, /お試しをスキップ/, 'やめる道が無い');
+  assert.match(card, /案内をスキップ/, 'やめる道が無い');
   assert.match(card, /<BaseModal/, 'たずねずに消える');
-  assert.match(card, /お試しをスキップしますか？/, '確認の文が無い');
+  assert.match(card, /案内をスキップしますか？/, '確認の文が無い');
   assert.match(card, /TRAIL_HIDDEN_KEY/, 'やめたことを覚えていない');
 });
 
-test('アシスタントとお試しは、行き来できる', () => {
+test('アシスタントと案内は、行き来できる', () => {
   const header = strip('src/components/AppHeader.vue');
   assert.match(header, /panelTab/, '切り替えが無い');
-  assert.match(header, /触ってみる/, 'お試し側のタブが無い');
+  assert.match(header, /初めての方へ/, '案内側のタブが無い');
   assert.match(header, /assist-tab[\s\S]{0,400}アシスタント/, 'アシスタント側のタブが無い');
   assert.match(header, /min-height: 44px/, 'タブが指で押せる大きさでない');
+  // 独自に作らず、アプリのタブ部品（.seg）を使う
+  assert.match(header, /class="seg assist-tabs"/, '共通のタブ部品を使っていない');
+  assert.match(header, /class="seg__item assist-tab"/, '共通のタブ部品を使っていない');
+});
+
+test('案内の見た目が、アプリの決まりから外れていない', () => {
+  // ブランド緑は #059669。別の緑を混ぜると、案内だけ色が違って見える。
+  const files = ['src/components/ButtonTour.vue', 'src/components/GuestTryCard.vue', 'src/components/AppHeader.vue'];
+  for (const f of files) {
+    const css = strip(f);
+    const 生の色 = [...css.matchAll(/#(?:[0-9a-fA-F]{6})/g)].map((m) => m[0].toLowerCase());
+    for (const c of 生の色) {
+      assert.ok(['#059669', '#047857', '#065f46', '#ecfdf5', '#d1fae5', '#0f172a', '#475569', '#94a3b8', '#e2e8f0', '#f1f5f9', '#ffffff'].includes(c),
+        `${f}: 決まりに無い色 ${c}`);
+    }
+  }
+});
+
+test('案内に絵文字を出さない（アプリは全部SVGにしてある）', () => {
+  const 絵文字 = /[\u{1F300}-\u{1FAFF}\u{2700}-\u{27BF}]/u;
+  for (const f of ['src/components/ButtonTour.vue', 'src/components/GuestTryCard.vue']) {
+    const src = readFileSync(f, 'utf8');
+    const tpl = src.slice(0, src.indexOf('<script setup>'));
+    const 見つかった = tpl.split('\n').filter((l) => 絵文字.test(l) && !l.trim().startsWith('<!--'));
+    assert.equal(見つかった.length, 0, `${f}: 画面に絵文字が出る → ${見つかった.join(' / ')}`);
+  }
+});
+
+test('案内中は、ヘッダーの「初めての方はここから」を引っ込める', () => {
+  // 出したままだと、光らせたボタンと重なる
+  const header = strip('src/components/AppHeader.vue');
+  assert.match(header, /初めての方はここから/, '入口の案内が無い');
+  assert.match(header, /!tourActive\.value/, '案内中も出したままになる');
+});
+
+test('タブが、右上の「閉じる」と重ならない', () => {
+  // 重なると、タブを押したつもりでパネルが閉じる
+  const header = strip('src/components/AppHeader.vue');
+  assert.match(header, /\.assist-tabs \{ margin: 0 36px 10px 0; \}/, '閉じるの分を空けていない');
+});
+
+test('案内のカードが、アシスタントのカードと同じ位置に並ぶ', () => {
+  const header = strip('src/components/AppHeader.vue');
+  assert.match(header, /\.assist-panel :deep\(\.try\) \{ margin: 0; \}/, 'カードの左右がずれる');
 });

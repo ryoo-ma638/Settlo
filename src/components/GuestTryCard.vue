@@ -7,12 +7,12 @@
         <span class="try__count">{{ progress.done }}/{{ progress.total }}</span>
       </div>
 
-      <button type="button" class="try__go" @click="run(current)">
+      <button type="button" class="btn-brand try__go" @click="run(current)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none" />
           <path d="M6 12a6 6 0 0 1 12 0" /><path d="M3.5 12a8.5 8.5 0 0 1 17 0" />
         </svg>
-        ここから触ってみる
+        案内をはじめる
       </button>
       <p class="try__note">光ったボタンを押すだけ</p>
     </template>
@@ -23,9 +23,9 @@
 
     <div class="try__links">
       <button type="button" class="try__toggle" @click="open = !open">
-        {{ open ? '閉じる' : `ぜんぶ見る（残り ${progress.total - progress.done}）` }}
+        {{ open ? '閉じる' : `ぜんぶ見る（残り${progress.total - progress.done}件）` }}
       </button>
-      <button v-if="current" type="button" class="try__toggle" @click="askSkip">お試しをスキップ</button>
+      <button v-if="current" type="button" class="try__toggle" @click="askSkip">案内をスキップ</button>
     </div>
 
     <ol v-if="open" class="try__list">
@@ -36,7 +36,10 @@
           :class="{ 'is-done': isDone(step.id), 'is-now': current && current.id === step.id }"
           @click="run(step)"
         >
-          <span class="try__mark" aria-hidden="true">{{ isDone(step.id) ? '✓' : i + 1 }}</span>
+          <span class="try__mark" aria-hidden="true">
+            <svg v-if="isDone(step.id)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+            <template v-else>{{ i + 1 }}</template>
+          </span>
           <span class="try__row-title">{{ step.title }}</span>
           <span class="try__row-time">{{ step.minutes }}</span>
         </button>
@@ -46,9 +49,9 @@
     <BaseModal
       :show="confirmSkip"
       type="warning"
-      title="お試しをスキップしますか？"
+      title="案内をスキップしますか？"
       message="案内を閉じて、ふつうに触れる状態にします。
-上の「触ってみる」からいつでも戻せます。"
+上の「初めての方へ」からいつでも戻せます。"
       :showCancel="true"
       confirmText="スキップ"
       cancelText="やめる"
@@ -121,52 +124,45 @@ onUnmounted(() => window.removeEventListener(TRAIL_DONE_EVENT, onDone));
 
 <style scoped>
 .try {
-  background: var(--c-surface, #fff);
-  border: 2px solid var(--c-brand, #16a34a);
-  border-radius: var(--r-lg, 16px);
+  background: var(--c-surface);
+  border: 1px solid var(--c-brand);
+  border-radius: var(--r-lg);
   padding: 12px 14px 8px;
-  margin: 12px var(--pad, 16px) 0;
+  margin: 12px var(--pad) 0;
   box-shadow: var(--shadow-card);
 }
 .try__head { display: flex; align-items: center; gap: 9px; }
 .try__no {
   flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
   width: 24px; height: 24px; border-radius: 50%;
-  background: var(--c-brand, #16a34a); color: #fff; font-size: 12.5px; font-weight: var(--fw-bold, 700);
+  background: var(--c-brand); color: #fff; font-size: 12.5px; font-weight: var(--fw-bold);
 }
-.try__title { flex: 1; min-width: 0; font-size: 15px; font-weight: var(--fw-bold, 700); color: var(--c-ink, #0f172a); line-height: 1.4; }
-.try__count { flex-shrink: 0; font-size: 12px; font-weight: var(--fw-bold, 700); color: var(--c-brand-strong, #0f7a4d); font-variant-numeric: tabular-nums; }
+.try__title { flex: 1; min-width: 0; font-size: 15px; font-weight: var(--fw-bold); color: var(--c-ink); line-height: 1.4; }
+.try__count { flex-shrink: 0; font-size: 12px; font-weight: var(--fw-bold); color: var(--c-brand-strong); font-variant-numeric: tabular-nums; }
 
-.try__go {
-  margin-top: 12px;
-  display: flex; align-items: center; justify-content: center; gap: 7px;
-  width: 100%; min-height: 46px; padding: 11px;
-  border: 0; border-radius: var(--r-pill, 999px);
-  background: var(--c-brand, #16a34a); color: #fff;
-  font-size: 14px; font-weight: var(--fw-bold, 700); cursor: pointer;
-}
+.try__go { margin-top: 12px; min-height: 48px; padding: 12px 16px; font-size: 15px; }
 .try__go svg { width: 17px; height: 17px; flex-shrink: 0; }
-.try__go:active { transform: scale(0.98); }
-.try__note { margin: 6px 0 0; font-size: 11px; color: var(--c-text-faint, #94a3b8); text-align: center; }
-.try__done { margin: 0; font-size: 14px; font-weight: var(--fw-bold, 700); color: var(--c-brand-strong, #0f7a4d); text-align: center; }
+.try__note { margin: 6px 0 0; font-size: 11px; color: var(--c-text-faint); text-align: center; }
+.try__done { margin: 0; font-size: 14px; font-weight: var(--fw-bold); color: var(--c-brand-strong); text-align: center; }
 
 .try__links { display: flex; gap: 8px; margin-top: 8px; }
-.try__toggle { flex: 1; min-height: 40px; padding: 8px 6px; background: none; border: 0; font-size: 11.5px; color: var(--c-text-sub, #475569); text-decoration: underline; cursor: pointer; }
+.try__toggle { flex: 1; min-height: 40px; padding: 8px 6px; background: none; border: 0; font-size: 11.5px; color: var(--c-text-sub); text-decoration: underline; cursor: pointer; }
 
-.try__list { list-style: none; margin: 4px 0 0; padding: 0; border-top: 1px solid var(--c-line, #e2e8f0); }
+.try__list { list-style: none; margin: 4px 0 0; padding: 0; border-top: 1px solid var(--c-line); }
 .try__row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 2px; background: none; border: 0; text-align: left; cursor: pointer; }
-.try__list li + li .try__row { border-top: 1px solid var(--c-line, #e2e8f0); }
+.try__list li + li .try__row { border-top: 1px solid var(--c-line); }
 .try__mark {
   flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
   width: 20px; height: 20px; border-radius: 50%;
-  background: var(--c-surface-2, #f1f5f9); color: var(--c-text-sub, #475569);
-  font-size: 11px; font-weight: var(--fw-bold, 700);
+  background: var(--c-surface-2); color: var(--c-text-sub);
+  font-size: 11px; font-weight: var(--fw-bold);
 }
-.try__row.is-done .try__mark { background: #e3f3ea; color: #0f7a4d; }
-.try__row.is-now .try__mark { background: var(--c-brand, #16a34a); color: #fff; }
-.try__row-title { flex: 1; min-width: 0; font-size: 12.5px; color: var(--c-ink, #0f172a); line-height: 1.4; }
-.try__row.is-done .try__row-title { color: var(--c-text-sub, #475569); }
-.try__row-time { flex-shrink: 0; font-size: 10.5px; color: var(--c-text-faint, #94a3b8); }
+.try__row.is-done .try__mark { background: var(--c-brand-tint); color: var(--c-brand-strong); }
+.try__mark svg { width: 13px; height: 13px; }
+.try__row.is-now .try__mark { background: var(--c-brand); color: #fff; }
+.try__row-title { flex: 1; min-width: 0; font-size: 12.5px; color: var(--c-ink); line-height: 1.4; }
+.try__row.is-done .try__row-title { color: var(--c-text-sub); }
+.try__row-time { flex-shrink: 0; font-size: 10.5px; color: var(--c-text-faint); }
 
-.try__go:focus-visible, .try__toggle:focus-visible, .try__row:focus-visible { outline: 2px solid var(--c-brand, #16a34a); outline-offset: 2px; }
+.try__go:focus-visible, .try__toggle:focus-visible, .try__row:focus-visible { outline: 2px solid var(--c-brand); outline-offset: 2px; }
 </style>

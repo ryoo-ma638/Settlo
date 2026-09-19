@@ -30,7 +30,7 @@
         <span v-if="guideActions.length > 0" class="topbar__assist-badge">{{ guideActions.length > 99 ? '99+' : guideActions.length }}</span>
       </button>
       <!-- お試しの人に、最初の入口をはっきり見せる -->
-      <span v-if="callAttention" class="topbar__here" aria-hidden="true">ここから</span>
+      <span v-if="callAttention" class="topbar__here" aria-hidden="true">初めての方はここから</span>
     </div>
   </header>
 
@@ -42,12 +42,12 @@
           <button class="assist-panel__close" @click="showAssistant = false" aria-label="閉じる">×</button>
 
           <!-- お試しの人は「触ってみる」と「アシスタント」を行き来できる -->
-          <div v-if="isGuest" class="assist-tabs" role="tablist">
-            <button type="button" class="assist-tab" :class="{ 'is-on': panelTab === 'try' }" role="tab" :aria-selected="panelTab === 'try'" @click="panelTab = 'try'">
-              触ってみる
+          <div v-if="isGuest" class="seg assist-tabs" role="tablist">
+            <button type="button" class="seg__item assist-tab" :class="{ 'is-active': panelTab === 'try' }" role="tab" :aria-selected="panelTab === 'try'" @click="panelTab = 'try'">
+              初めての方へ
               <span v-if="trailLeft > 0" class="assist-tab__count">{{ GUEST_TRAIL.length - trailLeft }}/{{ GUEST_TRAIL.length }}</span>
             </button>
-            <button type="button" class="assist-tab" :class="{ 'is-on': panelTab === 'guide' }" role="tab" :aria-selected="panelTab === 'guide'" @click="panelTab = 'guide'">
+            <button type="button" class="seg__item assist-tab" :class="{ 'is-active': panelTab === 'guide' }" role="tab" :aria-selected="panelTab === 'guide'" @click="panelTab = 'guide'">
               アシスタント
               <span v-if="guideActions.length" class="assist-tab__count">{{ guideActions.length }}</span>
             </button>
@@ -74,7 +74,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot, collection, query, where } from "firebase/firestore";
 import { GUEST_TRAIL, normalizeDone } from '@/lib/guestTrail.js';
 import { TRAIL_KEY, TRAIL_HIDDEN_KEY } from '@/lib/guestGuide.js';
-import { TRAIL_DONE_EVENT, OPEN_ASSISTANT_EVENT } from '@/lib/trailProgressSignal.js';
+import { TRAIL_DONE_EVENT, OPEN_ASSISTANT_EVENT, TOUR_STATE_EVENT } from '@/lib/trailProgressSignal.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -103,7 +103,9 @@ const trailSkipped = ref(false);
 const readSkipped = () => {
   try { trailSkipped.value = JSON.parse(localStorage.getItem(TRAIL_HIDDEN_KEY) || 'false') === true; } catch (e) { trailSkipped.value = false; }
 };
-const callAttention = computed(() => isGuest.value && trailLeft.value > 0 && !trailSkipped.value && !showAssistant.value);
+const tourActive = ref(false); // 案内が動いている間は引っ込める（光るボタンと重なるため）
+const callAttention = computed(() =>
+  isGuest.value && trailLeft.value > 0 && !trailSkipped.value && !showAssistant.value && !tourActive.value);
 
 // パネルの中でどちらを見せるか。お試しが残っていれば「触ってみる」から。
 const panelTab = ref('try');
@@ -123,12 +125,14 @@ const navigate = (path) => { router.push(path); };
 const onTrailDone = () => readTrail();
 // 案内をやり切ったあと、次の手順を出すために開き直す
 const onOpenAssistant = () => { readTrail(); showAssistant.value = true; };
+const onTourState = (e) => { tourActive.value = !!(e && e.detail && e.detail.active); };
 
 onMounted(() => {
   readTrail();
   readSkipped();
   window.addEventListener(TRAIL_DONE_EVENT, onTrailDone);
   window.addEventListener(OPEN_ASSISTANT_EVENT, onOpenAssistant);
+  window.addEventListener(TOUR_STATE_EVENT, onTourState);
   onAuthStateChanged(auth, (user) => {
     isGuest.value = user?.isAnonymous === true;
     if (user) {
@@ -163,6 +167,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener(TRAIL_DONE_EVENT, onTrailDone);
   window.removeEventListener(OPEN_ASSISTANT_EVENT, onOpenAssistant);
+  window.removeEventListener(TOUR_STATE_EVENT, onTourState);
 });
 </script>
 
@@ -270,6 +275,7 @@ onUnmounted(() => {
 }
 /* パネル内のカードは自前で余白を持たせる（ホーム時のmarginを打ち消す） */
 .assist-panel :deep(.guide) { margin: 0; }
+.assist-panel :deep(.try) { margin: 0; }
 .assist-panel__close {
   position: absolute;
   top: 6px; right: 8px;
@@ -297,52 +303,45 @@ onUnmounted(() => {
 
 /* 🌟 お試しの人に、最初に押す場所を見せる。ひと通り済んだら止まる。 */
 .topbar__assist.is-calling {
-  color: var(--c-brand, #16a34a);
-  box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.55);
+  color: var(--c-brand);
+  box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.55);
   animation: assist-pulse 1.8s ease-out infinite;
   border-radius: 50%;
 }
 @keyframes assist-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.5); }
-  70% { box-shadow: 0 0 0 11px rgba(22, 163, 74, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.5); }
+  70% { box-shadow: 0 0 0 11px rgba(5, 150, 105, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0); }
 }
 .topbar__right { position: relative; }
 .topbar__here {
   position: absolute; top: calc(100% + 2px); right: 0;
   padding: 2px 8px; border-radius: 999px;
-  background: var(--c-brand, #16a34a); color: #fff;
-  font-size: 10px; font-weight: var(--fw-bold, 700); white-space: nowrap;
+  background: var(--c-brand); color: #fff;
+  font-size: 10px; font-weight: var(--fw-bold); white-space: nowrap;
   pointer-events: none;
 }
 .topbar__here::before {
   content: ''; position: absolute; top: -4px; right: 13px;
   border-left: 4px solid transparent; border-right: 4px solid transparent;
-  border-bottom: 4px solid var(--c-brand, #16a34a);
+  border-bottom: 4px solid var(--c-brand);
 }
-@media (prefers-reduced-motion: reduce) { .topbar__assist.is-calling { animation: none; box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.35); } }
+@media (prefers-reduced-motion: reduce) { .topbar__assist.is-calling { animation: none; box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.35); } }
 
-/* パネルの中の切り替え。指で押せる大きさ（44px）を確保する。 */
-.assist-tabs {
-  display: flex; gap: 6px;
-  margin: 10px var(--pad, 16px) 0;
-  padding: 4px;
-  background: var(--c-surface-2, #f1f5f9);
-  border-radius: var(--r-pill, 999px);
-}
+/* パネルの中の切り替え。見た目は共通の .seg に合わせ、
+   指で押せる大きさ（44px）と件数の丸だけ足す。 */
+/* 右上の × と重ならないように、その分だけ空ける（押し間違いで閉じてしまうため） */
+.assist-tabs { margin: 0 36px 10px 0; }
 .assist-tab {
-  flex: 1; min-height: 44px; padding: 8px 10px;
+  min-height: 44px;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  border: 0; border-radius: var(--r-pill, 999px);
-  background: none; color: var(--c-text-sub, #475569);
-  font-size: 13px; font-weight: var(--fw-bold, 700); cursor: pointer;
+  cursor: pointer;
 }
-.assist-tab.is-on { background: var(--c-surface, #fff); color: var(--c-brand-strong, #0f7a4d); box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12); }
 .assist-tab__count {
-  padding: 1px 7px; border-radius: 999px;
-  background: var(--c-brand-weak, #ecfdf5); color: var(--c-brand-strong, #0f7a4d);
+  padding: 1px 7px; border-radius: var(--r-pill);
+  background: var(--c-brand-weak); color: var(--c-brand-strong);
   font-size: 10.5px; font-variant-numeric: tabular-nums;
 }
-.assist-tab.is-on .assist-tab__count { background: var(--c-brand, #16a34a); color: #fff; }
-.assist-tab:focus-visible { outline: 2px solid var(--c-brand, #16a34a); outline-offset: 2px; }
+.assist-tab.is-active .assist-tab__count { background: var(--c-brand); color: #fff; }
+.assist-tab:focus-visible { outline: 2px solid var(--c-brand); outline-offset: 2px; }
 </style>
