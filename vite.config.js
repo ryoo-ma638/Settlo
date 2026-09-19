@@ -32,6 +32,11 @@ export default defineConfig({
     strictPort: true,
   },
   build: {
+    // 🌟 CSSは1本にまとめる。
+    //    画面ごとに分けると、その画面へ移った瞬間にCSSを取りに行くことになり、
+    //    先に文字だけ出て、あとから背景や色が付く（実測で最大0.4秒ずれた）。
+    //    まとめると最初に少し増えるが、画面移動のたびのずれが無くなる。
+    cssCodeSplit: false,
     // 🌟 バンドル分割：巨大な firebase を機能ごとの別チャンクに分け、初回読み込みを軽くする
     rollupOptions: {
       output: {
