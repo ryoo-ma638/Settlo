@@ -46,3 +46,30 @@ test('あとで開く画面を先読みする', () => {
   }
   assert.match(pre, /saveData/, '通信を節約したい人への配慮が無い');
 });
+
+test('CSSの読み込みで描画を止めない', () => {
+  // <link rel="stylesheet"> は届くまで画面が出ない。
+  // このアプリは firebase が届くまで中身を描けないので、CSSを待つ必要が無い。
+  assert.match(vite, /nonBlockingCss\(\)/, 'ビルド時の書き換えを入れていない');
+  assert.match(vite, /rel="preload" as="style"/, 'preload に変えていない');
+  assert.match(vite, /<noscript>/, 'JavaScriptが動かない環境でCSSが当たらない');
+});
+
+test('CSSが当たってから画面を描く', () => {
+  // 当たる前に描くと、色や背景が無い状態が一瞬見える
+  const main = readFileSync('src/main.js', 'utf8');
+  assert.match(main, /stylesReady\(\)\.then\(\(\) => app\.mount/, 'CSSを待たずに描いている');
+  assert.match(main, /setTimeout\(done, 2000\)/, '待ちっぱなしになる恐れがある（見切りが無い）');
+});
+
+test('起動時に要らない firebase の部品を分ける', () => {
+  // 通知と画像アップロードは起動時に使わない。まとめると起動が重くなる。
+  assert.match(vite, /firebase-messaging/, '通知が起動時のファイルに入る');
+  assert.match(vite, /firebase-storage/, '画像アップロードが起動時のファイルに入る');
+  // ⚠️ firestore と auth は割らない。以前それで起動が壊れた
+  assert.ok(!/'firebase-firestore'|'firebase-auth'/.test(vite), 'firestore や auth を割ってはいけない');
+  const notif = readFileSync('src/lib/notificationSettings.js', 'utf8');
+  assert.match(notif, /await import\('firebase\/messaging'\)/, '通知を最初から読み込んでいる');
+  const router = readFileSync('src/router/index.js', 'utf8');
+  assert.match(router, /EditProfile',[^}]*import\('\.\.\/views\/EditProfileView\.vue'\)/, 'プロフィール編集を最初から読み込んでいる');
+});

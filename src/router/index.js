@@ -9,7 +9,6 @@ import MakeEventView from '../views/MakeEventView.vue'
 import LoginView from '../views/LoginView.vue'
 import EventViews from '../views/EventViews.vue' 
 import EventDetails from '../views/EventDetails.vue' 
-import EditProfileView from '../views/EditProfileView.vue';
 import PaymentHistoryView from '../views/PaymentHistoryView.vue';
 
 const routes = [
@@ -28,7 +27,8 @@ const routes = [
     { path: '/payment-detail/:id', name: 'PaymentDetail', component: () => import('../views/PaymentDetailView.vue') },
     { path: '/combined-settlement/:name', name: 'CombinedSettlement', component: () => import('../views/CombinedSettlementView.vue') },
     { path: '/combined-action/:name', name: 'CombinedAction', component: () => import('../views/CombinedActionView.vue') },
-    { path: '/edit-profile', name: 'EditProfile', component: EditProfileView },
+    // 画像のアップロード（firebase/storage）を使う画面。開くときに読む
+    { path: '/edit-profile', name: 'EditProfile', component: () => import('../views/EditProfileView.vue') },
     { path: '/notification-settings', name: 'NotificationSettings', component: () => import('../views/NotificationSettingsView.vue') },
 
     { path: '/payment-history', name: 'PaymentHistory', component: PaymentHistoryView },
