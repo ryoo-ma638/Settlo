@@ -183,9 +183,15 @@ onUnmounted(() => window.removeEventListener('settlo:show-onboarding', forceShow
   fill: none; stroke: var(--c-brand); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
 }
 
-/* 実画面のスクリーンショット */
+/* 実画面のスクリーンショット。
+   高さは画面に合わせて縮める。窓が低いと写真だけで埋まり、
+   下の「スキップ」が見えなくなる（カードはスクロールできるが気づけない）。
+   横幅は写真の形（402:874）から決まる。細い画面では横からも抑える。 */
 .ob-shot {
-  width: min(168px, 48vw);
+  --gap: 430px; /* 写真以外（題名・説明・点・ボタン）が使う高さの目安 */
+  --shot-h: clamp(120px, calc(100dvh - var(--gap)), 365px);
+  height: min(var(--shot-h), calc(48vw * 2.174));
+  width: auto;
   aspect-ratio: 402 / 874;
   margin: 0 auto 14px;
   border-radius: 18px;
@@ -198,6 +204,8 @@ onUnmounted(() => window.removeEventListener('settlo:show-onboarding', forceShow
 
 .ob-title { font-size: 17px; font-weight: var(--fw-black, 900); color: var(--c-ink); margin: 0 0 8px; }
 .ob-text { font-size: 13px; line-height: 1.75; color: var(--c-text-sub); margin: 0 0 8px; min-height: 68px; }
+/* 低い窓では説明文の下駄を外すので、そのぶん写真に回せる */
+@media (max-height: 700px) { .ob-text { min-height: 0; } .ob-tour-note { margin-bottom: 6px; } }
 .ob-tap {
   font-size: 12.5px; font-weight: 800;
   color: var(--c-brand);
@@ -242,6 +250,7 @@ onUnmounted(() => window.removeEventListener('settlo:show-onboarding', forceShow
 .ob-fade-enter-from, .ob-fade-leave-to { opacity: 0; }
 
 .ob-shot { max-width: 100%; }
+.ob-card { overscroll-behavior: contain; }
 .ob-shot img { object-fit: contain; }
 .ob-progress { margin: 8px 0 0; font-size: 13px; color: var(--c-text-sub); font-variant-numeric: tabular-nums; }
 .ob-dots { gap: 0; margin: 0 0 8px; }
