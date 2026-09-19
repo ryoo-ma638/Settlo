@@ -1,7 +1,6 @@
 <template>
   <div class="home">
     <!-- お試しで入った人への道案内。展示で横に付いて説明できないときの代わり -->
-    <GuestTrailCard />
 
     <!-- お支払い状況（ツアーの案内対象） -->
     <section data-tour="home-status">
@@ -127,7 +126,6 @@ import { collection, query, where, onSnapshot, getDoc, doc, deleteDoc, updateDoc
 import { buildPaymentOverview } from '@/lib/paymentOverview.js';
 import { ongoingEventsOf } from '@/lib/eventMembership';
 import PaymentCarousel from '@/components/PaymentCarousel.vue';
-import GuestTrailCard from '@/components/GuestTrailCard.vue';
 import BaseModal from '@/components/BaseModal.vue'; // 🌟 Eventブランチの統一モーダル
 import InviteCard from '@/components/InviteCard.vue';
 import UserAvatar from '@/components/UserAvatar.vue';

@@ -27,6 +27,7 @@
             <button
               v-if="canStartNetSettlement"
               class="start-settlement-btn"
+              data-tour="ev-settle-start"
               :disabled="settlementBusy"
               @click="startNetSettlement"
             >{{ settlementBusy ? '作成中…' : '精算を始める' }}</button>
@@ -327,6 +328,7 @@
             <button
               v-if="selectedSummary.isPreview && canStartNetSettlement"
               class="action-btn main summary-start-btn"
+              data-tour="ev-settle-confirm"
               :disabled="settlementBusy"
               @click="startNetSettlementFromDetail"
             >{{ settlementBusy ? '作成中…' : 'この内容でまとめて精算を始める' }}</button>

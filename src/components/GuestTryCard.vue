@@ -1,0 +1,159 @@
+<template>
+  <section v-if="show" class="try">
+    <p class="try__eyebrow">
+      <span class="try__badge">お試し</span>
+      ここから触り始められます
+    </p>
+
+    <template v-if="current">
+      <div class="try__head">
+        <span class="try__no">{{ index + 1 }}</span>
+        <span class="try__titles">
+          <span class="try__title">{{ current.title }}</span>
+          <span class="try__meta">{{ current.minutes }}・{{ current.where }}</span>
+        </span>
+        <span class="try__count">{{ progress.done }}/{{ progress.total }}</span>
+      </div>
+
+      <p class="try__desc">{{ current.desc }}</p>
+
+      <button type="button" class="try__go" @click="run(current)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none" />
+          <path d="M6 12a6 6 0 0 1 12 0" /><path d="M3.5 12a8.5 8.5 0 0 1 17 0" />
+        </svg>
+        押すボタンを光らせて案内する
+      </button>
+      <p class="try__note">光ったボタンを押していくだけです。最後まで押し切ると ✓ が付きます。</p>
+    </template>
+
+    <template v-else>
+      <p class="try__done">ひと通り試せました。ほかの画面はマイページ →「ヘルプ・使い方」から見られます。</p>
+    </template>
+
+    <button type="button" class="try__toggle" @click="open = !open">
+      {{ open ? '一覧を閉じる' : `ほかの手順を見る（残り ${progress.total - progress.done} 件）` }}
+    </button>
+
+    <ol v-if="open" class="try__list">
+      <li v-for="(step, i) in steps" :key="step.id">
+        <button
+          type="button"
+          class="try__row"
+          :class="{ 'is-done': isDone(step.id), 'is-now': current && current.id === step.id }"
+          @click="run(step)"
+        >
+          <span class="try__mark" aria-hidden="true">{{ isDone(step.id) ? '✓' : i + 1 }}</span>
+          <span class="try__row-title">{{ step.title }}</span>
+          <span class="try__row-time">{{ step.minutes }}</span>
+        </button>
+      </li>
+    </ol>
+  </section>
+</template>
+
+<script setup>
+// 🌟 お試し（ゲスト）で入った人の「触ってみる」。
+//    以前はホームに7件まとめて出していたが、一度に並ぶと読みづらく、
+//    どのボタンを押せばいいかも分からなかった。
+//    ここではアシスタントの中に「いまの1件だけ」を出し、
+//    押すと実際のボタンを1つずつ光らせて最後まで案内する。
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { auth } from '@/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { GUEST_TRAIL, trailProgress, nextTrailStep, normalizeDone } from '@/lib/guestTrail.js';
+import { TRAIL_KEY } from '@/lib/guestGuide.js';
+import { TRAIL_DONE_EVENT, startGuidedTask } from '@/lib/trailProgressSignal.js';
+
+const emit = defineEmits(['start']); // 案内を始めたらパネルを閉じてもらう
+
+const steps = GUEST_TRAIL;
+const isGuest = ref(false);
+const done = ref([]);
+const open = ref(false);
+
+const load = () => {
+  try {
+    const raw = localStorage.getItem(TRAIL_KEY);
+    done.value = normalizeDone(raw ? JSON.parse(raw) : []);
+  } catch (e) { done.value = []; }
+};
+
+const progress = computed(() => trailProgress(done.value));
+const current = computed(() => nextTrailStep(done.value));
+const index = computed(() => (current.value ? steps.indexOf(current.value) : -1));
+const isDone = (id) => done.value.includes(id);
+const show = computed(() => isGuest.value);
+
+const run = (step) => {
+  if (!startGuidedTask(step)) return;
+  emit('start');
+};
+
+const onDone = () => load();
+
+onMounted(() => {
+  load();
+  window.addEventListener(TRAIL_DONE_EVENT, onDone);
+  isGuest.value = auth.currentUser?.isAnonymous === true;
+  onAuthStateChanged(auth, (user) => { isGuest.value = user?.isAnonymous === true; });
+});
+onUnmounted(() => window.removeEventListener(TRAIL_DONE_EVENT, onDone));
+</script>
+
+<style scoped>
+.try {
+  background: var(--c-surface, #fff);
+  border: 2px solid var(--c-brand, #16a34a);
+  border-radius: var(--r-lg, 16px);
+  padding: 14px 16px 12px;
+  margin: 12px var(--pad, 16px) 0;
+  box-shadow: var(--shadow-card);
+}
+.try__eyebrow { display: flex; align-items: center; gap: 7px; margin: 0 0 10px; font-size: 11.5px; font-weight: var(--fw-bold, 700); color: var(--c-brand-strong, #0f7a4d); }
+.try__badge { padding: 2px 8px; border-radius: 999px; background: var(--c-brand, #16a34a); color: #fff; font-size: 10.5px; }
+
+.try__head { display: flex; align-items: flex-start; gap: 9px; }
+.try__no {
+  flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--c-brand, #16a34a); color: #fff; font-size: 12.5px; font-weight: var(--fw-bold, 700);
+}
+.try__titles { flex: 1; min-width: 0; }
+.try__title { display: block; font-size: 14.5px; font-weight: var(--fw-bold, 700); color: var(--c-ink, #0f172a); line-height: 1.4; }
+.try__meta { display: block; margin-top: 2px; font-size: 11px; color: var(--c-text-sub, #475569); overflow-wrap: anywhere; }
+.try__count { flex-shrink: 0; font-size: 12px; font-weight: var(--fw-bold, 700); color: var(--c-brand-strong, #0f7a4d); font-variant-numeric: tabular-nums; }
+
+.try__desc { margin: 8px 0 12px; font-size: 12px; line-height: 1.65; color: var(--c-text-sub, #475569); overflow-wrap: anywhere; }
+
+.try__go {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  width: 100%; min-height: 46px; padding: 11px;
+  border: 0; border-radius: var(--r-pill, 999px);
+  background: var(--c-brand, #16a34a); color: #fff;
+  font-size: 14px; font-weight: var(--fw-bold, 700); cursor: pointer;
+}
+.try__go svg { width: 17px; height: 17px; flex-shrink: 0; }
+.try__go:active { transform: scale(0.98); }
+.try__note { margin: 7px 0 0; font-size: 11px; line-height: 1.55; color: var(--c-text-faint, #94a3b8); text-align: center; }
+.try__done { margin: 0 0 6px; font-size: 12.5px; line-height: 1.65; color: var(--c-text-sub, #475569); }
+
+.try__toggle { display: block; width: 100%; margin-top: 10px; padding: 6px; background: none; border: 0; font-size: 11.5px; color: var(--c-text-sub, #475569); text-decoration: underline; cursor: pointer; }
+
+.try__list { list-style: none; margin: 4px 0 0; padding: 0; border-top: 1px solid var(--c-line, #e2e8f0); }
+.try__row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 2px; background: none; border: 0; text-align: left; cursor: pointer; }
+.try__list li + li .try__row { border-top: 1px solid var(--c-line, #e2e8f0); }
+.try__mark {
+  flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--c-surface-2, #f1f5f9); color: var(--c-text-sub, #475569);
+  font-size: 11px; font-weight: var(--fw-bold, 700);
+}
+.try__row.is-done .try__mark { background: #e3f3ea; color: #0f7a4d; }
+.try__row.is-now .try__mark { background: var(--c-brand, #16a34a); color: #fff; }
+.try__row-title { flex: 1; min-width: 0; font-size: 12.5px; color: var(--c-ink, #0f172a); line-height: 1.4; }
+.try__row.is-done .try__row-title { color: var(--c-text-sub, #475569); }
+.try__row-time { flex-shrink: 0; font-size: 10.5px; color: var(--c-text-faint, #94a3b8); }
+
+.try__go:focus-visible, .try__toggle:focus-visible, .try__row:focus-visible { outline: 2px solid var(--c-brand, #16a34a); outline-offset: 2px; }
+</style>

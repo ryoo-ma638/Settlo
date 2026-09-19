@@ -23,9 +23,13 @@
       </main>
       <AppFooter />
       <OnboardingModal />
-      <ButtonTour />
       <GlobalToast />
     </div>
+
+    <!-- 🌟 ボタンの案内は、シェルの外へ出しておく。
+         チャット（/thread）はシェル無しで開くので、中に置くと
+         その画面へ移った瞬間に案内ごと消えていた。 -->
+    <ButtonTour />
   </template>
 </template>
 

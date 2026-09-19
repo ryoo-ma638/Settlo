@@ -13,7 +13,7 @@
         <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
           <div class="modal-window">
             <h2 class="modal-title">お知らせ</h2>
-            <div class="notification-list">
+            <div class="notification-list" data-tour="notif-panel">
 
               <div v-for="req in paymentReqs" :key="req.id" class="notif-item" :class="notifClass(req)">
                 <div class="notif-body">

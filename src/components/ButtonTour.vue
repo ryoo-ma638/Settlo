@@ -44,6 +44,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
+import { markTrailDone, GUIDED_TASK_EVENT } from '@/lib/trailProgressSignal.js';
 
 const router = useRouter();
 const active = ref(false);
@@ -56,7 +57,7 @@ const rect = ref(null); // 対象要素の位置（{top,left,width,height}）。
 const PAD = 8;
 
 // ツアーの手順。sel は data-tour 属性。type = explain（説明のみ）/ action（実際に押して進む）/ final（締め）。
-const STEPS = [
+const FULL_TOUR = [
   // --- ホーム ---
   { type: 'explain', sel: '[data-tour="home-status"]', title: '現在の精算状況', desc: '大きい数字は「いま受け取る額」と「いま払う額」。すぐ下に残りの件数が出ます。灰色の枠は相手の返事を待っている分で、上の金額には入っていません。矢印で3枚のカードを切り替えられます。' },
   { type: 'explain', sel: '[data-tour="home-events"]', title: '進行中のイベント', desc: '旅行や飲み会ごとに立て替えをまとめる「箱」です。タップで詳細が開きます。' },
@@ -116,7 +117,15 @@ const STEPS = [
   { type: 'final', sel: null, title: 'ツアー完了！', desc: 'これで全部の画面をひと通り見ました。細かい説明は、マイページ→「ヘルプ・使い方」にまとまっています。' },
 ];
 
-const currentStep = computed(() => STEPS[stepIndex.value]);
+// 🌟 手順は差し替えられる。
+//    ・マイページの「アプリの使い方」＝全画面ツアー（FULL_TOUR）
+//    ・お試しの「触ってみる」＝1つの作業だけを最後まで案内する短い手順
+//      （settlo:start-guided-task で渡される）
+const STEPS = ref(FULL_TOUR);
+const taskId = ref(null);   // お試しの手順のときだけ入る
+const completed = ref(false); // 最後まで行ったか（途中でやめたのと区別する）
+const skipped = ref(0);       // 対象が見つからず飛ばした数
+const currentStep = computed(() => STEPS.value[stepIndex.value]);
 const isFinal = computed(() => currentStep.value?.type === 'final');
 
 // 対象の矩形に余白を足した「穴」
@@ -246,7 +255,9 @@ const locate = (attempt = 0) => {
     if (attempt < limit) {
       retryTimer = setTimeout(() => locate(attempt + 1), 150);
     } else {
-      advance(); // 見つからないステップは飛ばす
+      // 見つからないステップは飛ばす。飛ばした分は「やった」ことにしない。
+      if (!step.optional) skipped.value += 1;
+      advance();
     }
     return;
   }
@@ -267,7 +278,7 @@ const locate = (attempt = 0) => {
 const goTo = (i) => {
   clearRetry();
   detachAction();
-  if (i >= STEPS.length) { end(); return; }
+  if (i >= STEPS.value.length) { completed.value = true; end(); return; }
   stepIndex.value = i;
   locate(0);
 };
@@ -286,7 +297,7 @@ const back = async () => {
   try {
     clearRetry();
     detachAction();
-    const step = STEPS[target];
+    const step = STEPS.value[target];
     const wantPath = stepPaths[target];
     if (wantPath && router.currentRoute.value.path !== wantPath) {
       await router.push(wantPath);
@@ -312,11 +323,14 @@ const forceAction = () => {
 };
 
 // --- 開始・終了 ---
-const start = async () => {
-  // ツアーはホームから始める
-  if (router.currentRoute.value.path !== '/') {
+const begin = async ({ steps, id, fromHome }) => {
+  if (fromHome && router.currentRoute.value.path !== '/') {
     await router.push('/');
   }
+  STEPS.value = steps;
+  taskId.value = id || null;
+  completed.value = false;
+  skipped.value = 0;
   active.value = true;
   stepIndex.value = 0;
   stepPaths.length = 0;
@@ -325,15 +339,36 @@ const start = async () => {
   setTimeout(() => locate(0), 100);
 };
 
+// 全画面ツアー（マイページ →「アプリの使い方」）
+const start = () => begin({ steps: FULL_TOUR, id: null, fromHome: true });
+
+// 🌟 お試しの「触ってみる」。1つの作業だけを、実際のボタンを光らせて最後まで案内する。
+//    今いる画面から始める（下のナビを押すところから案内するため）。
+const startTask = (event) => {
+  const detail = event && event.detail;
+  const steps = detail && Array.isArray(detail.steps) ? detail.steps : null;
+  if (!steps || steps.length === 0) return;
+  begin({ steps, id: detail.id, fromHome: false });
+};
+
 const end = () => {
   clearRetry();
   detachAction();
   window.removeEventListener('resize', onResize);
+  const wasTask = taskId.value;
+  // 飛ばしたステップがあるなら、最後まで行っても「やった」ことにしない
+  const wasDone = completed.value && skipped.value === 0;
   active.value = false;
   curEl = null;
   rect.value = null;
-  // 開いたままの「＋」選択シートがあれば閉じる
-  document.querySelector('[data-tour="sheet-cancel"]')?.click();
+  // 全画面ツアーのときだけ、開いたままの「＋」選択シートを閉じる。
+  // お試しの手順は、シートの中で続けてもらうことがあるので触らない。
+  if (!wasTask) document.querySelector('[data-tour="sheet-cancel"]')?.click();
+  // 最後まで行ったときだけ済みにする。途中でやめた分は済みにしない。
+  if (wasTask && wasDone) markTrailDone(wasTask);
+  taskId.value = null;
+  completed.value = false;
+  skipped.value = 0;
 };
 
 const finishHome = () => {
@@ -341,9 +376,13 @@ const finishHome = () => {
   end();
 };
 
-onMounted(() => window.addEventListener('settlo:show-button-tour', start));
+onMounted(() => {
+  window.addEventListener('settlo:show-button-tour', start);
+  window.addEventListener(GUIDED_TASK_EVENT, startTask);
+});
 onUnmounted(() => {
   window.removeEventListener('settlo:show-button-tour', start);
+  window.removeEventListener(GUIDED_TASK_EVENT, startTask);
   clearRetry();
   detachAction();
   window.removeEventListener('resize', onResize);
@@ -355,7 +394,9 @@ onUnmounted(() => {
 .tour {
   position: fixed;
   inset: 0;
-  z-index: 6000;
+  /* お知らせのモーダル（9000）より上に置く。上に置かないとふきだしが隠れる。
+     はじめてガイド（90000）と確認のモーダル（99999）よりは下のまま。 */
+  z-index: 9500;
   pointer-events: none;
 }
 
@@ -387,7 +428,7 @@ onUnmounted(() => {
 /* ふきだし */
 .tour__pop {
   position: fixed;
-  z-index: 6002;
+  z-index: 9502;
   box-sizing: border-box;
   background: var(--c-surface, #fff);
   border-radius: 18px;

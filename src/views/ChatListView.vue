@@ -11,9 +11,10 @@
       </div>
       <template v-else>
         <button
-          v-for="m in visibleMatters"
+          v-for="(m, index) in visibleMatters"
           :key="m.threadId"
           class="prow"
+          :data-tour="index === 0 ? 'chat-thread' : null"
           @click="$router.push(`/thread/${m.threadId}`)"
         >
             <span class="prow__avatar" :class="{ 'is-group': m.isGroup }" :style="{ background: avatarColor(m.title) }">
