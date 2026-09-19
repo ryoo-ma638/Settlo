@@ -4,10 +4,12 @@
     <div v-if="active && doneView" class="tour">
       <div class="tour__backdrop"></div>
       <div class="tour__pop tour__pop--done">
-        <p class="tour__done-mark" aria-hidden="true">✓</p>
+        <span class="tour__done-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+        </span>
         <p class="tour__pop-title">{{ doneView.title }}</p>
         <p class="tour__pop-desc">{{ doneView.desc }}</p>
-        <button class="tour__done-btn" @click="finishTask">{{ doneView.cta }}</button>
+        <button class="btn-brand tour__done-btn" @click="finishTask">{{ doneView.cta }}</button>
       </div>
     </div>
 
@@ -30,7 +32,10 @@
       <!-- ふきだし（ポップ） -->
       <div ref="popEl" class="tour__pop" :style="popStyle">
         <p class="tour__pop-title">
-          <span v-if="currentStep.type === 'action'" class="tour__hand" aria-hidden="true">👆</span>
+          <svg v-if="currentStep.type === 'action'" class="tour__hand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" />
+            <path d="M6 12a6 6 0 0 1 12 0" /><path d="M3.5 12a8.5 8.5 0 0 1 17 0" />
+          </svg>
           {{ currentStep.title }}
         </p>
         <p v-if="currentStep.desc" class="tour__pop-desc">{{ currentStep.desc }}</p>
@@ -53,11 +58,16 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
-import { markTrailDone, GUIDED_TASK_EVENT, CLOSE_OVERLAYS_EVENT, OPEN_ASSISTANT_EVENT } from '@/lib/trailProgressSignal.js';
+import { markTrailDone, GUIDED_TASK_EVENT, CLOSE_OVERLAYS_EVENT, OPEN_ASSISTANT_EVENT, TOUR_STATE_EVENT } from '@/lib/trailProgressSignal.js';
 import { GUEST_TRAIL, nextTrailStep, trailProgress, normalizeDone } from '@/lib/guestTrail.js';
 import { TRAIL_KEY } from '@/lib/guestGuide.js';
 
 // 端末に残っている「済み」を読む
+// 案内が動いているかを画面のほかの部分へ伝える
+const 告げる = (on) => {
+  try { window.dispatchEvent(new CustomEvent(TOUR_STATE_EVENT, { detail: { active: on } })); } catch (e) {}
+};
+
 const readDone = () => {
   try { return normalizeDone(JSON.parse(localStorage.getItem(TRAIL_KEY) || '[]')); } catch (e) { return []; }
 };
@@ -375,13 +385,13 @@ const showDone = () => {
   const p = trailProgress(readDone());
   doneView.value = next
     ? {
-        title: `${step ? step.title : ''} ができました`,
-        desc: `${p.done}/${p.total} 済み。次は「${next.title}」です。`,
-        cta: '次の手順へ',
+        title: 'できました',
+        desc: `${p.done}/${p.total} 済み。次は「${next.title}」`,
+        cta: '次へ進む',
       }
     : {
         title: 'ひと通り試せました',
-        desc: `${p.total}件ぜんぶ済みです。ほかの画面はマイページ →「ヘルプ・使い方」から見られます。`,
+        desc: `${p.total}件ぜんぶ済みです`,
         cta: 'ホームへ戻る',
       };
   rect.value = null;
@@ -412,6 +422,7 @@ const begin = async ({ steps, id, fromHome }) => {
   skipped.value = 0;
   doneView.value = null;
   active.value = true;
+  告げる(true);
   stepIndex.value = 0;
   stepPaths.length = 0;
   window.addEventListener('resize', onResize);
@@ -440,6 +451,7 @@ const end = () => {
   // やり切った分は showDone() で先に印を付けてある。
   const wasDone = completed.value && skipped.value === 0 && !doneView.value;
   active.value = false;
+  告げる(false);
   curEl = null;
   rect.value = null;
   // 全画面ツアーのときだけ、開いたままの「＋」選択シートを閉じる。
@@ -496,15 +508,15 @@ onUnmounted(() => {
 /* 穴の縁の白枠リング */
 .tour__ring {
   position: fixed;
-  border: 3px solid var(--c-brand, #16a34a);
+  border: 3px solid var(--c-brand);
   border-radius: 14px;
   pointer-events: none;
-  box-shadow: 0 0 0 2px #fff, 0 0 0 6px rgba(22, 163, 74, 0.35), 0 6px 20px rgba(15, 23, 42, 0.25);
+  box-shadow: 0 0 0 2px #fff, 0 0 0 6px rgba(5, 150, 105, 0.35), 0 6px 20px rgba(15, 23, 42, 0.25);
   animation: tour-ring 1.6s ease-out infinite;
 }
 @keyframes tour-ring {
-  0%, 100% { box-shadow: 0 0 0 2px #fff, 0 0 0 5px rgba(22, 163, 74, 0.3), 0 6px 20px rgba(15, 23, 42, 0.25); }
-  50% { box-shadow: 0 0 0 2px #fff, 0 0 0 10px rgba(22, 163, 74, 0.16), 0 6px 20px rgba(15, 23, 42, 0.25); }
+  0%, 100% { box-shadow: 0 0 0 2px #fff, 0 0 0 5px rgba(5, 150, 105, 0.3), 0 6px 20px rgba(15, 23, 42, 0.25); }
+  50% { box-shadow: 0 0 0 2px #fff, 0 0 0 10px rgba(5, 150, 105, 0.16), 0 6px 20px rgba(15, 23, 42, 0.25); }
 }
 @media (prefers-reduced-motion: reduce) { .tour__ring { animation: none; } }
 
@@ -522,8 +534,8 @@ onUnmounted(() => {
   overflow-y: auto;
   overscroll-behavior: contain;
   box-sizing: border-box;
-  background: var(--c-surface, #fff);
-  border-radius: 16px;
+  background: var(--c-surface);
+  border-radius: var(--r-md);
   padding: 11px 14px 9px;
   box-shadow: 0 14px 34px rgba(15, 23, 42, 0.3);
   pointer-events: auto;
@@ -531,9 +543,9 @@ onUnmounted(() => {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.tour__pop-title { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 800; color: var(--c-ink, #0f172a); margin: 0; line-height: 1.45; }
-.tour__hand { flex-shrink: 0; font-size: 15px; }
-.tour__pop-desc { font-size: 12px; color: var(--c-text-sub, #475569); line-height: 1.55; margin: 5px 0 0; }
+.tour__pop-title { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 800; color: var(--c-ink); margin: 0; line-height: 1.45; }
+.tour__hand { flex-shrink: 0; width: 16px; height: 16px; color: var(--c-brand); }
+.tour__pop-desc { font-size: 12px; color: var(--c-text-sub); line-height: 1.55; margin: 5px 0 0; }
 
 .tour__badge {
   margin-top: 12px;
@@ -542,8 +554,8 @@ onUnmounted(() => {
   gap: 6px;
   font-size: 12.5px;
   font-weight: 800;
-  color: var(--c-brand, #16a34a);
-  background: var(--c-brand-weak, #ecfdf5);
+  color: var(--c-brand);
+  background: var(--c-brand-weak);
   border-radius: 999px;
   padding: 7px 12px;
 }
@@ -558,28 +570,28 @@ onUnmounted(() => {
 .tour__left { display: flex; align-items: center; gap: 4px; }
 .tour__back {
   background: none; border: none;
-  color: var(--c-text-sub, #6b7280);
+  color: var(--c-text-sub);
   font-size: 12px; font-weight: 700; cursor: pointer;
   padding: 6px 8px; border-radius: 999px;
 }
 .tour__back:disabled { opacity: 0.5; cursor: default; }
-.tour__back:active { background: var(--c-line, #eef2f7); }
+.tour__back:active { background: var(--c-line); }
 .tour__skip {
   background: none; border: none;
-  color: var(--c-text-faint, #94a3b8);
+  color: var(--c-text-faint);
   font-size: 12px; font-weight: 700; cursor: pointer;
   padding: 6px 2px;
 }
-.tour__count { flex-shrink: 0; font-size: 10px; font-weight: 700; color: var(--c-text-faint, #94a3b8); white-space: nowrap; }
+.tour__count { flex-shrink: 0; font-size: 10px; font-weight: 700; color: var(--c-text-faint); white-space: nowrap; }
 .tour__next {
-  background: var(--c-brand, #16a34a); color: #fff;
+  background: var(--c-brand); color: #fff;
   border: none; border-radius: 999px;
   padding: 9px 20px; font-size: 13px; font-weight: 800; cursor: pointer;
 }
 .tour__next:active { transform: scale(0.97); }
 .tour__force {
   background: none; border: none;
-  color: var(--c-text-faint, #94a3b8);
+  color: var(--c-text-faint);
   font-size: 12px; font-weight: 700; cursor: pointer;
   text-decoration: underline; padding: 6px 2px;
 }
@@ -588,16 +600,10 @@ onUnmounted(() => {
 .tour__pop--done { text-align: center; }
 .tour__done-mark {
   width: 46px; height: 46px; margin: 0 auto 10px;
-  border-radius: 50%; background: var(--c-brand-weak, #ecfdf5); color: var(--c-brand, #16a34a);
+  border-radius: 50%; background: var(--c-brand-weak); color: var(--c-brand);
   display: flex; align-items: center; justify-content: center;
-  font-size: 24px; font-weight: 900; line-height: 1;
 }
-.tour__done-btn {
-  width: 100%; min-height: 48px; margin-top: 14px; padding: 12px;
-  border: 0; border-radius: var(--r-pill, 999px);
-  background: var(--c-brand, #16a34a); color: #fff;
-  font-size: 15px; font-weight: var(--fw-bold, 700); cursor: pointer;
-}
-.tour__done-btn:active { transform: scale(0.98); }
-.tour__done-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.tour__done-mark svg { width: 24px; height: 24px; }
+.tour__done-btn { min-height: 48px; margin-top: 14px; font-size: 15px; }
+.tour__done-btn:focus-visible { outline: 2px solid var(--c-brand); outline-offset: 2px; }
 </style>
