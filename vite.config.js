@@ -4,10 +4,31 @@ import vue from '@vitejs/plugin-vue'
 // import vueDevTools from 'vite-plugin-vue-devtools'
 
 // https://vite.dev/config/
+// 🌟 CSSの読み込みで描画を止めない。
+//    <link rel="stylesheet"> は届くまで画面が出ない。このアプリは
+//    firebase（139KB）が届くまで中身を描けないので、CSSを待つ必要が無い。
+//    先に読み込み画面を出したいので、preload にして当たり次第 stylesheet へ変える。
+//    ⚠️ 画面を描く前にCSSが当たっていることは main.js 側で待って担保している。
+function nonBlockingCss() {
+  return {
+    name: 'non-blocking-css',
+    enforce: 'post',
+    transformIndexHtml(html) {
+      return html.replace(
+        /<link rel="stylesheet"([^>]*?)href="([^"]+)"([^>]*)>/g,
+        (_m, a, href, b) =>
+          `<link rel="preload" as="style"${a}href="${href}"${b} onload="this.rel='stylesheet'">` +
+          `<noscript><link rel="stylesheet"${a}href="${href}"${b}></noscript>`,
+      );
+    },
+  };
+}
+
 export default defineConfig({
   base: process.env.GITHUB_PAGES ? 'Settlo' : './',
   plugins: [
     vue(),
+    nonBlockingCss(),
     //vueDevTools(),
   ],
   resolve: {
@@ -45,7 +66,14 @@ export default defineConfig({
             // ⚠️ firebase は内部で相互参照しているため「1つのチャンク」にまとめること。
             //    firestore/auth などに細分割すると初期化順序が壊れて
             //    実行時に ReferenceError でアプリ全体が起動しなくなる（実際に起きた）。
-            if (id.includes('firebase')) return 'firebase';
+            if (id.includes('firebase')) {
+              // 通知と画像アップロードは、起動時には使わない。
+              // どちらも読み込みのきっかけが1か所しかなく、初期化の順番にも関わらない
+              // （壊れたのは firestore/auth を細かく割ったときで、この2つは別）。
+              if (id.includes('/messaging')) return 'firebase-messaging';
+              if (id.includes('/storage')) return 'firebase-storage';
+              return 'firebase';
+            }
             if (id.includes('vue')) return 'vue';
             return 'vendor';
           }

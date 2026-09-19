@@ -1,8 +1,13 @@
 import { app, db } from '../firebase'
 import { doc, getDoc, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore'
-import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging'
 import { normalizeNotificationSettings, foregroundPushTarget } from './notificationSettingsCore.js'
 export { DEFAULT_NOTIFICATION_SETTINGS, normalizeNotificationSettings, commitNotificationSettingsChange, foregroundPushTarget } from './notificationSettingsCore.js'
+
+// 🌟 firebase/messaging は、通知を使うときだけ読み込む。
+//    最初から読み込むと起動時のファイルに乗ってしまい、そのぶん表示が遅れる。
+//    通知は「許可済みの人の登録し直し」と「通知設定の画面」でしか使わない。
+let 通知モジュール = null
+const messaging = async () => (通知モジュール ||= await import('firebase/messaging'))
 
 export async function loadNotificationSettings(uid) {
   if (!uid) return normalizeNotificationSettings()
@@ -19,6 +24,7 @@ export async function saveNotificationSettings(uid, settings) {
 
 const messagingSupported = async () => {
   if (typeof window === 'undefined' || typeof Notification === 'undefined') return false
+  const { isSupported } = await messaging()
   return isSupported()
 }
 
@@ -30,8 +36,8 @@ export async function getPushStatus() {
 }
 
 async function registerCurrentDevice(uid) {
-  const messaging = getMessaging(app)
-  const token = await getToken(messaging, { vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY || 'BJ1ETrFo6dkYa-TueyQTYuSYQbRi0BD_UJmh2bRigKzzZnhHjU7bsUZgLWrPWvngVsN9iwWTz6yZczxkn53-0_c' })
+  const { getMessaging, getToken } = await messaging()
+  const token = await getToken(getMessaging(app), { vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY || 'BJ1ETrFo6dkYa-TueyQTYuSYQbRi0BD_UJmh2bRigKzzZnhHjU7bsUZgLWrPWvngVsN9iwWTz6yZczxkn53-0_c' })
   if (!token) throw new Error('この端末を通知先として登録できませんでした。')
   await setDoc(doc(db, 'users', uid), { fcmTokens: arrayUnion(token) }, { merge: true })
   return token
@@ -57,6 +63,7 @@ export async function refreshPushRegistration(uid) {
 
 export async function unregisterPushForCurrentDevice(uid) {
   if (!uid || !(await messagingSupported()) || Notification.permission !== 'granted') return
+  const { getMessaging, getToken } = await messaging()
   const token = await getToken(getMessaging(app), { vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY || 'BJ1ETrFo6dkYa-TueyQTYuSYQbRi0BD_UJmh2bRigKzzZnhHjU7bsUZgLWrPWvngVsN9iwWTz6yZczxkn53-0_c' })
   if (token) await setDoc(doc(db, 'users', uid), { fcmTokens: arrayRemove(token) }, { merge: true })
 }
@@ -64,8 +71,8 @@ export async function unregisterPushForCurrentDevice(uid) {
 let foregroundUnsubscribe = null
 export async function listenForForegroundPush() {
   if (foregroundUnsubscribe || !(await messagingSupported()) || Notification.permission !== 'granted') return
-  const messaging = getMessaging(app)
-  foregroundUnsubscribe = onMessage(messaging, (payload) => {
+  const { getMessaging, onMessage } = await messaging()
+  foregroundUnsubscribe = onMessage(getMessaging(app), (payload) => {
     const title = payload.data?.title || payload.notification?.title || 'Settlo'
     const body = payload.data?.body || payload.notification?.body || '新しいお知らせがあります'
     try {
