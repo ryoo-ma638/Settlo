@@ -21,6 +21,12 @@ export const TRAIL_DONE_EVENT = 'settlo:trail-done';
 // detail = { id, steps }
 export const GUIDED_TASK_EVENT = 'settlo:start-guided-task';
 
+// 案内が終わったあと、次の手順へ戻すための合図。
+// ・開いたままの覆い（お知らせなど）を閉じる
+// ・アシスタントを開き直して、次の1件を出す
+export const CLOSE_OVERLAYS_EVENT = 'settlo:close-overlays';
+export const OPEN_ASSISTANT_EVENT = 'settlo:open-assistant';
+
 export function startGuidedTask(step) {
   if (!step || !Array.isArray(step.guide) || step.guide.length === 0) return false;
   try {

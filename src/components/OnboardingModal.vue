@@ -30,9 +30,11 @@
             <button v-for="(s, i) in slides" :key="i" type="button" class="ob-dot" :class="{ 'is-on': i === step }" :aria-label="`${i + 1}枚目：${s.title}`" :aria-current="i === step ? 'step' : undefined" @click="step = i"></button>
           </div>
 
-          <!-- 最後の1枚だけ：ツアーは自動で始まらず、いつでも呼び出せることを伝える -->
-          <p v-if="step === slides.length - 1" class="ob-tour-note">
-            使い方ツアー（ボタンを順番にご案内）は、マイページ →「アプリの使い方」からいつでも始められます。
+          <!-- 最後の1枚だけ：次にどこを押すのかを、はっきり1つだけ示す -->
+          <p v-if="step === slides.length - 1" class="ob-tour-note" :class="{ 'is-guest': isGuest }">
+            {{ isGuest
+              ? '押すボタンを1つずつ光らせます。そのとおりに押すだけ。'
+              : '使い方ツアー（ボタンを順番にご案内）は、マイページ →「アプリの使い方」からいつでも始められます。' }}
           </p>
 
           <!-- ボタン -->
@@ -40,7 +42,7 @@
             <div class="ob-step-actions">
             <button type="button" class="ob-prev" :disabled="step === 0" @click="step--">前へ</button>
             <button v-if="step < slides.length - 1" class="btn-brand ob-next" @click="step++">次へ</button>
-            <button v-else class="btn-brand ob-next" @click="finish()">さわってみる</button>
+            <button v-else class="btn-brand ob-next" @click="finish()">{{ isGuest ? '触ってみる' : 'さわってみる' }}</button>
             </div>
             <button class="ob-skip" @click="finish()">スキップ</button>
           </div>
@@ -53,6 +55,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { ONBOARDING_KEY } from '@/lib/guestGuide.js';
+import { OPEN_ASSISTANT_EVENT } from '@/lib/trailProgressSignal.js';
 import { auth } from '../firebase';
 
 const show = ref(false);
@@ -122,6 +125,11 @@ const KEY = ONBOARDING_KEY;
 const finish = () => {
   show.value = false;
   try { localStorage.setItem(KEY, '1'); } catch (e) {}
+  // 🌟 お試しの人は、読み終わったらそのまま案内へ渡す。
+  //    ここで渡さないと、右上のロボットを自分で見つけてもらうことになる。
+  if (isGuest.value) {
+    setTimeout(() => { try { window.dispatchEvent(new CustomEvent(OPEN_ASSISTANT_EVENT)); } catch (e) {} }, 350);
+  }
   // 以前はここから27ステップのボタンツアーを自動で始めていたが、
   // 読み終わるまで自由に触れないため既定オフにした。
   // ツアーはマイページ →「アプリの使い方」からいつでも起動できる（ButtonTour は残したまま）。
@@ -228,6 +236,7 @@ onUnmounted(() => window.removeEventListener('settlo:show-onboarding', forceShow
 }
 .ob-dot.is-on { background: var(--c-brand); width: 22px; border-radius: 999px; }
 
+.ob-tour-note.is-guest { color: var(--c-brand-strong, #0f7a4d); font-weight: var(--fw-bold, 700); background: var(--c-brand-weak, #ecfdf5); border-radius: 12px; padding: 8px 10px; }
 .ob-tour-note {
   font-size: 11.5px;
   line-height: 1.6;
