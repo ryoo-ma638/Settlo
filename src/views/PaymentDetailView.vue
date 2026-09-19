@@ -818,8 +818,8 @@ const confirmCash = () => {
 .completed-title { font-size: 16px; font-weight: bold; margin: 0 0 5px 0; }
 .completed-date { font-size: 12px; opacity: 0.8; margin: 0; }
 
-.overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--c-overlay); display: flex; align-items: flex-end; z-index: 3000; }
-.overlay-content { background: white; width: 100%; padding: 30px; border-radius: 30px 30px 0 0; position: relative; }
+.overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--c-overlay); display: flex; align-items: flex-end; z-index: 3000;  padding-bottom: var(--frame-inset-y);}
+.overlay-content { background: white; width: 100%; max-width: var(--app-max); margin: 0 auto; padding: 30px; border-radius: 30px 30px 0 0; position: relative; }
 .close-overlay { position: absolute; top: 15px; right: 15px; font-size: 24px; border: none; background: none; color: var(--c-line-strong); }
 .main-btn { width: 100%; padding: 15px; border-radius: 14px; border: none; background: var(--c-text); color: white; font-weight: bold; margin-top: 20px; }
 </style>

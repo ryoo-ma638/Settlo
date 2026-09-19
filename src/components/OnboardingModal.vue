@@ -170,7 +170,7 @@ onUnmounted(() => window.removeEventListener('settlo:show-onboarding', forceShow
 }
 .ob-card {
   width: 100%; max-width: 340px;
-  max-height: calc(100dvh - 40px);
+  max-height: calc(100dvh - 40px - var(--frame-inset-y) * 2);
   overflow-y: auto;
   background: var(--c-surface, #fff);
   border-radius: 24px;
@@ -273,5 +273,5 @@ onUnmounted(() => window.removeEventListener('settlo:show-onboarding', forceShow
 .ob-next { flex: 1; width: auto; }
 .ob-skip { min-height: 44px; }
 .ob-dot:focus-visible, .ob-prev:focus-visible, .ob-next:focus-visible, .ob-skip:focus-visible { outline: 2px solid var(--c-brand); outline-offset: 2px; }
-@media (max-width: 359px) { .ob-overlay { padding: 12px; } .ob-card { padding: 18px 12px; max-height: calc(100dvh - 24px); } }
+@media (max-width: 359px) { .ob-overlay { padding: 12px; } .ob-card { padding: 18px 12px; max-height: calc(100dvh - 24px - var(--frame-inset-y) * 2); } }
 </style>

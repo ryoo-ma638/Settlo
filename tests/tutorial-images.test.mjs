@@ -68,6 +68,6 @@ test('はじめてガイドは、低い窓でも下のボタンまで入る', ()
   assert.ok(shot, '写真の枠の指定が無い');
   assert.match(shot[1], /100dvh/, '写真の高さが画面の高さに合わせて縮まない');
   assert.match(shot[1], /clamp\(/, '縮みすぎ・伸びすぎの歯止めが無い');
-  assert.match(source, /max-height:\s*calc\(100dvh - \d+px\)/, 'カードの高さに上限が無い');
+  assert.match(source, /max-height:\s*calc\(100dvh - \d+px(?: - var\(--frame-inset-y\) \* 2)?\)/, 'カードの高さに上限が無い');
   assert.match(source, /overflow-y:\s*auto/, '最後の手段のスクロールが無い');
 });

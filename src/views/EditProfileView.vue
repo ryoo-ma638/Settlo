@@ -239,7 +239,7 @@ const saveProfile = async () => {
   background: var(--c-overlay);
   display: flex; align-items: flex-end;
   z-index: 3000;
-}
+ padding-bottom: var(--frame-inset-y);}
 .sheet {
   background: var(--c-bg);
   width: 100%;

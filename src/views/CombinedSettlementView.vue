@@ -304,8 +304,8 @@ onMounted(async () => {
   .close-btn { background: var(--c-surface-2); color: var(--c-text-sub); }
   
   /* オーバーレイ */
-  .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--c-overlay); display: flex; align-items: flex-end; z-index: 3000; }
-  .overlay-content { background: var(--c-surface-2); width: 100%; padding: 30px; border-radius: 30px 30px 0 0; position: relative; }
+  .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--c-overlay); display: flex; align-items: flex-end; z-index: 3000;  padding-bottom: var(--frame-inset-y);}
+  .overlay-content { background: var(--c-surface-2); width: 100%; max-width: var(--app-max); margin: 0 auto; padding: 30px; border-radius: 30px 30px 0 0; position: relative; }
   .close-overlay { position: absolute; top: -40px; right: 20px; font-size: 30px; border: none; background: none; color: white; }
 
   /* 🌟 戻るボタンのスタイル追加 */

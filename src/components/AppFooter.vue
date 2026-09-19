@@ -265,7 +265,7 @@ const isActive = (path) => {
   position: fixed; inset: 0; z-index: 3000;
   background: var(--c-overlay, rgba(15, 23, 42, 0.5));
   display: flex; align-items: flex-end; justify-content: center;
-  padding: 16px;
+  padding: 16px 16px calc(16px + var(--frame-inset-y));
 }
 .addsheet__panel {
   width: 100%; max-width: var(--app-max, 480px);

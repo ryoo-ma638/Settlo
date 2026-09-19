@@ -1372,8 +1372,8 @@ watch(participants, list => {
 
 <style scoped>
 /* 🌟 モーダル全体のベース */
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--c-overlay); display: flex; align-items: flex-end; justify-content: center; z-index: 2000; backdrop-filter: blur(4px); }
-.modal-content { background: #f4f7f9; width: 100%; max-width: 600px; border-radius: 32px 32px 0 0; display: flex; flex-direction: column; max-height: 90vh; }
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--c-overlay); display: flex; align-items: flex-end; justify-content: center; z-index: 2000; backdrop-filter: blur(4px);  padding-bottom: var(--frame-inset-y);}
+.modal-content { background: #f4f7f9; width: 100%; max-width: min(600px, var(--app-max)); border-radius: 32px 32px 0 0; display: flex; flex-direction: column; max-height: 90vh; }
 
 .modal-header { padding: 26px 22px 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px solid rgba(0,0,0,0.06); background: white; border-radius: 28px 28px 0 0; flex-shrink: 0; }
 .modal-title { margin: 0; font-size: 20px; color: var(--c-ink); font-weight: 900; line-height: 1.3; }

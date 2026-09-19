@@ -262,7 +262,12 @@ onUnmounted(() => {
 /* お支払いアシスタントの開閉パネル（body直下・全ページ共通） */
 .assist-layer {
   position: fixed;
-  left: 0; right: 0; top: var(--header-h); bottom: 0;
+  /* 🌟 広い画面では端末の枠より外（台紙の上）へ出さない。
+     中のパネルは right:12px で位置を決めているので、この層を枠幅にすれば一緒に収まる。 */
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, var(--app-max));
+  top: var(--header-h); bottom: 0;
   z-index: 1200;
   background: rgba(15, 23, 42, 0.14);
 }

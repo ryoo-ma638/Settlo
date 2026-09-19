@@ -101,8 +101,8 @@ const handlePayment = () => {
 </script>
 
 <style scoped>
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--c-overlay); display: flex; align-items: flex-end; justify-content: center; z-index: 2010; backdrop-filter: blur(2px); }
-.modal-content { background: var(--c-surface-2); width: 100%; max-width: 600px; border-radius: 30px 30px 0 0; padding: 25px; box-sizing: border-box; max-height: 90vh; overflow-y: auto; }
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--c-overlay); display: flex; align-items: flex-end; justify-content: center; z-index: 2010; backdrop-filter: blur(2px);  padding-bottom: var(--frame-inset-y);}
+.modal-content { background: var(--c-surface-2); width: 100%; max-width: min(600px, var(--app-max)); border-radius: 30px 30px 0 0; padding: 25px; box-sizing: border-box; max-height: 90vh; overflow-y: auto; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .modal-header h3 { margin: 0; font-size: 18px; color: var(--c-text); font-weight: 900; }
 .close-btn { background: var(--c-line-bold); border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 18px; color: var(--c-text-sub); cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; }
