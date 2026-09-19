@@ -267,7 +267,9 @@ onUnmounted(() => {
   left: 50%;
   transform: translateX(-50%);
   width: min(100%, var(--app-max));
-  top: var(--header-h); bottom: 0;
+  /* 上下も台紙のぶんずらす。ずらさないとヘッダーに重なり、枠の下にも出る。 */
+  top: calc(var(--header-h) + var(--frame-inset-y));
+  bottom: var(--frame-inset-y);
   z-index: 1200;
   background: rgba(15, 23, 42, 0.14);
 }

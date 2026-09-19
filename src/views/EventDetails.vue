@@ -2263,7 +2263,7 @@ const handleDeleteEvent = () => {
 .settlo-toast {
   position: fixed;
   left: 50%;
-  bottom: 96px;
+  bottom: calc(96px + var(--frame-inset-y));
   transform: translate(-50%, 0);
   background: rgba(15, 23, 42, 0.92);
   color: #fff;

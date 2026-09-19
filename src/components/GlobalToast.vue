@@ -14,7 +14,7 @@ import { toastMsg } from '../lib/toast';
 .gtoast {
   position: fixed;
   left: 50%;
-  bottom: calc(var(--nav-h, 66px) + env(safe-area-inset-bottom, 0px) + 16px);
+  bottom: calc(var(--nav-h, 66px) + env(safe-area-inset-bottom, 0px) + 16px + var(--frame-inset-y));
   transform: translateX(-50%);
   max-width: min(92%, 440px);
   background: var(--c-ink, #0f172a);
