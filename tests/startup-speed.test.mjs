@@ -73,3 +73,12 @@ test('起動時に要らない firebase の部品を分ける', () => {
   const router = readFileSync('src/router/index.js', 'utf8');
   assert.match(router, /EditProfile',[^}]*import\('\.\.\/views\/EditProfileView\.vue'\)/, 'プロフィール編集を最初から読み込んでいる');
 });
+
+test('カルーセルのすき間を、自分で計算し直さない', () => {
+  // CSSのすき間は8px固定なのに、矢印の処理が window.innerWidth * 0.04（390pxで15.6px）
+  // を使っていて、押すたびに約7.6pxずれた。左へ行って戻ると真ん中が左に寄ったままになる。
+  const c = readFileSync('src/components/PaymentCarousel.vue', 'utf8');
+  assert.ok(!/innerWidth \* 0\.04/.test(c), 'すき間を画面幅から勝手に計算している');
+  assert.match(c, /scrollIntoView\(\{[^}]*inline: 'center'/, 'カードそのものを真ん中へ寄せていない');
+  assert.match(c, /block: 'nearest'/, '縦にも動いてしまう');
+});

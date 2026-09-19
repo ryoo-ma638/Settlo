@@ -167,7 +167,7 @@
   </template>
   
   <script setup>
-  import { ref, computed, onMounted, watch, nextTick } from 'vue';
+  import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
   import { useRouter } from 'vue-router';
   import { nextStepOf, headlineOf } from '@/lib/paymentOverview';
   
@@ -221,28 +221,38 @@ const props = defineProps({
   // ------------------------------
   // スクロール計算系のロジック
   // ------------------------------
+  // 🌟 すき間の値を自分で計算しない。
+  //    CSSのすき間は 8px 固定なのに、ここで window.innerWidth * 0.04（390pxなら15.6px）
+  //    と別の値を使っていたため、矢印を押すたびに約7.6pxずつずれ、
+  //    左へ行って戻ると真ん中のカードが左に寄ったまま止まっていた。
+  //    カードそのものを指して「真ん中へ寄せて」と頼めば、ずれようがない。
+  const cardAt = (index) => (carousel.value && carousel.value.children[index]) || null;
+
+  // いま真ん中にいるのはどれか。枠の中心にいちばん近いカードで決める
   const handleScroll = () => {
     if (!carousel.value) return;
-    const scrollPos = carousel.value.scrollLeft;
-    const cardWidth = carousel.value.children[0].offsetWidth;
-    const gap = parseFloat(getComputedStyle(carousel.value).columnGap) || 0;
-    currentCard.value = Math.max(0, Math.min(2, Math.round(scrollPos / (cardWidth + gap))));
+    const box = carousel.value.getBoundingClientRect();
+    const 中心 = box.left + box.width / 2;
+    let 近い = 0;
+    let 最短 = Infinity;
+    for (let i = 0; i < carousel.value.children.length; i += 1) {
+      const r = carousel.value.children[i].getBoundingClientRect();
+      const 距離 = Math.abs((r.left + r.width / 2) - 中心);
+      if (距離 < 最短) { 最短 = 距離; 近い = i; }
+    }
+    currentCard.value = Math.max(0, Math.min(2, 近い));
   };
-  
-  // 矢印用：現在の位置から +1 or -1 動かす
+
+  // 指定したカードを枠の真ん中へ寄せる
+  const scrollToCard = (index, smooth = true) => {
+    const el = cardAt(Math.max(0, Math.min(2, index)));
+    if (!el) return;
+    el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', inline: 'center', block: 'nearest' });
+  };
+
+  // 矢印用：いまの位置から +1 or -1
   const scrollCarousel = (direction) => {
-    if (!carousel.value) return;
-    const cardWidth = carousel.value.children[0].offsetWidth;
-    const gap = window.innerWidth * 0.04;
-    carousel.value.scrollBy({ left: direction * (cardWidth + gap), behavior: 'smooth' });
-  };
-  
-  // 指定したカード番号（0, 1, 2）の場所まで一気にスクロールする
-  const scrollToCard = (index) => {
-    if (!carousel.value) return;
-    const cardWidth = carousel.value.children[0].offsetWidth;
-    const gap = window.innerWidth * 0.04;
-    carousel.value.scrollTo({ left: index * (cardWidth + gap), behavior: 'smooth' });
+    scrollToCard(currentCard.value + direction);
   };
   
   // ------------------------------
@@ -271,13 +281,16 @@ const props = defineProps({
   };
   
   const centerToMiddle = () => {
-    if (carousel.value && carousel.value.children[0]) {
-      const cardWidth = carousel.value.children[0].offsetWidth;
-      const gap = window.innerWidth * 0.04;
-      carousel.value.scrollLeft = cardWidth + gap;
-    }
+    scrollToCard(1, false);
+    currentCard.value = 1;
   };
-  onMounted(() => { nextTick(() => { centerToMiddle(); }); });
+  // 画面の幅が変わると寄せ直しが要る（横向きにしたとき・ブラウザの枠を変えたとき）
+  const onResize = () => { nextTick(() => scrollToCard(currentCard.value, false)); };
+  onMounted(() => {
+    nextTick(() => { centerToMiddle(); });
+    window.addEventListener('resize', onResize);
+  });
+  onUnmounted(() => window.removeEventListener('resize', onResize));
   // スケルトン→実データに切り替わったら中央カードへ戻す（差し替えでスクロールがリセットされるため）
   watch(() => props.loading, (isLoading) => {
     nextTick(() => { if (!isLoading) centerToMiddle(); });
