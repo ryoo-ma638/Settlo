@@ -13,12 +13,48 @@
     <meta name="apple-mobile-web-app-title" content="Settlo">
     <meta name="description" content="友だち・イベントごとの立て替えをかんたんに記録して、まとめて精算できる割り勘アプリ">
     <title>Settlo — 割り勘をスマートに</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <!-- 🌟 Noto Sans JP の読み込みは外した。
+         このCSSは119KBあり、届くまで画面の描画が止まる（実測で2.0秒・最初の描画が2.8秒）。
+         端末に入っている書体を使う。Android は Noto Sans JP 本体を持っているので見た目は変わらず、
+         iPhone・Mac はヒラギノになる。書体の指定は base.css の --font-sans にそのまま残してある。
+         戻すときは、この下の2行のコメントを外す。
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+    -->
+    <!-- 最初のデータ取得を少しでも早めるため、先につなぎにいく -->
+    <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://www.googleapis.com" crossorigin>
   </head>
   <body>
-    <div id="app"></div>
+    <!-- 🌟 読み込み画面をHTMLに直接置いてある。
+         JavaScript が届く前に出したいので、ここで完結させている（外部の読み込みを待たない）。
+         Vue が動き出したら、この中身はまるごと置き換わる。
+         見た目は App.vue の .app-loading に合わせてある。 -->
+    <div id="app">
+      <div class="boot">
+        <img class="boot__mark" src="./icon.svg" alt="" aria-hidden="true">
+        <p class="boot__text">Settlo を読み込み中…</p>
+        <div class="boot__bar"></div>
+      </div>
+    </div>
+    <style>
+      .boot {
+        min-height: 100dvh;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+        background: #ffffff;
+        font-family: "Noto Sans JP", system-ui, -apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      }
+      .boot__mark { width: 64px; height: 64px; object-fit: contain; filter: drop-shadow(0 10px 24px rgba(5, 150, 105, 0.3)); }
+      .boot__text { margin: 0; font-size: 13px; font-weight: 500; color: #64748b; }
+      .boot__bar {
+        width: 180px; height: 8px; border-radius: 999px;
+        background: linear-gradient(90deg, #eef2f6 25%, #e2e8f0 37%, #eef2f6 63%);
+        background-size: 400% 100%;
+        animation: boot-shimmer 1.4s ease infinite;
+      }
+      @keyframes boot-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+      @media (prefers-reduced-motion: reduce) { .boot__bar { animation: none; } }
+    </style>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

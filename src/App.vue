@@ -47,6 +47,7 @@ import OnboardingModal from './components/OnboardingModal.vue'
 import ButtonTour from './components/ButtonTour.vue'
 import GlobalToast from './components/GlobalToast.vue'
 import { useGuestSetup } from './composables/useGuestSetup'
+import { prefetchRoutes } from './lib/prefetchRoutes'
 import logoMark from './assets/logo-mark.png'
 import { refreshPushRegistration, listenForForegroundPush } from './lib/notificationSettings'
 
@@ -97,6 +98,9 @@ onMounted(() => {
     document.addEventListener(type, blockGesture, { passive: false });
   }
   document.addEventListener('touchend', blockDoubleTapZoom, { passive: false });
+
+  // 🌟 あとで開く画面を、手が空いているうちに裏で取っておく（画面移動の待ちをなくす）
+  prefetchRoutes();
 
   onAuthStateChanged(auth, (user) => {
     authChecked.value = true
