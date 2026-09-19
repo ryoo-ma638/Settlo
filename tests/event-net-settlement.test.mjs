@@ -129,3 +129,52 @@ test('14人以上では100円単位を優先しても支払い回数を増やさ
   const plan = buildEventNetSettlement({ participants, transactions });
   assert.equal(plan.transfers.length, 11);
 });
+
+// 別のまとめて精算に予約ずみの取引があるとき、画面とサーバーの答えをそろえる。
+// 以前は画面側だけ黙って飛ばしていたため、金額が出るのに始めると失敗した。
+test('予約ずみの取引があるときは、画面側でも止める', () => {
+  const 予約あり = () => buildEventNetSettlement({
+    participants: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }],
+    transactions: [
+      { id: 't1', paidById: 'a', paidToId: 'b', amount: 1000, status: 'unpaid' },
+      { id: 't2', paidById: 'b', paidToId: 'a', amount: 3000, status: 'unpaid', eventSettlementPlanId: 'plan-x' },
+    ],
+  });
+  assert.throws(予約あり, /別のまとめて精算で使用中/, '予約ずみを飛ばして計算してしまう');
+});
+
+test('予約が無ければ、これまでどおり計算できる', () => {
+  const r = buildEventNetSettlement({
+    participants: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }],
+    transactions: [
+      { id: 't1', paidById: 'a', paidToId: 'b', amount: 1000, status: 'unpaid' },
+      { id: 't2', paidById: 'b', paidToId: 'a', amount: 3000, status: 'unpaid' },
+    ],
+  });
+  assert.equal(r.transfers.length, 1);
+  assert.equal(r.transfers[0].amount, 2000);
+});
+
+// 進行中の精算に予約ずみの取引は、追加分の反映で毎回出てくるので止めない。
+test('いま動いている精算ぶんの予約は止めない', () => {
+  const r = buildEventNetSettlement({
+    planId: 'plan-1',
+    participants: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }],
+    transactions: [
+      { id: 't1', paidById: 'a', paidToId: 'b', amount: 500, status: 'unpaid', eventSettlementPlanId: 'plan-1' },
+      { id: 't2', paidById: 'b', paidToId: 'c', amount: 300, status: 'unpaid' },
+    ],
+  });
+  assert.deepEqual(r.sourceTransactionIds, ['t2'], '予約ずみを取り込んでしまう');
+  assert.equal(r.transfers.length, 1);
+});
+
+test('別の精算の予約は、進行中でも止める', () => {
+  assert.throws(() => buildEventNetSettlement({
+    planId: 'plan-1',
+    participants: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }],
+    transactions: [
+      { id: 't1', paidById: 'a', paidToId: 'b', amount: 500, status: 'unpaid', eventSettlementPlanId: 'plan-9' },
+    ],
+  }), /別のまとめて精算で使用中/);
+});

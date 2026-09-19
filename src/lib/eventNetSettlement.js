@@ -93,14 +93,28 @@ function greedyTransfers(entries) {
   return better(hundredsFirst, fewerFirst) ? hundredsFirst : fewerFirst;
 }
 
-export function buildEventNetSettlement({ transactions = [], participants = [] } = {}) {
+// planId ＝ いま動いているまとめて精算のID。
+//   進行中の精算に「追加分を反映」するときは、その精算に予約ずみの取引が混ざるのが正常。
+//   予約が別の精算のものだったときだけ止める（サーバー側と同じ判断）。
+export function buildEventNetSettlement({ transactions = [], participants = [], planId = null } = {}) {
   const participantById = new Map(participants.map(person => [person.id, person]));
   const balances = new Map(participants.map(person => [person.id, 0]));
   const sourceTransactions = [];
 
   for (const transaction of transactions) {
-    if (!transaction || transaction.syntheticSettlement || transaction.eventSettlementPlanId
+    if (!transaction || transaction.syntheticSettlement
       || (transaction.status || 'unpaid') !== 'unpaid') continue;
+    // 🌟 別のまとめて精算に予約ずみの取引は、ここで止める。
+    //    黙って飛ばすと、画面には金額が出るのに、始めるボタンを押すと
+    //    サーバー側が同じ条件で止めるので失敗する（押せるのに通らない状態になる）。
+    //    サーバー（functions/eventNetSettlement.js）と同じ文言で先に知らせる。
+    //    いま動いている精算ぶんは、追加分の反映で毎回出てくるので飛ばすだけ。
+    if (transaction.eventSettlementPlanId) {
+      if (!planId || transaction.eventSettlementPlanId !== planId) {
+        throw new Error('別のまとめて精算で使用中の取引があります。イベントの精算状況を確認してください。');
+      }
+      continue;
+    }
     const amount = yen(transaction.amount);
     const fromId = transaction.paidById;
     const toId = transaction.paidToId;
