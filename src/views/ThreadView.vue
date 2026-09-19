@@ -92,7 +92,11 @@
         <!-- ここから先はAIに相談する分。会話の流れを読んだうえで文案を作る。
              送るのは匿名にした会話と、上で選んだ条件だけ。名前は送らない。 -->
         <div class="rh__ai">
-          <button class="rh__ai-btn" data-tour="rh-ai" :disabled="aiLoading" @click="askAi">
+          <button class="btn-brand rh__ai-btn" data-tour="rh-ai" :disabled="aiLoading" @click="askAi">
+            <svg class="rh__ai-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="4" y="8" width="16" height="11" rx="3" /><path d="M12 8V4M8 3h8" />
+              <circle cx="9" cy="13" r="1.1" fill="currentColor" stroke="none" /><circle cx="15" cy="13" r="1.1" fill="currentColor" stroke="none" />
+            </svg>
             {{ aiLoading ? 'AIが会話を読んでいます…' : 'AIに相談する' }}
           </button>
           <p class="rh__ai-note">やりとりの内容から文案を作ります。名前は送らず、相手は「参加者1」のように置き換えます。</p>
@@ -635,4 +639,57 @@ const send = async (preset) => {
 }
 .thread__send:disabled { opacity: 0.4; }
 .thread__send svg { width: 20px; height: 20px; }
+
+/* 🌟 AIに相談するまとまり。ここには指定が1つも無く、ボタンが
+   ただの黒い文字（高さ24px）で、見出しと見分けがつかなかった。 */
+.rh__ai {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--c-line);
+}
+.rh__ai-btn { min-height: 48px; padding: 12px 16px; font-size: 15px; }
+.rh__ai-icon { width: 18px; height: 18px; flex-shrink: 0; }
+.rh__ai-note {
+  margin: 8px 0 0;
+  font-size: 11.5px; line-height: 1.6; color: var(--c-text-faint);
+  text-align: center;
+}
+.rh__ai-summary {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--c-brand-weak);
+  color: var(--c-brand-strong);
+  font-size: 12.5px; line-height: 1.65;
+}
+.rh__ai-issue {
+  display: block;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--c-line-bold);
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+}
+.rh__ai-issue-title { font-size: 12.5px; font-weight: var(--fw-bold); color: var(--c-ink); }
+.rh__ai-guess {
+  margin-left: 6px; padding: 1px 7px;
+  border-radius: var(--r-pill);
+  background: var(--c-surface-2); color: var(--c-text-sub);
+  font-size: 10px; font-weight: var(--fw-bold); white-space: nowrap;
+}
+.rh__ai-issue-detail {
+  display: block; margin-top: 4px;
+  font-size: 12px; line-height: 1.6; color: var(--c-text-sub);
+}
+.rh__ai-missing {
+  margin: 6px 0 0; padding-left: 14px;
+  position: relative;
+  font-size: 12px; line-height: 1.6; color: var(--c-text-sub);
+}
+.rh__ai-missing::before {
+  content: ''; position: absolute; left: 4px; top: 8px;
+  width: 4px; height: 4px; border-radius: 50%; background: var(--c-line-strong);
+}
+.rh__sug--ai { border-color: var(--c-brand-tint); background: var(--c-brand-weak); }
+.rh__sug--ai .rh__sug-label { color: var(--c-brand-strong); }
 </style>

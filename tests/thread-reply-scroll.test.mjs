@@ -36,3 +36,19 @@ test('入力欄とクイック返信は、下書きに押し出されない', ()
 test('会話の一覧は、下書きに場所を譲れる', () => {
   assert.match(ruleOf('.thread__body'), /overflow-y:\s*auto/, '会話側がスクロールしない');
 });
+
+test('「AIに相談する」が、押せるボタンに見える', () => {
+  // 指定が1つも無く、ただの黒い文字（高さ24px）で見出しと区別がつかなかった（2026-09-19）
+  assert.match(css, /\.rh__ai-btn\s*\{[^}]*min-height:\s*4[0-9]px/, 'ボタンの高さが指で押せる大きさでない');
+  assert.match(css, /\.rh__ai\s*\{[^}]*border-top/, '前の内容と区切られていない');
+  const tpl = readFileSync('src/views/ThreadView.vue', 'utf8');
+  assert.match(tpl, /class="btn-brand rh__ai-btn"/, '共通のボタン部品を使っていない');
+  assert.match(tpl, /rh__ai-icon/, '何のボタンか分かる印が無い');
+});
+
+test('AIの答えの見た目が決まっている', () => {
+  // 要約・気をつける点・分からなかったことは、どれも指定が無かった
+  for (const 名 of ['rh__ai-summary', 'rh__ai-issue', 'rh__ai-missing', 'rh__ai-note']) {
+    assert.ok(css.includes('.' + 名), `${名} の見た目が決まっていない`);
+  }
+});
