@@ -168,13 +168,14 @@ const hole = computed(() => {
   if (!rect.value) return null;
   const vw = viewport.value.w;
   const vh = viewport.value.h;
-  const top = Math.max(MARGIN / 2, rect.value.top - PAD);
-  const left = Math.max(MARGIN / 2, rect.value.left - PAD);
-  const right = Math.min(vw - MARGIN / 2, rect.value.left + rect.value.width + PAD);
-  const bottomRaw = Math.min(vh - MARGIN / 2, rect.value.top + rect.value.height + PAD);
-  const tall = Math.round(vh * 0.5);
-  const height = Math.min(bottomRaw - top, tall);
-  return { top, left, width: Math.max(0, right - left), height: Math.max(0, height) };
+  const { top: t, left: l, width: w, height: h } = rect.value;
+  // 余白は上下左右で同じにする。画面の端にあるボタンでも、
+  // 片側だけ細くならないよう、入るぶんまで縮めて釣り合いを取る。
+  const pad = Math.max(4, Math.min(PAD, t - MARGIN / 2, vh - MARGIN / 2 - (t + h), l - MARGIN / 2, vw - MARGIN / 2 - (l + w)));
+  // 画面の半分より高い対象は、上のほうだけ開ける。
+  // 全部開けると、ふきだしの置き場所が無くなって光るボタンに重なる。
+  const height = Math.min(h + pad * 2, Math.round(vh * 0.5));
+  return { top: t - pad, left: l - pad, width: w + pad * 2, height };
 });
 
 // 穴の周囲を覆う4枚のシールド（上下左右）
@@ -206,6 +207,13 @@ const ringStyle = computed(() => {
 //    入るほうへ置き、最後に必ず画面内へ収める。
 
 const onResize = () => { measure(); measurePop(); };
+// モーダルが開ききるまで、対象の位置は動く。測ったきりだと枠がずれる。
+let settleTimers = [];
+const clearSettle = () => { settleTimers.forEach(clearTimeout); settleTimers = []; };
+const remeasureSoon = () => {
+  clearSettle();
+  settleTimers = [200, 500, 900].map((ms) => setTimeout(() => { measure(); measurePop(); }, ms));
+};
 
 const measurePop = () => {
   viewport.value = { w: window.innerWidth, h: window.innerHeight };
@@ -314,6 +322,8 @@ const locate = (attempt = 0) => {
     measure();
     // ふきだしの中身が入れ替わったあとに測らないと、前のステップの高さで置いてしまう
     nextTick(() => requestAnimationFrame(measurePop));
+    // 中身が動いたあと（モーダルの開き・画像の読み込み）にもう一度測る
+    remeasureSoon();
     if (currentStep.value?.type === 'action') attachAction();
   });
 };
@@ -426,6 +436,7 @@ const begin = async ({ steps, id, fromHome }) => {
   stepIndex.value = 0;
   stepPaths.length = 0;
   window.addEventListener('resize', onResize);
+  window.addEventListener('scroll', onResize, true);
   await nextTick();
   setTimeout(() => locate(0), 100);
 };
@@ -444,8 +455,10 @@ const startTask = (event) => {
 
 const end = () => {
   clearRetry();
+  clearSettle();
   detachAction();
   window.removeEventListener('resize', onResize);
+  window.removeEventListener('scroll', onResize, true);
   const wasTask = taskId.value;
   // 飛ばしたステップがあるなら、最後まで行っても「やった」ことにしない。
   // やり切った分は showDone() で先に印を付けてある。
@@ -478,8 +491,10 @@ onUnmounted(() => {
   window.removeEventListener('settlo:show-button-tour', start);
   window.removeEventListener(GUIDED_TASK_EVENT, startTask);
   clearRetry();
+  clearSettle();
   detachAction();
   window.removeEventListener('resize', onResize);
+  window.removeEventListener('scroll', onResize, true);
 });
 </script>
 
@@ -597,7 +612,15 @@ onUnmounted(() => {
 }
 
 /* やり切ったときの画面 */
-.tour__pop--done { text-align: center; }
+/* 完了画面は位置を自分で決める（手順のふきだしと違い、対象が無い） */
+.tour__pop--done {
+  text-align: center;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(340px, calc(100vw - 32px));
+  max-height: calc(100dvh - 24px);
+}
 .tour__done-mark {
   width: 46px; height: 46px; margin: 0 auto 10px;
   border-radius: 50%; background: var(--c-brand-weak); color: var(--c-brand);

@@ -220,10 +220,37 @@ test('案内中は、ヘッダーの「初めての方はここから」を引�
 test('タブが、右上の「閉じる」と重ならない', () => {
   // 重なると、タブを押したつもりでパネルが閉じる
   const header = strip('src/components/AppHeader.vue');
-  assert.match(header, /\.assist-tabs \{ margin: 0 36px 10px 0; \}/, '閉じるの分を空けていない');
+  const m = /\.assist-tabs \{ margin: 0 (\d+)px 10px 0; \}/.exec(header);
+  assert.ok(m, '閉じるの分を空けていない');
+  // × は 30px。指で押せる間隔（8px以上）を残す
+  assert.ok(Number(m[1]) >= 38, `右の余白が ${m[1]}px。× と近すぎる`);
 });
 
 test('案内のカードが、アシスタントのカードと同じ位置に並ぶ', () => {
   const header = strip('src/components/AppHeader.vue');
   assert.match(header, /\.assist-panel :deep\(\.try\) \{ margin: 0; \}/, 'カードの左右がずれる');
+});
+
+test('完了画面は、画面の真ん中に出す', () => {
+  // 位置を書かないと、左上に貼り付いて出る（2026-09-19）
+  const tour = strip('src/components/ButtonTour.vue');
+  const m = /\.tour__pop--done \{([^}]*)\}/.exec(tour);
+  assert.ok(m, '完了画面の指定が無い');
+  assert.match(m[1], /left: 50%/, '横の中央に置いていない');
+  assert.match(m[1], /top: 50%/, '縦の中央に置いていない');
+  assert.match(m[1], /translate\(-50%, -50%\)/, '中央へ寄せていない');
+});
+
+test('光らせる枠の余白は、上下左右で同じにする', () => {
+  // 画面の端にあるボタンで片側だけ細くなると、ずれて見える
+  const tour = strip('src/components/ButtonTour.vue');
+  assert.match(tour, /const pad = Math\.max\(4, Math\.min\(PAD/, '余白を上下左右そろえていない');
+  assert.match(tour, /top: t - pad, left: l - pad, width: w \+ pad \* 2/, '余白の付け方が左右で違う');
+});
+
+test('パネルの右端が、ヘッダーのアイコン列とそろう', () => {
+  const header = strip('src/components/AppHeader.vue');
+  const m = /\.assist-panel \{([\s\S]*?)\}/.exec(header);
+  assert.ok(m, 'パネルの指定が無い');
+  assert.match(m[1], /right: 12px/, 'ヘッダーの右余白（12px）とずれる');
 });
