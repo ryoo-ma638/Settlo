@@ -38,7 +38,7 @@
   <Teleport to="body">
     <transition name="assist">
       <div v-if="showAssistant" class="assist-layer" @click.self="showAssistant = false">
-        <div class="assist-panel">
+        <div class="assist-panel" :class="{ 'has-tabs': isGuest }">
           <button class="assist-panel__close" @click="showAssistant = false" aria-label="閉じる">×</button>
 
           <!-- お試しの人は「触ってみる」と「アシスタント」を行き来できる -->
@@ -268,7 +268,8 @@ onUnmounted(() => {
 }
 .assist-panel {
   position: absolute;
-  top: 6px; right: 8px;
+  /* 右端をヘッダーのアイコン列（右12px）にそろえる。ここだけ8pxだと4px外へ出る */
+  top: 6px; right: 12px;
   width: min(360px, calc(100vw - 16px));
   max-height: calc(100vh - var(--header-h) - 16px);
   overflow-y: auto;
@@ -287,6 +288,8 @@ onUnmounted(() => {
   font-size: 20px; line-height: 1;
 }
 .assist-panel__close:active { transform: scale(0.9); }
+/* タブがある画面では、×をタブの高さの真ん中にそろえる */
+.assist-panel.has-tabs .assist-panel__close { top: 11px; }
 
 .assist-enter-active, .assist-leave-active { transition: opacity 0.16s ease; }
 .assist-leave-active, .assist-leave-to { pointer-events: none; }
@@ -331,7 +334,7 @@ onUnmounted(() => {
 /* パネルの中の切り替え。見た目は共通の .seg に合わせ、
    指で押せる大きさ（44px）と件数の丸だけ足す。 */
 /* 右上の × と重ならないように、その分だけ空ける（押し間違いで閉じてしまうため） */
-.assist-tabs { margin: 0 36px 10px 0; }
+.assist-tabs { margin: 0 44px 10px 0; }
 .assist-tab {
   min-height: 44px;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
