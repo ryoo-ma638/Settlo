@@ -59,3 +59,15 @@ test('はじめてガイドの写真が、スマホの枠と同じ形になっ�
     );
   }
 });
+
+test('はじめてガイドは、低い窓でも下のボタンまで入る', () => {
+  // 写真の高さを決め打ちにすると、窓が低いとき写真だけで埋まり
+  // 「スキップ」が見えなくなる（カードはスクロールできるが気づけない）。
+  const source = readFileSync('src/components/OnboardingModal.vue', 'utf8');
+  const shot = /\n\.ob-shot \{([^}]*)\}/.exec(source);
+  assert.ok(shot, '写真の枠の指定が無い');
+  assert.match(shot[1], /100dvh/, '写真の高さが画面の高さに合わせて縮まない');
+  assert.match(shot[1], /clamp\(/, '縮みすぎ・伸びすぎの歯止めが無い');
+  assert.match(source, /max-height:\s*calc\(100dvh - \d+px\)/, 'カードの高さに上限が無い');
+  assert.match(source, /overflow-y:\s*auto/, '最後の手段のスクロールが無い');
+});
