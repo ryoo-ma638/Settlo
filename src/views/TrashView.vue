@@ -96,7 +96,7 @@
             {{ item.createdByName || '相手' }}さんが{{ item.type === 'payment' ? '削除' : '完了に' }}しました
           </p>
           <p v-if="item.type !== 'event'" class="tcard__record-note">共有するお金の記録は、この画面から消せません。</p>
-          <p v-if="item._loc === 'shared' && item.type !== 'event'" class="tcard__record-note">相手と共有している記録のため、この画面からは戻せません。</p>
+          <p v-if="item._loc === 'shared' && item.type !== 'event'" class="tcard__record-note">相手と共有している記録です。ここからは戻せません。相手のお知らせで「正しくない」を選んでもらうと元に戻せます。</p>
           <!-- 共有の取引はボタンが1つも出ないので、空の箱で余白だけ残さない -->
           <div class="tcard__actions" v-if="item.type === 'event' || item._loc !== 'shared'">
             <button v-if="item.type === 'event'" class="btn-brand act" @click="askRestoreEvent(item)">表示を戻す</button>

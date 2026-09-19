@@ -921,7 +921,7 @@ const confirmRestoreNg = (req) => {
 
 // 🌟 「〇〇さんが抜けました」に「正しくない」＝削除した人へ再確認を促す通知
 const rejectEventLeft = (req) => {
-  askConfirm('「正しくない」を選びますか？', `${senderName(req)}さんに「削除が正しいか再確認してください」と通知します（「元に戻す」から戻せます）。`, async (reason) => {
+  askConfirm('「正しくない」を選びますか？', `${senderName(req)}さんに「削除が正しいか再確認してください」と通知します。相手が認めれば元に戻ります。`, async (reason) => {
     try {
       const myUid = auth.currentUser?.uid;
       await addDoc(collection(db, "notifications"), {
