@@ -77,7 +77,9 @@ test('起動時に要らない firebase の部品を分ける', () => {
 test('カルーセルのすき間を、自分で計算し直さない', () => {
   // CSSのすき間は8px固定なのに、矢印の処理が window.innerWidth * 0.04（390pxで15.6px）
   // を使っていて、押すたびに約7.6pxずれた。左へ行って戻ると真ん中が左に寄ったままになる。
-  const c = readFileSync('src/components/PaymentCarousel.vue', 'utf8');
+  // 説明のコメントには書いてあるので、コメントを外してから見る
+  const c = readFileSync('src/components/PaymentCarousel.vue', 'utf8')
+    .split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
   assert.ok(!/innerWidth \* 0\.04/.test(c), 'すき間を画面幅から勝手に計算している');
   assert.match(c, /scrollIntoView\(\{[^}]*inline: 'center'/, 'カードそのものを真ん中へ寄せていない');
   assert.match(c, /block: 'nearest'/, '縦にも動いてしまう');
