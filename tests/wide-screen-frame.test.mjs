@@ -98,6 +98,22 @@ test('お支払いアシスタントのパネルが枠の外へ出ない', () =>
   assert.ok(rule, 'アシスタントの層の指定が無い');
   assert.match(rule[1], /width:\s*min\(100%,\s*var\(--app-max\)\)/, 'パネルが台紙の上まで出る');
   assert.match(rule[1], /left:\s*50%/, 'パネルが枠の中央にそろわない');
+  // 上下をずらさないと、タブ列がヘッダーに重なる
+  assert.match(rule[1], /top:\s*calc\(var\(--header-h\) \+ var\(--frame-inset-y\)\)/, 'タブ列がヘッダーに重なる');
+  assert.match(rule[1], /bottom:\s*var\(--frame-inset-y\)/, 'アシスタントが枠の下へ出る');
+});
+
+test('画面の下に貼り付く表示も、枠の下端を基準にする', () => {
+  assert.match(
+    read('src/components/GlobalToast.vue'),
+    /bottom:\s*calc\([^;]*\+ var\(--frame-inset-y\)\)/,
+    '知らせの表示が下のナビに重なる',
+  );
+  assert.match(
+    read('src/views/EventDetails.vue'),
+    /bottom:\s*calc\(96px \+ var\(--frame-inset-y\)\)/,
+    'イベント詳細の浮いている表示が枠の下寄りにずれる',
+  );
 });
 
 test('画面の高さから測っている上限は、枠の高さに合わせる', () => {
