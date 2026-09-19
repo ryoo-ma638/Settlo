@@ -35,7 +35,7 @@
         <p v-if="preview" class="fp__preview">{{ preview }}</p>
         <p v-if="error" class="fp__error" role="alert">{{ error }}</p>
 
-        <button class="fp__save" :disabled="saving" @click="save">
+        <button class="fp__save" data-tour="fp-save" :disabled="saving" @click="save">
           {{ saving ? '保存しています…' : 'この内容で記録する' }}
         </button>
       </div>

@@ -1,9 +1,29 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { GUEST_TRAIL } from '../src/lib/guestTrail.js';
 
 const strip = (path) => readFileSync(path, 'utf8').split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+
+// src の中にある data-tour の名前を全部集める
+const anchors = (() => {
+  const found = new Set();
+  const walk = (dir) => {
+    for (const name of readdirSync(dir)) {
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) { walk(full); continue; }
+      if (!/\.(vue|js)$/.test(name)) continue;
+      for (const m of readFileSync(full, 'utf8').matchAll(/data-tour="([^"]*)"/g)) {
+        // :data-tour="index === 0 ? 'event-card' : null" のような書き方も拾う
+        for (const q of m[1].matchAll(/'([\w-]+)'/g)) found.add(q[1]);
+        if (/^[\w-]+$/.test(m[1])) found.add(m[1]);
+      }
+    }
+  };
+  walk('src');
+  return found;
+})();
 
 test('見るだけの手順と、やってみる手順を分けている', () => {
   for (const step of GUEST_TRAIL) {
@@ -15,21 +35,50 @@ test('見るだけの手順と、やってみる手順を分けている', () =>
   assert.deepEqual(doIt, ['offset', 'settle', 'chat', 'split'], 'やってみる手順が変わっている');
 });
 
-test('やってみる手順は、押しただけでは済みにならない', () => {
-  // 押した時点で済みにすると「やった気」で終わってしまう
-  const card = strip('src/components/GuestTrailCard.vue');
-  assert.match(card, /if \(step\.check !== 'action'\) complete\(step\.id\)/, '押しただけで済みにしている');
-  assert.match(card, /addEventListener\(TRAIL_DONE_EVENT/, 'やり終えた合図を聞いていない');
-  assert.match(card, /removeEventListener\(TRAIL_DONE_EVENT/, '合図の後片付けをしていない');
+test('どの手順にも、実際のボタンを光らせる案内が付いている', () => {
+  // 文字で「右上のベル」と書くだけでは、どれを押すのか分からなかった
+  for (const step of GUEST_TRAIL) {
+    assert.ok(Array.isArray(step.guide) && step.guide.length > 0, `${step.id} に案内が無い`);
+    for (const g of step.guide) {
+      assert.ok(['action', 'explain'].includes(g.type), `${step.id}: 案内の種類が不明`);
+      assert.ok(g.title && g.desc, `${step.id}: 案内の文が足りない`);
+      assert.match(g.sel, /^\[data-tour="[\w-]+"\]$/, `${step.id}: 指す先の書き方が違う（${g.sel}）`);
+    }
+  }
+});
+
+test('案内が指すボタンは、実際に画面にある', () => {
+  // 画面から消えたボタンを指したままだと、案内が途中で飛ばされる
+  for (const step of GUEST_TRAIL) {
+    for (const g of step.guide) {
+      const name = /data-tour="([\w-]+)"/.exec(g.sel)[1];
+      assert.ok(anchors.has(name), `${step.id}: data-tour="${name}" がどこにも無い`);
+    }
+  }
+});
+
+test('やってみる手順は、最後に本当のボタンを押させて終わる', () => {
+  // 途中の画面を見ただけで終わらせない
+  for (const step of GUEST_TRAIL.filter((s) => s.check === 'action')) {
+    const last = step.guide[step.guide.length - 1];
+    assert.equal(last.type, 'action', `${step.id}: 最後が押すところで終わっていない`);
+    assert.match(last.desc, /押/, `${step.id}: 最後に何を押すのか書かれていない`);
+  }
+});
+
+test('最後まで行かずにやめた分は、済みにしない', () => {
+  const tour = strip('src/components/ButtonTour.vue');
+  assert.match(tour, /completed\.value = true/, '最後まで行ったことを覚えていない');
+  assert.match(tour, /if \(wasTask && wasDone\) markTrailDone\(wasTask\)/, '途中でやめても済みになる');
 });
 
 test('やり終えた印は端末に残す（別の画面で操作しても消えない）', () => {
-  // 案内はホームにあるので、別の画面で操作しているあいだは外れている。
-  // 合図を飛ばすだけでは誰も聞いておらず、印が付かない。
   const signal = strip('src/lib/trailProgressSignal.js');
-  assert.match(signal, /localStorage\.setItem\(TRAIL_KEY/, '端末に書いていない');
-  const write = signal.indexOf('localStorage.setItem(TRAIL_KEY');
-  const fire = signal.indexOf('dispatchEvent');
+  // markTrailDone の中だけを見る（同じファイルに開始の合図もあるため）
+  const body = signal.slice(signal.indexOf('export function markTrailDone'));
+  assert.match(body, /localStorage\.setItem\(TRAIL_KEY/, '端末に書いていない');
+  const write = body.indexOf('localStorage.setItem(TRAIL_KEY');
+  const fire = body.indexOf('dispatchEvent');
   assert.ok(write !== -1 && fire !== -1 && write < fire, '書く前に合図を出している');
 });
 
@@ -46,67 +95,49 @@ test('やり終えたところから合図を出している', () => {
 });
 
 test('相手ごとの精算は、画面を見ただけでは済みにしない', () => {
-  // 一覧から相手を選んで内容を見るところまでは「見ただけ」。
-  // 実際に手続きへ進んだところで済みにする。
   const view = strip('src/views/CombinedSettlementView.vue');
   assert.ok(!view.includes('markTrailDone'), '内容を見た時点で済みにしている');
 });
 
-test('やってみる手順には、済みの付き方が書いてある', () => {
-  // 押しても✓が付かない理由が分からないと、壊れていると思われる
-  const card = strip('src/components/GuestTrailCard.vue');
-  assert.match(card, /完了したらチェック/, '済みの付き方が画面に出ていない');
+test('「触ってみる」はアシスタントの中に、いまの1件だけ出す', () => {
+  // 7件を一度に並べると読みづらく、どれからやるのか分からなかった
+  const header = strip('src/components/AppHeader.vue');
+  assert.match(header, /<GuestTryCard/, 'アシスタントの中に入っていない');
+  const panel = header.indexOf('<GuestTryCard');
+  const guide = header.indexOf('<ActionGuide');
+  assert.ok(panel !== -1 && guide !== -1 && panel < guide, 'パネルを開いて最初に出ない');
+
+  const card = strip('src/components/GuestTryCard.vue');
+  assert.match(card, /nextTrailStep/, 'いまの1件を選んでいない');
+  assert.match(card, /startGuidedTask/, '案内を始められない');
+  assert.ok(!/v-for="\(step, i\) in steps"[\s\S]{0,200}try__go/.test(card), '全部の手順に開始ボタンを出している');
 });
 
-test('案内の説明が、画面のボタン名と合っている', () => {
-  // 画面の名前を変えたのに案内が古いままだと、探しても見つからない
-  const thread = readFileSync('src/views/ThreadView.vue', 'utf8');
-  const labels = [...thread.matchAll(/'([^']*返信を考える)'/g)].map((m) => m[1]);
-  assert.ok(labels.length > 0, 'ボタン名が見つからない');
-  const trail = readFileSync('src/lib/guestTrail.js', 'utf8');
-  for (const label of labels) {
-    assert.ok(trail.includes(label), `案内に「${label}」が出てこない`);
-  }
+test('お試しの人には、アシスタントの場所を目立たせる', () => {
+  const header = strip('src/components/AppHeader.vue');
+  assert.match(header, /is-calling/, '強調の指定が無い');
+  assert.match(header, /ここから/, '入口だと分かる文字が無い');
+  assert.match(header, /callAttention = computed/, '出す条件が無い');
+  assert.match(header, /trailLeft\.value > 0/, 'ひと通り済んでも出したままになる');
 });
 
-test('押す場所の案内が、実際のボタン名と合っている', () => {
-  // 画面のボタン名を変えたのに案内が古いままだと、書いてある場所を探しても無い
-  const sources = {
-    'src/components/AppFooter.vue': ['イベント', '支払い', 'フレンドと割り勘', 'お支払いを追加'],
-    'src/views/MoneyPage.vue': ['まとめて'],
-    'src/views/EventDetails.vue': ['精算を始める'],
-  };
-  const all = Object.values(sources).flat();
-  const named = new Set();
-  for (const step of GUEST_TRAIL) {
-    for (const m of step.where.matchAll(/「([^」]+)」/g)) named.add(m[1]);
-  }
-  for (const label of named) {
-    if (label === '＋') continue; // ＋ボタンには文字が無い
-    assert.ok(all.includes(label), `案内の「${label}」が、どの画面のボタン名でもない`);
-  }
-  for (const [path, labels] of Object.entries(sources)) {
-    const src = readFileSync(path, 'utf8');
-    for (const label of labels) {
-      if (!named.has(label)) continue;
-      assert.ok(src.includes(label), `${path} に「${label}」というボタンが無い`);
-    }
-  }
+test('ホームには「触ってみる」を出さない（アシスタントへ集約した）', () => {
+  const home = strip('src/views/HomeView.vue');
+  assert.ok(!home.includes('GuestTrailCard'), 'ホームに古い案内が残っている');
 });
 
-test('押す場所を画面にも出している', () => {
-  const card = strip('src/components/GuestTrailCard.vue');
-  assert.match(card, /step\.where/, '押す場所が画面に出ていない');
+test('案内は、チャット画面へ移っても消えない', () => {
+  // /thread はシェル無しで開く。シェルの中に置くと、その画面へ移った瞬間に
+  // 案内ごと外れて、途中で止まっていた（2026-09-19）。
+  const app = strip('src/App.vue');
+  const shellEnd = app.indexOf('</div>', app.indexOf('class="app-shell"'));
+  const tour = app.indexOf('<ButtonTour />');
+  assert.ok(tour !== -1, 'ボタンの案内が置かれていない');
+  assert.ok(tour > shellEnd, 'シェルの中に置いてある（チャットで消える）');
 });
 
-test('閉じる・やり直しは、たずねてから実行する', () => {
-  // どちらも押し間違えると、試した印や案内そのものが消える
-  const card = strip('src/components/GuestTrailCard.vue');
-  assert.match(card, /@click="askReset"/, 'やり直しがその場で実行されている');
-  assert.match(card, /@click="askHide"/, '閉じるがその場で実行されている');
-  assert.match(card, /<BaseModal/, 'たずねる画面が無い');
-  assert.match(card, /最初からやり直しますか？/, 'やり直しの確認文が無い');
-  assert.match(card, /この案内を閉じますか？/, '閉じるときの確認文が無い');
-  // やめるを押したときに実行されないこと
-  assert.match(card, /@cancel="confirmState\.show = false"/, 'やめたときの動きが無い');
+test('見つからなかった手順は、飛ばしても済みにしない', () => {
+  const tour = strip('src/components/ButtonTour.vue');
+  assert.match(tour, /skipped\.value \+= 1/, '飛ばした数を数えていない');
+  assert.match(tour, /completed\.value && skipped\.value === 0/, '飛ばしても済みになる');
 });

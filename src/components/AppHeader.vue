@@ -22,13 +22,15 @@
 
     <div class="topbar__right">
       <NotificationIcon ref="notifRef" />
-      <button class="topbar__assist" :class="{ 'is-open': showAssistant }" data-tour="assist" @click="showAssistant = !showAssistant" aria-label="お支払いアシスタント">
+      <button class="topbar__assist" :class="{ 'is-open': showAssistant, 'is-calling': callAttention }" data-tour="assist" @click="showAssistant = !showAssistant" aria-label="お支払いアシスタント">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <rect x="4" y="8" width="16" height="11" rx="3"/><path d="M12 8V4M8 3h8"/>
           <circle cx="9" cy="13" r="1.1" fill="currentColor" stroke="none"/><circle cx="15" cy="13" r="1.1" fill="currentColor" stroke="none"/>
         </svg>
         <span v-if="guideActions.length > 0" class="topbar__assist-badge">{{ guideActions.length > 99 ? '99+' : guideActions.length }}</span>
       </button>
+      <!-- お試しの人に、最初の入口をはっきり見せる -->
+      <span v-if="callAttention" class="topbar__here" aria-hidden="true">ここから</span>
     </div>
   </header>
 
@@ -38,6 +40,8 @@
       <div v-if="showAssistant" class="assist-layer" @click.self="showAssistant = false">
         <div class="assist-panel">
           <button class="assist-panel__close" @click="showAssistant = false" aria-label="閉じる">×</button>
+          <!-- お試しの人は、まずここから触ってもらう -->
+          <GuestTryCard @start="showAssistant = false" />
           <ActionGuide :actions="guideActions" @navigate="showAssistant = false" />
         </div>
       </div>
@@ -46,15 +50,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import NotificationIcon from './NotificationIcon.vue';
 import ActionGuide from './ActionGuide.vue';
+import GuestTryCard from './GuestTryCard.vue';
 import UserAvatar from './UserAvatar.vue';
 import { useGuideActions } from '../composables/useGuideActions';
 import { auth, db } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot, collection, query, where } from "firebase/firestore";
+import { GUEST_TRAIL, normalizeDone } from '@/lib/guestTrail.js';
+import { TRAIL_KEY } from '@/lib/guestGuide.js';
+import { TRAIL_DONE_EVENT } from '@/lib/trailProgressSignal.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -67,13 +75,32 @@ const pendingCount = ref(0); // 承認待ち（自分が承認する側）の件
 // お支払いアシスタント（全ページ共通・アイコンから開閉）
 const { actions: guideActions } = useGuideActions();
 const showAssistant = ref(false);
+
+// 🌟 お試しで入った人に、最初に押す場所を分からせる。
+//    「触ってみる」はアシスタントの中にあるので、ここを光らせておく。
+//    ひと通り済んだら、ふつうのアイコンに戻す。
+const isGuest = ref(false);
+const trailLeft = ref(0);
+const readTrail = () => {
+  try {
+    const raw = localStorage.getItem(TRAIL_KEY);
+    trailLeft.value = GUEST_TRAIL.length - normalizeDone(raw ? JSON.parse(raw) : []).length;
+  } catch (e) { trailLeft.value = GUEST_TRAIL.length; }
+};
+const callAttention = computed(() => isGuest.value && trailLeft.value > 0 && !showAssistant.value);
 // ページを移動したらパネルは自動で閉じる
 watch(() => route.fullPath, () => { showAssistant.value = false; });
+watch(showAssistant, (open) => { if (open) readTrail(); });
 
 const navigate = (path) => { router.push(path); };
 
+const onTrailDone = () => readTrail();
+
 onMounted(() => {
+  readTrail();
+  window.addEventListener(TRAIL_DONE_EVENT, onTrailDone);
   onAuthStateChanged(auth, (user) => {
+    isGuest.value = user?.isAnonymous === true;
     if (user) {
       const userDocRef = doc(db, "users", user.uid);
       onSnapshot(userDocRef, (docSnap) => {
@@ -102,6 +129,8 @@ onMounted(() => {
     }
   });
 });
+
+onUnmounted(() => window.removeEventListener(TRAIL_DONE_EVENT, onTrailDone));
 </script>
 
 <style scoped>
@@ -232,4 +261,31 @@ onMounted(() => {
     margin: 0 auto;
   }
 }
+
+/* 🌟 お試しの人に、最初に押す場所を見せる。ひと通り済んだら止まる。 */
+.topbar__assist.is-calling {
+  color: var(--c-brand, #16a34a);
+  box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.55);
+  animation: assist-pulse 1.8s ease-out infinite;
+  border-radius: 50%;
+}
+@keyframes assist-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.5); }
+  70% { box-shadow: 0 0 0 11px rgba(22, 163, 74, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+}
+.topbar__right { position: relative; }
+.topbar__here {
+  position: absolute; top: calc(100% + 2px); right: 0;
+  padding: 2px 8px; border-radius: 999px;
+  background: var(--c-brand, #16a34a); color: #fff;
+  font-size: 10px; font-weight: var(--fw-bold, 700); white-space: nowrap;
+  pointer-events: none;
+}
+.topbar__here::before {
+  content: ''; position: absolute; top: -4px; right: 13px;
+  border-left: 4px solid transparent; border-right: 4px solid transparent;
+  border-bottom: 4px solid var(--c-brand, #16a34a);
+}
+@media (prefers-reduced-motion: reduce) { .topbar__assist.is-calling { animation: none; box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.35); } }
 </style>

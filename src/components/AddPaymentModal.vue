@@ -18,7 +18,7 @@
           <input ref="batchFileInput" class="hidden-input" type="file" accept="image/*" multiple @change="onBatchFiles">
           <input ref="batchCameraInput" class="hidden-input" type="file" accept="image/*" capture="environment" @change="onBatchFiles">
           <template v-if="!batchFinished">
-            <div class="batch-drop-zone" :class="{ 'is-dragover': batchDragging, 'is-disabled': !batchCanAdd }"
+            <div class="batch-drop-zone" data-tour="receipt-drop" :class="{ 'is-dragover': batchDragging, 'is-disabled': !batchCanAdd }"
               @dragenter.prevent="onBatchDragOver" @dragover.prevent="onBatchDragOver" @dragleave.prevent="onBatchDragLeave" @drop.prevent="onBatchDrop">
               <div class="batch-capture-actions">
                 <button type="button" class="batch-capture-button" :disabled="!batchCanAdd" @click="batchCameraInput.click()">
@@ -116,6 +116,7 @@
             
             <div 
               class="drop-zone" 
+              data-tour="receipt-drop"
               :class="{ 'is-dragover': isDragging, 'is-analyzing': isAnalyzing }"
               @dragover.prevent="isDragging = true"
               @dragleave.prevent="isDragging = false"

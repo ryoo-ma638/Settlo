@@ -51,7 +51,7 @@
 
     <!-- 返信の下書き。条件を選ぶと文案が出る。入力欄に入れるだけで、送信は本人が行う -->
     <div v-if="replyTx" class="rh">
-      <button class="rh__toggle" @click="replyOpen = !replyOpen">
+      <button class="rh__toggle" data-tour="rh-toggle" @click="replyOpen = !replyOpen">
         {{ replyOpen ? '返信の下書きを閉じる' : 'AIと返信を考える' }}
       </button>
       <div v-if="replyOpen" class="rh__body">
@@ -92,7 +92,7 @@
         <!-- ここから先はAIに相談する分。会話の流れを読んだうえで文案を作る。
              送るのは匿名にした会話と、上で選んだ条件だけ。名前は送らない。 -->
         <div class="rh__ai">
-          <button class="rh__ai-btn" :disabled="aiLoading" @click="askAi">
+          <button class="rh__ai-btn" data-tour="rh-ai" :disabled="aiLoading" @click="askAi">
             {{ aiLoading ? 'AIが会話を読んでいます…' : 'AIに相談する' }}
           </button>
           <p class="rh__ai-note">やりとりの内容から文案を作ります。名前は送らず、相手は「参加者1」のように置き換えます。</p>

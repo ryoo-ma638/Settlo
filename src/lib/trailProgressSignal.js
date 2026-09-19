@@ -16,6 +16,19 @@ import { markDone, normalizeDone } from './guestTrail.js';
 //    案内が出ていない人（ゲスト以外）が呼んでも問題ない。使われない記録が1つ残るだけ。
 export const TRAIL_DONE_EVENT = 'settlo:trail-done';
 
+// 「触ってみる」を始める合図。ButtonTour が受け取って、
+// 実際のボタンを1つずつ光らせながら最後まで案内する。
+// detail = { id, steps }
+export const GUIDED_TASK_EVENT = 'settlo:start-guided-task';
+
+export function startGuidedTask(step) {
+  if (!step || !Array.isArray(step.guide) || step.guide.length === 0) return false;
+  try {
+    window.dispatchEvent(new CustomEvent(GUIDED_TASK_EVENT, { detail: { id: step.id, steps: step.guide } }));
+    return true;
+  } catch (e) { return false; }
+}
+
 export function markTrailDone(id) {
   if (!id) return;
   try {

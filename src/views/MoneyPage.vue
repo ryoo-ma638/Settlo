@@ -236,7 +236,7 @@
         <SkeletonRows v-if="loading" :rows="3" />
         <div v-else-if="settleByPerson.length === 0" class="empty-box">まとめて精算できる相手はいません</div>
         <div v-else class="settle__list">
-          <button v-for="m in settleByPerson" :key="m.uid" class="scard" @click="goSettle(m)">
+          <button v-for="(m, index) in settleByPerson" :key="m.uid" class="scard" :data-tour="index === 0 ? 'settle-person' : null" @click="goSettle(m)">
             <UserAvatar class="scard__avatar" :name="m.name" :photo="m.photo" :size="40" />
             <span class="scard__body">
               <span class="scard__name">{{ m.name }}</span>

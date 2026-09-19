@@ -69,10 +69,10 @@
           </div>
 
           <template v-if="hasIncluded">
-            <button v-if="settleNet >= 0" class="main-btn blue-btn" @click="goToActionPage('remind')">
+            <button v-if="settleNet >= 0" class="main-btn blue-btn" data-tour="settle-go" @click="goToActionPage('remind')">
               ¥{{ Math.abs(settleNet).toLocaleString() }} の受け取りへ
             </button>
-            <button v-else class="main-btn orange-btn" @click="goToActionPage('pay')">
+            <button v-else class="main-btn orange-btn" data-tour="settle-go" @click="goToActionPage('pay')">
               ¥{{ Math.abs(settleNet).toLocaleString() }} の支払いへ
             </button>
           </template>
