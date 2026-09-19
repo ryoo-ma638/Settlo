@@ -112,8 +112,8 @@ const save = async () => {
 </script>
 
 <style scoped>
-.modal-overlay { position: fixed; inset: 0; background: var(--c-overlay); display: flex; align-items: flex-end; justify-content: center; z-index: 3000; backdrop-filter: blur(4px); }
-.modal-content { background: var(--c-surface-2); width: 100%; max-width: 600px; border-radius: 32px 32px 0 0; padding: 24px 22px 28px; box-sizing: border-box; max-height: 88vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.modal-overlay { position: fixed; inset: 0; background: var(--c-overlay); display: flex; align-items: flex-end; justify-content: center; z-index: 3000; backdrop-filter: blur(4px);  padding-bottom: var(--frame-inset-y);}
+.modal-content { background: var(--c-surface-2); width: 100%; max-width: min(600px, var(--app-max)); border-radius: 32px 32px 0 0; padding: 24px 22px 28px; box-sizing: border-box; max-height: 88vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
 .fp__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .fp__title { margin: 0; font-size: 17px; font-weight: var(--fw-bold); }

@@ -2186,8 +2186,8 @@ const handleDeleteEvent = () => {
 /* 🌟 終了済み表示 */
 .ended-chip { width: 100%; background: var(--c-brand-weak); color: var(--c-brand); border: 1.5px solid #a7f3d0; padding: 10px; border-radius: 12px; font-size: 12px; font-weight: 800; text-align: center; margin: 0; box-sizing: border-box; }
 
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--c-overlay); display: flex; align-items: flex-end; justify-content: center; z-index: 2000; backdrop-filter: blur(4px); }
-.modal-content { background: white; width: 100%; max-width: 600px; border-radius: 32px 32px 0 0; padding: 30px 25px; box-sizing: border-box; max-height: 85vh; overflow-y: auto; }
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--c-overlay); display: flex; align-items: flex-end; justify-content: center; z-index: 2000; backdrop-filter: blur(4px);  padding-bottom: var(--frame-inset-y);}
+.modal-content { background: white; width: 100%; max-width: min(600px, var(--app-max)); border-radius: 32px 32px 0 0; padding: 30px 25px; box-sizing: border-box; max-height: 85vh; overflow-y: auto; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .modal-header h3 { margin: 0; font-size: 20px; color: var(--c-ink); font-weight: 900; }
 .close-btn { background: var(--c-surface-2); border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 20px; color: var(--c-text-sub); cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; }

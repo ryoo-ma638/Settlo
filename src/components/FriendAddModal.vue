@@ -395,7 +395,7 @@ const executeRequest = async () => {
 .add-modal {
   width: 100%;
   max-width: 360px;
-  max-height: calc(100dvh - 40px);
+  max-height: calc(100dvh - 40px - var(--frame-inset-y) * 2);
   overflow-y: auto;
   background: var(--c-surface);
   border-radius: var(--r-xl);

@@ -241,8 +241,8 @@ onUnmounted(() => { if (unsubFriends) unsubFriends(); });
 
 <style scoped>
 /* 既存スタイルそのまま */
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--c-overlay); display: flex; align-items: flex-end; justify-content: center; z-index: 2000; }
-.modal-content { background: var(--c-surface-2); width: 100%; max-width: 600px; border-radius: 30px 30px 0 0; padding: 25px 25px 40px; box-sizing: border-box; max-height: 85vh; display: flex; flex-direction: column; }
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--c-overlay); display: flex; align-items: flex-end; justify-content: center; z-index: 2000;  padding-bottom: var(--frame-inset-y);}
+.modal-content { background: var(--c-surface-2); width: 100%; max-width: min(600px, var(--app-max)); border-radius: 30px 30px 0 0; padding: 25px 25px 40px; box-sizing: border-box; max-height: 85vh; display: flex; flex-direction: column; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-shrink: 0; }
 .modal-header h3 { margin: 0; font-size: 18px; color: var(--c-text); font-weight: bold; }
 .close-btn { background: none; border: none; font-size: 28px; color: var(--c-text-faint); cursor: pointer; line-height: 1; }

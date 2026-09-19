@@ -102,10 +102,10 @@ const handleSend = () => {
 
 <style scoped>
 /* 既存スタイルそのまま */
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--c-overlay); display: flex; align-items: flex-end; justify-content: center; z-index: 3000; backdrop-filter: blur(4px); }
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--c-overlay); display: flex; align-items: flex-end; justify-content: center; z-index: 3000; backdrop-filter: blur(4px);  padding-bottom: var(--frame-inset-y);}
 /* 画面が低いと中身が上へはみ出し、見出しと×が隠れて閉じられなくなる。
    高さの上限を決めて、あふれる分は中でスクロールさせる。 */
-.modal-content { background: var(--c-surface-2); width: 100%; max-width: 600px; border-radius: 32px 32px 0 0; padding: 30px 25px; box-sizing: border-box; max-height: 88vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.modal-content { background: var(--c-surface-2); width: 100%; max-width: min(600px, var(--app-max)); border-radius: 32px 32px 0 0; padding: 30px 25px; box-sizing: border-box; max-height: 88vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
 .modal-title { margin: 0; font-size: 20px; color: var(--c-ink); font-weight: 900; }
 .close-btn { background: var(--c-line-bold); border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 20px; color: var(--c-text-sub); cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; }

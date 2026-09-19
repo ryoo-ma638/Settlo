@@ -619,7 +619,7 @@ onUnmounted(() => {
   top: 50%;
   transform: translate(-50%, -50%);
   width: min(340px, calc(100vw - 32px));
-  max-height: calc(100dvh - 24px);
+  max-height: calc(100dvh - 24px - var(--frame-inset-y) * 2);
 }
 .tour__done-mark {
   width: 46px; height: 46px; margin: 0 auto 10px;
