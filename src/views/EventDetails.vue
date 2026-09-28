@@ -312,7 +312,7 @@
 
             <div v-if="selectedSummary.details && selectedSummary.details.length > 0" class="breakdown-wrap">
               <button class="breakdown-toggle" type="button" :aria-expanded="showSummarySources" @click="showSummarySources = !showSummarySources">
-                <span>このイベントの計算に使った取引 {{ selectedSummary.details.length }} 件</span>
+                <span>この送金を作ったときに使った取引 {{ selectedSummary.details.length }} 件</span>
                 <span class="breakdown-chevron" :class="{ open: showSummarySources }" aria-hidden="true">⌄</span>
               </button>
               <div v-if="showSummarySources" class="breakdown-list">
@@ -1344,9 +1344,10 @@ const rowForDisplay = (row, { preview = false, details = [] } = {}) => {
   const from = participantFor(row.fromId);
   const to = participantFor(row.toId);
   const myUid = auth.currentUser?.uid || '';
-  // 新しく作った行には計算に使った取引が全件書かれるので、この絞り込みは素通りする。
-  // ただし追加分を反映したとき、作り直さずに残す行だけは前の版の取引IDを持ったままになる。
-  // その行では当時の取引だけを出したいので、絞り込みは残す。
+  // 追加分を反映しても、未払い以外の行（確定済み・承認待ち・要確認）は作り直さない。
+  // その行が持つ取引IDは作ったときの版のままなので、絞り込むと当時の取引だけが出る。
+  // 一方で保存してある取引の一覧は新しい全件に更新される。
+  // 出せる中身は行ごとに違うので、見出しは「この送金を作ったとき」と書いて件数と合わせる。
   const detailIds = Array.isArray(row.sourceTransactionIds) ? new Set(row.sourceTransactionIds) : null;
   return {
     ...row,

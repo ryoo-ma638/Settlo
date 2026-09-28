@@ -79,3 +79,31 @@ export function balancesByPerson(receivable = [], payable = []) {
     .filter((m) => m.net !== 0)
     .sort((a, b) => Math.abs(b.net) - Math.abs(a.net));
 }
+
+// 相手ごとの「差し引きのうち、イベントに紐づく分」。
+// まとめてタブの行に出ている金額は balancesByPerson の net（受け取る − 支払う）なので、
+// 注記もそろえて差し引きで出す。受け取る分と支払う分を足した額面にすると、
+// 同じ相手に両方向の取引があるとき注記の金額が行の金額を追い越して食い違う。
+// net > 0 … その相手からイベント分を受け取る／net < 0 … その相手へイベント分を支払う。
+// 承認待ちのまとめ精算の数え方も balancesByPerson と同じにする（実質額で1件）。
+export function eventPortionByPerson(receivable = [], payable = []) {
+  const map = new Map();
+
+  const bump = (item, sign) => {
+    const uid = item && item.opponentUid;
+    if (!uid || !item.eventId) return;
+    let m = map.get(uid);
+    if (!m) {
+      m = { uid, net: 0, count: 0, names: [] };
+      map.set(uid, m);
+    }
+    m.net += sign * (Number(item.amount) || 0);
+    m.count += 1;
+    if (item.eventName && !m.names.includes(item.eventName)) m.names.push(item.eventName);
+  };
+
+  collapsePendingBatches(receivable).forEach((item) => bump(item, 1));
+  collapsePendingBatches(payable).forEach((item) => bump(item, -1));
+
+  return map;
+}

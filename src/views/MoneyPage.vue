@@ -270,7 +270,7 @@ import { collection, query, where, onSnapshot, doc, getDoc, addDoc, serverTimest
 import SkeletonRows from '../components/SkeletonRows.vue'
 import UserAvatar from '../components/UserAvatar.vue'
 import { formatDate } from '../lib/format'
-import { balancesByPerson } from '../lib/balance'
+import { balancesByPerson, eventPortionByPerson } from '../lib/balance'
 import { eventSettlementRouteOf } from '../lib/eventSettlementGuard'
 import { actionablePaymentItems, buildPaymentOverview, headlineOf } from '../lib/paymentOverview.js'
 
@@ -338,23 +338,17 @@ const settleByPerson = computed(() => balancesByPerson(receivableList.value, pay
 // この差し引きには、イベントに紐づいた取引もそのまま入っている。
 // そのイベントでまとめて精算を始めると、対象の取引はイベント側へ移って
 // ここから外れ、金額が変わる。先に内訳を出して、数字が動く理由を見せる。
-const eventPortionByUid = computed(() => {
-  const map = new Map()
-  for (const item of [...receivableList.value, ...payableList.value]) {
-    if (!item.eventId || !item.opponentUid) continue
-    const found = map.get(item.opponentUid) || { amount: 0, count: 0, names: new Set() }
-    found.amount += Number(item.amount) || 0
-    found.count += 1
-    if (item.eventName) found.names.add(item.eventName)
-    map.set(item.opponentUid, found)
-  }
-  return map
-})
+// 金額は行に出ている差し引き（net）とそろえる。計算は src/lib/balance.js に置く。
+const eventPortionByUid = computed(() => eventPortionByPerson(receivableList.value, payableList.value))
 const eventPortionText = (uid) => {
   const found = eventPortionByUid.value.get(uid)
   if (!found) return ''
-  const where = found.names.size === 1 ? [...found.names][0] : 'イベント'
-  return `${where}の取引 ¥${found.amount.toLocaleString()}（${found.count}件）を含む`
+  const where = found.names.length === 1 ? found.names[0] : 'イベント'
+  // 差し引きが 0 のときは、精算を始めても行の金額が動かない。
+  // 金額を出すと動くように読めるので、動かないことだけを書く。
+  if (found.net === 0) return `${where}の分は差し引き 0 円（${found.count}件）`
+  const side = found.net < 0 ? '支払う' : '受け取る'
+  return `${where}の分は ${side} ¥${Math.abs(found.net).toLocaleString()}（${found.count}件）`
 }
 
 // 🌟 受け取る分と支払う分の両方がある相手。
