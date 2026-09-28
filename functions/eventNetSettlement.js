@@ -192,14 +192,32 @@ function calculateRefreshedPlan({ transactions, participants, planId, legs }) {
 //    取引の額面（1件ずつの金額）とは別物で、双方向の精算では必ずズレる。
 //    ホームと支払い画面の大きい数字はこちらを出す。
 //    settlementBatch（相手ごとのまとめ精算）と同じ考え方に合わせている。
-function netOfTransfers(transfers) {
+//
+//    participantIds を先に0で並べるのは、送金が1本だけ終わった途中で控えを作り直すとき、
+//    終わった人のキーごと消えるのを防ぐため。キーが無いと画面は「控えの無い古い精算」と
+//    判断して取引の額面へ戻してしまい、受け取り終わった人のホームに、
+//    もう動かない金額が残って見える。
+function netOfTransfers(transfers, participantIds) {
   const net = {};
+  for (const id of participantIds || []) {
+    if (typeof id === "string" && id) net[id] = 0;
+  }
   for (const row of transfers || []) {
     const value = Number(row.amount) || 0;
     net[row.toId] = (net[row.toId] || 0) + value;
     net[row.fromId] = (net[row.fromId] || 0) - value;
   }
   return net;
+}
+
+// 控えに並べる参加者。participantIds を持たない古い精算では、
+// 取り込んだ元取引の払う側・受け取る側から作る。
+function netParticipantIds(plan) {
+  const ids = (plan && plan.participantIds) || [];
+  if (ids.length) return ids;
+  return [...new Set(((plan && plan.sourceTransactions) || [])
+    .flatMap((row) => [row.paidById, row.paidToId])
+    .filter(Boolean))];
 }
 
 const stableId = (...parts) => crypto.createHash("sha256").update(parts.join("\u0000")).digest("hex").slice(0, 40);
@@ -350,7 +368,7 @@ function createEventNetSettlementService({ db, FieldValue }) {
           updatedAt: now(),
         });
       });
-      const net = netOfTransfers(calculation.transfers);
+      const net = netOfTransfers(calculation.transfers, participants);
       calculation.sources.forEach((source) => {
         transaction.update(db.collection("transactions").doc(source.id), {
           eventSettlementPlanId: planId,
@@ -452,7 +470,7 @@ function createEventNetSettlementService({ db, FieldValue }) {
       });
       // 追加分を入れると差し引きが変わる。控えは元の取引すべてへ書き直す。
       // 新しい分だけ更新すると、前の差し引きが残って画面の金額が古いままになる。
-      const refreshedNet = netOfTransfers(calculated.transfers);
+      const refreshedNet = netOfTransfers(calculated.transfers, plan.participantIds);
       calculated.sources.forEach((source) => {
         transaction.update(db.collection("transactions").doc(source.id), {
           eventSettlementPlanId: planId,
@@ -554,7 +572,7 @@ function createEventNetSettlementService({ db, FieldValue }) {
     const remaining = (legSnaps || [])
       .filter((snap) => snap.id !== legId && snap.exists && snap.data().status !== "completed")
       .map((snap) => snap.data());
-    const net = netOfTransfers(remaining);
+    const net = netOfTransfers(remaining, netParticipantIds(plan));
     sourceRefs.forEach((ref) => transaction.update(ref, { eventSettlementNet: net }));
   }
 
@@ -731,4 +749,4 @@ function createEventNetSettlementService({ db, FieldValue }) {
   return { start, refresh, report, decide, confirmReceipt, handle };
 }
 
-module.exports = { createEventNetSettlementService, calculatePlan, calculateRefreshedPlan };
+module.exports = { createEventNetSettlementService, calculatePlan, calculateRefreshedPlan, netOfTransfers };

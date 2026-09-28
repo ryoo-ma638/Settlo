@@ -223,8 +223,9 @@ test("追加分を反映したら、差し引きの控えを元の取引すべ�
     FieldValue: { serverTimestamp: () => "now", increment: (amount) => ({ increment: amount }) },
   });
   await service.refresh("C", { planId: "plan-1", requestId: "refresh-net" });
-  // これから動くのは B→C 1000 と D→C 800。A の分は確定済みなので入らない。
-  const expected = { B: -1000, C: 1800, D: -800 };
+  // これから動くのは B→C 1000 と D→C 800。A の分は確定済みなので0で残す。
+  // キーごと消すと、画面が控えを見失って A のホームに終わった金額が出る。
+  const expected = { A: 0, B: -1000, C: 1800, D: -800 };
   for (const id of ["ab", "dc", "bc-new"]) {
     assert.deepEqual(db.store.get(`transactions/${id}`).eventSettlementNet, expected, id);
   }
