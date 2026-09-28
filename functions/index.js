@@ -639,7 +639,7 @@ exports.setupGuestDemo = onCall(
       tag: "旅行",
       participants: [uid, TARO, HANAKO],
       invitationCode: code,
-      totalAmount: 15000,
+      totalAmount: 12000,
       memo: "Settloのお試し用イベントです。自由に触ってみてください！",
       hiddenBy: [],
       createdAt: now,
@@ -647,23 +647,26 @@ exports.setupGuestDemo = onCall(
     const eventId = eventRef.id;
     const dateStr = new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/-/g, "/");
 
-    // 4) 立替1：ゲストが夕食6,000円を立て替え（太郎・花子が2,000円ずつ支払う）
+    // 4) 立替1：ゲストが夕食9,000円を立て替え（太郎・花子が3,000円ずつ支払う）。
+    //    立て替える側をゲストにして、送金案の宛先が全部ゲストになるようにしてある。
+    //    他人どうしの送金が混ざると、ゲストの画面に操作ボタンが出ず、
+    //    デモの太郎・花子は誰も動かないので精算が始まったまま止まる。
     const tx1 = await db.collection("transactions").add({
-      paidById: TARO, paidToId: uid, paidByName: "デモ太郎", amount: 2000,
+      paidById: TARO, paidToId: uid, paidByName: "デモ太郎", amount: 3000,
       itemName: "ジンギスカン夕食", status: "unpaid", eventId, createdAt: now,
     });
     const tx2 = await db.collection("transactions").add({
-      paidById: HANAKO, paidToId: uid, paidByName: "デモ花子", amount: 2000,
+      paidById: HANAKO, paidToId: uid, paidByName: "デモ花子", amount: 3000,
       itemName: "ジンギスカン夕食", status: "unpaid", eventId, createdAt: now,
     });
     const dinnerHistory = await db.collection("events").doc(eventId).collection("history").add({
       payer: guestName, payerUid: uid, itemName: "ジンギスカン夕食", category: "食事",
-      splitType: "all", amount: 6000, date: dateStr, time: "19:30", status: "unpaid",
+      splitType: "all", amount: 9000, date: dateStr, time: "19:30", status: "unpaid",
       timestamp: now, taxMode: "included", registrationNumber: null, remainder: null,
       shares: [
-        { uid, name: guestName, amount: 2000 },
-        { uid: TARO, name: "デモ太郎", amount: 2000 },
-        { uid: HANAKO, name: "デモ花子", amount: 2000 },
+        { uid, name: guestName, amount: 3000 },
+        { uid: TARO, name: "デモ太郎", amount: 3000 },
+        { uid: HANAKO, name: "デモ花子", amount: 3000 },
       ],
       items: [], transactionIds: [tx1.id, tx2.id],
     });
@@ -672,23 +675,25 @@ exports.setupGuestDemo = onCall(
       tx2.update({ historyId: dinnerHistory.id, eventName: "札幌旅行（デモ）" }),
     ]);
 
-    // 5) 立替2：太郎がレンタカー9,000円を立て替え（ゲストは3,000円支払う側）
+    // 5) 立替2：太郎がレンタカー3,000円を立て替え（ゲストは1,000円支払う側）。
+    //    太郎だけが「ゲストへの借り3,000・ゲストからの受け取り1,000」を同時に持つので、
+    //    差し引きで1本にまとまるところを見せられる。
     const tx3 = await db.collection("transactions").add({
-      paidById: uid, paidToId: TARO, paidByName: guestName, amount: 3000,
+      paidById: uid, paidToId: TARO, paidByName: guestName, amount: 1000,
       itemName: "レンタカー", status: "unpaid", eventId, createdAt: now,
     });
     const tx4 = await db.collection("transactions").add({
-      paidById: HANAKO, paidToId: TARO, paidByName: "デモ花子", amount: 3000,
+      paidById: HANAKO, paidToId: TARO, paidByName: "デモ花子", amount: 1000,
       itemName: "レンタカー", status: "unpaid", eventId, createdAt: now,
     });
     const rentalHistory = await db.collection("events").doc(eventId).collection("history").add({
       payer: "デモ太郎", payerUid: TARO, itemName: "レンタカー", category: "交通",
-      splitType: "all", amount: 9000, date: dateStr, time: "13:00", status: "unpaid",
+      splitType: "all", amount: 3000, date: dateStr, time: "13:00", status: "unpaid",
       timestamp: now, taxMode: "included", registrationNumber: null, remainder: null,
       shares: [
-        { uid, name: guestName, amount: 3000 },
-        { uid: TARO, name: "デモ太郎", amount: 3000 },
-        { uid: HANAKO, name: "デモ花子", amount: 3000 },
+        { uid, name: guestName, amount: 1000 },
+        { uid: TARO, name: "デモ太郎", amount: 1000 },
+        { uid: HANAKO, name: "デモ花子", amount: 1000 },
       ],
       items: [], transactionIds: [tx3.id, tx4.id],
     });
@@ -711,10 +716,10 @@ exports.setupGuestDemo = onCall(
       eventId,
       eventName: "札幌旅行（デモ）",
       itemName: "レンタカー",
-      amount: 9000,
+      amount: 3000,
       transactionIds: [tx3.id, tx4.id],
       activeTransactionIds: [tx3.id, tx4.id],
-      subjectLabel: "札幌旅行（デモ）・レンタカー（¥9,000）のお支払いの件",
+      subjectLabel: "札幌旅行（デモ）・レンタカー（¥3,000）のお支払いの件",
       lastMessage: firstMessage,
       hiddenBy: [],
       resolved: false,
@@ -730,10 +735,10 @@ exports.setupGuestDemo = onCall(
     // 6) お知らせ体験：太郎から支払いの催促＋花子からフレンド申請
     await db.collection("notifications").add({
       toUserId: uid, type: "payment_reminder",
-      message: "レンタカー代（¥3,000）をお願いします！",
+      message: "レンタカー代（¥1,000）をお願いします！",
       transactionId: tx3.id,
       // 過去のお知らせから中身を確かめられるよう、実際の通知と同じ項目を入れておく
-      eventName: "札幌旅行（デモ）", itemName: "レンタカー", amount: 3000,
+      eventName: "札幌旅行（デモ）", itemName: "レンタカー", amount: 1000,
       fromUserId: TARO, fromUserName: "デモ太郎",
       isRead: false, createdAt: now,
     });
