@@ -9,7 +9,7 @@
     <main class="content">
       <div class="summary-card">
         <div class="total-section clickable" @click="scrollToTimeline">
-          <span class="label"><span class="event-genre"><GenreIcon :type="eventData.tag" /></span>未精算の残り <span class="arrow-down">履歴を見る ↓</span></span>
+          <span class="label"><span class="event-genre"><GenreIcon :type="eventData.tag" /></span>{{ outstandingLabel }} <span class="arrow-down">履歴を見る ↓</span></span>
           <h1 class="total-amount">¥{{ outstandingTotal.toLocaleString() }}</h1>
           <span class="total-sub">立替の合計 ¥{{ eventData.total.toLocaleString() }}</span>
 
@@ -39,6 +39,7 @@
             >{{ settlementBusy ? '更新中…' : '追加分を反映' }}</button>
           </div>
           <p class="section-note">全員分の貸し借りをまとめ、支払い回数を減らした結果です。</p>
+          <p v-if="showNetSettlementTotal" class="section-note">送金案の合計は ¥{{ netSettlementTotal.toLocaleString() }}。相殺すると実際に動くのはこの額です。</p>
           <p v-if="hasUnresolvedSettlementReview" class="settlement-error">
             受取を確認できなかった支払いがあります。追加分を反映する前に、該当する行から送金状況を確認してください。
           </p>
@@ -311,7 +312,7 @@
 
             <div v-if="selectedSummary.details && selectedSummary.details.length > 0" class="breakdown-wrap">
               <button class="breakdown-toggle" type="button" :aria-expanded="showSummarySources" @click="showSummarySources = !showSummarySources">
-                <span>計算の元：{{ selectedSummary.details.length }}件</span>
+                <span>この送金を作ったときに使った取引 {{ selectedSummary.details.length }} 件</span>
                 <span class="breakdown-chevron" :class="{ open: showSummarySources }" aria-hidden="true">⌄</span>
               </button>
               <div v-if="showSummarySources" class="breakdown-list">
@@ -743,6 +744,15 @@ const outstandingTotal = computed(() => {
   }
   return outstandingTotalOf(eventData.value.history);
 });
+
+// まとめて精算が動いているか。見出しと注記の出し分けで同じ判断を使う。
+const settlementStarted = computed(() => !!(
+  eventData.value.activeEventSettlementPlanId && settlementLegs.value.length
+));
+
+// 上の大きい数字が、相殺前の粗い合計なのか、送金案の残額なのかを見出しで分ける。
+// どちらも「未精算の残り」と書くと、下の送金案の合計（相殺後）と食い違って見える。
+const outstandingLabel = computed(() => (settlementStarted.value ? '精算の残り' : '相殺前の未精算'));
 
 const settlementProgress = computed(() => {
   if (eventData.value.activeEventSettlementPlanId && settlementLegs.value.length) {
@@ -1335,6 +1345,10 @@ const rowForDisplay = (row, { preview = false, details = [] } = {}) => {
   const from = participantFor(row.fromId);
   const to = participantFor(row.toId);
   const myUid = auth.currentUser?.uid || '';
+  // 追加分を反映しても、未払い以外の行（確定済み・承認待ち・要確認）は作り直さない。
+  // その行が持つ取引IDは作ったときの版のままなので、絞り込むと当時の取引だけが出る。
+  // 一方で保存してある取引の一覧は新しい全件に更新される。
+  // 出せる中身は行ごとに違うので、見出しは「この送金を作ったとき」と書いて件数と合わせる。
   const detailIds = Array.isArray(row.sourceTransactionIds) ? new Set(row.sourceTransactionIds) : null;
   return {
     ...row,
@@ -1372,6 +1386,18 @@ const netSettlementRows = computed(() => {
     : [];
   return [...previewRows, ...savedRows.filter((row) => row.status === 'completed')];
 });
+
+// 送金案でこれから動く合計。相殺前の未精算との差が、相殺で消えた分になる。
+// 確定済みの行はもう動かないので数えない。
+const netSettlementTotal = computed(() => netSettlementRows.value
+  .filter((row) => row.status !== 'completed')
+  .reduce((sum, row) => sum + (Number(row.amount) || 0), 0));
+
+// 見出しの直下に同じ金額を2回書かない。
+// 精算を始めたあとは、大きい数字（精算の残り）が送金案の残額そのものになるので、
+// 注記に同じ数字が並ぶ。2つが同じなら注記は何も足さないため出さない。
+const showNetSettlementTotal = computed(() => netSettlementTotal.value > 0
+  && (!settlementStarted.value || netSettlementTotal.value !== outstandingTotal.value));
 
 const filteredNetSettlementRows = computed(() => netSettlementRows.value
   .filter((row) => settlementFilter.value === 'all'

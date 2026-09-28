@@ -105,6 +105,10 @@ test('まとめて精算は独立した内訳フィルターを持たず、全�
   assert.equal(state.netSettlementRows[0].toId, 'C');
   assert.equal(state.netSettlementRows[0].amount, 1000);
   assert.equal(state.netSettlementRows[0].details.length, 2);
+  // 相殺前の合計と、送金案でこれから動く合計は別の数字。見出しと注記でそれを分ける。
+  assert.equal(state.netSettlementTotal, 1000);
+  assert.equal(state.outstandingLabel, '相殺前の未精算');
+  assert.equal(state.showNetSettlementTotal, true, '相殺前は動く額が別の数字なので注記を出す');
 });
 
 test('まとめて精算は未精算を既定表示にし、確定済みを切り替えて確認できる', async () => {
@@ -126,6 +130,10 @@ test('まとめて精算は未精算を既定表示にし、確定済みを切�
   assert.equal(state.settlementFilter, 'unpaid');
   assert.deepEqual(ids(state.filteredNetSettlementRows), ['open', 'pending']);
   assert.equal(state.outstandingTotal, 800);
+  assert.equal(state.outstandingLabel, '精算の残り');
+  assert.equal(state.netSettlementTotal, 800, '確定済みの行まで数えている');
+  // 大きい数字（精算の残り 800）と同じ数になるので、見出しの下に同じ金額を2回書かない。
+  assert.equal(state.showNetSettlementTotal, false, '同じ金額の注記をもう一度出している');
   assert.deepEqual(state.settlementProgress, { total: 3, done: 1, percent: 33 });
   state.settlementFilter = 'completed';
   assert.deepEqual(ids(state.filteredNetSettlementRows), ['done']);
