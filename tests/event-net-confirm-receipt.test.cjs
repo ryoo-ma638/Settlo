@@ -146,14 +146,15 @@ const seed3 = () => ({
   "users/B": { name: "ビー" },
 });
 
-test("自分の行だけ終わったら、その人の差し引きを控えから減らす", async () => {
-  // これをしないと、受け取り終わった人のホームに、まだ受け取る額が残って見える
+test("自分の行だけ終わったら、その人の差し引きを0にする（キーは残す）", async () => {
+  // これをしないと、受け取り終わった人のホームに、まだ受け取る額が残って見える。
+  // キーごと消すのも同じで、画面が控えを見失って取引の額面へ戻ってしまう。
   const { db, service } = makeService(seed3());
   const out = await service.confirmReceipt("B", { planId: "p1", legId: "leg-1", requestId: "r1" });
   assert.equal(out.planStatus, "open", "残りがあるので精算はまだ終わらない");
   const tx = db.store.get("transactions/t1");
   assert.equal(tx.status, "unpaid", "残りがあるうちは元の取引を締めない");
-  assert.deepEqual(tx.eventSettlementNet, { A: -1000, C: 1000 }, "Bのぶんが控えから消える");
+  assert.deepEqual(tx.eventSettlementNet, { A: -1000, B: 0, C: 1000 }, "Bのぶんは0になり、キーは残る");
 });
 
 test("残り1本を終えたら、元の取引も精算も締まる", async () => {

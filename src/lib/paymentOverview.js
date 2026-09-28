@@ -196,8 +196,13 @@ function addEventSettlements(overview, eventRows, myUid, issues) {
   for (const [planId, members] of byPlan) {
     const net = members.map((row) => row.eventSettlementNet).find((value) => value && typeof value === 'object');
     const stamped = net ? signedInteger(net[myUid]) : null;
+    // 🌟 控えはあるのに自分のキーだけ無いのは、自分の送金がもう終わっている状態。
+    //    ここで額面へ戻すと、受け取り終わった金額がホームに残り続ける。だから0として扱う。
+    //    控えそのものが無い古い精算は、これまでどおり自分の取引の額面から出す。
+    const settled = !!net && (net[myUid] === undefined || net[myUid] === null);
     const mine = stamped === null
-      ? members.reduce((total, row) => total + (row.side === 'receive' ? row.amount : -row.amount), 0)
+      ? (settled ? 0
+        : members.reduce((total, row) => total + (row.side === 'receive' ? row.amount : -row.amount), 0))
       : stamped;
     if (!Number.isSafeInteger(mine)) {
       issue(issues, 'event_net_invalid', members[0], planId);
