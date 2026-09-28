@@ -2,6 +2,7 @@ import { ref, onUnmounted } from 'vue';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { buildGuideActions } from '../lib/guideActions.js';
 
 // お支払いアシスタントの「次にやること」を、どのページからでも同じ内容で組み立てる。
 // 自分の取引（受け取る=paidToId / 支払う=paidById）を購読し、優先度順のアクション配列を返す。
@@ -13,8 +14,6 @@ export function useGuideActions() {
   let unsubRecv = null;
   let unsubPay = null;
   let unsubAuth = null;
-
-  const yen = (v) => `¥${(Number(v) || 0).toLocaleString()}`;
 
   async function nameOf(uid) {
     if (!uid) return '不明';
@@ -30,22 +29,7 @@ export function useGuideActions() {
   }
 
   function rebuild() {
-    const acts = [];
-    const recv = recvList.value;
-    const pay = payList.value;
-    // ① 相手が支払い済みで、自分の承認待ち（相手を待たせている＝最優先）
-    recv.filter((i) => i.status === 'awaiting_approval').forEach((i) => {
-      acts.push({ kind: 'approve', text: `${i.name}さんの支払い ${yen(i.amount)} を承認してください`, cta: '承認する', to: `/payment-detail/waiting-${i.id}` });
-    });
-    // ② 自分の未払い（払う）
-    pay.filter((i) => i.status === 'unpaid').forEach((i) => {
-      acts.push({ kind: 'pay', text: `${i.name}さんに ${yen(i.amount)} の未払いがあります`, cta: '支払う', to: `/payment-detail/unpaid-${i.id}` });
-    });
-    // ③ 相手が未払い（催促できる）
-    recv.filter((i) => i.status === 'unpaid').forEach((i) => {
-      acts.push({ kind: 'remind', text: `${i.name}さんが ${yen(i.amount)} 未払いです`, cta: '催促する', to: `/payment-detail/waiting-${i.id}` });
-    });
-    actions.value = acts;
+    actions.value = buildGuideActions(recvList.value, payList.value);
   }
 
   unsubAuth = onAuthStateChanged(auth, (user) => {
@@ -65,7 +49,14 @@ export function useGuideActions() {
       const docs = snap.docs.filter((d) => (d.data().status || 'unpaid') !== 'completed' && d.data().paidById);
       recvList.value = await Promise.all(docs.map(async (d) => {
         const data = d.data();
-        return { id: d.id, name: await nameOf(data.paidById), amount: data.amount, status: data.status || 'unpaid' };
+        // イベントのまとめて精算に予約ずみかどうかを判定できるよう、印をそのまま持たせる。
+        return {
+          id: d.id,
+          name: await nameOf(data.paidById),
+          amount: data.amount,
+          status: data.status || 'unpaid',
+          eventSettlementPlanId: data.eventSettlementPlanId,
+        };
       }));
       rebuild();
     }, () => {});
@@ -75,7 +66,13 @@ export function useGuideActions() {
       const docs = snap.docs.filter((d) => (d.data().status || 'unpaid') !== 'completed' && d.data().paidToId);
       payList.value = await Promise.all(docs.map(async (d) => {
         const data = d.data();
-        return { id: d.id, name: await nameOf(data.paidToId), amount: data.amount, status: data.status || 'unpaid' };
+        return {
+          id: d.id,
+          name: await nameOf(data.paidToId),
+          amount: data.amount,
+          status: data.status || 'unpaid',
+          eventSettlementPlanId: data.eventSettlementPlanId,
+        };
       }));
       rebuild();
     }, () => {});
