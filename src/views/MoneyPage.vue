@@ -232,7 +232,7 @@
 
       <!-- まとめて（全イベント横断・人ごと） -->
       <div v-else-if="currentTab === 'settle'">
-        <p class="settle__lead">全部のイベントを合算した、その人との差し引きです。タップでまとめて精算できます。</p>
+        <p class="settle__lead">全部のイベントを合算した、その人との差し引きです。タップでまとめて精算できます。イベント側でまとめて精算を始めると、そのイベントの分はここから外れて金額が変わります。</p>
         <SkeletonRows v-if="loading" :rows="3" />
         <div v-else-if="settleByPerson.length === 0" class="empty-box">まとめて精算できる相手はいません</div>
         <div v-else class="settle__list">
@@ -242,6 +242,7 @@
               <span class="scard__name">{{ m.name }}</span>
               <span v-if="needsReview(m.uid)" class="scard__note scard__note--review">送金状況の確認が必要</span>
               <span v-else-if="m.pending > 0" class="scard__note">承認待ちのため確定前</span>
+              <span v-if="eventPortionText(m.uid)" class="scard__note">{{ eventPortionText(m.uid) }}</span>
             </span>
             <span class="scard__right">
               <span v-if="m.pending > 0" class="scard__tag">{{ pendingLabel(m) }}</span>
@@ -333,6 +334,28 @@ const needsReview = (uid) => reviewOpponentUids.value.has(uid)
 //    計算は src/lib/balance.js に集約（承認待ちのまとめ精算は実質額で1件に数える）。
 //    精算を申請しただけで金額が動かないようにするため。
 const settleByPerson = computed(() => balancesByPerson(receivableList.value, payableList.value))
+
+// この差し引きには、イベントに紐づいた取引もそのまま入っている。
+// そのイベントでまとめて精算を始めると、対象の取引はイベント側へ移って
+// ここから外れ、金額が変わる。先に内訳を出して、数字が動く理由を見せる。
+const eventPortionByUid = computed(() => {
+  const map = new Map()
+  for (const item of [...receivableList.value, ...payableList.value]) {
+    if (!item.eventId || !item.opponentUid) continue
+    const found = map.get(item.opponentUid) || { amount: 0, count: 0, names: new Set() }
+    found.amount += Number(item.amount) || 0
+    found.count += 1
+    if (item.eventName) found.names.add(item.eventName)
+    map.set(item.opponentUid, found)
+  }
+  return map
+})
+const eventPortionText = (uid) => {
+  const found = eventPortionByUid.value.get(uid)
+  if (!found) return ''
+  const where = found.names.size === 1 ? [...found.names][0] : 'イベント'
+  return `${where}の取引 ¥${found.amount.toLocaleString()}（${found.count}件）を含む`
+}
 
 // 🌟 受け取る分と支払う分の両方がある相手。
 //    この人たちは「1件ずつの額面」と「差し引き」で金額が変わるので、
