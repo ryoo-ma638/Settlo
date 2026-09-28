@@ -339,6 +339,7 @@ const settleByPerson = computed(() => balancesByPerson(receivableList.value, pay
 // そのイベントでまとめて精算を始めると、対象の取引はイベント側へ移って
 // ここから外れ、金額が変わる。先に内訳を出して、数字が動く理由を見せる。
 // 金額は行に出ている差し引き（net）とそろえる。計算は src/lib/balance.js に置く。
+// 承認待ちのまとめ精算に入っている分は数えない（イベント側へ移らないため）。
 const eventPortionByUid = computed(() => eventPortionByPerson(receivableList.value, payableList.value))
 const eventPortionText = (uid) => {
   const found = eventPortionByUid.value.get(uid)

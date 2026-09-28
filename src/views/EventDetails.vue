@@ -39,7 +39,7 @@
             >{{ settlementBusy ? '更新中…' : '追加分を反映' }}</button>
           </div>
           <p class="section-note">全員分の貸し借りをまとめ、支払い回数を減らした結果です。</p>
-          <p v-if="netSettlementTotal > 0" class="section-note">送金案の合計は ¥{{ netSettlementTotal.toLocaleString() }}。相殺すると実際に動くのはこの額です。</p>
+          <p v-if="showNetSettlementTotal" class="section-note">送金案の合計は ¥{{ netSettlementTotal.toLocaleString() }}。相殺すると実際に動くのはこの額です。</p>
           <p v-if="hasUnresolvedSettlementReview" class="settlement-error">
             受取を確認できなかった支払いがあります。追加分を反映する前に、該当する行から送金状況を確認してください。
           </p>
@@ -745,13 +745,14 @@ const outstandingTotal = computed(() => {
   return outstandingTotalOf(eventData.value.history);
 });
 
+// まとめて精算が動いているか。見出しと注記の出し分けで同じ判断を使う。
+const settlementStarted = computed(() => !!(
+  eventData.value.activeEventSettlementPlanId && settlementLegs.value.length
+));
+
 // 上の大きい数字が、相殺前の粗い合計なのか、送金案の残額なのかを見出しで分ける。
 // どちらも「未精算の残り」と書くと、下の送金案の合計（相殺後）と食い違って見える。
-const outstandingLabel = computed(() => (
-  eventData.value.activeEventSettlementPlanId && settlementLegs.value.length
-    ? '精算の残り'
-    : '相殺前の未精算'
-));
+const outstandingLabel = computed(() => (settlementStarted.value ? '精算の残り' : '相殺前の未精算'));
 
 const settlementProgress = computed(() => {
   if (eventData.value.activeEventSettlementPlanId && settlementLegs.value.length) {
@@ -1391,6 +1392,12 @@ const netSettlementRows = computed(() => {
 const netSettlementTotal = computed(() => netSettlementRows.value
   .filter((row) => row.status !== 'completed')
   .reduce((sum, row) => sum + (Number(row.amount) || 0), 0));
+
+// 見出しの直下に同じ金額を2回書かない。
+// 精算を始めたあとは、大きい数字（精算の残り）が送金案の残額そのものになるので、
+// 注記に同じ数字が並ぶ。2つが同じなら注記は何も足さないため出さない。
+const showNetSettlementTotal = computed(() => netSettlementTotal.value > 0
+  && (!settlementStarted.value || netSettlementTotal.value !== outstandingTotal.value));
 
 const filteredNetSettlementRows = computed(() => netSettlementRows.value
   .filter((row) => settlementFilter.value === 'all'

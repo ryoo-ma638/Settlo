@@ -80,18 +80,35 @@ export function balancesByPerson(receivable = [], payable = []) {
     .sort((a, b) => Math.abs(b.net) - Math.abs(a.net));
 }
 
-// 相手ごとの「差し引きのうち、イベントに紐づく分」。
+// 相手ごとの「差し引きのうち、イベント側の精算へ移る分」。
 // まとめてタブの行に出ている金額は balancesByPerson の net（受け取る − 支払う）なので、
 // 注記もそろえて差し引きで出す。受け取る分と支払う分を足した額面にすると、
 // 同じ相手に両方向の取引があるとき注記の金額が行の金額を追い越して食い違う。
 // net > 0 … その相手からイベント分を受け取る／net < 0 … その相手へイベント分を支払う。
-// 承認待ちのまとめ精算の数え方も balancesByPerson と同じにする（実質額で1件）。
+//
+// ■ 承認待ちのまとめ精算は数えない
+// collapsePendingBatches は同じ精算の取引を1行に潰し、金額を実質額（batch.net）へ置き換える。
+// 潰した行に残る eventId は先頭の取引のものだけなので、イベント内とイベント外が混ざった
+// 精算だと、イベント外の金額までイベントの分として数えてしまう。
+// そもそもイベントのまとめて精算が集めるのは status が unpaid の取引だけ
+// （src/lib/eventNetSettlement.js）。承認待ちの取引はイベント側へ移らないので、
+// 「イベントの精算を始めると外れる分」でもない。だから注記から外す。
 export function eventPortionByPerson(receivable = [], payable = []) {
   const map = new Map();
 
+  // イベント側の精算へ移りうる取引だけを数える。
+  //   ・イベントに紐づいている
+  //   ・status が unpaid（承認待ち・確認中は移らない）
+  //   ・まとめ精算の束に入っていない（潰した行はイベントごとの内訳を持たない）
+  //   ・まだどの精算にも予約されていない（予約ずみはもうこの差し引きに入っていない）
+  const movesToEventSettlement = (item) => !!item.eventId
+    && (item.status || 'unpaid') === 'unpaid'
+    && !item.settlementBatch && !item.isBatchRow
+    && !item.eventSettlementPlanId;
+
   const bump = (item, sign) => {
     const uid = item && item.opponentUid;
-    if (!uid || !item.eventId) return;
+    if (!uid || !movesToEventSettlement(item)) return;
     let m = map.get(uid);
     if (!m) {
       m = { uid, net: 0, count: 0, names: [] };
@@ -102,8 +119,8 @@ export function eventPortionByPerson(receivable = [], payable = []) {
     if (item.eventName && !m.names.includes(item.eventName)) m.names.push(item.eventName);
   };
 
-  collapsePendingBatches(receivable).forEach((item) => bump(item, 1));
-  collapsePendingBatches(payable).forEach((item) => bump(item, -1));
+  receivable.forEach((item) => bump(item, 1));
+  payable.forEach((item) => bump(item, -1));
 
   return map;
 }

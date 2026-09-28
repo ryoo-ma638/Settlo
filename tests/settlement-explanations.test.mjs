@@ -12,6 +12,7 @@ import { balancesByPerson, eventPortionByPerson } from '../src/lib/balance.js';
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const EVENT = read('../src/views/EventDetails.vue');
 const MONEY = read('../src/views/MoneyPage.vue');
+const HELP = read('../src/views/HelpView.vue');
 // 画面に出る言葉だけを見る（説明のコメントに同じ語が出ても誤検知しないように）
 const templateOf = (source) => source.slice(0, source.indexOf('\n</template>'));
 const EVENT_VIEW = templateOf(EVENT);
@@ -31,6 +32,8 @@ test('まとめて精算の注記に、相殺後に実際に動く合計が出�
   );
   assert.match(EVENT, /送金案の合計は ¥\{\{ netSettlementTotal\.toLocaleString\(\) \}\}/, '合計が注記に出ていない');
   assert.match(EVENT, /相殺すると実際に動くのはこの額/, 'どちらの数字が実際に動く額か書いていない');
+  // 精算を始めたあとは大きい数字と同じ額になる。同じ数字を2回書いても何も足さない。
+  assert.match(EVENT_VIEW, /v-if="showNetSettlementTotal"/, '大きい数字と同じ金額でも注記を出している');
 });
 
 test('精算内容の内訳は、いつの取引を出しているかが分かる言い方をする', () => {
@@ -40,6 +43,13 @@ test('精算内容の内訳は、いつの取引を出しているかが分か�
   // イベントの最新の全件だと書くと、その行では件数と合わなくなる。
   assert.doesNotMatch(EVENT_VIEW, /このイベントの計算に使った取引/, '最新の全件だと読める言い方になっている');
   assert.match(EVENT, /この送金を作ったときに使った取引 \{\{ selectedSummary\.details\.length \}\} 件/, 'いつの取引か書いていない');
+});
+
+test('使い方ガイドは、イベント詳細の新しい見出しと同じ言い方をする', () => {
+  // 見出しを変えたのにガイドが旧い言い方のままだと、画面と説明が食い違う。
+  assert.doesNotMatch(HELP, /未精算の残り/, '旧い見出しの言い方が残っている');
+  assert.match(HELP, /相殺前の未精算/, '相殺前の見出しに触れていない');
+  assert.match(HELP, /精算の残り/, '精算を始めたあとの見出しに触れていない');
 });
 
 test('まとめてタブは、イベントの分が入っていることと外れることを書く', () => {
@@ -114,4 +124,45 @@ test('支払う側の画面でも、注記は行と同じ向きになる', () =>
   const guest = rows.find((row) => row.uid === GUEST);
   assert.equal(guest.net, -2000, '太郎から見るとゲストへ2,000支払う');
   assert.equal(portionText(portions.get(GUEST)), '札幌旅行（デモ）の分は 支払う ¥2,000（2件）');
+});
+
+// 承認待ちのまとめ精算（双方向）は、対象の取引が1行に潰れて金額が実質額に置き換わる。
+// 潰した行の eventId は先頭の取引のものだけなので、そこからイベントの分を数えると
+// 同じ精算に入っているイベント外の金額まで「イベントの分」になってしまう。
+// そもそもイベントのまとめて精算が集めるのは status が unpaid の取引だけなので
+// （src/lib/eventNetSettlement.js）、承認待ちの分は精算を始めても外れない。
+const batchSeed = () => {
+  const batch = {
+    id: 'batch1', payerUid: GUEST, receiverUid: TARO,
+    gross: 5000, offset: 2000, net: 3000, count: 2, counterCount: 1,
+  };
+  return [
+    // まとめ精算の中身（イベント内 4,000 ＋ イベント外 1,000、逆方向にイベント内 2,000）
+    { id: 'b1', paidById: GUEST, paidToId: TARO, amount: 4000, status: 'awaiting_approval', eventId: EVENT_ID, eventName: EVENT_NAME, settlementBatch: { ...batch, role: 'main' } },
+    { id: 'b2', paidById: GUEST, paidToId: TARO, amount: 1000, status: 'awaiting_approval', settlementBatch: { ...batch, role: 'main' } },
+    { id: 'b3', paidById: TARO, paidToId: GUEST, amount: 2000, status: 'completed', eventId: EVENT_ID, eventName: EVENT_NAME, settlementBatch: { ...batch, role: 'offset' } },
+    // まとめ精算に入っていない分。イベント側の精算へ移るのはこの1件だけ。
+    { id: 'p1', paidById: TARO, paidToId: GUEST, amount: 800, status: 'unpaid', eventId: EVENT_ID, eventName: EVENT_NAME },
+    { id: 'p2', paidById: GUEST, paidToId: TARO, amount: 300, status: 'unpaid' },
+  ];
+};
+
+test('承認待ちのまとめ精算があっても、注記にイベント外の金額を入れない', () => {
+  const { rows, portions } = settleTabOf(batchSeed(), GUEST);
+  // 行の差し引き：受け取る 800 −（まとめ精算の実質額 3,000 ＋ 300）
+  assert.equal(rows.find((row) => row.uid === TARO).net, -2500);
+  const portion = portions.get(TARO);
+  // 潰した行から数えると、イベント外の 1,000 を含む 3,000 が混ざって -2,200 になる
+  assert.equal(portion.net, 800, '承認待ちのまとめ精算からイベントの分を数えている');
+  assert.equal(portion.count, 1, 'イベント側へ移らない取引まで件数に入れている');
+  assert.equal(portionText(portion), '札幌旅行（デモ）の分は 受け取る ¥800（1件）');
+});
+
+test('注記の分を引いた残りは、承認待ちのまとめ精算が残った状態と合う', () => {
+  const before = settleTabOf(batchSeed(), GUEST);
+  // イベントの精算が集めるのは unpaid だけ。承認待ちの分はまとめてタブに残る。
+  const after = settleTabOf(batchSeed().filter((tx) => !(tx.eventId && (tx.status || 'unpaid') === 'unpaid')), GUEST);
+  const remain = before.rows.find((row) => row.uid === TARO).net - before.portions.get(TARO).net;
+  assert.equal(remain, after.rows.find((row) => row.uid === TARO).net);
+  assert.equal(remain, -3300);
 });
