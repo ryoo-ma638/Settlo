@@ -89,7 +89,6 @@ const FULL_TOUR = [
   { type: 'explain', sel: '[data-tour="home-events"]', title: '進行中のイベント', desc: '旅行や飲み会ごとに立て替えをまとめる「箱」です。タップで詳細が開きます。' },
 
   // --- 画面の上（どの画面からでも使える） ---
-  { type: 'explain', sel: '[data-tour="avatar"]', title: 'マイページ', desc: '左上の自分のアイコン。全機能の入口です。あとでここも見て回ります。' },
   { type: 'explain', sel: '[data-tour="pending"]', title: '承認待ち', desc: 'あなたが承認する分・相手の承認待ち・承認や拒否の履歴。催促されている支払いは一番上に赤く出ます。' },
   { type: 'explain', sel: '[data-tour="chat"]', title: '相談', desc: '支払いの件ごとに相談できます。返信に困ったら「AIと返信を考える」から、AIが会話を読んで文案を3つ出します。未読はバッジで表示、解決すると自動で片付きます。' },
   { type: 'explain', sel: '[data-tour="bell"]', title: 'お知らせ', desc: '承認依頼・催促・「これは正しいですか？」の確認がここに届きます。読み終わった分は「過去のお知らせ」へ移り、そこから片付けられます。答えるものは答えるまで残ります。' },
@@ -97,7 +96,6 @@ const FULL_TOUR = [
 
   // --- 下のナビと「＋」 ---
   { type: 'explain', sel: '[data-tour="nav-home"]', title: 'ホーム', desc: '貸し借りの全体がひと目でわかる起点です。' },
-  { type: 'explain', sel: '[data-tour="nav-event"]', title: 'イベント', desc: '旅行・飲み会ごとの立て替えとメンバーを管理します。' },
   { type: 'action', sel: '[data-tour="nav-add"]', title: '＋（追加）', desc: '新しい記録はぜんぶここから。実際に押してみましょう。' },
   { type: 'explain', sel: '[data-tour="sheet-event"]', title: 'イベントを作成', desc: '旅行や飲み会の箱を作って、招待コードで仲間を集めます。' },
   { type: 'explain', sel: '[data-tour="sheet-payment"]', title: 'お支払いを追加', desc: 'イベントを選んで立て替えを記録。レシートを撮るとAIが店名・金額・消費税まで自動入力します。1回に5枚までまとめて読み取れます。' },
@@ -117,26 +115,15 @@ const FULL_TOUR = [
   { type: 'explain', sel: '[data-tour="ev-summary"]', title: 'まとめて精算', desc: '参加者全員の貸し借りを一度にまとめて、誰が誰へいくら送ればいいかを出します。送金の回数がいちばん少なくなる組み合わせを選びます。カードをタップで精算へ。' },
   { type: 'explain', sel: '[data-tour="ev-addpay"]', title: '支払いを追加', desc: '立て替えたらすぐ記録。割り勘は「全員で均等・金額を指定・商品ごと」の3通りです。' },
   { type: 'explain', sel: '[data-tour="ev-invite"]', title: 'メンバー招待', desc: '「＋ 招待」と招待コードで仲間を追加します。はじめはコードを知っていれば誰でも入れます。「承認制にする」を選ぶと、リーダーが承認するまで参加できません。' },
-  { type: 'explain', sel: '[data-tour="ev-exit"]', optional: true, title: 'イベントから退出', desc: '未精算が残っていても抜けられます。お金の記録は支払い画面に残り、抜けたあとに新しい支払いを追加されることはありません。' },
-  { type: 'explain', sel: '[data-tour="ev-end"]', optional: true, title: 'イベントを終了する', desc: '精算が全部済んだら終了できます。1人が終えても、ほかの人の画面はそのままです。「あなたも終了しますか？」のお知らせが届き、全員が終えたときにイベント全体が終わります。' },
-  { type: 'explain', sel: '[data-tour="ev-delete"]', optional: true, title: 'イベントを削除する', desc: '自分の画面から見えなくするだけで、記録は消えません。イベント一覧の「非表示にしたイベント」からいつでも戻せます。' },
 
   // --- フレンド ---
   { type: 'action', sel: '[data-tour="nav-friend"]', title: 'フレンドへ', desc: '「フレンド」を押してみましょう。' },
   { type: 'explain', sel: '[data-tour="friend-add"]', title: 'フレンドを追加', desc: '名前かIDで検索して申請、相手が承認したらフレンドに。届いた申請は「確認」から承認します。' },
-  { type: 'action', sel: '[data-tour="friend-row"]', optional: true, title: 'フレンド詳細へ', desc: 'フレンドの行を押すと、その人との貸し借りだけをまとめて見られます。押してみましょう。' },
-  { type: 'explain', sel: '[data-tour="fd-combined"]', optional: true, title: 'その人とまとめて精算', desc: '受け取る分と支払う分を選んで、差し引いた金額で一度に精算できます。' },
-  { type: 'explain', sel: '[data-tour="fd-split"]', optional: true, title: 'この人と割り勘を記録する', desc: 'イベントを作らずに、この人との立て替えを1件だけ記録できます。' },
-  { type: 'explain', sel: '[data-tour="fd-chats"]', optional: true, title: 'この人との会話を見る', desc: 'その相手とのやり取りだけを集めて見られます。' },
 
   // --- マイページ（全機能の入口） ---
   { type: 'action', sel: '[data-tour="avatar"]', title: 'マイページへ', desc: '最後に、左上の自分のアイコンを押してみましょう。' },
   { type: 'explain', sel: '[data-tour="mp-profile"]', title: 'プロフィールを変更', desc: '表示名とアイコンを変えられます。あなたのIDは、フレンド申請を受けるときに使います。' },
   { type: 'explain', sel: '[data-tour="mp-notify"]', title: '通知設定', desc: 'スマホへの通知を受け取るかどうかを切り替えます。' },
-  { type: 'explain', sel: '[data-tour="mp-friend"]', title: 'フレンド', desc: '下のナビと同じフレンド一覧へ。ここからでも開けます。' },
-  { type: 'explain', sel: '[data-tour="mp-history"]', title: 'お支払い履歴', desc: '精算が終わったものも含めて、全部の記録を時系列で見返せます。' },
-  { type: 'explain', sel: '[data-tour="mp-approvals"]', title: '承認待ち', desc: '画面の上のアイコンと同じ場所です。承認する分・待っている分がまとまっています。' },
-  { type: 'explain', sel: '[data-tour="mp-chats"]', title: '相談', desc: '支払いごとの会話の一覧です。相手ごとにまとめて見ることもできます。' },
   { type: 'explain', sel: '[data-tour="mp-trash"]', title: '元に戻す', desc: '消した立て替えや、非表示にしたイベント、片付けたお知らせを戻せます。7日たつと自動で消えます。' },
   { type: 'explain', sel: '[data-tour="mp-help"]', title: 'ヘルプ・使い方', desc: '図解の使い方ガイドと、このツアーをいつでも見直せます。画面ごとの説明もここにあります。' },
 
