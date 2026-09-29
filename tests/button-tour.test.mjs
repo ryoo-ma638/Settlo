@@ -73,6 +73,51 @@ test('無いこともある場所は、待たずに飛ばす', () => {
   assert.match(tour, /optional\s*\?\s*5\s*:\s*25/, 'optional の待ち時間を短くしていない');
 });
 
+// 対象が見つからないときの分かれ道（locate の if (!el) { … }）だけを取り出す。
+// optional の扱いはこの中の2行で決まるので、ここを読んで見張る。
+const notFoundBranch = (() => {
+  const head = 'const el = document.querySelector(step.sel);';
+  const start = tour.indexOf(head);
+  assert.notEqual(start, -1, '対象を探している場所が見つからない');
+  const open = tour.indexOf('if (!el) {', start);
+  assert.notEqual(open, -1, '対象が無いときの分かれ道が見つからない');
+  // 対応する } まで、波かっこの数を数えて切り出す
+  let depth = 0;
+  for (let i = tour.indexOf('{', open); i < tour.length; i += 1) {
+    if (tour[i] === '{') depth += 1;
+    else if (tour[i] === '}') {
+      depth -= 1;
+      if (depth === 0) return tour.slice(open, i + 1);
+    }
+  }
+  throw new Error('分かれ道の終わりが見つからない');
+})();
+
+test('optional の手順は、対象が無くても飛ばした数に入れずに先へ進む', () => {
+  // optional は「無いこともある」場所。無かったのを「飛ばした」と数えると、
+  // 案内の終わりに「n件飛ばしました」と出て、使う人は自分の操作ミスだと思ってしまう。
+  // いま FULL_TOUR に optional の手順は無いが、仕組みは短い案内のために残してある。
+  assert.match(
+    notFoundBranch,
+    /if\s*\(!step\.optional\)\s*skipped\.value\s*\+=\s*1;/,
+    'optional かどうかを見ずに、飛ばした数を増やしている',
+  );
+  // 数えるのは1か所だけ。ほかで増やすと optional の判定をすり抜ける
+  assert.equal(
+    (tour.match(/skipped\.value\s*\+=/g) || []).length,
+    1,
+    '飛ばした数を増やしている場所が増えている',
+  );
+  // 数えるかどうかに関わらず、次の手順へは必ず進む（optional で止まらない）
+  assert.match(notFoundBranch, /advance\(\);/, '対象が無いときに次へ進んでいない');
+  const afterCount = notFoundBranch.slice(notFoundBranch.indexOf('skipped.value'));
+  assert.match(
+    afterCount,
+    /^skipped\.value[^]*?\n\s*advance\(\);/,
+    'advance() が条件の中に入っていて、optional のとき止まる形になっている',
+  );
+});
+
 test('最後の手順は締めで、ホームへ戻せる', () => {
   assert.match(tour, /type:\s*'final'/);
   assert.match(tour, /ホームへ戻る/);

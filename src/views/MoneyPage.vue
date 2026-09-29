@@ -55,18 +55,20 @@
         <!-- 同じ相手に「受け取る」と「支払う」の両方があると、この一覧の額面と
              「まとめて」の差し引きが違う数字になる。どちらが本当か分からなくなるので、
              違いが出る相手がいるときだけ理由を出す。 -->
-        <button v-if="!loading && offsettablePeople.length" type="button" class="offset-hint" @click="currentTab = 'settle'">
-          <span class="offset-hint__title">この一覧は1件ずつの額面です</span>
-          <span class="offset-hint__text">
-            {{ offsetHintText }}
-            「まとめて」では受け取る分と差し引いた、実際にやり取りする金額が出ます。
-          </span>
-          <span class="offset-hint__go">まとめてを見る ›</span>
-        </button>
-
-        <!-- イベントでまとめて精算中の分の説明。上の大きい数字の内訳と、
-             下の一覧の両方を指すので、タブの数だけ書かずにここへ出す。 -->
-        <p v-if="!loading && eventSettleCount" class="review-note">この分はイベントの「まとめて精算」でやり取りします。金額は受け取る分と支払う分を差し引いた後の額です。押すとイベントの精算画面が開きます。</p>
+        <!-- 常時出すのは1行だけにする。91字を出しっぱなしにすると、
+             その下の一覧より説明のほうが目立ってしまう。中身は押したときに開く。
+             1行目を押すと開くので、「まとめて」へ移る役目は中の説明に持たせる。
+             同じ1行に「開く」と「移る」は両立しない（移ると枠ごと消える）。 -->
+        <details v-if="!loading && offsettablePeople.length" class="offset-hint">
+          <summary class="offset-hint__go">まとめてを見る ›</summary>
+          <button type="button" class="offset-hint__body" @click="currentTab = 'settle'">
+            <span class="offset-hint__title">この一覧は1件ずつの額面です</span>
+            <span class="offset-hint__text">
+              {{ offsetHintText }}
+              「まとめて」では受け取る分と差し引いた、実際にやり取りする金額が出ます。
+            </span>
+          </button>
+        </details>
       </template>
 
       <!-- 入金待ち：一覧 -->
@@ -114,6 +116,7 @@
         <!-- イベント全体のまとめて精算に入っている分。ここからは操作せず、イベントへ送る -->
         <template v-if="!loading && receivableEvent.length">
           <h2 class="money__section money__section--event">イベントでまとめて精算中（{{ receivableEvent.length }}件）</h2>
+          <p class="review-note">{{ EVENT_SETTLE_NOTE }}</p>
           <div class="stack">
             <div v-for="item in receivableEvent" :key="item.id" class="trow trow--event" role="button" tabindex="0"
             @click="openEventSettlement(item)"
@@ -196,6 +199,7 @@
         <!-- イベント全体のまとめて精算に入っている分。ここからは操作せず、イベントへ送る -->
         <template v-if="!loading && payableEvent.length">
           <h2 class="money__section money__section--event">イベントでまとめて精算中（{{ payableEvent.length }}件）</h2>
+          <p class="review-note">{{ EVENT_SETTLE_NOTE }}</p>
           <div class="stack">
             <div v-for="item in payableEvent" :key="item.id" class="trow trow--event" role="button" tabindex="0"
             @click="openEventSettlement(item)"
@@ -326,12 +330,9 @@ const payableEvent = computed(() => decorate(paymentOverview.value.pay.event.ite
 const receivableEventAmount = computed(() => paymentOverview.value.receive.event.amount)
 const payableEventAmount = computed(() => paymentOverview.value.pay.event.amount)
 // イベントでまとめて精算中の説明は、受け取る側と支払う側で同じ文になる。
-// タブの外に1か所だけ置くため、いま開いているタブの件数をここで選ぶ。
-const eventSettleCount = computed(() => {
-  if (currentTab.value === 'waiting') return receivableEvent.value.length
-  if (currentTab.value === 'unpaid') return payableEvent.value.length
-  return 0
-})
+// 文はここ1か所だけに置き、受け取る側・支払う側それぞれの節の見出しの直下から同じものを出す。
+// タブの外へ出すと、指す一覧から離れてどの行の話か分からなくなる。
+const EVENT_SETTLE_NOTE = 'この分はイベントの「まとめて精算」でやり取りします。金額は受け取る分と支払う分を差し引いた後の額です。押すとイベントの精算画面が開きます。'
 const reviewOpponentUids = computed(() => new Set([
   ...paymentOverview.value.receive.review.items,
   ...paymentOverview.value.pay.review.items,
@@ -590,9 +591,18 @@ watch(() => route.query.tab, (newTab) => {
   padding: 12px 14px; margin: 10px 0 4px; cursor: pointer;
 }
 .offset-hint:active { background: var(--c-line, #eef2f7); }
-.offset-hint__title { display: block; font-size: 13px; font-weight: 700; color: var(--c-text, #1f2937); }
+/* 三角の既定マークは出さない。「まとめてを見る ›」の矢印と二重になる */
+.offset-hint > summary { list-style: none; cursor: pointer; }
+.offset-hint > summary::-webkit-details-marker { display: none; }
+.offset-hint[open] > summary { margin-bottom: 4px; }
+/* 開いた中身は押すと「まとめて」へ移る。見た目は枠の地の文のまま */
+.offset-hint__body {
+  display: block; width: 100%; padding: 0; border: 0; background: none;
+  text-align: left; font: inherit; cursor: pointer;
+}
+.offset-hint__title { display: block; margin-top: 2px; font-size: 13px; font-weight: 700; color: var(--c-text, #1f2937); }
 .offset-hint__text { display: block; margin-top: 4px; font-size: 12px; line-height: 1.6; color: var(--c-text-sub, #6b7280); }
-.offset-hint__go { display: block; margin-top: 6px; font-size: 12px; font-weight: 700; color: var(--c-brand, #16a34a); }
+.offset-hint__go { display: block; font-size: 12px; font-weight: 700; color: var(--c-brand, #16a34a); }
 
 .trow__chevron { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: var(--c-text-faint); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .trow__btn {
