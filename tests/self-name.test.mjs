@@ -72,8 +72,11 @@ test('同じ相手に受け取りと支払いの両方があるとき、額面�
   const money = read('views/MoneyPage.vue');
   assert.match(money, /offsettablePeople/);
   assert.match(money, /\(m\.receive \|\| 0\) > 0 && \(m\.pay \|\| 0\) > 0/);
-  // お支払い待ちと未払いの両方に出す（片方だけだと、もう片方で同じ疑問が残る）
-  assert.equal((money.match(/class="offset-hint"/g) || []).length, 2);
+  // お支払い待ちと未払いの両方に出す（片方だけだと、もう片方で同じ疑問が残る）。
+  // ただしタブごとに書き写すと切り替えるたび同じ文を読ませるので、タブの外に1か所だけ置く。
+  // 両方のタブで読めることは tests/screen-hint-dedupe.test.mjs で見る。
+  assert.equal((money.match(/class="offset-hint"/g) || []).length, 1);
+  assert.match(money, /<template v-if="currentTab !== 'settle'">/);
 });
 
 test('復元の控えは、相手の確認待ちなら7日を過ぎても消さない', () => {

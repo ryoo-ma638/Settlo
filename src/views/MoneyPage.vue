@@ -11,7 +11,7 @@
         <button class="seg__item" data-tour="pay-settle" :class="{ 'is-active': currentTab === 'settle' }" @click="currentTab = 'settle'">まとめて</button>
       </div>
 
-      <!-- 入金待ち -->
+      <!-- 入金待ち：大きい数字 -->
       <div v-if="currentTab === 'waiting'">
         <SkeletonRows v-if="loading" :rows="1" />
         <div v-else class="summary summary--receive">
@@ -27,7 +27,29 @@
             <strong>¥{{ receivableEventAmount.toLocaleString() }}・{{ receivableEvent.length }}件</strong>
           </div>
         </div>
+      </div>
 
+      <!-- 未払い：大きい数字 -->
+      <div v-else-if="currentTab === 'unpaid'">
+        <SkeletonRows v-if="loading" :rows="1" />
+        <div v-else class="summary summary--pay">
+          <p class="summary__label">{{ payHeadline.eventOnly ? 'イベントで精算中' : '現在の未払い' }}</p>
+          <div class="summary__amount tnum">¥{{ payHeadline.amount.toLocaleString() }}</div>
+          <span class="summary__badge">{{ payHeadline.count }}件</span>
+          <div v-if="payableReview.length" class="summary__review">
+            <span>送金状況の確認が必要</span>
+            <strong>¥{{ payableReviewAmount.toLocaleString() }}・{{ payableReview.length }}件</strong>
+          </div>
+          <div v-if="payableEvent.length && !payHeadline.eventOnly" class="summary__review">
+            <span>イベントでまとめて精算中</span>
+            <strong>¥{{ payableEventAmount.toLocaleString() }}・{{ payableEvent.length }}件</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- どのタブでも同じ説明になる案内は、タブの外に1か所だけ置く。
+           タブごとに同じ文を置くと、切り替えるたび同じ説明を読み直させることになる。 -->
+      <template v-if="currentTab !== 'settle'">
         <p v-if="!loading && (overviewIssues.length || loadFailed)" class="overview-warning" role="status">一部の取引を確認できないため、確認できた分を表示しています。</p>
 
         <!-- 同じ相手に「受け取る」と「支払う」の両方があると、この一覧の額面と
@@ -42,6 +64,13 @@
           <span class="offset-hint__go">まとめてを見る ›</span>
         </button>
 
+        <!-- イベントでまとめて精算中の分の説明。上の大きい数字の内訳と、
+             下の一覧の両方を指すので、タブの数だけ書かずにここへ出す。 -->
+        <p v-if="!loading && eventSettleCount" class="review-note">この分はイベントの「まとめて精算」でやり取りします。金額は受け取る分と支払う分を差し引いた後の額です。押すとイベントの精算画面が開きます。</p>
+      </template>
+
+      <!-- 入金待ち：一覧 -->
+      <div v-if="currentTab === 'waiting'">
         <!-- 🌟 あなたの承認が必要（相手が支払い済みでリクエスト中） -->
         <template v-if="!loading && receivableAwaiting.length">
           <h2 class="money__section money__section--action">承認待ち・あなたの承認が必要（{{ receivableAwaiting.length }}件）</h2>
@@ -85,7 +114,6 @@
         <!-- イベント全体のまとめて精算に入っている分。ここからは操作せず、イベントへ送る -->
         <template v-if="!loading && receivableEvent.length">
           <h2 class="money__section money__section--event">イベントでまとめて精算中（{{ receivableEvent.length }}件）</h2>
-          <p class="review-note">この分はイベントの「まとめて精算」でやり取りします。金額は受け取る分と支払う分を差し引いた後の額です。押すとイベントの精算画面が開きます。</p>
           <div class="stack">
             <div v-for="item in receivableEvent" :key="item.id" class="trow trow--event" role="button" tabindex="0"
             @click="openEventSettlement(item)"
@@ -123,34 +151,8 @@
         </div>
       </div>
 
-      <!-- 未払い -->
+      <!-- 未払い：一覧 -->
       <div v-else-if="currentTab === 'unpaid'">
-        <SkeletonRows v-if="loading" :rows="1" />
-        <div v-else class="summary summary--pay">
-          <p class="summary__label">{{ payHeadline.eventOnly ? 'イベントで精算中' : '現在の未払い' }}</p>
-          <div class="summary__amount tnum">¥{{ payHeadline.amount.toLocaleString() }}</div>
-          <span class="summary__badge">{{ payHeadline.count }}件</span>
-          <div v-if="payableReview.length" class="summary__review">
-            <span>送金状況の確認が必要</span>
-            <strong>¥{{ payableReviewAmount.toLocaleString() }}・{{ payableReview.length }}件</strong>
-          </div>
-          <div v-if="payableEvent.length && !payHeadline.eventOnly" class="summary__review">
-            <span>イベントでまとめて精算中</span>
-            <strong>¥{{ payableEventAmount.toLocaleString() }}・{{ payableEvent.length }}件</strong>
-          </div>
-        </div>
-
-        <p v-if="!loading && (overviewIssues.length || loadFailed)" class="overview-warning" role="status">一部の取引を確認できないため、確認できた分を表示しています。</p>
-
-        <button v-if="!loading && offsettablePeople.length" type="button" class="offset-hint" @click="currentTab = 'settle'">
-          <span class="offset-hint__title">この一覧は1件ずつの額面です</span>
-          <span class="offset-hint__text">
-            {{ offsetHintText }}
-            「まとめて」では受け取る分と差し引いた、実際にやり取りする金額が出ます。
-          </span>
-          <span class="offset-hint__go">まとめてを見る ›</span>
-        </button>
-
         <!-- 🌟 リクエスト済み（自分が支払い済み・相手の承認待ち） -->
         <template v-if="!loading && payableAwaiting.length">
           <h2 class="money__section">リクエスト済み・相手の承認待ち（{{ payableAwaiting.length }}件）</h2>
@@ -194,7 +196,6 @@
         <!-- イベント全体のまとめて精算に入っている分。ここからは操作せず、イベントへ送る -->
         <template v-if="!loading && payableEvent.length">
           <h2 class="money__section money__section--event">イベントでまとめて精算中（{{ payableEvent.length }}件）</h2>
-          <p class="review-note">この分はイベントの「まとめて精算」でやり取りします。金額は受け取る分と支払う分を差し引いた後の額です。押すとイベントの精算画面が開きます。</p>
           <div class="stack">
             <div v-for="item in payableEvent" :key="item.id" class="trow trow--event" role="button" tabindex="0"
             @click="openEventSettlement(item)"
@@ -324,6 +325,13 @@ const receivableEvent = computed(() => decorate(paymentOverview.value.receive.ev
 const payableEvent = computed(() => decorate(paymentOverview.value.pay.event.items))
 const receivableEventAmount = computed(() => paymentOverview.value.receive.event.amount)
 const payableEventAmount = computed(() => paymentOverview.value.pay.event.amount)
+// イベントでまとめて精算中の説明は、受け取る側と支払う側で同じ文になる。
+// タブの外に1か所だけ置くため、いま開いているタブの件数をここで選ぶ。
+const eventSettleCount = computed(() => {
+  if (currentTab.value === 'waiting') return receivableEvent.value.length
+  if (currentTab.value === 'unpaid') return payableEvent.value.length
+  return 0
+})
 const reviewOpponentUids = computed(() => new Set([
   ...paymentOverview.value.receive.review.items,
   ...paymentOverview.value.pay.review.items,
