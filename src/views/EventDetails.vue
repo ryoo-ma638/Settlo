@@ -27,7 +27,6 @@
             <button
               v-if="canStartNetSettlement"
               class="start-settlement-btn"
-              data-tour="ev-settle-start"
               :disabled="settlementBusy"
               @click="startNetSettlement"
             >{{ settlementBusy ? '作成中…' : '精算を始める' }}</button>
@@ -205,10 +204,10 @@
           <p class="end-hint">支払いの追加を再開します。精算済みの記録は変わりません。</p>
         </template>
         <template v-else>
-          <button class="end-event-btn" data-tour="ev-end" @click="handleEndEvent">イベントを終了する</button>
+          <button class="end-event-btn" @click="handleEndEvent">イベントを終了する</button>
           <p class="end-hint">全員の精算が済んだら終了します。記録は残ります。</p>
         </template>
-        <button class="delete-event-btn" data-tour="ev-delete" @click="handleDeleteEvent">イベントを削除する</button>
+        <button class="delete-event-btn" @click="handleDeleteEvent">イベントを削除する</button>
         <p class="end-hint">自分の画面から非表示にします。イベント一覧の「非表示にしたイベント」からいつでも戻せます。</p>
       </div>
     </main>
@@ -256,7 +255,7 @@
             </div>
           </div>
           <!-- イベントから抜ける。お金の記録は消さず、関わりだけをやめられるようにする。 -->
-          <div class="exit-block" data-tour="ev-exit">
+          <div class="exit-block">
             <h4 class="exit-title">イベントから退出</h4>
             <p class="exit-note">{{ exitState.message }}</p>
             <button

@@ -16,7 +16,7 @@
         <p class="profile__type">{{ accountType }}</p>
       </section>
 
-      <div data-tour="mypage-menu">
+      <div>
         <section class="menu-group" aria-labelledby="menu-0">
           <h2 class="menu-heading" id="menu-0">自分とフレンド</h2>
           <div class="menu">
@@ -32,7 +32,7 @@
           <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
         </button>
 
-        <button class="menu__item" data-tour="mp-friend" @click="$router.push('/friend')">
+        <button class="menu__item" @click="$router.push('/friend')">
           <svg class="menu__icon" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19v-1a4 4 0 0 1 4-4h3a4 4 0 0 1 4 4v1"/><path d="M16.5 5.4a3.2 3.2 0 0 1 0 6.1M17.4 14.2A4 4 0 0 1 20.5 18v1"/></svg>
           <span class="menu__label">フレンド</span>
           <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
@@ -42,19 +42,19 @@
         <section class="menu-group" aria-labelledby="menu-1">
           <h2 class="menu-heading" id="menu-1">支払いの確認</h2>
           <div class="menu">
-        <button class="menu__item" data-tour="mp-history" @click="$router.push('/payment-history')">
+        <button class="menu__item" @click="$router.push('/payment-history')">
           <svg class="menu__icon" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
           <span class="menu__label">お支払い履歴</span>
           <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
         </button>
 
-        <button class="menu__item" data-tour="mp-approvals" @click="$router.push('/approvals')">
+        <button class="menu__item" @click="$router.push('/approvals')">
           <svg class="menu__icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
           <span class="menu__label">承認待ち</span>
           <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
         </button>
 
-        <button class="menu__item" data-tour="mp-chats" @click="$router.push('/chats')">
+        <button class="menu__item" @click="$router.push('/chats')">
           <svg class="menu__icon" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-11.9 7.6L3 21l1.9-6.1A8.4 8.4 0 1 1 21 11.5z"/></svg>
           <span class="menu__label">相談</span>
           <svg class="menu__chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>

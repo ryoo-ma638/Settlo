@@ -1,5 +1,7 @@
 // 画面の地の文が同じことを何度も言うと、読む量だけ増えて大事な文が埋もれる。
-// お支払い・精算はタブごとに同じ説明を書き写していたので、タブの外へ1か所だけ出した。
+// お支払い・精算はタブごとに同じ説明を書き写していたので、文を1か所だけにした。
+// 置き場所は文によって違う。タブによらない2つはタブの外、
+// イベントで精算中の説明は指す節の見出しの直下（文は定数で1つ）。
 // ここでは「消した文が1回だけになっていること」と、
 // 「誤送金に直結するので残すと決めた文が消えていないこと」の両方を見張る。
 import assert from 'node:assert/strict';
@@ -23,10 +25,10 @@ test('タブごとに書き写していた3つの説明が、お支払い・精�
   assert.equal(countOf(MONEY, EVENT_SETTLE_NOTE), 1, 'イベントで精算中の説明がまた2か所に置かれている');
 });
 
-test('1回だけになった3つの説明は、お支払い待ち・未払いのどちらのタブでも読める', () => {
+test('タブによらない2つの説明は、お支払い待ち・未払いのどちらのタブでも読める', () => {
   // タブの中に戻すと、片方のタブでしか読めない説明になってしまう。
   const open = MONEY.indexOf(`<template v-if="currentTab !== 'settle'">`);
-  assert.notEqual(open, -1, '3つの説明をタブの外へ出す入れ物が無い');
+  assert.notEqual(open, -1, '2つの説明をタブの外へ出す入れ物が無い');
   const close = MONEY.indexOf('</template>', open);
   const inShared = (text) => {
     const at = MONEY.indexOf(text);
@@ -34,11 +36,35 @@ test('1回だけになった3つの説明は、お支払い待ち・未払いの
   };
   assert.ok(inShared(LOAD_WARNING), '取引を確認できない旨がタブの中に戻っている');
   assert.ok(inShared(OFFSET_HINT_TITLE), 'ヒント枠がタブの中に戻っている');
-  assert.ok(inShared(EVENT_SETTLE_NOTE), 'イベントで精算中の説明がタブの中に戻っている');
-  // イベントの説明は、開いているタブに対象の取引があるときだけ出す。
-  // 受け取る側の件数だけを見ると、未払いタブで説明が出ないか、無い説明が出る。
-  assert.match(MONEY, /if \(currentTab\.value === 'waiting'\) return receivableEvent\.value\.length/, '受け取る側の件数を見ていない');
-  assert.match(MONEY, /if \(currentTab\.value === 'unpaid'\) return payableEvent\.value\.length/, '支払う側の件数を見ていない');
+});
+
+test('イベントで精算中の説明は、文を1か所に持ち、両方の節の見出しの直下から出す', () => {
+  // タブの外へ置くと、指している「イベントでまとめて精算中」の節から離れて、
+  // どの行の話なのか分からなくなる。かといって文を2回書き写すと元に戻ってしまう。
+  // そこで文は定数1つにして、受け取る側・支払う側それぞれの見出しの直下から出す。
+  assert.match(MONEY, /const EVENT_SETTLE_NOTE = 'この分はイベントの/, '説明を1か所にまとめた定数が無い');
+  const underHeading = MONEY.match(
+    /イベントでまとめて精算中（\{\{ \w+\.length \}\}件）<\/h2>\s*<p class="review-note">\{\{ EVENT_SETTLE_NOTE \}\}<\/p>/g,
+  ) || [];
+  assert.equal(underHeading.length, 2, '節の見出しの直下に置いているのが2か所ではない');
+  // 受け取る側と支払う側、両方の節に付いていること（同じ節に2回ではない）
+  for (const list of ['receivableEvent', 'payableEvent']) {
+    assert.ok(
+      underHeading.some((block) => block.includes(`${list}.length`)),
+      `${list} の節に説明が付いていない`,
+    );
+  }
+});
+
+test('ヒント枠は1行だけ出し、説明は押したときに開く', () => {
+  // 91字を出しっぱなしにすると、その下の一覧より説明のほうが目立つ。
+  const at = MONEY.indexOf('<details v-if="!loading && offsettablePeople.length" class="offset-hint">');
+  assert.notEqual(at, -1, 'ヒント枠が開閉する形になっていない');
+  const summary = MONEY.slice(at, MONEY.indexOf('</summary>', at));
+  assert.match(summary, /まとめてを見る ›/, '常時出す1行が「まとめてを見る ›」ではない');
+  assert.ok(!summary.includes(OFFSET_HINT_TITLE), '91字の説明が常時出たままになっている');
+  // 1行目は開くのに使うので、「まとめて」へ移る役目は中の説明に残す。
+  assert.match(MONEY, /class="offset-hint__body" @click="currentTab = 'settle'"/, 'ヒント枠から「まとめて」へ移れなくなっている');
 });
 
 test('誤送金に直結する文は、引き算の対象にしない', () => {
