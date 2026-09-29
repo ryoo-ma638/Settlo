@@ -50,6 +50,8 @@ test('もう使われていない言葉が残っていない', () => {
 
 test('全部の画面を説明する（主要な入口が手順に入っている）', () => {
   // 画面を足したのにツアーへ入れ忘れると、そこだけ説明が抜ける
+  // 言い直しの手順（マイページのフレンド・履歴・承認待ち・相談、フレンド詳細の3件）は
+  // 前半で同じ内容を説明しているので、ここでは求めない（ヘルプに同じ説明がある）
   const must = [
     'home-status', 'home-events',                                   // ホーム
     'avatar', 'pending', 'chat', 'bell', 'assist',                  // 画面の上
@@ -57,23 +59,44 @@ test('全部の画面を説明する（主要な入口が手順に入ってい�
     'sheet-event', 'sheet-payment', 'sheet-friend-split',           // ＋の3つ
     'pay-tabs', 'pay-settle', 'pay-history',                        // 支払い
     'event-check', 'event-card', 'ev-summary', 'ev-addpay',
-    'ev-invite', 'ev-exit', 'ev-end', 'ev-delete',                  // イベント
-    'friend-add', 'friend-row', 'fd-combined', 'fd-split', 'fd-chats', // フレンド
-    'mp-profile', 'mp-notify', 'mp-friend', 'mp-history',
-    'mp-approvals', 'mp-chats', 'mp-trash', 'mp-help',              // マイページ
+    'ev-invite',                                                    // イベント
+    'friend-add',                                                   // フレンド
+    'mp-profile', 'mp-notify', 'mp-trash', 'mp-help',               // マイページ
   ];
   const missing = must.filter((name) => !steps.includes(name));
   assert.deepEqual(missing, [], '説明が抜けている画面がある');
 });
 
 test('無いこともある場所は、待たずに飛ばす', () => {
-  // フレンドが0人のときなど、対象が無い手順で何秒も止まると使えない
+  // フレンドが0人のときなど、対象が無い手順で何秒も止まると使えない。
+  // 全画面ツアーからは optional の手順を外したが、短い案内の手順では今も使う
   assert.match(tour, /optional\s*\?\s*5\s*:\s*25/, 'optional の待ち時間を短くしていない');
-  const optionalCount = (tour.match(/optional:\s*true/g) || []).length;
-  assert.ok(optionalCount >= 6, `optional の指定が少ない: ${optionalCount}`);
 });
 
 test('最後の手順は締めで、ホームへ戻せる', () => {
   assert.match(tour, /type:\s*'final'/);
   assert.match(tour, /ホームへ戻る/);
+});
+
+test('同じ場所を2回止めない（説明の言い直しを入れない）', () => {
+  // 入口の言い直しで同じ目印を2回光らせると、見る人は同じ画面を2度説明される
+  const seen = new Map();
+  const dup = [];
+  for (const name of steps) {
+    seen.set(name, (seen.get(name) || 0) + 1);
+    if (seen.get(name) === 2) dup.push(name);
+  }
+  assert.deepEqual(dup, [], '同じ目印を2回止めている手順がある');
+});
+
+test('「無いこともある」手順は置かない（あるものだけ案内する）', () => {
+  // 対象が無いと黙って飛ぶ手順は、件数の表示（n / 全体）だけ動いて中身が出ない
+  const optionalCount = (tour.match(/optional:\s*true/g) || []).length;
+  assert.equal(optionalCount, 0, `optional の手順が残っている: ${optionalCount}`);
+});
+
+test('手順は30件までにおさえる', () => {
+  // 一直線に43件は長すぎると展示で言われた（2026-09-19）。増えたら気づけるようにする
+  const total = (tour.match(/\{\s*type:\s*'(explain|action|final)'/g) || []).length;
+  assert.ok(total <= 30, `手順が多すぎる: ${total}`);
 });
