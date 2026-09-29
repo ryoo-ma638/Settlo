@@ -105,7 +105,8 @@
         <div class="stack">
           <SkeletonRows v-if="loading" :rows="4" />
           <div v-else-if="receivableUnpaid.length === 0" class="empty-box">お支払い待ちはありません</div>
-          <div v-for="item in receivableUnpaid" :key="item.id" class="trow" role="button" tabindex="0"
+          <div v-for="(item, index) in receivableUnpaid" :key="item.id" class="trow" role="button" tabindex="0"
+            :data-tour="index === 0 ? 'pay-waiting-row' : null"
             @click="$router.push('/payment-detail/waiting-' + item.id)"
             @keydown.enter="$router.push('/payment-detail/waiting-' + item.id)"
             @keydown.space.prevent="$router.push('/payment-detail/waiting-' + item.id)">

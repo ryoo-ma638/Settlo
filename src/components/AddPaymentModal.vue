@@ -359,7 +359,7 @@
 
           <button v-if="batchMode && !editData && batchFinished" class="submit-btn" @click="startNextBatch">続けてレシートを追加</button>
           <button v-else-if="batchMode && !editData" class="submit-btn" :disabled="!batchCanSave" @click="saveBatchCards(batchTargets)">{{ batchPrimaryLabel }}</button>
-          <button v-else class="submit-btn" :disabled="isSubmitting" @click="handleSubmit">{{ editData ? 'この内容で保存する' : 'この内容で追加する' }}</button>
+          <button v-else class="submit-btn" data-tour="ap-save" :disabled="isSubmitting" @click="handleSubmit">{{ editData ? 'この内容で保存する' : 'この内容で追加する' }}</button>
         </div>
 
       </div>

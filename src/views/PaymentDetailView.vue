@@ -69,7 +69,7 @@
           <section v-if="!isAwaitingApproval" class="action-section">
             <h3 class="section-sub">{{ mode === 'remind' ? '相手に請求する' : 'アプリで決済' }}</h3>
             <PayPayAction :mode="mode" :opponentUid="targetUid" />
-            <button v-if="mode === 'remind'" class="method-btn remind-btn" :disabled="submitting" @click="openRemind">
+            <button v-if="mode === 'remind'" class="method-btn remind-btn" data-tour="pd-remind" :disabled="submitting" @click="openRemind">
               支払いを催促する{{ alreadyReminded ? `（送信済み ${remindCount}回）` : '（通知を送る）' }}
             </button>
           </section>
