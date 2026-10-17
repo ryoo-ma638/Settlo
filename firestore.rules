@@ -166,7 +166,11 @@ service cloud.firestore {
       allow read:           if isSignedIn()
                               && (resource.data.toId == request.auth.uid
                                   || resource.data.formId == request.auth.uid);
-      allow create:         if isSignedIn();
+      // ⚠️ 2026-10-17 修正。
+      //   以前はログインしていれば誰でも、送信者（formId）を偽ったフレンド申請を作れた。
+      //   アプリ側で申請を作る3か所はすべて自分のUIDを入れているので、それを条件にする。
+      allow create:         if isSignedIn()
+                              && request.resource.data.formId == request.auth.uid;
       allow update, delete: if isSignedIn()
                               && (resource.data.toId == request.auth.uid
                                   || resource.data.formId == request.auth.uid);
