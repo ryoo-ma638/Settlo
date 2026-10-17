@@ -18,6 +18,7 @@ export const onSnapshot=(ref,next,error)=>{const stream={ref,next,error,active:t
 export const doc=()=>{},getDoc=async()=>({exists:()=>false}),getDocFromServer=getDoc,serverTimestamp=()=>{};
 export const setDoc=(...args)=>writes.push(args),updateDoc=setDoc,deleteDoc=setDoc,addDoc=setDoc;
 export const writeBatch=()=>({set(){},delete(){},commit(){return Promise.resolve();}});
+export const functions={}, httpsCallable=()=>async()=>({data:{}});
 export default {};
 `).toString('base64');
 const io = await import(mockUrl);
