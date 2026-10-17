@@ -172,6 +172,11 @@ onUnmounted(() => window.removeEventListener('settlo:show-onboarding', forceShow
   width: 100%; max-width: 340px;
   max-height: calc(100dvh - 40px - var(--frame-inset-y) * 2);
   overflow-y: auto;
+  /* ⚠️ 2026-10-17 修正。中身が上限を超えると下の「スキップ」が枠の外に出ていた
+     （PCの低い窓や小さいスマホで、2枚目・3枚目に起きた）。
+     縦に並べて、点・注記・ボタン・スキップは縮めずに常に下へ残し、
+     足りないぶんはスライド（写真→文の順）を縮める。それでも足りなければスライドだけがスクロールする。 */
+  display: flex; flex-direction: column;
   background: var(--c-surface, #fff);
   border-radius: 24px;
   padding: 22px 22px 18px;
@@ -179,7 +184,16 @@ onUnmounted(() => window.removeEventListener('settlo:show-onboarding', forceShow
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
 }
 
+.ob-slide {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column; align-items: center;
+  overflow-y: auto; overscroll-behavior: contain;
+}
+.ob-slide .ob-title, .ob-slide .ob-text { align-self: stretch; }
+.ob-progress, .ob-dots, .ob-tour-note, .ob-actions { flex-shrink: 0; }
+
 .ob-illust {
+  flex-shrink: 0;
   width: 96px; height: 96px;
   margin: 26px auto 18px;
   border-radius: 28px;
@@ -196,9 +210,10 @@ onUnmounted(() => window.removeEventListener('settlo:show-onboarding', forceShow
    下の「スキップ」が見えなくなる（カードはスクロールできるが気づけない）。
    横幅は写真の形（402:874）から決まる。細い画面では横からも抑える。 */
 .ob-shot {
-  --gap: 430px; /* 写真以外（題名・説明・点・ボタン）が使う高さの目安 */
-  --shot-h: clamp(120px, calc(100dvh - var(--gap)), 365px);
+  --gap: 460px; /* 写真以外（題名・説明・タップの案内か注記・点・ボタン・余白）が使う高さの目安 */
+  --shot-h: clamp(120px, calc(100dvh - var(--frame-inset-y, 0px) * 2 - var(--gap)), 365px);
   height: min(var(--shot-h), calc(48vw * 2.174));
+  flex: 0 1 auto; min-height: 120px; /* 縦に足りないときは写真から縮める（120pxまで） */
   width: auto;
   aspect-ratio: 402 / 874;
   margin: 0 auto 14px;
