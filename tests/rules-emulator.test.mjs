@@ -140,6 +140,22 @@ test('S6 自分の名前で送る通知は、これまでどおり作れる', as
   assert.ok((await getDoc(doc(owner, 'notifications', id))).exists() === false || true);
 });
 
+test('フレンド申請：送信者を偽った申請は作れない', async () => {
+  const { setDoc: set } = sdk;
+  await assert.rejects(
+    set(doc(stranger, 'friendRequests', `fake-${Date.now().toString(36)}`),
+      { toId: 'u-owner', formId: 'u-member', formName: '偽の送信者', status: 'pending' }),
+    denied,
+  );
+});
+
+test('フレンド申請：自分の名前での申請は、これまでどおり作れて、相手が読める', async () => {
+  const { setDoc: set } = sdk;
+  const id = `ok-fr-${Date.now().toString(36)}`;
+  await set(doc(stranger, 'friendRequests', id), { toId: 'u-owner', formId: 'u-stranger', formName: 'ゲスト', status: 'pending' });
+  assert.ok((await getDoc(doc(owner, 'friendRequests', id))).exists());
+});
+
 test('立て替えのグループチャットを、立替者が新規に作れる', async () => {
   // ensurePaymentThread は「読んでから書く」。まだ無いスレッドの読み取りが拒否されると
   // ここで止まり、チャットが一度も作られない（実際に本番でそうなっていた）。
