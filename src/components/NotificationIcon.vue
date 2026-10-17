@@ -666,39 +666,18 @@ const acceptInvite = async (req) => {
   try {
     const myUid = auth.currentUser?.uid;
     if (req.eventId && myUid) {
-      // 追加前の参加者を取得（承認制かどうかの判定に使う）
-      let existing = [];
-      let evName = req.eventName || '';
-      let evLocked = false;
-      let evLeaderUid = null;
-      try {
-        const ev = await getDoc(doc(db, "events", req.eventId));
-        if (ev.exists()) {
-          const d = ev.data();
-          existing = d.participants || [];
-          evName = d.name || evName;
-          evLocked = d.locked === true;
-          evLeaderUid = d.leaderUid || null;
-        }
-      } catch (e) {}
-      const myName = await getMyName();
-
-      // 🌟 承認制のイベントは自分では参加者に入れない。リーダーへ参加リクエストを送って待つ
-      if (evLocked && evLeaderUid && !existing.includes(myUid)) {
-        await addDoc(collection(db, "notifications"), {
-          toUserId: evLeaderUid, type: 'event_join_request',
-          eventId: req.eventId, eventName: evName,
-          fromUserId: myUid, fromUserName: myName,
-          userMessage: req.userMessage || null,
-          isRead: false, createdAt: serverTimestamp(),
-        });
+      // 🌟 2026-10-17 変更。参加はサーバー側（joinEvent）で行う。本人宛の招待があることを確かめ、
+      //    鍵付きのイベントなら今までどおりリーダーへ参加リクエストのお知らせを送る。
+      const join = httpsCallable(functions, 'joinEvent');
+      const { data } = await join({ eventId: req.eventId, message: req.userMessage || '' });
+      if (data.status !== 'joined' && data.status !== 'already') {
         await updateDoc(doc(db, "notifications", req.id), { isRead: true });
         showModal.value = false;
-        showToast('リーダーの承認待ちです');
+        showToast(data.status === 'request_sent' ? 'リーダーの承認待ちです'
+          : data.status === 'already_requested' ? 'すでにリクエスト中です。リーダーの承認をお待ちください'
+          : 'このイベントは見つかりませんでした');
         return;
       }
-
-      await updateDoc(doc(db, "events", req.eventId), { participants: arrayUnion(myUid) });
     }
     await updateDoc(doc(db, "notifications", req.id), { isRead: true });
     showModal.value = false;

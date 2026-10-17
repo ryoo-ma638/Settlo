@@ -64,15 +64,30 @@ test('S1 未参加の人が、自分を足すのと同時に他の参加者を�
   }), denied);
 });
 
-test('S1 招待コードでの参加（自分を1人足すだけ）は今までどおり通る', async () => {
+test('S1 未参加の人は、自分を参加者に足せない（参加はサーバー側の joinEvent が行う）', async () => {
   const id = `s1c-${Date.now().toString(36)}`;
   await seed(id);
-  await updateDoc(doc(stranger, 'events', id), {
+  await assert.rejects(updateDoc(doc(stranger, 'events', id), {
     participants: ['u-owner', 'u-member', 'u-stranger'],
-  });
-  const after = (await getDoc(doc(owner, 'events', id))).data();
-  assert.deepEqual(after.participants, ['u-owner', 'u-member', 'u-stranger']);
-  assert.equal(after.totalAmount, 15000, '金額は動かない');
+  }), denied);
+  assert.deepEqual((await getDoc(doc(owner, 'events', id))).data().participants, ['u-owner', 'u-member']);
+});
+
+test('イベント：未参加の人は読めず、招待コードでも探せない', async () => {
+  const { collection, getDocs, query, where } = sdk;
+  const id = `ev-${Date.now().toString(36)}`;
+  await seed(id);
+  await assert.rejects(getDoc(doc(stranger, 'events', id)), denied);
+  await assert.rejects(getDocs(query(collection(stranger, 'events'), where('invitationCode', '==', 'FAKECODE'))), denied);
+});
+
+test('イベント：参加者は読めて、自分のイベント一覧も引ける', async () => {
+  const { collection, getDocs, query, where } = sdk;
+  const id = `ev2-${Date.now().toString(36)}`;
+  await seed(id);
+  assert.equal((await getDoc(doc(member, 'events', id))).data().name, '架空イベント');
+  const mine = await getDocs(query(collection(member, 'events'), where('participants', 'array-contains', 'u-member')));
+  assert.ok(mine.docs.some((d) => d.id === id));
 });
 
 test('S1 参加者は、これまでどおりイベントを編集できる', async () => {

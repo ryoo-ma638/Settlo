@@ -1,10 +1,11 @@
 // イベント招待（event_invite 通知）の共通処理。
 // お知らせベルだけでなく、イベント一覧・ホームの招待カードからも同じ手順で参加/辞退できるようにする。
 // 手順は既存のお知らせベルと同じ：
-//   参加 … events.participants に自分を追加 → 招待通知を既読化
+//   参加 … サーバー側の joinEvent で自分を参加者に追加（鍵付きはリーダーへ参加リクエスト）→ 招待通知を既読化
 //   辞退 … 招待した人へ invite_rejected 通知 → 招待通知を既読化
 
-import { db, auth } from '@/firebase';
+import { db, auth, functions } from '@/firebase';
+import { httpsCallable } from 'firebase/functions';
 import {
   collection, doc, addDoc, updateDoc,
   query, where, onSnapshot, arrayUnion, serverTimestamp,
@@ -42,12 +43,16 @@ export async function acceptEventInvite(invite) {
   const myUid = auth.currentUser?.uid;
   if (!myUid || !invite?.eventId) return { ok: false, eventId: null };
 
-  await updateDoc(doc(db, 'events', invite.eventId), { participants: arrayUnion(myUid) });
+  // 🌟 2026-10-17 変更。参加はサーバー側（joinEvent）で行う。events は参加者だけが読める形にしたため。
+  //    戻り値の status は joined / already / request_sent（鍵付き）/ already_requested / not_found。
+  const join = httpsCallable(functions, 'joinEvent');
+  const { data } = await join({ eventId: invite.eventId });
+  if (data.status === 'not_found') return { ok: false, eventId: invite.eventId, status: data.status };
 
   if (invite.id) {
     try { await updateDoc(doc(db, 'notifications', invite.id), { isRead: true }); } catch (e) {}
   }
-  return { ok: true, eventId: invite.eventId };
+  return { ok: true, eventId: invite.eventId, status: data.status };
 }
 
 // 招待を辞退＝招待した人へお知らせを送り、招待通知を既読にする。
