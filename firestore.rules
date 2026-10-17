@@ -60,10 +60,16 @@ service cloud.firestore {
         allow read, write: if isUser(uid);
       }
 
-      // フレンド一覧（承認時に相手側にも書くので、当事者2人なら可）
+      // フレンド一覧
+      // ⚠️ 2026-10-17 修正。
+      //   以前は「当事者2人なら書ける」だったため、申請を送った側が相手の一覧へ自分を書き込めた
+      //   （相手の同意なしにフレンドになれた）。承認は Cloud Functions（acceptFriendRequest）が
+      //   申請を受け取った人を確かめて両方の一覧へ書く。画面から書けるのは自分の一覧だけ。
+      //   相手の一覧から自分を消す（フレンド解除）は今までどおりできる。
       match /friends/{friendUid} {
         allow read: if isUser(uid);
-        allow write: if isUser(uid) || isUser(friendUid);
+        allow create, update: if isUser(uid);
+        allow delete: if isUser(uid) || isUser(friendUid);
       }
 
       // ゴミ箱（削除したイベント・完了した決済の復元用・本人のみ）
@@ -171,7 +177,10 @@ service cloud.firestore {
       //   アプリ側で申請を作る3か所はすべて自分のUIDを入れているので、それを条件にする。
       allow create:         if isSignedIn()
                               && request.resource.data.formId == request.auth.uid;
-      allow update, delete: if isSignedIn()
+      // ⚠️ 2026-10-17 修正。申請の更新（承認済みにする等）は受け取った人だけ。
+      //   取り消し・拒否の削除は、送った側・受け取った側のどちらもできる（今までどおり）。
+      allow update:         if isSignedIn() && resource.data.toId == request.auth.uid;
+      allow delete:         if isSignedIn()
                               && (resource.data.toId == request.auth.uid
                                   || resource.data.formId == request.auth.uid);
     }

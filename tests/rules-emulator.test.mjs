@@ -156,6 +156,27 @@ test('フレンド申請：自分の名前での申請は、これまでどお�
   assert.ok((await getDoc(doc(owner, 'friendRequests', id))).exists());
 });
 
+test('フレンド：他人の一覧には書き込めない（承認はサーバー側で行う）', async () => {
+  await assert.rejects(
+    setDoc(doc(stranger, 'users', 'u-owner', 'friends', 'u-stranger'), { uid: 'u-stranger', isFriend: true }),
+    denied,
+  );
+});
+
+test('フレンド：自分の一覧は自分で書けて、相手の一覧から自分を消す（解除）は今までどおりできる', async () => {
+  await setDoc(doc(owner, 'users', 'u-owner', 'friends', 'u-member'), { uid: 'u-member', isFriend: true });
+  await sdk.deleteDoc(doc(member, 'users', 'u-owner', 'friends', 'u-member'));
+  assert.equal((await getDoc(doc(owner, 'users', 'u-owner', 'friends', 'u-member'))).exists(), false);
+});
+
+test('フレンド申請：送った側は自分の申請を承認済みにできない。受け取った側はできる', async () => {
+  const id = `fr-${Date.now().toString(36)}`;
+  await setDoc(doc(stranger, 'friendRequests', id), { toId: 'u-owner', formId: 'u-stranger', formName: 'ゲスト', status: 'pending' });
+  await assert.rejects(updateDoc(doc(stranger, 'friendRequests', id), { status: 'accepted' }), denied);
+  await updateDoc(doc(owner, 'friendRequests', id), { status: 'accepted' });
+  assert.equal((await getDoc(doc(owner, 'friendRequests', id))).data().status, 'accepted');
+});
+
 test('立て替えのグループチャットを、立替者が新規に作れる', async () => {
   // ensurePaymentThread は「読んでから書く」。まだ無いスレッドの読み取りが拒否されると
   // ここで止まり、チャットが一度も作られない（実際に本番でそうなっていた）。

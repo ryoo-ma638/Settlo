@@ -103,11 +103,12 @@ import { countFriendTransactions, summarizeFriendTransactions } from '../lib/fri
 import { friendNetFromTransactions } from '../lib/friendBalance.js';
 import { useRoute, useRouter } from 'vue-router';
 
-import { auth, db } from '@/firebase';
+import { auth, db, functions } from '@/firebase';
+import { httpsCallable } from 'firebase/functions';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
   collection,  query,  where,  onSnapshot,
-  doc, getDoc, getDocFromServer, setDoc, updateDoc, deleteDoc, addDoc, serverTimestamp, writeBatch
+  doc, getDoc, getDocFromServer, setDoc, updateDoc, deleteDoc, addDoc, serverTimestamp
 } from 'firebase/firestore';
 
 import FriendAddModal from '@/components/FriendAddModal.vue';
@@ -354,45 +355,11 @@ const handleApproveDone = async (request) => {
   markApprovalUnknown(request.id);
 
   try {
-    const myDoc = await getDoc(doc(db, "users", myUid));
-    let myName = "名前なし";
-    let myPhoto = "";
-
-    if (myDoc.exists()) {
-      const myData = myDoc.data();
-      myName = myData.name || "名前なし";
-      myPhoto = myData.photo || "";
-    }
-
-    const batch = writeBatch(db);
-    batch.set(doc(db, "users", myUid, "friends", request.formId), {
-      uid: request.formId,
-      name: request.formName,
-      photo: request.formPhoto || "",
-      isFriend: true,
-      isTrading: false,
-      tradeCount: 0,
-      addedAt: serverTimestamp()
-    });
-    batch.set(doc(db, "users", friendUid, "friends", myUid), {
-      uid: myUid,
-      name: myName,
-      photo: myPhoto || "",
-      isFriend: true,
-      addedAt: serverTimestamp(),
-      tradeCount: 0,
-      isTrading: false
-    });
-    batch.set(doc(collection(db, "friendRequests")), {
-      toId: friendUid,
-      formId: myUid,
-      formName: myName,
-      photo: myPhoto,
-      status: "accepted",
-      createdAt: serverTimestamp()
-    });
-    batch.delete(doc(db, "friendRequests", request.id));
-    await batch.commit();
+    // 🌟 2026-10-17 変更。承認はサーバー側（acceptFriendRequest）で行う。
+    //    申請を受け取った人だけが承認でき、相手の一覧への書き込みも画面からはしない。
+    //    両者の一覧・「フレンドになりました」のお知らせ・申請の削除はサーバー側で1回にまとめて書く。
+    const accept = httpsCallable(functions, 'acceptFriendRequest');
+    await accept({ requestId: request.id });
 
     isApproveModalOpen.value = false;
     selectedRequestUser.value = null;

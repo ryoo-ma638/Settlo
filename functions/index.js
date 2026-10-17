@@ -928,3 +928,19 @@ exports.consultPaymentReply = onCall(
     }
   }
 );
+
+// =================================================================
+// フレンド申請の承認（申請を受け取った人だけができる）
+// =================================================================
+// 画面側で両者の friends を書く形だと、申請を送った側が相手の一覧へ自分を書き込めた。
+// 承認はここで受け取った人を確かめてから行い、ルール側は相手の一覧への書き込みを閉じる。
+const { createFriendAcceptService } = require("./friendAcceptCore");
+const friendAcceptService = createFriendAcceptService({ db, FieldValue: admin.firestore.FieldValue });
+
+exports.acceptFriendRequest = onCall(
+  {
+    region: "asia-northeast1",
+    cors: ['http://localhost:5173', 'https://pairpay-4c17a.web.app', 'https://settlo-app.web.app', 'https://settlo-app.firebaseapp.com'],
+  },
+  async (request) => friendAcceptService.handle(request.auth && request.auth.uid, request.data)
+);
