@@ -2,11 +2,12 @@
   <div class="event-detail-container">
     <PageHeader :title="eventData.name || 'イベント詳細'" class="event-page-header">
       <template #right>
-        <button class="event-edit-btn" @click="openEditEvent">編集</button>
+        <button v-if="viewState === 'ready'" class="event-edit-btn" @click="openEditEvent">編集</button>
       </template>
     </PageHeader>
 
-    <main class="content">
+    <main v-if="!isBlocked" class="content">
+      <p v-if="viewState === 'loading' && slowLoading" class="ev-slow-note" role="status">読み込みに時間がかかっています。通信状況をご確認ください。</p>
       <div class="summary-card">
         <div class="total-section clickable" @click="scrollToTimeline">
           <span class="label"><span class="event-genre"><GenreIcon :type="eventData.tag" /></span>{{ outstandingLabel }} <span class="arrow-down">履歴を見る ↓</span></span>
@@ -211,6 +212,16 @@
         <p class="end-hint">自分の画面から非表示にします。イベント一覧の「非表示にしたイベント」からいつでも戻せます。</p>
       </div>
     </main>
+    <main v-else class="content ev-blocked">
+      <div class="ev-blocked__card" role="status" aria-live="polite">
+        <h2 class="ev-blocked__title">{{ blockedMessage.title }}</h2>
+        <p class="ev-blocked__text">{{ blockedMessage.text }}</p>
+        <div class="ev-blocked__actions">
+          <button v-if="blockedMessage.canRetry" class="btn-outline" @click="reloadPage">再読み込み</button>
+          <button class="btn-brand" @click="router.push('/')">ホームへ戻る</button>
+        </div>
+      </div>
+    </main>
 
     <Teleport to="body">
       <BaseModal
@@ -405,6 +416,7 @@
 
 <script setup>
 import { getDoc } from 'firebase/firestore'; // getDoc が必要
+import { EVENT_VIEW, eventViewStateAfterError, eventViewStateAfterSnapshot, eventViewMessage, isBlockedState } from '@/lib/eventViewState';
 
 // 🌟 参加者の「名前＋アイコン」を実データから取得（"メンバー" 固定表示を解消）
 const userInfoCache = {};
@@ -668,7 +680,7 @@ const removeParticipant = (p) => {
 const selectedHistory = ref(null);
 const selectedSummary = ref(null);
 
-const eventData = ref({
+const initialEventData = () => ({
   name: '読み込み中...',
   date: '---',
   total: 0, // 🌟 最初は 0
@@ -683,6 +695,32 @@ const eventData = ref({
   participants: [],
   history: []
 });
+const eventData = ref(initialEventData());
+
+// 🌟 2026-10-17 追加。参加していない（権限なし）・存在しない・読めないイベントを開いたときの表示状態。
+//    以前は購読のエラーを静かに無視していたため「読み込み中…」のまま止まって見えた。
+//    通信が遅いだけでは変えない（明示のエラーか、文書が無いと分かったときだけ変える）。
+//    止めるときは、残っていたデータと購読を片付け、操作ボタンを出さない。読み取りのルールは変えていない。
+const viewState = ref(EVENT_VIEW.LOADING);
+const slowLoading = ref(false);
+let slowTimer = null;
+const blockedMessage = computed(() => eventViewMessage(viewState.value));
+const isBlocked = computed(() => isBlockedState(viewState.value));
+const resetEventData = () => {
+  eventData.value = { ...initialEventData(), name: '' };
+  rawHistory.value = [];
+  historyLoaded.value = false;
+  txById.value = {};
+  txLoaded.value = false;
+};
+const blockView = (state) => {
+  if (viewState.value === state) return;
+  viewState.value = state;
+  slowLoading.value = false;
+  unsubscribeAll();
+  resetEventData();
+};
+const reloadPage = () => { if (typeof location !== 'undefined') location.reload(); };
 
 // 🌟 誰の画面で終了済みとして扱うか。
 //    1人が押しただけで全員の画面を締めない（endedForMe と endedForAll を分ける）。
@@ -1689,9 +1727,15 @@ onMounted(async () => {
   const eventId = route.params.id;
   if (!eventId) return;
 
+  // 遅いだけのときは「権限なし」にせず、案内だけ出す（8秒）
+  if (slowTimer) clearTimeout(slowTimer);
+  slowTimer = setTimeout(() => { if (viewState.value === EVENT_VIEW.LOADING) slowLoading.value = true; }, 8000);
+
   // --- A. イベント本体の情報を監視 (名前や招待コード) ---
   unsubEvent = onSnapshot(doc(db, "events", eventId), async (docSnap) => {
     if (docSnap.exists()) {
+      viewState.value = EVENT_VIEW.READY;
+      slowLoading.value = false;
       const data = docSnap.data();
       eventData.value.name = data.name;
       eventData.value.tag = data.tag || 'その他';
@@ -1711,10 +1755,13 @@ onMounted(async () => {
         return { id: uid, name: info.name, photo: info.photo, isMe: uid === auth.currentUser?.uid };
       }));
       eventData.value.participants = detailed;
-    }
+    } else if (eventViewStateAfterSnapshot(false, !!docSnap.metadata?.fromCache) === EVENT_VIEW.MISSING) {
+      blockView(EVENT_VIEW.MISSING); // サーバーから「無い」と返った＝削除済み、またはリンクが古い
+    } // キャッシュ由来の「無し」は通信待ち。読み込み中のまま（遅い案内だけ出る）
   }, (err) => {
-    // イベント削除後や参加者でない場合は静かに無視（未購読解除の残骸対策）
+    // 🌟 2026-10-17 変更。参加していない（権限なし）と読めない（通信の失敗）を表示状態へ反映する。
     if (err?.code !== 'permission-denied') console.error("イベント監視エラー:", err);
+    blockView(eventViewStateAfterError(err?.code));
   });
 
   // --- B. 立て替え履歴(history)サブコレクションを監視 ---
@@ -1750,8 +1797,10 @@ onMounted(async () => {
     rawHistory.value = fetched;
     historyLoaded.value = true;
   }, (err) => {
-    // イベント削除後や参加者でない場合は静かに無視（未購読解除の残骸対策）
-    if (err?.code !== 'permission-denied') console.error("履歴監視エラー:", err);
+    // 表示中に参加者から外れた場合は、ここで権限なしになる。
+    // 読み込み中なら本体の購読に判断を任せる（存在しないイベントを「表示できない」にしないため）。
+    if (err?.code === 'permission-denied') { if (viewState.value === EVENT_VIEW.READY) blockView(EVENT_VIEW.DENIED); return; }
+    console.error("履歴監視エラー:", err);
   });
 
   // --- C. このイベントの取引(transactions)を監視 ---
@@ -1778,7 +1827,8 @@ onMounted(async () => {
     txById.value = map;
     txLoaded.value = true;
   }, (err) => {
-    if (err?.code !== 'permission-denied') console.error("取引監視エラー:", err);
+    if (err?.code === 'permission-denied') { if (viewState.value === EVENT_VIEW.READY) blockView(EVENT_VIEW.DENIED); return; }
+    console.error("取引監視エラー:", err);
   });
 });
 
@@ -1825,6 +1875,7 @@ const unsubscribeAll = () => {
   clearSettlementSubscriptions();
 };
 onUnmounted(unsubscribeAll);
+onUnmounted(() => { if (slowTimer) clearTimeout(slowTimer); });
 onUnmounted(() => setPaymentAvailability(null));
 
 const deleteEventCompletely = async (reason) => {
@@ -2418,4 +2469,13 @@ const handleDeleteEvent = () => {
   .icb-code { min-width: 0; letter-spacing: 2px; overflow-wrap: anywhere; }
   .icb-copy { padding: 8px 10px; }
 }
+
+/* 参加していない・存在しない・読めないイベントの案内（2026-10-17） */
+.ev-blocked { display: flex; align-items: flex-start; justify-content: center; padding-top: 32px; }
+.ev-blocked__card { width: 100%; max-width: 420px; background: var(--c-surface, #fff); border-radius: 18px; padding: 22px 18px; text-align: center; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08); }
+.ev-blocked__title { font-size: 16px; font-weight: var(--fw-black, 900); color: var(--c-ink); margin: 0 0 8px; }
+.ev-blocked__text { font-size: 13px; line-height: 1.7; color: var(--c-text-sub); margin: 0 0 16px; }
+.ev-blocked__actions { display: flex; gap: 8px; justify-content: center; }
+.ev-blocked__actions .btn-brand, .ev-blocked__actions .btn-outline { min-height: 44px; padding: 0 16px; }
+.ev-slow-note { font-size: 12.5px; color: var(--c-text-sub); background: var(--c-brand-weak, #ecfdf5); border-radius: 12px; padding: 8px 12px; margin: 0 0 10px; }
 </style>
