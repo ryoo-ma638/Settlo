@@ -223,3 +223,77 @@ test('無い文書が読めても、他人のスレッドは読めないまま',
   await setDoc(doc(owner, 'threads', `th-${id}`), { participants: ['u-owner', 'u-member'] });
   await assert.rejects(getDoc(doc(stranger, 'threads', `th-${id}`)), denied);
 });
+
+// =============================================================
+// 相手ごとのまとめ精算（settlementBatch）
+//   承認待ちのまとめ精算の取引は画面から書けない。内訳は画面から付けられない。
+//   承認待ちの状態はルール上は画面から作れないので、管理者権限（Admin SDK）で用意する。
+// =============================================================
+import { after } from 'node:test';
+const requireFromFunctions = createRequire(new URL('../functions/package.json', import.meta.url));
+const admin = requireFromFunctions('firebase-admin');
+if (!process.env.FIRESTORE_EMULATOR_HOST) process.env.FIRESTORE_EMULATOR_HOST = `${host}:${port}`;
+const adminApp = admin.initializeApp({ projectId }, `rules-admin-${Date.now()}`);
+const adminDb = adminApp.firestore();
+after(async () => { await adminApp.delete(); });
+
+const batchOf = (tag, role) => ({
+  id: `b-${tag}`, gross: 3000, offset: 1000, net: 2000, count: 1, counterCount: 1,
+  payerUid: 'u-member', receiverUid: 'u-owner', role,
+});
+const seedBatch = async (tag) => {
+  await adminDb.doc(`transactions/sb-main-${tag}`).set({
+    paidById: 'u-member', paidToId: 'u-owner', amount: 3000, status: 'awaiting_approval',
+    approvalReviewRequired: false, approvalRequestId: `b-${tag}`, settlementBatch: batchOf(tag, 'main'),
+  });
+  await adminDb.doc(`transactions/sb-offset-${tag}`).set({
+    paidById: 'u-owner', paidToId: 'u-member', amount: 1000, status: 'completed',
+    approvalReviewRequired: false, settlementBatch: batchOf(tag, 'offset'),
+  });
+  await adminDb.doc(`transactions/sb-done-${tag}`).set({
+    paidById: 'u-member', paidToId: 'u-owner', amount: 700, status: 'completed',
+    approvalReviewRequired: false, settlementBatch: { ...batchOf(tag, 'main'), id: `b-done-${tag}` },
+  });
+  await adminDb.doc(`transactions/plain-${tag}`).set({ paidById: 'u-member', paidToId: 'u-owner', amount: 500, status: 'unpaid' });
+};
+
+test('まとめ精算：承認待ちの取引は、受け取る側も払う側も画面から完了・未払い・削除にできない', async () => {
+  await seedBatch('p1');
+  await assert.rejects(updateDoc(doc(owner, 'transactions', 'sb-main-p1'), { status: 'completed', approvalReviewRequired: false }), denied);
+  await assert.rejects(updateDoc(doc(member, 'transactions', 'sb-main-p1'), { status: 'unpaid', settlementBatch: null, approvalReviewRequired: true }), denied);
+  await assert.rejects(updateDoc(doc(owner, 'transactions', 'sb-main-p1'), { remindCount: 1 }), denied);
+  await assert.rejects(sdk.deleteDoc(doc(member, 'transactions', 'sb-main-p1')), denied);
+});
+
+test('まとめ精算：画面から内訳（settlementBatch）を付けたり書き換えたりできない', async () => {
+  await seedBatch('p2');
+  await assert.rejects(updateDoc(doc(member, 'transactions', 'plain-p2'), { settlementBatch: batchOf('p2', 'main') }), denied);
+  await assert.rejects(updateDoc(doc(owner, 'transactions', 'sb-offset-p2'), { settlementBatch: { ...batchOf('p2', 'offset'), net: 1 } }), denied);
+  await assert.rejects(setDoc(doc(member, 'transactions', 'new-p2'), {
+    paidById: 'u-member', paidToId: 'u-owner', amount: 100, status: 'unpaid', settlementBatch: batchOf('p2', 'main'),
+  }), denied);
+});
+
+test('まとめ精算：内訳のない未払いの取引は今までどおり支払い報告でき、申請IDも付けられる', async () => {
+  await seedBatch('p3');
+  await updateDoc(doc(member, 'transactions', 'plain-p3'), { status: 'awaiting_approval', approvalReviewRequired: false, approvalRequestId: 'sr-p3' });
+  const snap = await getDoc(doc(owner, 'transactions', 'plain-p3'));
+  assert.equal(snap.data().approvalRequestId, 'sr-p3');
+  // 内訳に触らない更新（催促回数など）は、相殺側の完了済みの取引にも今までどおりできる
+  await updateDoc(doc(owner, 'transactions', 'sb-offset-p3'), { remindCount: 1 });
+});
+
+test('まとめ精算：完了済みの取引を内訳ごと未精算へ戻す（合意の戻し）は今までどおりできる', async () => {
+  await seedBatch('p4');
+  await updateDoc(doc(owner, 'transactions', 'sb-done-p4'), { status: 'unpaid', settlementBatch: null, approvalReviewRequired: false });
+  const snap = await getDoc(doc(member, 'transactions', 'sb-done-p4'));
+  assert.equal(snap.data().status, 'unpaid');
+  assert.equal(snap.data().settlementBatch, null);
+});
+
+test('まとめ精算：申請の台帳（settlementRequests）は画面から読めず書けない', async () => {
+  await adminDb.doc('settlementRequests/b-ledger').set({ kind: 'submit', actorUid: 'u-member' });
+  await assert.rejects(getDoc(doc(owner, 'settlementRequests', 'b-ledger')), denied);
+  await assert.rejects(setDoc(doc(member, 'settlementRequests', 'b-new'), { kind: 'submit' }), denied);
+  await assert.rejects(updateDoc(doc(member, 'settlementRequests', 'b-ledger'), { decision: 'approved' }), denied);
+});

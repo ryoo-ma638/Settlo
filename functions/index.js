@@ -960,3 +960,20 @@ exports.joinEvent = onCall(
   },
   async (request) => joinEventService.handle(request.auth && request.auth.uid, request.data)
 );
+
+// =================================================================
+// 相手ごとのまとめ精算（支払い画面の「まとめて」）の確定
+// =================================================================
+// 画面が取引を1件ずつ書く形だと、途中で止まったときに片側だけ完了・内訳なし・通知だけが残った。
+// 申請（受け取りの確定）と承認・拒否はここで対象の取引全件・お知らせ・承認履歴を1回で書き、
+// ルール側は承認待ちのまとめ精算の取引への直接の書き込みを閉じる。
+const { createSettlementBatchService } = require("./settlementBatchCore");
+const settlementBatchService = createSettlementBatchService({ db, FieldValue: admin.firestore.FieldValue });
+
+exports.settlementBatch = onCall(
+  {
+    region: "asia-northeast1",
+    cors: ['http://localhost:5173', 'https://pairpay-4c17a.web.app', 'https://settlo-app.web.app', 'https://settlo-app.firebaseapp.com'],
+  },
+  async (request) => settlementBatchService.handle(request.auth && request.auth.uid, request.data)
+);

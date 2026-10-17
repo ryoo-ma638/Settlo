@@ -1061,6 +1061,16 @@ const doMarkAsCompleted = async (id) => {
     const hist = eventData.value.history.find(h => h.id === id);
     const txIds = hist?.transactionIds || [];
     const myNm = myName.value || '立替者';
+    // 🌟 相手ごとのまとめ精算で承認待ちの支払いが含まれていれば、ここからは完了にしない。
+    //    確定はまとめ精算の承認で行う（ルール側でも、承認待ちのまとめ精算の取引は画面から書けない）。
+    for (const tid of txIds) {
+      const snap = await getDoc(doc(db, "transactions", tid));
+      const t = snap.exists() ? snap.data() : null;
+      if (t && (t.status || 'unpaid') === 'awaiting_approval' && t.settlementBatch) {
+        showAlert('info', 'まとめ精算の承認待ちです', 'この決済には、相手ごとのまとめ精算で承認待ちの支払いが含まれています。承認または差し戻しのあとに、もう一度お試しください。');
+        return;
+      }
+    }
     // 🌟 紐づく取引(transactions)を完了にする（履歴/サマリーのstatusはここから導出される）
     for (const tid of txIds) {
       await updateDoc(doc(db, "transactions", tid), { ...COMPLETED_PATCH });

@@ -166,10 +166,11 @@ import PageHeader from '../components/PageHeader.vue';
 import { ensureThread, resolveThreadForTx, postPaymentEventByTx } from '@/lib/thread';
 import { getUserName } from '@/lib/userName';
 import { groupReadLabel, lastReadMessageId } from '@/lib/readReceipt';
-import { logApprovalBoth } from '@/lib/approvalLog';
 import { buildConditionalReplySuggestions, normalizeReplyConditions } from '@/lib/aiConsultation';
-import { findBatchApprovalRequests, revertCounterTransactions, COUNTER_REVERT_TEXT } from '@/lib/settlement';
-import { REJECTED_PATCH, COMPLETED_PATCH } from '@/lib/transactionPatch';
+import { COUNTER_REVERT_TEXT } from '@/lib/settlement';
+import { decideSettlementApproval, settlementErrorMessage } from '@/lib/settlementApi';
+import { settlementFollowUps } from '@/lib/settlementEffects';
+import { showToast } from '@/lib/toast';
 import { httpsCallable } from 'firebase/functions';
 
 // クイック返信の定型文
@@ -303,66 +304,42 @@ watch(replyTx, (t) => {
 
 let unsubPay = null;
 
-const clearApprovalNotif = async () => {
-  try {
-    const snap = await getDocs(query(collection(db, 'notifications'), where('toUserId', '==', myUid)));
-    for (const d of snap.docs) {
-      const n = d.data();
-      if (n.type === 'approval_request' && n.transactionId === txId) {
-        try { await updateDoc(doc(db, 'notifications', d.id), { isRead: true }); } catch (e) {}
-      }
+// 承認・拒否はサーバー側（settlementBatch）が取引・お知らせ・承認履歴を1回で確定する。
+// まとめ精算の1件から押しても、同じまとめの全件（相殺に使った逆方向の取引も）がそろって扱われる。
+const decideTx = async (decision) => {
+  const t = txData.value || {};
+  const shown = Number(t.settlementBatch?.net ?? t.amount);
+  const result = await decideSettlementApproval({
+    decision,
+    items: [{ id: txId, requestId: t.settlementBatch?.id || t.approvalRequestId || null }],
+    expectedAmount: Number.isFinite(shown) && shown > 0 ? shown : null,
+  });
+  // 保存後の付随処理（チャットの経緯・解決済みの片付け）。遅れても失敗しても、お金の更新は再送しない。
+  const jobs = [];
+  if (decision === 'approved') {
+    for (const tid of result.transactionIds || []) {
+      jobs.push(postPaymentEventByTx(tid, { text: `${otherName.value}さんの支払いを承認し、精算しました`, kind: 'approved', actorUid: myUid }));
+      jobs.push(resolveThreadForTx(myUid, otherUid.value, tid)); // 解決したのでチャットを消す
     }
-  } catch (e) {}
+  } else {
+    for (const tid of result.transactionIds || []) jobs.push(postPaymentEventByTx(tid, { text: `${otherName.value}さんの支払いを差し戻しました（未払いに戻りました）`, kind: 'rejected', actorUid: myUid }));
+    for (const tid of result.counterTransactionIds || []) jobs.push(postPaymentEventByTx(tid, { text: COUNTER_REVERT_TEXT, kind: 'rejected', actorUid: myUid }));
+  }
+  await settlementFollowUps(jobs);
+  return result;
 };
 const approveTx = async () => {
   if (!txId || approving.value) return;
   approving.value = true;
-  try {
-    await updateDoc(doc(db, 'transactions', txId), { ...COMPLETED_PATCH });
-    if (otherUid.value) {
-      await addDoc(collection(db, 'notifications'), {
-        toUserId: otherUid.value, type: 'payment_completed',
-        message: '支払いが承認され、精算が完了しました。',
-        transactionId: txId, fromUserId: myUid, fromUserName: myName.value,
-        isRead: false, createdAt: serverTimestamp(),
-      });
-    }
-    await clearApprovalNotif();
-    await logApprovalBoth({ myUid, myName: myName.value, otherUid: otherUid.value, otherName: otherName.value, kind: 'payment', outcome: 'approved', itemName: txData.value?.itemName || '', amount: txData.value?.amount || 0 });
-    await postPaymentEventByTx(txId, { text: `${otherName.value}さんの支払いを承認し、精算しました`, kind: 'approved', actorUid: myUid });
-    await resolveThreadForTx(myUid, otherUid.value, txId); // 解決したのでチャットを消す
-  } catch (e) { console.error('承認エラー:', e); }
+  try { await decideTx('approved'); }
+  catch (e) { console.error('承認エラー:', e); showToast(settlementErrorMessage(e, '承認できませんでした。電波状況を確認してもう一度お試しください。'), 4000); }
   finally { approving.value = false; }
 };
 const rejectTx = async () => {
   if (!txId || approving.value) return;
   approving.value = true;
-  try {
-    // 差し戻しなので確認の印を立てる（次のまとめて精算へ自動で乗せない）
-    await updateDoc(doc(db, 'transactions', txId), { ...REJECTED_PATCH });
-    // 🌟 双方向のまとめ精算なら、相手がその場で完了にした逆方向の取引も未払いに戻す
-    let revertedCounter = 0;
-    for (const n of await findBatchApprovalRequests(myUid, [txId])) {
-      const done = await revertCounterTransactions({
-        myUid, otherUid: n.fromUserId, ids: n.counterTransactionIds, skipIds: [txId], text: COUNTER_REVERT_TEXT,
-      });
-      revertedCounter += done.length;
-      try { await updateDoc(doc(db, 'notifications', n.id), { isRead: true }); } catch (e) {}
-    }
-    if (otherUid.value) {
-      await addDoc(collection(db, 'notifications'), {
-        toUserId: otherUid.value, type: 'approval_rejected',
-        message: revertedCounter
-          ? '承認リクエストが拒否されました。双方向の精算がすべて未払いに戻っています。もう一度お手続きできます。'
-          : '承認リクエストが拒否されました。もう一度お支払い手続きをしてください。',
-        transactionId: txId, fromUserId: myUid, fromUserName: myName.value,
-        isRead: false, createdAt: serverTimestamp(),
-      });
-    }
-    await clearApprovalNotif();
-    await logApprovalBoth({ myUid, myName: myName.value, otherUid: otherUid.value, otherName: otherName.value, kind: 'payment', outcome: 'rejected', itemName: txData.value?.itemName || '', amount: txData.value?.amount || 0 });
-    await postPaymentEventByTx(txId, { text: `${otherName.value}さんの支払いを差し戻しました（未払いに戻りました）`, kind: 'rejected', actorUid: myUid });
-  } catch (e) { console.error('拒否エラー:', e); }
+  try { await decideTx('rejected'); }
+  catch (e) { console.error('拒否エラー:', e); showToast(settlementErrorMessage(e, '拒否できませんでした。電波状況を確認してもう一度お試しください。'), 4000); }
   finally { approving.value = false; }
 };
 
