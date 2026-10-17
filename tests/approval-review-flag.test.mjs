@@ -104,8 +104,10 @@ test('取引の状態を書き換える場所が、すべて決まった形を�
       );
     }
   }
-  // 走査そのものが空振りしていないこと（決まった形を使う場所が実在する）
-  assert.ok(viaPatch >= 10, `状態を書き換える場所を見つけられていない（${viaPatch}件）`);
+  // 走査そのものが空振りしていないこと（決まった形を使う場所が実在する）。
+  // 2026-10-17 から、まとめ精算の申請・承認・拒否はサーバー側（functions/settlementBatchCore.js）で書くので、
+  // 画面側に残る場所は少ない（イベント画面の完了・取り消し、決済の詳細、未精算に戻す承認）。
+  assert.ok(viaPatch >= 3, `状態を書き換える場所を見つけられていない（${viaPatch}件）`);
 });
 
 test('状態と更新内容の表が、印を消さない状態を作っていない', () => {
@@ -116,65 +118,18 @@ test('状態と更新内容の表が、印を消さない状態を作ってい�
   for (const name of ['UNPAID_PATCH', 'REJECTED_PATCH', 'COMPLETED_PATCH', 'AWAITING_PATCH']) {
     assert.ok(body.includes(name), `STATUS_PATCH に ${name} が無い`);
   }
-  // 差し戻しは 'rejected' で呼ぶ。'unpaid' で呼ぶと印が立たない
-  assert.ok(text.includes("updateAllItems('rejected')"), '拒否が rejected を使っていない');
+  // 承認・差し戻しは画面から状態を書かず、サーバー側の判断（印の付け外しもサーバーが行う）を呼ぶ。
+  // 'unpaid' で未払いへ戻す呼び方が残っていると、差し戻しなのに印が立たない
+  assert.ok(text.includes("decideItems('approved', reason)"), '承認がサーバー側の判断を呼んでいない');
+  assert.ok(text.includes("decideItems('rejected')"), '拒否がサーバー側の判断を呼んでいない');
   assert.ok(!text.includes("updateAllItems('unpaid')"), '拒否が unpaid のままになっている');
+  const decisions = text.slice(text.indexOf('const decideItems'), text.indexOf('const confirmCash'));
+  assert.ok(decisions.length > 0 && !decisions.includes('updateAllItems('), '承認・拒否を画面から直接書いている');
 });
 
-// ---------- 3. 差し戻しの実処理 ----------
-
-const mockUrl = 'data:text/javascript;base64,' + Buffer.from(`
-export const db = {};
-export const io = { rows: [], writes: [] };
-export const doc = (_db, ...p) => p;
-export const collection = doc;
-export const where = (field, op, value) => ({ field, value });
-export const query = (ref, ...filters) => ({ filters });
-export const getDoc = async (p) => {
-  const row = io.rows.find((r) => r.id === p.at(-1));
-  return { exists: () => Boolean(row), data: () => row };
-};
-export const getDocs = async () => ({ docs: [] });
-export const updateDoc = async (p, data) => {
-  const id = p.at(-1);
-  io.writes.push({ id, data });
-  const row = io.rows.find((r) => r.id === id);
-  if (row) Object.assign(row, data);
-};
-export const postPaymentEventByTx = async () => {};
-`).toString('base64');
-
-const realPatchUrl = new URL('../src/lib/transactionPatch.js', import.meta.url).href;
-const settlementSource = readFileSync(new URL('../src/lib/settlement.js', import.meta.url), 'utf8')
-  .replace(/from ['"]([^'"]+)['"]/g, (_all, name) => 'from ' + JSON.stringify(
-    name === './transactionPatch' ? realPatchUrl : mockUrl,
-  ));
-const settlement = await import('data:text/javascript;base64,' + Buffer.from(settlementSource).toString('base64'));
-const { io } = await import(mockUrl);
-
-test('差し戻しは、相殺に使った逆方向の取引にも確認の印を立てる', async () => {
-  io.rows = [{ id: 'counter-1', paidById: 'friend', paidToId: 'me', amount: 1000, status: 'completed' }];
-  io.writes = [];
-  const reverted = await settlement.revertCounterTransactions({ myUid: 'me', otherUid: 'friend', ids: ['counter-1'] });
-  assert.deepEqual(reverted, ['counter-1']);
-  assert.equal(io.writes.length, 1);
-  assert.equal(io.writes[0].data.status, 'unpaid');
-  assert.equal(io.writes[0].data.approvalReviewRequired, true);
-  assert.equal(io.writes[0].data.settlementBatch, null);
-});
-
-test('完了していない取引と、当事者以外の取引には触らない', async () => {
-  io.rows = [
-    { id: 'already-unpaid', paidById: 'friend', paidToId: 'me', amount: 500, status: 'unpaid' },
-    { id: 'someone-else', paidById: 'other', paidToId: 'third', amount: 500, status: 'completed' },
-  ];
-  io.writes = [];
-  const reverted = await settlement.revertCounterTransactions({
-    myUid: 'me', otherUid: 'friend', ids: ['already-unpaid', 'someone-else'],
-  });
-  assert.deepEqual(reverted, []);
-  assert.equal(io.writes.length, 0);
-});
+// ---------- 3. 差し戻しで相殺側にも印が立つこと ----------
+// 2026-10-17 から差し戻しはサーバー側（functions/settlementBatchCore.js）が主側・相殺側をまとめて戻す。
+// 「相殺側にも確認の印が立つ」「当事者以外・完了していない取引に触らない」は tests/settlement-batch-core.test.cjs で確かめる。
 
 // ---------- 4・5. 画面に出る形 ----------
 

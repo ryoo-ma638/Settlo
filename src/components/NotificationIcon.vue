@@ -308,8 +308,10 @@ import {
 } from 'firebase/firestore';
 import { subjectKey, threadIdFor, subjectLabel, resolveThreadForTx, postPaymentEventByTx, resolvePaymentThreadByTx } from '@/lib/thread';
 import { logApprovalBoth } from '@/lib/approvalLog';
-import { revertCounterTransactions, COUNTER_REVERT_TEXT } from '@/lib/settlement';
-import { UNPAID_PATCH, REJECTED_PATCH, COMPLETED_PATCH } from '@/lib/transactionPatch';
+import { COUNTER_REVERT_TEXT } from '@/lib/settlement';
+import { decideSettlementApproval, settlementErrorMessage } from '@/lib/settlementApi';
+import { settlementFollowUps } from '@/lib/settlementEffects';
+import { UNPAID_PATCH } from '@/lib/transactionPatch';
 import { batchBreakdownText } from '@/lib/format';
 import { showToast } from '@/lib/toast';
 import { getMyName, getUserName, isSelfName } from '@/lib/userName';
@@ -707,90 +709,65 @@ const rejectInvite = (req) => {
   });
 };
 
-// 🌟 支払いの承認リクエストを「承認」＝取引を完了にして相手へ完了通知
+// 🌟 支払いの承認リクエストの「承認」「拒否」＝サーバー側（settlementBatch）が取引全件・お知らせ・承認履歴を1回で確定する。
+//    まとめ精算は主側（相手が払う分）と、相手がその場で完了にした逆方向の取引をサーバーが取引から集めるので、
+//    お知らせに記録された逆方向IDや既読・未読には頼らない。
+const decideRequest = async (req, decision, reason) => {
+  const myUid = auth.currentUser?.uid;
+  if (!myUid) return null;
+  // 🌟 まとめ精算は複数取引（transactionIds）／単発は1件（transactionId）
+  const ids = Array.isArray(req.transactionIds) && req.transactionIds.length ? req.transactionIds : (req.transactionId ? [req.transactionId] : []);
+  if (ids.length === 0) { await updateDoc(doc(db, "notifications", req.id), { isRead: true }); return null; }
+  // 画面が見た申請（まとめ精算は内訳ID、単発は申請ID）。今の取引と違えばサーバーが止める＝古い申請から新しい申請を操作しない
+  const requestId = req.approvalRequestId || req.batchId || null;
+  const shown = Number(req.amount);
+  const result = await decideSettlementApproval({
+    decision, items: ids.map((id) => ({ id, requestId })), notificationId: req.id,
+    expectedAmount: Number.isFinite(shown) && shown > 0 ? shown : null, reason: reason || '',
+  });
+  // 保存後の付随処理（チャットの経緯・解決済みの片付け）。遅れても失敗しても、お金の更新は再送しない。
+  const other = senderName(req);
+  const jobs = [];
+  if (decision === 'approved') {
+    for (const tid of result.transactionIds || []) {
+      jobs.push(resolveThreadForTx(myUid, req.fromUserId, tid)); // 1対1チャットを消す
+      // グループチャットに経緯を流し、全員完了なら片付ける
+      jobs.push(postPaymentEventByTx(tid, { text: `${other}さんの支払いを承認し、精算しました`, kind: 'approved', actorUid: myUid }).then(() => resolvePaymentThreadByTx(tid)));
+    }
+  } else {
+    for (const tid of result.transactionIds || []) jobs.push(postPaymentEventByTx(tid, { text: `${other}さんの支払いを差し戻しました（未払いに戻りました）`, kind: 'rejected', actorUid: myUid }));
+    for (const tid of result.counterTransactionIds || []) jobs.push(postPaymentEventByTx(tid, { text: COUNTER_REVERT_TEXT, kind: 'rejected', actorUid: myUid }));
+  }
+  await settlementFollowUps(jobs);
+  return result;
+};
+
 const approveTx = async (req) => {
-  if (acting.value) return; // 🌟 連打で「精算完了」通知・承認履歴が重複するのを防ぐ
+  if (acting.value) return; // 🌟 連打で二重送信しない（サーバー側でも同じ要求は1回しか適用されない）
   acting.value = true;
   try {
-    const myUid = auth.currentUser?.uid;
-    if (!myUid) return;
-    const otherUid = req.fromUserId; // 支払った相手（＝精算相手）
-    // 🌟 まとめ精算は複数取引（transactionIds）／単発は1件（transactionId）
-    const isBatch = Array.isArray(req.transactionIds) && req.transactionIds.length > 0;
-    const ids = isBatch ? req.transactionIds : (req.transactionId ? [req.transactionId] : []);
-    if (ids.length === 0) { await updateDoc(doc(db, "notifications", req.id), { isRead: true }); return; }
-
-    let completed = 0;
-    for (const tid of ids) {
-      try {
-        const t = await getDoc(doc(db, "transactions", tid));
-        if (!t.exists()) continue;
-        const d = t.data();
-        // 単発は「自分が受け取る側（債権者）」だけ承認可（従来通り）。まとめは当事者間なら相互清算OK
-        const ok = isBatch
-          ? ((d.paidById === myUid && d.paidToId === otherUid) || (d.paidById === otherUid && d.paidToId === myUid))
-          : (d.paidToId === myUid);
-        if (!ok) continue;
-        if ((d.status || 'unpaid') !== 'completed') { await updateDoc(doc(db, "transactions", tid), { ...COMPLETED_PATCH }); completed++; }
-        await resolveThreadForTx(myUid, otherUid, tid); // 1対1チャットを消す
-        // グループチャットに経緯を流し、全員完了なら片付ける
-        await postPaymentEventByTx(tid, { text: `${senderName(req)}さんの支払いを承認し、精算しました`, kind: 'approved', actorUid: myUid });
-        await resolvePaymentThreadByTx(tid);
-      } catch (e) { /* 1件失敗しても他を続ける */ }
-    }
-
-    // 実際に完了できた取引があるときだけ、完了通知・履歴・ゴミ箱控えを作る
-    if (completed > 0) {
-      const myName = await getMyName();
-      await addDoc(collection(db, "notifications"), {
-        toUserId: otherUid, type: 'payment_completed',
-        message: isBatch ? `${completed}件の精算が承認され、完了しました。` : '支払いが承認され、精算が完了しました。',
-        transactionId: req.transactionId || null,
-        fromUserId: myUid, fromUserName: myName,
-        isRead: false, createdAt: serverTimestamp(),
-      });
-      // 完了した精算はお支払い履歴に「精算済み」で残る（ゴミ箱には入れない）
-      await logApprovalBoth({ myUid, myName, otherUid, otherName: senderName(req), kind: 'payment', outcome: 'approved', itemName: req.itemName || '', amount: req.amount || 0 });
-    }
-    await updateDoc(doc(db, "notifications", req.id), { isRead: true });
-  } catch (e) { console.error("支払い承認エラー:", e); } finally { acting.value = false; }
+    await decideRequest(req, 'approved');
+  } catch (e) {
+    console.error("支払い承認エラー:", e);
+    notice('error', '承認できませんでした', settlementErrorMessage(e));
+  } finally { acting.value = false; }
 };
 
 // 🌟 支払いの承認リクエストを「拒否」＝未払いに戻して相手へ通知（相手は再リクエスト可）
-//    双方向のまとめ精算は、相手がその場で完了にした逆方向の取引（counterTransactionIds）も一緒に戻す。
+//    双方向のまとめ精算は、相手がその場で完了にした逆方向の取引も一緒に戻す（サーバー側で取引から集める）。
 const rejectTx = (req) => {
   const counterIds = Array.isArray(req.counterTransactionIds) ? req.counterTransactionIds : [];
   const confirmText = counterIds.length
     ? 'このまとめ精算は未払いに戻り、相手に通知が届きます（相手が受け取った分も含め、双方向すべてが未払いに戻ります）。'
     : 'この精算は未払いに戻り、相手に通知が届きます（相手は再度お支払い手続きができます）。';
+  // 連打防止は確認モーダル側（doConfirm）が acting で行うので、ここでは見ない（見ると自分で止まってしまう）
   askConfirm('支払いを拒否しますか？', confirmText, async () => {
     try {
-      const myUid = auth.currentUser?.uid;
-      if (!myUid) return;
-      const ids = Array.isArray(req.transactionIds) && req.transactionIds.length ? req.transactionIds : (req.transactionId ? [req.transactionId] : []);
-      for (const tid of ids) {
-        // 未払いに戻すので、まとめ精算の内訳（相殺の記録）も消す。
-        // 差し戻しなので確認の印を立て、次のまとめて精算へ自動で乗せない。
-        try { await updateDoc(doc(db, "transactions", tid), { ...REJECTED_PATCH }); } catch (e) { /* 続行 */ }
-        await postPaymentEventByTx(tid, { text: `${senderName(req)}さんの支払いを差し戻しました（未払いに戻りました）`, kind: 'rejected', actorUid: myUid });
-      }
-      // 🌟 逆方向（相手が受け取り扱いで即完了にした分）も未払いに戻す。
-      //    記録が無い古いお知らせは空配列＝従来どおり自分が払う分だけ戻る。
-      const revertedCounter = await revertCounterTransactions({
-        myUid, otherUid: req.fromUserId, ids: counterIds, skipIds: ids, text: COUNTER_REVERT_TEXT,
-      });
-      await addDoc(collection(db, "notifications"), {
-        toUserId: req.fromUserId, type: 'approval_rejected',
-        message: revertedCounter.length
-          ? 'まとめ精算の承認リクエストが拒否されました。双方向の精算がすべて未払いに戻っています。もう一度お手続きできます。'
-          : (ids.length > 1 ? 'まとめ精算の承認リクエストが拒否されました。もう一度お手続きできます。' : '承認リクエストが拒否されました。もう一度お支払い手続きをしてください。'),
-        transactionId: req.transactionId || null,
-        fromUserId: myUid, fromUserName: await getMyName(),
-        isRead: false, createdAt: serverTimestamp(),
-      });
-      await logApprovalBoth({ myUid, myName: await getMyName(), otherUid: req.fromUserId, otherName: senderName(req), kind: 'payment', outcome: 'rejected', itemName: req.itemName || '', amount: req.amount || 0 });
-      await updateDoc(doc(db, "notifications", req.id), { isRead: true });
-    } catch (e) { console.error("支払い拒否エラー:", e); }
+      await decideRequest(req, 'rejected');
+    } catch (e) {
+      console.error("支払い拒否エラー:", e);
+      notice('error', '拒否できませんでした', settlementErrorMessage(e));
+    }
   });
 };
 

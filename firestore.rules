@@ -68,10 +68,24 @@ service cloud.firestore {
 
     // ---- 取引（金額・貸し借り）----
     match /transactions/{txId} {
+      // ⚠️ 2026-10-17 追加（相手ごとのまとめ精算）。
+      //   申請・承認・拒否は Cloud Functions（settlementBatch）が対象の取引全件・内訳・お知らせを1回で確定する。
+      //   承認待ちのまとめ精算の取引は画面から直接書けず（完了にも未払いにもできない・消せない）、
+      //   内訳（settlementBatch）は画面から付けたり書き換えたりできない。
+      //   完了済みの取引を内訳ごと未精算へ戻す（当事者が合意した戻し）は今までどおりできる。
+      function batchInProgress(data) {
+        return data.get('settlementBatch', null) != null
+          && data.get('status', 'unpaid') == 'awaiting_approval';
+      }
+      function keepsBatch() {
+        return request.resource.data.get('settlementBatch', null) == null
+          || request.resource.data.settlementBatch == resource.data.get('settlementBatch', null);
+      }
       allow read:   if isParty(resource.data)
                       || isEventParticipant(resource.data.get('eventId', null));
       allow create: if isSignedIn()
                       && request.resource.data.get('eventSettlementPlanId', null) == null
+                      && request.resource.data.get('settlementBatch', null) == null
                       && (request.auth.uid == request.resource.data.paidById
                           || request.auth.uid == request.resource.data.paidToId
                           || isEventParticipant(request.resource.data.get('eventId', null)));
@@ -79,11 +93,20 @@ service cloud.firestore {
       // planIdの付与と解除、最終完了は認証を検証するCloud Functionsだけが行う。
       allow update: if resource.data.get('eventSettlementPlanId', null) == null
                       && request.resource.data.get('eventSettlementPlanId', null) == null
+                      && !batchInProgress(resource.data)
+                      && keepsBatch()
                       && (isParty(resource.data)
                           || isEventParticipant(resource.data.get('eventId', null)));
       allow delete: if resource.data.get('eventSettlementPlanId', null) == null
+                      && !batchInProgress(resource.data)
                       && (isParty(resource.data)
                           || isEventParticipant(resource.data.get('eventId', null)));
+    }
+
+    // ---- 相手ごとのまとめ精算の台帳（同じ要求の再送を見分けるための記録）----
+    // 書くのも読むのも Cloud Functions（settlementBatch）だけ。
+    match /settlementRequests/{requestId} {
+      allow read, write: if false;
     }
 
     // ---- イベント全員分のまとめて精算 ----

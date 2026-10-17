@@ -7,7 +7,7 @@ import { createRenderer, h } from 'vue';
 const mockUrl='data:text/javascript;base64,'+Buffer.from(`
 import {reactive} from ${JSON.stringify(import.meta.resolve('vue'))};
 export const route=reactive({params:{name:'相手'},query:{uid:'friend'}});
-export const io={rows:[],pushes:[],writes:[],stamps:[],toasts:[]};
+export const io={rows:[],pushes:[],writes:[],stamps:[],toasts:[],calls:[],posts:[],resolved:[],result:null};
 export const useRoute=()=>route,useRouter=()=>({push:r=>io.pushes.push(r)});
 export const auth={currentUser:{uid:'me'}},db={};
 export const doc=(_db,...p)=>p,collection=doc,where=(field,op,value)=>({field,value}),query=(ref,...filters)=>({filters});
@@ -19,7 +19,10 @@ export const addDoc=async(p,data)=>{io.writes.push({kind:'add',path:p,data});ret
 export const serverTimestamp=()=>({seconds:1});
 export const showToast=message=>io.toasts.push(message);
 export const getMyName=async()=>'本人';
-export const resolveThreadForTx=async()=>{},postPaymentEventByTx=async()=>{};
+export const resolveThreadForTx=async(_me,_other,id)=>{io.resolved.push(id);},postPaymentEventByTx=async(id,opts)=>{io.posts.push([id,opts.kind]);return true;};
+export const submitSettlementBatch=async(input)=>{io.calls.push(input);if(io.result instanceof Error)throw io.result;return io.result;};
+export const settlementErrorMessage=(e,fallback)=>e.message||fallback;
+export const settlementFollowUps=async(jobs)=>{await Promise.allSettled(jobs);return false;};
 export const makeBatchId=()=> 'batch-test';
 export const stampSettlementBatch=async(batch,entries)=>io.stamps.push({batch,entries});
 export const batchBreakdownText=()=> '対象と相殺の内訳';
@@ -50,7 +53,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
 let app;
 async function mount(component){app=renderer.createApp({render:()=>h(component)});app.mount({});const state=app._instance.subTree.component.setupState;await tick();return state;}
 const tx=(id,amount,side,status='unpaid')=>({id,amount,status,itemName:id,paidById:side==='pay'?'me':'friend',paidToId:side==='pay'?'friend':'me'});
-beforeEach(()=>{io.rows=[];io.pushes=[];io.writes=[];io.stamps=[];io.toasts=[];route.params.name='相手';route.query={uid:'friend'};});
+beforeEach(()=>{io.rows=[];io.pushes=[];io.writes=[];io.stamps=[];io.toasts=[];io.calls=[];io.posts=[];io.resolved=[];io.result=null;route.params.name='相手';route.query={uid:'friend'};});
 afterEach(()=>{app?.unmount();app=null;});
 
 test('明細の除外を反映し、承認待ちを二重精算せず次画面へ渡す',async()=>{
@@ -77,15 +80,56 @@ test('受け取る明細を外すと、支払う明細だけを先に精算で�
  assert.equal(q.get('gross'),'300');assert.equal(q.get('offset'),'0');assert.equal(q.get('count'),'1');assert.equal(q.get('counterCount'),'0');
 });
 
-test('支払う側の相殺精算で、選択ID・内訳・状態・承認通知が一致する',async()=>{
+// 確定はサーバー側（settlementBatch）。画面は「選んだID・見せた内訳・向き」を1回渡し、取引を直接書かない。
+const served=(status)=>({status,mainTransactionIds:['pay-500'],counterTransactionIds:['receive-300'],gross:500,offset:300,net:200,count:1,counterCount:1,payerUid:'me',receiverUid:'friend',replay:false});
+
+test('支払う側の相殺精算で、選択ID・見せた内訳・向きをサーバーへ1回渡し、取引を直接書かない',async()=>{
  io.rows=[tx('pay-500',500,'pay'),tx('receive-300',300,'receive')];
+ io.result=served('awaiting_approval');
  route.query={uid:'friend',type:'pay',amount:'200',ids:'pay-500,receive-300',gross:'500',offset:'300',count:'1',counterCount:'1'};
  const state=await mount(Action);
  state.confirmCash();
  await state.modalState.onConfirm('確認用メモ');
- const updates=io.writes.filter(w=>w.kind==='update');
- assert.deepEqual(updates.map(w=>[w.id,w.data.status]),[['receive-300','completed'],['pay-500','awaiting_approval']]);
- assert.equal(io.stamps.length,1);assert.deepEqual(io.stamps[0].entries,[{id:'pay-500',role:'main'},{id:'receive-300',role:'offset'}]);
- const notice=io.writes.find(w=>w.kind==='add').data;
- assert.deepEqual(notice.transactionIds,['pay-500']);assert.deepEqual(notice.counterTransactionIds,['receive-300']);assert.equal(notice.amount,200);assert.equal(notice.batchGross,500);assert.equal(notice.batchOffset,300);
+ assert.equal(io.calls.length,1);
+ assert.deepEqual(io.calls[0],{batchId:'batch-test',friendUid:'friend',direction:'pay',transactionIds:['pay-500','receive-300'],expected:{gross:500,offset:300,net:200,count:1,counterCount:1},reason:'確認用メモ'});
+ assert.equal(io.writes.length,0,'画面から取引やお知らせを直接書かない');
+ assert.equal(io.stamps.length,0);
+ // 保存後の付随処理：相殺側は受け取り済みとして経緯を残し1対1チャットを消す、主側は承認待ちの経緯だけ
+ assert.deepEqual(io.posts.sort(),[['pay-500','paid'],['receive-300','completed']].sort());
+ assert.deepEqual(io.resolved,['receive-300']);
+ assert.ok(io.toasts.at(-1).includes('承認待ち'));
+ assert.equal(state.modalState.title,'承認を依頼しました');
+ assert.ok(state.modalState.message.includes('受け取る1件も、拒否された場合は未払いに戻ります'));
+});
+
+test('受け取る側は direction=remind で渡し、全件完了の案内を出す',async()=>{
+ io.rows=[tx('receive-500',500,'receive'),tx('pay-300',300,'pay')];
+ io.result={...served('completed'),mainTransactionIds:['receive-500'],counterTransactionIds:['pay-300'],payerUid:'friend',receiverUid:'me'};
+ route.query={uid:'friend',type:'remind',amount:'200',ids:'receive-500,pay-300',gross:'500',offset:'300',count:'1',counterCount:'1'};
+ const state=await mount(Action);
+ state.confirmCash();
+ await state.modalState.onConfirm('');
+ assert.equal(io.calls[0].direction,'remind');
+ assert.deepEqual(io.calls[0].transactionIds,['receive-500','pay-300']);
+ assert.deepEqual(io.posts.map(p=>p[1]),['completed','completed']);
+ assert.deepEqual(io.resolved.sort(),['pay-300','receive-500']);
+ assert.equal(state.modalState.title,'精算完了');
+ assert.ok(state.modalState.message.includes('2件を精算済みにしました'));
+ assert.equal(io.writes.length,0);
+});
+
+test('サーバーが理由付きで止めたら、その理由を出して付随処理をしない',async()=>{
+ io.rows=[tx('pay-500',500,'pay')];
+ io.result=Object.assign(new Error('金額や対象が変わっています。前の画面に戻って選び直してください。'),{code:'functions/failed-precondition'});
+ route.query={uid:'friend',type:'pay',amount:'500',ids:'pay-500',gross:'500',offset:'0',count:'1',counterCount:'0'};
+ const state=await mount(Action);
+ state.confirmCash();
+ await state.modalState.onConfirm('');
+ assert.equal(io.calls.length,1);
+ assert.equal(state.modalState.type,'error');
+ assert.equal(state.modalState.title,'確定できませんでした');
+ assert.ok(state.modalState.message.includes('前の画面に戻って'));
+ assert.equal(io.posts.length,0);
+ assert.equal(io.toasts.length,0);
+ assert.equal(state.settling,false,'連打防止が解除されて、やり直せる');
 });

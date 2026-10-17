@@ -1,6 +1,7 @@
 // Cloud Functions のロジックを、本物の Firestore なしで確かめるための小さな代役。
-// 使うのは get / set / update / delete / batch / where(==, array-contains) / limit だけ。
+// 使うのは get / set / update / delete / batch / runTransaction / where(==, in, array-contains) / limit だけ。
 // 文書は「パス → データ」の Map に置く。書き込みは writes に順番で残す。
+// runTransaction は本物と同じく「読み取りは書き込みより前」を強制し、途中で失敗したら何も残さない。
 
 const SENTINEL = Symbol("fieldValue");
 
@@ -47,8 +48,38 @@ class FakeFirestore {
       commit: async () => { for (const op of ops) this._apply(op); this.commits += 1; },
     };
   }
-  _apply([op, path, data]) {
-    if (op === "set") this.docs.set(path, materialize(data));
+  // テストから失敗を起こすための差し込み口：(op, path) => true を返すとその書き込みで例外になる
+  failWrites = null;
+  async runTransaction(fn) {
+    const ops = [];
+    const tx = {
+      get: async (target) => {
+        if (ops.length) throw new Error("Firestore transactions require all reads to be executed before all writes.");
+        return target.get();
+      },
+      set: (ref, data, opts) => { ops.push(["set", ref.path, data, opts]); return tx; },
+      update: (ref, data) => { ops.push(["update", ref.path, data]); return tx; },
+      delete: (ref) => { ops.push(["delete", ref.path]); return tx; },
+    };
+    const result = await fn(tx);
+    const backupDocs = new Map(this.docs);
+    const backupWrites = this.writes.length;
+    try {
+      for (const op of ops) this._apply(op);
+    } catch (e) {
+      this.docs = backupDocs;
+      this.writes.length = backupWrites;
+      throw e;
+    }
+    this.commits += 1;
+    return result;
+  }
+  _apply([op, path, data, opts]) {
+    if (this.failWrites && this.failWrites(op, path)) throw new Error(`simulated write failure: ${path}`);
+    if (op === "set") {
+      const cur = this.docs.get(path);
+      this.docs.set(path, opts && opts.merge && cur ? { ...cur, ...materialize(data, cur) } : materialize(data));
+    }
     else if (op === "delete") this.docs.delete(path);
     else if (op === "update") {
       const cur = this.docs.get(path);
@@ -84,7 +115,9 @@ class Coll {
       if (!path.startsWith(`${this.path}/`) || path.split("/").length !== depth) continue;
       const ok = this.filters.every(([f, op, v]) => {
         if (op === "==") return data[f] === v;
+        if (op === "in") return Array.isArray(v) && v.includes(data[f]);
         if (op === "array-contains") return Array.isArray(data[f]) && data[f].includes(v);
+        if (op === "array-contains-any") return Array.isArray(data[f]) && Array.isArray(v) && v.some((x) => data[f].includes(x));
         throw new Error(`unsupported op ${op}`);
       });
       if (!ok) continue;

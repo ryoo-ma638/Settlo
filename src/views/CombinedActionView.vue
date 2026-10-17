@@ -49,14 +49,15 @@
   onMounted(() => markTrailDone('offset'));
   import { useRoute, useRouter } from 'vue-router';
   import { db, auth } from '@/firebase';
-  import { collection, query, where, getDocs, getDoc, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+  import { collection, query, where, getDocs } from 'firebase/firestore';
   import PayPayAction from '../components/PayPayAction.vue';
   import BaseModal from '../components/BaseModal.vue';
   import PageHeader from '../components/PageHeader.vue';
   import { resolveThreadForTx, postPaymentEventByTx } from '@/lib/thread';
   import { getMyName } from '@/lib/userName';
-  import { makeBatchId, stampSettlementBatch } from '@/lib/settlement';
-  import { COMPLETED_PATCH, AWAITING_PATCH } from '@/lib/transactionPatch';
+  import { makeBatchId } from '@/lib/settlement';
+  import { submitSettlementBatch, settlementErrorMessage } from '@/lib/settlementApi';
+  import { settlementFollowUps } from '@/lib/settlementEffects';
   import { batchBreakdownText } from '@/lib/format';
   import { showToast } from '@/lib/toast';
 
@@ -133,147 +134,85 @@
 
           // 🌟 精算対象の取引ID＝前画面で「含める」を選んだものだけ（＝除外を反映）
           let ids = String(route.query.ids || '').split(',').map((s) => s.trim()).filter(Boolean);
-          // フォールバック：ids未指定（古いリンク等）は相手との未決済を全件
+          // 画面に出している内訳。サーバーはこれと今の取引を突き合わせ、違えば止める（見た金額と違う額で確定しない）
+          let expected = {
+            gross: Number(route.query.gross) || 0, offset: Number(route.query.offset) || 0, net: Number(route.query.amount) || 0,
+            count: Number(route.query.count) || 0, counterCount: Number(route.query.counterCount) || 0,
+          };
+          // フォールバック：ids未指定（古いリンク等）は相手との未決済を全件集め、内訳もここで数える
           if (ids.length === 0) {
-            const set = new Set();
+            const rows = new Map();
+            const open = (t) => (t.status || 'unpaid') === 'unpaid' && !t.settlementBatch && !t.eventSettlementPlanId;
             const s1 = await getDocs(query(collection(db, "transactions"), where("paidToId", "==", myUid)));
-            s1.forEach((d) => { const t = d.data(); if (t.paidById === friendUid && (t.status || 'unpaid') !== 'completed') set.add(d.id); });
+            s1.forEach((d) => { const t = d.data(); if (t.paidById === friendUid && open(t)) rows.set(d.id, t); });
             const s2 = await getDocs(query(collection(db, "transactions"), where("paidById", "==", myUid)));
-            s2.forEach((d) => { const t = d.data(); if (t.paidToId === friendUid && (t.status || 'unpaid') !== 'completed') set.add(d.id); });
-            ids = [...set];
+            s2.forEach((d) => { const t = d.data(); if (t.paidToId === friendUid && open(t)) rows.set(d.id, t); });
+            ids = [...rows.keys()];
+            const payerUid = isRemind.value ? friendUid : myUid;
+            const main = [], offset = [];
+            for (const t of rows.values()) (t.paidById === payerUid ? main : offset).push(Number(t.amount) || 0);
+            const sum = (arr) => arr.reduce((s, v) => s + v, 0);
+            expected = { gross: sum(main), offset: sum(offset), net: sum(main) - sum(offset), count: main.length, counterCount: offset.length };
           }
-          // 検証：当事者間の未完了取引だけに絞る（不正なIDや完了済みを除外）＋向きを記録
-          //   iOwe=true … 自分が払う（paidById===自分）／false … 相手が自分に払う（paidToId===自分）
-          const valid = [];
-          for (const id of ids) {
-            try {
-              const snap = await getDoc(doc(db, "transactions", id));
-              if (!snap.exists()) continue;
-              const t = snap.data();
-              const iOwe = t.paidById === myUid && t.paidToId === friendUid;
-              const owedToMe = t.paidById === friendUid && t.paidToId === myUid;
-              if ((iOwe || owedToMe) && (t.status || 'unpaid') !== 'completed') valid.push({ id, iOwe, amount: Number(t.amount) || 0 });
-            } catch (e) { /* 取得できないIDはスキップ */ }
-          }
-          if (valid.length === 0) {
+          if (ids.length === 0) {
             showModal({ type: 'info', title: '対象がありません', message: '精算できる未決済の取引が見つかりませんでした。' });
             return;
           }
 
-          // 🌟 相殺の内訳（対象・相殺・実質）を作り、対象の取引すべてに同じ形で記録する。
-          //    お知らせ／承認待ち一覧／決済の詳細が同じ数字を出せるようにするため。
-          const sum = (arr) => arr.reduce((s, v) => s + (v.amount || 0), 0);
-          const mainSide = valid.filter((v) => (isRemind.value ? !v.iOwe : v.iOwe));   // 今回精算する側
-          const offsetSide = valid.filter((v) => (isRemind.value ? v.iOwe : !v.iOwe)); // 相殺に使う逆方向
-          const batch = {
-            id: makeBatchId(),
-            gross: sum(mainSide),
-            offset: sum(offsetSide),
-            net: Math.max(0, sum(mainSide) - sum(offsetSide)),
-            count: mainSide.length,
-            counterCount: offsetSide.length,
-            payerUid: isRemind.value ? friendUid : myUid,
-            receiverUid: isRemind.value ? myUid : friendUid,
-          };
-          const stampAll = () => stampSettlementBatch(batch, [
-            ...mainSide.map((v) => ({ id: v.id, role: 'main' })),
-            ...offsetSide.map((v) => ({ id: v.id, role: 'offset' })),
-          ]);
-          const breakdown = batchBreakdownText(batch, myUid);
+          // 🌟 確定はサーバー側（settlementBatch）。対象の取引全件・相殺の内訳・お知らせを1回で書き、途中で止まれば何も残さない。
+          //    自分が受け取る側＝その場で全件完了。自分が払う側＝自分が払う分は相手の承認待ち、相手が自分に払う分はその場で完了。
+          const result = await submitSettlementBatch({
+            batchId: makeBatchId(), friendUid, direction: isRemind.value ? 'remind' : 'pay',
+            transactionIds: ids, expected, reason: reason || '',
+          });
+          const mainIds = result.mainTransactionIds || [];
+          const counterIds = result.counterTransactionIds || [];
+          const breakdown = batchBreakdownText(result, myUid);
 
-          if (isRemind.value) {
-            // ■ 自分が受け取る側＝現金を受け取った本人が確認するので、選んだ取引をその場で完了にする
-            const done = valid.map((v) => v.id);
-            await stampAll();
-            for (const id of done) {
-              await updateDoc(doc(db, "transactions", id), { ...COMPLETED_PATCH });
-              // 支払いのチャットに経緯を残す（相手の未読が点く）
-              await postPaymentEventByTx(id, { text: `${myName}さんがまとめて受け取り、精算しました`, kind: 'completed', actorUid: myUid });
-              await resolveThreadForTx(myUid, friendUid, id); // 解決したのでチャットを消す
-            }
-            try {
-              await addDoc(collection(db, "notifications"), {
-                toUserId: friendUid, fromUserId: myUid, fromUserName: myName,
-                type: 'payment_completed',
-                message: batch.offset
-                  ? `${myName}さんが${done.length}件をまとめて精算しました（対象 ¥${batch.gross.toLocaleString()}・あなたの受け取り ¥${batch.offset.toLocaleString()}と相殺 → 実質 ¥${batch.net.toLocaleString()}）。`
-                  : `${myName}さんが${done.length}件をまとめて精算しました。`,
-                userMessage: reason || null,
-                isRead: false, createdAt: serverTimestamp(),
-              });
-            } catch (e) { console.error('完了通知の送信に失敗:', e); }
+          // 保存後の付随処理（支払いのチャットに経緯を残す・解決した1対1チャットを消す）。
+          // 遅れても失敗しても、お金の更新は再送しない。
+          const jobs = [];
+          const received = (id) => jobs.push(
+            postPaymentEventByTx(id, { text: `${myName}さんがまとめて受け取り、精算しました`, kind: 'completed', actorUid: myUid }),
+            resolveThreadForTx(myUid, friendUid, id),
+          );
+          if (result.status === 'awaiting_approval') {
+            counterIds.forEach(received);
+            for (const id of mainIds) jobs.push(postPaymentEventByTx(id, { text: `${myName}さんがまとめて支払いました（相手の承認待ち）`, kind: 'paid', actorUid: myUid }));
+          } else {
+            [...mainIds, ...counterIds].forEach(received);
+          }
+          await settlementFollowUps(jobs);
+
+          if (result.status === 'awaiting_approval') {
+            // 🌟 一番緊張する操作なので、手応え（トースト）と次の行き先（承認待ち）をその場で出す
+            showToast(`精算を申請しました（${friendName}さんの承認待ち）`, 3000);
+            showModal({
+              type: 'success', title: '承認を依頼しました',
+              message: counterIds.length
+                ? `${friendName}さんに${mainIds.length}件の精算リクエストを送信しました。相手が承認すると完了します。\n${breakdown}\n受け取る${counterIds.length}件も、拒否された場合は未払いに戻ります。`
+                : `${friendName}さんに${mainIds.length}件の精算リクエストを送信しました。相手が承認すると完了します。`,
+              showCancel: true,
+              confirmText: '承認待ちを見る',
+              cancelText: 'ホームへ',
+              onConfirm: () => router.push('/approvals'),
+              onCancel: () => router.push('/')
+            });
+          } else {
+            const done = mainIds.length + counterIds.length;
             showToast(`${friendName}さんとの精算が完了しました`, 3000);
             showModal({
               type: 'success', title: '精算完了',
               message: breakdown
-                ? `${done.length}件を精算済みにしました。\n${breakdown}\nお支払い履歴から確認できます。`
-                : `${done.length}件を精算済みにしました。お支払い履歴から確認できます。`,
+                ? `${done}件を精算済みにしました。\n${breakdown}\nお支払い履歴から確認できます。`
+                : `${done}件を精算済みにしました。お支払い履歴から確認できます。`,
               onConfirm: () => router.push('/')
             });
-          } else {
-            // ■ 自分が支払う側＝
-            //   ・自分が債権者の分（相手→自分）は受領扱いで即完了（自分の権限）
-            //   ・自分が債務者の分（自分→相手）は相手の承認待ちにして、まとめ承認リクエストを送る
-            const iOweIds = mainSide.map((v) => v.id);
-            const owedToMeIds = offsetSide.map((v) => v.id);
-            await stampAll();
-            for (const id of owedToMeIds) {
-              await updateDoc(doc(db, "transactions", id), { ...COMPLETED_PATCH });
-              await postPaymentEventByTx(id, { text: `${myName}さんがまとめて受け取り、精算しました`, kind: 'completed', actorUid: myUid });
-              await resolveThreadForTx(myUid, friendUid, id);
-            }
-            for (const id of iOweIds) {
-              await updateDoc(doc(db, "transactions", id), { ...AWAITING_PATCH });
-              await postPaymentEventByTx(id, { text: `${myName}さんがまとめて支払いました（相手の承認待ち）`, kind: 'paid', actorUid: myUid });
-            }
-            if (iOweIds.length) {
-              try {
-                await addDoc(collection(db, "notifications"), {
-                  toUserId: friendUid, fromUserId: myUid, fromUserName: myName,
-                  type: 'approval_request',
-                  batch: true, transactionIds: iOweIds, count: iOweIds.length,
-                  // 🌟 双方向のときに「その場で完了」にした逆方向の取引（相手→自分）を記録しておく。
-                  //    拒否されたら、この分も未払いに戻して片側だけ完了で残らないようにする。
-                  counterTransactionIds: owedToMeIds,
-                  itemName: `${friendName}との精算`,
-                  // 金額は「実際に受け取る額（相殺後）」。対象と相殺の内訳も一緒に送り、
-                  // お知らせ・承認待ち一覧・決済の詳細で同じ数字を出せるようにする。
-                  amount: batch.net,
-                  batchId: batch.id,
-                  batchGross: batch.gross,
-                  batchOffset: batch.offset,
-                  batchCounterCount: batch.counterCount,
-                  message: 'まとめて精算の承認リクエストが届きました。',
-                  userMessage: reason || null,
-                  isRead: false, createdAt: serverTimestamp(),
-                });
-              } catch (e) { console.error('承認リクエストの送信に失敗:', e); }
-              // 🌟 一番緊張する操作なので、手応え（トースト）と次の行き先（承認待ち）をその場で出す
-              showToast(`精算を申請しました（${friendName}さんの承認待ち）`, 3000);
-              showModal({
-                type: 'success', title: '承認を依頼しました',
-                message: owedToMeIds.length
-                  ? `${friendName}さんに${iOweIds.length}件の精算リクエストを送信しました。相手が承認すると完了します。\n${breakdown}\n受け取る${owedToMeIds.length}件も、拒否された場合は未払いに戻ります。`
-                  : `${friendName}さんに${iOweIds.length}件の精算リクエストを送信しました。相手が承認すると完了します。`,
-                showCancel: true,
-                confirmText: '承認待ちを見る',
-                cancelText: 'ホームへ',
-                onConfirm: () => router.push('/approvals'),
-                onCancel: () => router.push('/')
-              });
-            } else {
-              // すべて「相手が自分に払う」分だった＝実質その場で完了
-              showToast(`${friendName}さんとの精算が完了しました`, 3000);
-              showModal({
-                type: 'success', title: '精算完了',
-                message: `${owedToMeIds.length}件を精算済みにしました。お支払い履歴から確認できます。`,
-                onConfirm: () => router.push('/')
-              });
-            }
           }
         } catch (e) {
           console.error("精算エラー:", e);
-          showModal({ type: 'error', title: 'エラー', message: '精算に失敗しました。電波状況を確認してください。' });
+          // サーバーが理由付きで止めたとき（金額や対象が変わった・すでに申請済み 等）はその理由をそのまま出す
+          showModal({ type: 'error', title: '確定できませんでした', message: settlementErrorMessage(e, '精算に失敗しました。電波状況を確認してください。') });
         } finally {
           settling.value = false;
         }

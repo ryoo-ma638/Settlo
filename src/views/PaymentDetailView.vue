@@ -163,14 +163,12 @@ import PayPayAction from '../components/PayPayAction.vue';
 import BaseModal from '../components/BaseModal.vue';
 import RemindModal from '../components/RemindModal.vue';
 import PageHeader from '../components/PageHeader.vue';
-import { logApprovalBoth } from '@/lib/approvalLog';
 import { resolveThreadForTx, postPaymentEventByTx, resolvePaymentThreadByTx, threadIdFor, subjectLabel } from '@/lib/thread';
 import { getMyName } from '@/lib/userName';
 import { formatDate, batchBreakdownText, hasOffset } from '@/lib/format';
-import {
-  findBatchApprovalRequests, revertCounterTransactions, COUNTER_REVERT_TEXT,
-  fetchBatchTransactions,
-} from '@/lib/settlement';
+import { COUNTER_REVERT_TEXT, fetchBatchTransactions } from '@/lib/settlement';
+import { decideSettlementApproval, settlementErrorMessage, makeRequestId } from '@/lib/settlementApi';
+import { settlementFollowUps } from '@/lib/settlementEffects';
 import { UNPAID_PATCH, REJECTED_PATCH, COMPLETED_PATCH, AWAITING_PATCH } from '@/lib/transactionPatch';
 import { assertStandardPaymentAllowed, eventSettlementRouteOf, isEventSettlementReserved } from '@/lib/eventSettlementGuard';
 
@@ -330,6 +328,8 @@ onMounted(async () => {
           name: opponentName,
           itemName: t.itemName || 'イベント代',
           amount: t.amount || 0,
+          status: t.status || 'unpaid',
+          requestId: t.settlementBatch?.id || t.approvalRequestId || null, // 画面が見た申請（承認・拒否のときサーバーが突き合わせる）
           remindCount: t.remindCount || 0,
           lastRemindedAt: t.lastRemindedAt || null,
           itemsDetail: t.itemsDetail || [t.itemName],
@@ -393,6 +393,8 @@ onMounted(async () => {
           name: opponentName,
           itemName: data.itemName || 'イベント代',
           amount: data.amount || 0,
+          status: data.status || 'unpaid',
+          requestId: data.settlementBatch?.id || data.approvalRequestId || null,
           remindCount: data.remindCount || 0,
           lastRemindedAt: data.lastRemindedAt || null,
           itemsDetail: data.itemsDetail || [data.itemName]
@@ -437,6 +439,8 @@ onMounted(async () => {
           name: opponentName,
           itemName: data.itemName,
           amount: data.amount || 0,
+          status: data.status || 'unpaid',
+          requestId: data.settlementBatch?.id || data.approvalRequestId || null,
           remindCount: data.remindCount || 0,
           lastRemindedAt: data.lastRemindedAt || null,
           itemsDetail: data.itemsDetail || [data.itemName]
@@ -466,7 +470,8 @@ const STATUS_PATCH = {
   awaiting_approval: AWAITING_PATCH,
 };
 
-const updateAllItems = async (status) => {
+// extraFor(it) を渡すと、状態の更新に項目を足せる（支払い報告の申請IDなど）
+const updateAllItems = async (status, extraFor = null) => {
   const patch = STATUS_PATCH[status];
   if (!patch) throw new Error(`未対応の状態です: ${status}`);
   // 書き込む直前に最新を読み直し、イベント全体のまとめて精算に予約された取引なら止める
@@ -478,15 +483,16 @@ const updateAllItems = async (status) => {
   }
   current.forEach(assertStandardPaymentAllowed);
   for (const it of items.value) {
-    await updateDoc(doc(db, "transactions", it.id), { ...patch });
+    await updateDoc(doc(db, "transactions", it.id), { ...patch, ...(extraFor ? extraFor(it) : {}) });
   }
 };
 
 // 相手へ通知を送る（宛先が無ければスキップしてエラーを防ぐ）
-const notifyOpponent = async (it, type, message, userMessage) => {
+const notifyOpponent = async (it, type, message, userMessage, extra = {}) => {
   const toUserId = it.opponentUid || targetUid.value;
   if (!toUserId) return;
   await addDoc(collection(db, "notifications"), {
+    ...extra,
     toUserId,
     fromUserId: auth.currentUser?.uid || "unknown",
     fromUserName: await getMyName(), // 一人称（あなた）が相手の画面に出ないよう users の名前を使う
@@ -556,45 +562,36 @@ const sendReminder = async ({ deadline, message } = {}) => {
   }
 };
 
-// 🌟 承認リクエストが届いている時に「承認して完了にする」を押した時の処理
-// この画面で承認/拒否したら、対応する承認リクエストのお知らせも消す（残らないように）
-const clearApprovalNotifs = async () => {
+// 🌟 承認リクエストが届いている時の「承認して完了にする」「リクエストを拒否する」。
+//    確定はサーバー側（settlementBatch）。対象の取引全件・お知らせ（承認リクエストの既読化も）・承認履歴を1回で書く。
+//    まとめ精算の拒否では、相手がその場で完了にした逆方向の取引もサーバーが取引から集めて未払いに戻す。
+const decideItems = async (decision, reason) => {
   const myUid = auth.currentUser?.uid;
-  if (!myUid) return;
-  try {
-    const txIds = new Set(items.value.map(i => i.id));
-    const snap = await getDocs(query(collection(db, 'notifications'), where('toUserId', '==', myUid)));
-    for (const d of snap.docs) {
-      const n = d.data();
-      if (n.type !== 'approval_request') continue;
-      // 単発（transactionId）だけでなく、まとめ精算（transactionIds）のお知らせも消す
-      const hit = txIds.has(n.transactionId) || (n.transactionIds || []).some((t) => txIds.has(t));
-      if (hit) {
-        try { await updateDoc(doc(db, 'notifications', d.id), { isRead: true }); } catch (e) {}
-      }
+  // 承認待ちの分だけを対象にする（イベント単位の画面では未払いの分が混ざることがある）
+  const targets = items.value.filter((it) => (it.status || 'unpaid') === 'awaiting_approval');
+  if (targets.length === 0) throw Object.assign(new Error('承認待ちの支払いがありません。画面を開き直してください。'), { code: 'failed-precondition' });
+  // 画面に出していた金額（まとめ精算は実質額、それ以外は承認待ちの額面の合計）。違えばサーバーが止める
+  const shown = isSettleBatch.value ? headlineAmount.value : targets.reduce((sum, it) => sum + (Number(it.amount) || 0), 0);
+  const result = await decideSettlementApproval({
+    decision, items: targets.map((it) => ({ id: it.id, requestId: it.requestId || null })),
+    expectedAmount: shown > 0 ? shown : null, reason: reason || '',
+  });
+  // 保存後の付随処理（チャットの経緯・解決済みの片付け）。遅れても失敗しても、お金の更新は再送しない。
+  const jobs = [];
+  for (const it of targets) {
+    if (decision === 'approved') {
+      jobs.push(resolveThreadForTx(myUid, it.opponentUid, it.id)); // 1対1チャットを消す
+      // グループチャットに経緯を流す＋全員完了なら片付ける
+      jobs.push(postPaymentEventByTx(it.id, { text: `${it.name || '相手'}さんの支払いを承認し、精算しました`, kind: 'approved', actorUid: myUid }).then(() => resolvePaymentThreadByTx(it.id)));
+    } else {
+      jobs.push(postPaymentEventByTx(it.id, { text: `${it.name || '相手'}さんの支払いを差し戻しました（未払いに戻りました）`, kind: 'rejected', actorUid: myUid }));
     }
-  } catch (e) { console.error('承認リクエスト通知のクリアに失敗:', e); }
-};
-
-// 🌟 この画面から拒否したときも、双方向のまとめ精算で「その場で完了」にされた
-//    逆方向の取引を未払いに戻す（お知らせの拒否ボタンと同じ結果にする）。
-//    逆方向の記録が無い（＝単発や古い）お知らせは対象にならず、従来どおりの動き。
-const revertBatchCounterparts = async () => {
-  const myUid = auth.currentUser?.uid;
-  if (!myUid) return 0;
-  const txIds = items.value.map(i => i.id);
-  let reverted = 0;
-  try {
-    const reqs = await findBatchApprovalRequests(myUid, txIds);
-    for (const n of reqs) {
-      const done = await revertCounterTransactions({
-        myUid, otherUid: n.fromUserId, ids: n.counterTransactionIds, skipIds: txIds, text: COUNTER_REVERT_TEXT,
-      });
-      reverted += done.length;
-      try { await updateDoc(doc(db, 'notifications', n.id), { isRead: true }); } catch (e) {}
-    }
-  } catch (e) { console.error('まとめ精算の差し戻しに失敗:', e); }
-  return reverted;
+  }
+  if (decision === 'rejected') {
+    for (const tid of result.counterTransactionIds || []) jobs.push(postPaymentEventByTx(tid, { text: COUNTER_REVERT_TEXT, kind: 'rejected', actorUid: myUid }));
+  }
+  await settlementFollowUps(jobs);
+  return result;
 };
 
 const approvePayment = () => {
@@ -607,19 +604,7 @@ const approvePayment = () => {
       if (submitting.value) return;
       submitting.value = true;
       try {
-        await updateAllItems('completed');
-        await clearApprovalNotifs(); // お知らせの承認リクエストを消す
-        for (const it of items.value) {
-          await logApprovalBoth({ myUid: auth.currentUser?.uid, myName: await getMyName(), otherUid: it.opponentUid, otherName: it.name, kind: 'payment', outcome: 'approved', itemName: it.itemName, amount: it.amount });
-          await resolveThreadForTx(auth.currentUser?.uid, it.opponentUid, it.id); // 1対1チャットを消す
-          // グループチャットに経緯を流す＋全員完了なら片付ける
-          await postPaymentEventByTx(it.id, { text: `${it.name || '相手'}さんの支払いを承認し、精算しました`, kind: 'approved', actorUid: auth.currentUser?.uid });
-          await resolvePaymentThreadByTx(it.id);
-        }
-        // 🌟 支払った側へ「支払いが完了しました」を届ける
-        for (const it of items.value) {
-          try { await notifyOpponent(it, 'payment_completed', '支払いが承認され、精算が完了しました。', reason); } catch (e) {}
-        }
+        await decideItems('approved', reason);
         currentStatus.value = 'completed';
         showModal({
           type: 'success', title: '精算完了', message: '支払いを承認し、精算が完了しました。',
@@ -627,7 +612,7 @@ const approvePayment = () => {
         });
       } catch (error) {
         console.error(error);
-        showModal({ type: 'error', title: 'エラー', message: '処理に失敗しました。電波状況を確認してもう一度お試しください。' });
+        showModal({ type: 'error', title: '承認できませんでした', message: settlementErrorMessage(error) });
       } finally {
         submitting.value = false;
       }
@@ -645,21 +630,8 @@ const rejectPayment = () => {
       if (submitting.value) return;
       submitting.value = true;
       try {
-        await updateAllItems('rejected'); // 未払いに戻す → 相手が再リクエスト可能。送金済みか分からないので確認の印を立てる
-        // ⚠️ 逆方向を戻すのが先。お知らせを既読にしてからでは手遅れになる。
-        //    逆方向の取引IDは「未読の承認リクエスト」からしか辿れないため、
-        //    先に既読にすると自分で対象を見つけられなくして、相手の分が完了のまま残る。
-        const revertedCounter = await revertBatchCounterparts(); // 双方向のまとめ精算なら逆方向も戻す
-        await clearApprovalNotifs(); // 残っている承認リクエストのお知らせを消す
-        for (const it of items.value) {
-          await logApprovalBoth({ myUid: auth.currentUser?.uid, myName: await getMyName(), otherUid: it.opponentUid, otherName: it.name, kind: 'payment', outcome: 'rejected', itemName: it.itemName, amount: it.amount });
-          await postPaymentEventByTx(it.id, { text: `${it.name || '相手'}さんの支払いを差し戻しました（未払いに戻りました）`, kind: 'rejected', actorUid: auth.currentUser?.uid });
-        }
-        for (const it of items.value) {
-          await notifyOpponent(it, 'approval_rejected', revertedCounter
-            ? '承認リクエストが拒否されました。双方向の精算がすべて未払いに戻っています。もう一度お手続きできます。'
-            : '承認リクエストが拒否されました。もう一度お支払い手続きをしてください。');
-        }
+        const result = await decideItems('rejected');
+        const revertedCounter = (result.counterTransactionIds || []).length;
         currentStatus.value = 'unpaid';
         showModal({
           type: 'info', title: '拒否しました',
@@ -670,7 +642,7 @@ const rejectPayment = () => {
         });
       } catch (error) {
         console.error(error);
-        showModal({ type: 'error', title: 'エラー', message: '処理に失敗しました。電波状況を確認してもう一度お試しください。' });
+        showModal({ type: 'error', title: '拒否できませんでした', message: settlementErrorMessage(error) });
       } finally {
         submitting.value = false;
       }
@@ -721,10 +693,12 @@ const confirmCash = () => {
         if (submitting.value) return;
         submitting.value = true;
         try {
-          await updateAllItems('awaiting_approval');
+          // 報告ごとに申請IDを付ける。承認・拒否のとき「どの報告への判断か」を見分け、古い画面からの操作を止めるため
+          const requestIds = new Map(items.value.map((it) => [it.id, makeRequestId()]));
+          await updateAllItems('awaiting_approval', (it) => ({ approvalRequestId: requestIds.get(it.id) }));
           const myNm = await getMyName();
           for (const it of items.value) {
-            await notifyOpponent(it, 'approval_request', '支払いの承認リクエストが届きました。', reason);
+            await notifyOpponent(it, 'approval_request', '支払いの承認リクエストが届きました。', reason, { approvalRequestId: requestIds.get(it.id) });
             await postPaymentEventByTx(it.id, { text: `${myNm}さんが支払いました（相手の承認待ち）`, kind: 'paid', actorUid: auth.currentUser?.uid });
           }
           currentStatus.value = 'awaiting_approval'; // 画面のボタンを「承認待ち」に切り替える
