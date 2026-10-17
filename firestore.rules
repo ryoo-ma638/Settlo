@@ -172,10 +172,13 @@ service cloud.firestore {
                                   || resource.data.formId == request.auth.uid);
     }
 
-    // ---- 承認・拒否の履歴（本人のみ読める / 記録は相手側にも書くため create は誰でも） ----
+    // ---- 承認・拒否の履歴（本人のみ読める / 1つの判断で自分の行と相手の行を書く） ----
+    // ⚠️ 2026-10-17 修正。以前はログインしていれば誰でも、誰の履歴にでも行を作れた。
+    //   「書いた人（byUid）が自分」であることを必須にする。相手の行も書く作りなので
+    //   偽の行を完全には防げないが、誰が書いたかは必ず残る（完全に防ぐ作り替えは別途）。
     match /approvalHistory/{id} {
       allow read:           if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create:         if isSignedIn();
+      allow create:         if isSignedIn() && request.resource.data.byUid == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
