@@ -944,3 +944,19 @@ exports.acceptFriendRequest = onCall(
   },
   async (request) => friendAcceptService.handle(request.auth && request.auth.uid, request.data)
 );
+
+// =================================================================
+// イベントへの参加（招待コードの照合と参加者の追加）
+// =================================================================
+// events は参加者だけが読める。招待コードで探して入る処理と、招待のお知らせからの参加はここで行い、
+// 鍵付きのイベントはリーダーへ参加リクエストのお知らせを送る。
+const { createJoinEventService } = require("./joinEventCore");
+const joinEventService = createJoinEventService({ db, FieldValue: admin.firestore.FieldValue });
+
+exports.joinEvent = onCall(
+  {
+    region: "asia-northeast1",
+    cors: ['http://localhost:5173', 'https://pairpay-4c17a.web.app', 'https://settlo-app.web.app', 'https://settlo-app.firebaseapp.com'],
+  },
+  async (request) => joinEventService.handle(request.auth && request.auth.uid, request.data)
+);

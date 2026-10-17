@@ -97,7 +97,8 @@
 <script setup>
 import { ref, watch, reactive, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { db, auth } from '@/firebase';
+import { db, auth, functions } from '@/firebase';
+import { httpsCallable } from 'firebase/functions';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import BaseModal from '@/components/BaseModal.vue';
 import PageHeader from '@/components/PageHeader.vue';
@@ -196,38 +197,29 @@ const joinEvent = async () => {
   if (loading.value) return; // 🌟 連打で参加通知が重複するのを防ぐ
   loading.value = true;
   try {
-    const snap = await getDocs(query(collection(db, "events"), where("invitationCode", "==", code)));
-    if (snap.empty) {
+    // 🌟 2026-10-17 変更。招待コードの照合と参加はサーバー側（joinEvent）で行う。
+    //    events を「ログイン済みなら誰でも読める」形から「参加者だけが読める」形にしたため、
+    //    画面からコードで検索はできない。鍵付きのイベントは今までどおりリーダーへ参加リクエストを送る。
+    const join = httpsCallable(functions, 'joinEvent');
+    const { data } = await join({ code });
+    if (data.status === 'not_found') {
       showModal({ type: 'error', title: '見つかりません', message: 'その招待コードのイベントが見つかりませんでした。' });
       return;
     }
-    const evDoc = snap.docs[0];
-    const data = evDoc.data();
-    if ((data.participants || []).includes(myUid)) {
-      showModal({ type: 'info', title: '参加済み', message: 'すでにこのイベントに参加しています。', onConfirm: () => router.push(`/event/${evDoc.id}`) });
+    if (data.status === 'already') {
+      showModal({ type: 'info', title: '参加済み', message: 'すでにこのイベントに参加しています。', onConfirm: () => router.push(`/event/${data.eventId}`) });
       return;
     }
-    const myName = await getMyName();
-
-    // 🌟 鍵付きイベントは、すぐには参加せずリーダーへ参加リクエストを送る
-    if (data.locked === true && data.leaderUid) {
-      if (requestedEventIds.value.has(evDoc.id)) {
-        showToast('すでにリクエスト中です。リーダーの承認をお待ちください');
-        return;
-      }
-      await addDoc(collection(db, "notifications"), {
-        toUserId: data.leaderUid, type: 'event_join_request',
-        eventId: evDoc.id, eventName: data.name || '',
-        fromUserId: myUid, fromUserName: myName,
-        isRead: false, createdAt: serverTimestamp(),
-      });
-      requestedEventIds.value.add(evDoc.id);
+    if (data.status === 'already_requested') {
+      showToast('すでにリクエスト中です。リーダーの承認をお待ちください');
+      return;
+    }
+    if (data.status === 'request_sent') {
+      requestedEventIds.value.add(data.eventId);
       showToast('リーダーの承認待ちです');
       return;
     }
-
-    await updateDoc(doc(db, "events", evDoc.id), { participants: arrayUnion(myUid) });
-    showModal({ type: 'success', title: '参加完了', message: `「${data.name}」に参加しました！`, onConfirm: () => router.push(`/event/${evDoc.id}`) });
+    showModal({ type: 'success', title: '参加完了', message: `「${data.eventName}」に参加しました！`, onConfirm: () => router.push(`/event/${data.eventId}`) });
   } catch (e) {
     console.error("参加エラー:", e);
     showModal({ type: 'error', title: 'エラー', message: '参加に失敗しました。電波状況を確認してください。' });

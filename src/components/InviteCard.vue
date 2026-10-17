@@ -59,6 +59,10 @@ const onAccept = async () => {
       return;
     }
     emit('handled', props.invite.id);
+    if (res.status === 'request_sent' || res.status === 'already_requested') {
+      showToast('リーダーの承認待ちです'); // 鍵付きのイベント。参加者になるまでイベント画面は開けない
+      return;
+    }
     showToast('イベントに参加しました');
     router.push(`/event/${res.eventId}`);
   } catch (e) {

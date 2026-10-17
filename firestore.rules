@@ -5,7 +5,7 @@ rules_version = '2';
 //   方針：ログインだけで全データ読み書き可、をやめる。
 //   - users: プロフィールは相互参照が必要なので「読み=全ログインユーザー / 書き=本人のみ」
 //   - transactions（金額・債権債務）: 当事者 or イベント参加者のみ
-//   - events: 参加（招待コード検索）が必要なので読みは全ログインユーザー / 変更は参加者
+//   - events: 読み書きとも参加者のみ（招待コードの照合と参加は Cloud Functions の joinEvent が行う）
 //   - notifications: 受信者のみ読める / 作成は誰でも（承認・催促・拒否を送るため）
 //   - friendRequests: 当事者（送信者/受信者）のみ
 //   一致しないコレクションは既定で拒否（catch-all なし）。
@@ -30,18 +30,6 @@ service cloud.firestore {
         && eventId != null
         && exists(/databases/$(database)/documents/events/$(eventId))
         && request.auth.uid in get(/databases/$(database)/documents/events/$(eventId)).data.participants;
-    }
-
-    // 「自分を参加者に1人足すだけ」の更新か（join）。
-    // 他の項目を1つでも触っていたら false。既存の参加者を減らしていても false。
-    function isSelfJoinOnly() {
-      return resource.data.get('locked', false) != true
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants'])
-        && request.resource.data.participants.toSet()
-             .difference(resource.data.participants.toSet())
-           == [request.auth.uid].toSet()
-        && resource.data.participants.toSet()
-             .difference(request.resource.data.participants.toSet()).size() == 0;
     }
 
     // ---- ユーザープロフィール ----
@@ -114,22 +102,22 @@ service cloud.firestore {
     }
 
     // ---- イベント ----
+    // ⚠️ 2026-10-17 修正。
+    //   以前は「招待コード検索で参加するため」にログイン済みなら誰でも読めた。そのため公開デモの
+    //   ゲストを含む誰でも、全イベントの名前・参加者・招待コード・総額を一覧でき、鍵なしのイベントへ入れた。
+    //   招待コードの照合と参加は Cloud Functions（joinEvent）が行うので、読み取りは参加者だけに閉じる。
+    //   一覧は「participants に自分を含む」条件の問い合わせだけが通る。無い文書の読み取りは中身が返らないので通す。
     match /events/{eventId} {
-      allow read: if isSignedIn();          // 招待コード検索でjoinするため
+      allow get: if isSignedIn()
+                   && (resource == null || request.auth.uid in resource.data.participants);
+      allow list: if isSignedIn() && request.auth.uid in resource.data.participants;
       allow create: if isSignedIn()
                       && request.auth.uid in request.resource.data.participants
                       && request.resource.data.get('activeEventSettlementPlanId', null) == null
                       && request.resource.data.get('lastEventSettlementPlanId', null) == null;
-      // 既存参加者の編集 or「自分を参加者に追加する更新（join）」を許可
-      // 鍵付き（locked=true）のイベントは自分での追加を認めない＝リーダーの承認が必要
-      //
-      // ⚠️ 2026-09-18 修正。
-      //   以前は「自分が参加者に入っていれば何でも書ける」だったため、参加していない人でも
-      //   自分を足すのと同時に totalAmount・名前・他の参加者まで書き換えられた。
-      //   さらに参加者になれば history と transactions も触れてしまう（金額が動く）。
-      //   join は「participants に自分を1人足すだけ」に限定する。
-      //   招待コードでの参加・招待からの参加・再参加は、どれも
-      //   updateDoc(..., { participants: arrayUnion(自分) }) の1項目だけなので、これで通る。
+      // 変更は参加者だけ。
+      // ⚠️ 2026-10-17 修正。以前は「自分を参加者に1人足すだけの更新」を参加者でなくても許していた
+      //   （招待コード参加のため）。参加は joinEvent が行うので、この抜け道は閉じた。
       allow update: if isSignedIn()
                       && request.resource.data.get('activeEventSettlementPlanId', null)
                         == resource.data.get('activeEventSettlementPlanId', null)
@@ -137,8 +125,7 @@ service cloud.firestore {
                         == resource.data.get('lastEventSettlementPlanId', null)
                       && (resource.data.get('activeEventSettlementPlanId', null) == null
                           || request.resource.data.participants == resource.data.participants)
-                      && (request.auth.uid in resource.data.participants
-                          || isSelfJoinOnly());
+                      && request.auth.uid in resource.data.participants;
       allow delete: if isSignedIn() && request.auth.uid in resource.data.participants;
 
       // 立替履歴：そのイベントの参加者のみ
