@@ -192,6 +192,20 @@ test('フレンド申請：送った側は自分の申請を承認済みにで�
   assert.equal((await getDoc(doc(owner, 'friendRequests', id))).data().status, 'accepted');
 });
 
+test('承認履歴：書いた人を偽った行や、書いた人の無い行は作れない', async () => {
+  await assert.rejects(setDoc(doc(stranger, 'approvalHistory', `ah-fake-${Date.now().toString(36)}`),
+    { userId: 'u-owner', role: 'toMe', kind: 'payment', outcome: 'approved', byUid: 'u-member' }), denied);
+  await assert.rejects(setDoc(doc(stranger, 'approvalHistory', `ah-none-${Date.now().toString(36)}`),
+    { userId: 'u-owner', role: 'toMe', kind: 'payment', outcome: 'approved' }), denied);
+});
+
+test('承認履歴：自分が書いたと記録すれば、自分の行も相手の行も今までどおり作れる', async () => {
+  const id = `ah-ok-${Date.now().toString(36)}`;
+  await setDoc(doc(member, 'approvalHistory', `${id}-me`), { userId: 'u-member', role: 'byMe', kind: 'payment', outcome: 'approved', byUid: 'u-member' });
+  await setDoc(doc(member, 'approvalHistory', `${id}-other`), { userId: 'u-owner', role: 'toMe', kind: 'payment', outcome: 'approved', byUid: 'u-member' });
+  assert.equal((await getDoc(doc(owner, 'approvalHistory', `${id}-other`))).data().byUid, 'u-member');
+});
+
 test('立て替えのグループチャットを、立替者が新規に作れる', async () => {
   // ensurePaymentThread は「読んでから書く」。まだ無いスレッドの読み取りが拒否されると
   // ここで止まり、チャットが一度も作られない（実際に本番でそうなっていた）。
