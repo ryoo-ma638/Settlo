@@ -50,6 +50,9 @@ service-account.json
 .playwright-mcp/
 # Firebase デプロイキャッシュ（追跡しない）
 .firebase/
-# ローカル用の開発メモ（公開リポでは 開発メモ.md を使う）
+# 手元だけで使う作業メモ（公開しない）
 CLAUDE.md
 task.md
+TASKS.md
+開発メモ.md
+tests/receipt-flow/README.md
